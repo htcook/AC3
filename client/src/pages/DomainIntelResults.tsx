@@ -694,10 +694,16 @@ export default function DomainIntelResults() {
             <Button
               size="sm"
               className="text-xs bg-purple-600 hover:bg-purple-700 text-white"
-              onClick={() => {
+              onClick={async () => {
                 const fullScanData = { ...scan, ...pipeline, assets, observations: pipeline?.observations || [] };
-                exportDiReport(scan.primaryDomain, fullScanData);
                 toast.success('Generating Domain Intelligence report PDF — this may take a moment');
+                let evidenceData;
+                try {
+                  const resp = await fetch(`/api/trpc/domainIntel.getReportEvidence?input=${encodeURIComponent(JSON.stringify({ scanId: scan.id }))}`);
+                  const res = await resp.json();
+                  evidenceData = res?.result?.data;
+                } catch { /* optional */ }
+                exportDiReport(scan.primaryDomain, fullScanData, undefined, evidenceData);
               }}
             >
               <FileText className="h-3.5 w-3.5 mr-1.5" />
@@ -715,10 +721,16 @@ export default function DomainIntelResults() {
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuLabel>Export Data</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => {
+              <DropdownMenuItem onClick={async () => {
                 const fullScanData = { ...scan, ...pipeline, assets, observations: pipeline?.observations || [] };
-                exportDiReport(scan.primaryDomain, fullScanData);
                 toast.success('Domain Intelligence report export started — this may take a moment');
+                let evidenceData;
+                try {
+                  const resp = await fetch(`/api/trpc/domainIntel.getReportEvidence?input=${encodeURIComponent(JSON.stringify({ scanId: scan.id }))}`);
+                  const res = await resp.json();
+                  evidenceData = res?.result?.data;
+                } catch { /* optional */ }
+                exportDiReport(scan.primaryDomain, fullScanData, undefined, evidenceData);
               }}>
                 <ShieldAlert className="h-4 w-4 mr-2" /> Full DI Report (PDF)
               </DropdownMenuItem>

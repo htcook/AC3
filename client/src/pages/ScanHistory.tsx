@@ -363,7 +363,13 @@ export default function ScanHistory() {
                                       const pipeline = fullScan.pipelineOutput || {};
                                       const assets = fullData.assets || [];
                                       const fullScanData = { ...fullScan, ...pipeline, assets, observations: pipeline?.observations || [] };
-                                      await exportDiReport(fullScan.primaryDomain, fullScanData);
+                                      let evidenceData;
+                                      try {
+                                        const evResp = await fetch(`/api/trpc/domainIntel.getReportEvidence?input=${encodeURIComponent(JSON.stringify({ scanId: scan.id }))}`);
+                                        const evResult = await evResp.json();
+                                        evidenceData = evResult?.result?.data;
+                                      } catch { /* optional */ }
+                                      await exportDiReport(fullScan.primaryDomain, fullScanData, undefined, evidenceData);
                                       toast.success('DI report generated');
                                     } catch (err: any) {
                                       toast.error('Report failed: ' + (err.message || 'Unknown error'));

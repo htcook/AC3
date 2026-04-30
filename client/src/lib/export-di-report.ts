@@ -82,12 +82,70 @@ function truncate(str: string | null | undefined, max: number): string {
 }
 
 /**
+ * Evidence data from nuclei findings, web crawl results, and active scan tool results.
+ * Fetched via domainIntel.getReportEvidence before report generation.
+ */
+export interface ReportEvidenceData {
+  nucleiFindings: Array<{
+    id: number;
+    templateId: string;
+    templateName: string | null;
+    severity: string;
+    host: string;
+    matchedAt: string | null;
+    extractedResults: string | null;
+    curlCommand: string | null;
+    description: string | null;
+    cveId: string | null;
+    cvssScore: string | null;
+    nucleiCommand: string | null;
+    verified: number | null;
+    nucleiVerified: number | null;
+    createdAt: string;
+  }>;
+  webCrawlResults: Array<{
+    id: number;
+    targetUrl: string;
+    finalUrl: string | null;
+    domain: string | null;
+    httpStatus: number | null;
+    responseTimeMs: number | null;
+    securityHeaders: any;
+    securityHeaderGrade: string | null;
+    detectedTechnologies: any;
+    serverHeader: string | null;
+    poweredBy: string | null;
+    pageTitle: string | null;
+    forms: any;
+    exposedPaths: any;
+    cookies: any;
+    tlsInfo: any;
+    findings: any;
+    totalFindings: number | null;
+  }>;
+  scanResults: Array<{
+    id: number;
+    tool: string;
+    target: string;
+    command: string | null;
+    rawOutput: string | null;
+    exitCode: number | null;
+    durationMs: number | null;
+    findings: any;
+    findingCount: number | null;
+    phase: string | null;
+    createdAt: string;
+  }>;
+}
+
+/**
  * Export a comprehensive Domain Intelligence PDF report
  */
 export async function exportDiReport(
   domain: string,
   scan: any,
   wlConfig?: { platformName?: string; orgName?: string; reportCompanyName?: string; reportFooterText?: string; reportDisclaimerText?: string; reportAuthorName?: string; copyrightHolder?: string },
+  evidenceData?: ReportEvidenceData,
 ): Promise<void> {
   const _wl = {
     platformName: wlConfig?.platformName ?? 'AC3',
@@ -104,6 +162,83 @@ export async function exportDiReport(
   const pageHeight = doc.internal.pageSize.getHeight();
   const margin = 15;
   const contentWidth = pageWidth - margin * 2;
+
+  // ── Evidence Lookup Helpers ──
+  // Build a map from CVE ID / host to nuclei findings for quick evidence lookup
+  const _nucleiMap = new Map<string, typeof evidenceData extends undefined ? never : NonNullable<typeof evidenceData>['nucleiFindings'][0][]>();
+  if (evidenceData?.nucleiFindings) {
+    for (const nf of evidenceData.nucleiFindings) {
+      const key = nf.cveId ? nf.cveId.toLowerCase() : nf.templateId;
+      if (!_nucleiMap.has(key)) _nucleiMap.set(key, []);
+      _nucleiMap.get(key)!.push(nf as any);
+      // Also index by host for non-CVE findings
+      const hostKey = `${nf.host}:${nf.templateId}`;
+      if (!_nucleiMap.has(hostKey)) _nucleiMap.set(hostKey, []);
+      _nucleiMap.get(hostKey)!.push(nf as any);
+    }
+  }
+
+  /** Look up nuclei evidence for a given CVE ID or template */
+  function getNucleiEvidence(cveId?: string, host?: string, templateId?: string): any[] {
+    if (!evidenceData?.nucleiFindings?.length) return [];
+    const results: any[] = [];
+    if (cveId) {
+      const matches = _nucleiMap.get(cveId.toLowerCase());
+      if (matches) results.push(...matches);
+    }
+    if (host && templateId) {
+      const matches = _nucleiMap.get(`${host}:${templateId}`);
+      if (matches) results.push(...matches);
+    }
+    return results;
+  }
+
+  /** Render a monospace code block in the PDF (dark background, light text) */
+  function renderCodeBlock(text: string, label: string, maxLines: number = 6): void {
+    if (!text || text.trim().length === 0) return;
+    const lines = text.split('\n').slice(0, maxLines);
+    const blockHeight = Math.max(lines.length * 3 + 6, 10);
+    y = checkPageBreak(y, blockHeight + 4);
+
+    // Label
+    doc.setFontSize(5.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(100, 116, 139);
+    doc.text(label, margin + 3, y);
+    y += 2.5;
+
+    // Dark code background
+    doc.setFillColor(15, 23, 42); // slate-900
+    doc.roundedRect(margin + 2, y, contentWidth - 4, blockHeight, 1.5, 1.5, 'F');
+
+    // Code text
+    doc.setFontSize(5);
+    doc.setFont('courier', 'normal');
+    doc.setTextColor(226, 232, 240); // slate-200
+    let codeY = y + 3;
+    for (const line of lines) {
+      const truncLine = line.length > 120 ? line.substring(0, 117) + '...' : line;
+      doc.text(truncLine, margin + 4, codeY);
+      codeY += 3;
+    }
+    if (text.split('\n').length > maxLines) {
+      doc.setTextColor(148, 163, 184);
+      doc.text(`... ${text.split('\n').length - maxLines} more lines`, margin + 4, codeY);
+    }
+    y += blockHeight + 2;
+  }
+
+  /** Render an evidence badge (green confirmed, amber probable, etc.) */
+  function renderEvidenceBadge(text: string, color: [number, number, number]): void {
+    const badgeWidth = doc.getTextWidth(text) + 4;
+    doc.setFillColor(color[0], color[1], color[2]);
+    doc.roundedRect(margin + 2, y - 2.5, badgeWidth, 4, 1, 1, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(5);
+    doc.setFont('helvetica', 'bold');
+    doc.text(text, margin + 4, y);
+    y += 3;
+  }
 
   // ── Data Normalization Layer ──
   // The pipeline output uses different field names/structures than what the report
@@ -562,18 +697,53 @@ export async function exportDiReport(
   doc.setFontSize(9);
   doc.text('OVERALL RISK ASSESSMENT', margin + 5, y + 8);
 
-  // Risk gauge
+  // Risk gauge — visual arc with score
   const riskScore = scan.overallRiskScore ?? 0;
   const riskBand = scan.overallRiskBand || 'unknown';
   const riskColor = getRiskColor(riskBand);
-  doc.setFillColor(riskColor[0], riskColor[1], riskColor[2]);
-  doc.roundedRect(margin + 5, y + 12, 35, 30, 3, 3, 'F');
+
+  // Draw semicircular gauge background
+  const gaugeX = margin + 22;
+  const gaugeY = y + 30;
+  const gaugeR = 16;
+  // Background arc (gray)
+  doc.setDrawColor(51, 65, 85);
+  doc.setLineWidth(3);
+  for (let angle = 180; angle <= 360; angle += 2) {
+    const rad = (angle * Math.PI) / 180;
+    const x1 = gaugeX + gaugeR * Math.cos(rad);
+    const y1 = gaugeY + gaugeR * Math.sin(rad);
+    const rad2 = ((angle + 2) * Math.PI) / 180;
+    const x2 = gaugeX + gaugeR * Math.cos(rad2);
+    const y2 = gaugeY + gaugeR * Math.sin(rad2);
+    doc.line(x1, y1, x2, y2);
+  }
+  // Colored arc (risk level)
+  doc.setDrawColor(riskColor[0], riskColor[1], riskColor[2]);
+  const fillAngle = 180 + (riskScore / 100) * 180;
+  for (let angle = 180; angle <= fillAngle; angle += 2) {
+    const rad = (angle * Math.PI) / 180;
+    const x1 = gaugeX + gaugeR * Math.cos(rad);
+    const y1 = gaugeY + gaugeR * Math.sin(rad);
+    const rad2 = ((angle + 2) * Math.PI) / 180;
+    const x2 = gaugeX + gaugeR * Math.cos(rad2);
+    const y2 = gaugeY + gaugeR * Math.sin(rad2);
+    doc.line(x1, y1, x2, y2);
+  }
+  doc.setLineWidth(0.2);
+  // Score number in center
   doc.setTextColor(255, 255, 255);
-  doc.setFontSize(22);
+  doc.setFontSize(18);
   doc.setFont('helvetica', 'bold');
-  doc.text(String(riskScore), margin + 12, y + 28);
-  doc.setFontSize(8);
-  doc.text(riskBand.toUpperCase(), margin + 10, y + 37);
+  const scoreStr = String(riskScore);
+  const scoreWidth = doc.getTextWidth(scoreStr);
+  doc.text(scoreStr, gaugeX - scoreWidth / 2, gaugeY - 2);
+  // Band label below
+  doc.setFontSize(7);
+  doc.setTextColor(riskColor[0], riskColor[1], riskColor[2]);
+  const bandStr = riskBand.toUpperCase();
+  const bandWidth = doc.getTextWidth(bandStr);
+  doc.text(bandStr, gaugeX - bandWidth / 2, gaugeY + 5);
 
   // Key metrics
   doc.setTextColor(255, 255, 255);
@@ -638,11 +808,41 @@ export async function exportDiReport(
     doc.text(`Client Type: ${scan.orgProfile.clientType}`, margin, y + 21);
   }
 
+  // Evidence verification summary (bottom of cover page)
+  if (evidenceData) {
+    const evY = 200;
+    doc.setFillColor(30, 41, 59);
+    doc.roundedRect(margin, evY, contentWidth, 28, 2, 2, 'F');
+    doc.setTextColor(148, 163, 184);
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'bold');
+    doc.text('VERIFICATION COVERAGE', margin + 5, evY + 6);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(226, 232, 240);
+    const nucleiCount = evidenceData.nucleiFindings?.length || 0;
+    const nucleiVerified = evidenceData.nucleiFindings?.filter((n: any) => n.nucleiVerified || n.verified).length || 0;
+    const crawlCount = evidenceData.webCrawlResults?.length || 0;
+    const toolRuns = evidenceData.scanResults?.length || 0;
+    const verificationLine = [
+      `${nucleiCount} Nuclei findings (${nucleiVerified} actively verified)`,
+      `${crawlCount} web assets crawled`,
+      `${toolRuns} tool executions`,
+    ].join('  \u2022  ');
+    doc.text(verificationLine, margin + 5, evY + 14);
+    // Evidence quality indicator
+    const evidenceQuality = nucleiVerified > 5 ? 'HIGH' : nucleiVerified > 0 ? 'MODERATE' : 'PASSIVE ONLY';
+    const eqColor: [number, number, number] = nucleiVerified > 5 ? [22, 163, 74] : nucleiVerified > 0 ? [202, 138, 4] : [148, 163, 184];
+    doc.setTextColor(eqColor[0], eqColor[1], eqColor[2]);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`Evidence Quality: ${evidenceQuality}`, margin + 5, evY + 22);
+  }
+
   // Footer
   doc.setFontSize(7);
   doc.setTextColor(100, 116, 139);
-  doc.text('CONFIDENTIAL — For authorized recipients only', margin, pageHeight - 15);
-  doc.text(`${_wl.platformName} Platform — Domain Intelligence Module`, margin, pageHeight - 10);
+  doc.text('CONFIDENTIAL \u2014 For authorized recipients only', margin, pageHeight - 15);
+  doc.text(`${_wl.platformName} Platform \u2014 Domain Intelligence Module`, margin, pageHeight - 10);
 
   // ═══════════════════════════════════════════════════════════════════════
   // TABLE OF CONTENTS (placeholder page — filled in after all sections render)
@@ -3084,7 +3284,7 @@ export async function exportDiReport(
       }
     }
 
-    // ── Evidence + Affected hosts (single compact line) ──
+    // ── Evidence + Affected hosts ──
     doc.setFontSize(5.5);
     doc.setFont('helvetica', 'italic');
     doc.setTextColor(22, 101, 52);
@@ -3101,7 +3301,55 @@ export async function exportDiReport(
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(80, 80, 80);
     doc.text(`Affected Assets (${hosts.length}): ${hostText}`, margin + 2, y);
-    y += 4; // Compact gap before next card
+    y += 3;
+
+    // ── Rich Evidence Block (from Nuclei findings) ──
+    const nucleiEvidence = getNucleiEvidence(cveId !== 'N/A' ? cveId : undefined, hosts[0]);
+    if (nucleiEvidence.length > 0) {
+      const nf = nucleiEvidence[0]; // Use the first (most relevant) finding
+
+      // Verification badge
+      if (nf.nucleiVerified || nf.verified) {
+        renderEvidenceBadge('\u2713 ACTIVELY VERIFIED BY NUCLEI', [22, 101, 52]);
+      } else {
+        renderEvidenceBadge('\u25CB NUCLEI TEMPLATE MATCH', [100, 116, 139]);
+      }
+
+      // Template info line
+      doc.setFontSize(5);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(71, 85, 105);
+      const templateInfo = `Template: ${nf.templateId}${nf.templateName ? ` (${truncate(nf.templateName, 60)})` : ''} | Host: ${nf.host}${nf.matchedAt ? ` | Match: ${truncate(nf.matchedAt, 60)}` : ''}`;
+      doc.text(templateInfo, margin + 3, y);
+      y += 2.5;
+
+      // Extracted results (the actual evidence data)
+      if (nf.extractedResults) {
+        try {
+          const extracted = JSON.parse(nf.extractedResults);
+          if (Array.isArray(extracted) && extracted.length > 0) {
+            renderCodeBlock(extracted.slice(0, 5).join('\n'), 'Extracted Evidence:', 5);
+          } else if (typeof extracted === 'string' && extracted.length > 0) {
+            renderCodeBlock(extracted, 'Extracted Evidence:', 4);
+          }
+        } catch {
+          if (nf.extractedResults.length > 3) {
+            renderCodeBlock(nf.extractedResults, 'Extracted Evidence:', 4);
+          }
+        }
+      }
+
+      // Curl command (reproducible verification)
+      if (nf.curlCommand) {
+        renderCodeBlock(nf.curlCommand, 'Verification Command (curl):', 3);
+      }
+
+      // Nuclei command used
+      if (nf.nucleiCommand && !nf.curlCommand) {
+        renderCodeBlock(nf.nucleiCommand, 'Scan Command:', 2);
+      }
+    }
+    y += 2; // Gap before next card
   };
 
   if (vulnObs.length > 0) {
@@ -4774,6 +5022,232 @@ export async function exportDiReport(
       doc.setFontSize(7);
       y = writeText(chain.description || chain.narrative || '', margin + 3, y, contentWidth - 6, 7);
       y += 3;
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // 9b. WEB SECURITY ANALYSIS (from crawl data)
+  // ═══════════════════════════════════════════════════════════════════════
+  if (evidenceData?.webCrawlResults && evidenceData.webCrawlResults.length > 0) {
+    y = startSection('Web Security Analysis', y, 80);
+
+    // Summary stats
+    const crawlResults = evidenceData.webCrawlResults;
+    const gradeDistribution: Record<string, number> = {};
+    let totalCrawlFindings = 0;
+    let assetsWithForms = 0;
+    let assetsWithExposedPaths = 0;
+    let insecureCookies = 0;
+
+    for (const cr of crawlResults) {
+      const grade = cr.securityHeaderGrade || 'N/A';
+      gradeDistribution[grade] = (gradeDistribution[grade] || 0) + 1;
+      totalCrawlFindings += cr.totalFindings || 0;
+      const forms = (cr.forms as any[]) || [];
+      if (forms.some((f: any) => f.hasPasswordField)) assetsWithForms++;
+      if (((cr.exposedPaths as any[]) || []).length > 0) assetsWithExposedPaths++;
+      const cookies = (cr.cookies as any[]) || [];
+      insecureCookies += cookies.filter((c: any) => !c.secure || !c.httpOnly).length;
+    }
+
+    // Overview metrics row
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(51, 65, 85);
+    const crawlSummary = `${crawlResults.length} assets crawled | ${totalCrawlFindings} security findings | ${assetsWithForms} login forms | ${assetsWithExposedPaths} exposed paths | ${insecureCookies} insecure cookies`;
+    doc.text(crawlSummary, margin, y);
+    y += 6;
+
+    // Security Header Grades table
+    y = subheading('Security Header Grades', y);
+    const gradeRows = crawlResults
+      .filter((cr: any) => cr.securityHeaderGrade)
+      .sort((a: any, b: any) => {
+        const gradeOrder = ['F', 'D', 'C', 'B', 'A', 'A+'];
+        return gradeOrder.indexOf(a.securityHeaderGrade || 'F') - gradeOrder.indexOf(b.securityHeaderGrade || 'F');
+      })
+      .slice(0, 20);
+
+    if (gradeRows.length > 0) {
+      autoTable!(doc, {
+        startY: y,
+        head: [['Asset', 'Grade', 'Server', 'Findings', 'Missing Headers']],
+        body: gradeRows.map((cr: any) => {
+          const headers = cr.securityHeaders as any || {};
+          const missing: string[] = [];
+          if (!headers['strict-transport-security']) missing.push('HSTS');
+          if (!headers['content-security-policy']) missing.push('CSP');
+          if (!headers['x-frame-options'] && !headers['content-security-policy']?.includes('frame-ancestors')) missing.push('X-Frame');
+          if (!headers['x-content-type-options']) missing.push('X-Content-Type');
+          if (!headers['permissions-policy']) missing.push('Permissions-Policy');
+          return [
+            truncate(cr.targetUrl?.replace(/^https?:\/\//, '') || cr.domain || '', 40),
+            cr.securityHeaderGrade || 'N/A',
+            truncate(cr.serverHeader || 'Unknown', 25),
+            String(cr.totalFindings || 0),
+            missing.slice(0, 4).join(', ') + (missing.length > 4 ? '...' : ''),
+          ];
+        }),
+        theme: 'grid',
+        headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 6.5, fontStyle: 'bold', cellPadding: 2 },
+        bodyStyles: { fontSize: 6, cellPadding: 1.5, textColor: [51, 65, 85] },
+        alternateRowStyles: { fillColor: [241, 245, 249] },
+        margin: { left: margin, right: margin },
+        columnStyles: { 0: { cellWidth: 50 }, 1: { cellWidth: 14, halign: 'center' as const }, 2: { cellWidth: 30 }, 3: { cellWidth: 16, halign: 'center' as const } },
+        didParseCell: (data: any) => {
+          if (data.section === 'body' && data.column.index === 1) {
+            const grade = data.cell.raw;
+            if (grade === 'F') data.cell.styles.textColor = [220, 38, 38];
+            else if (grade === 'D') data.cell.styles.textColor = [234, 88, 12];
+            else if (grade === 'C') data.cell.styles.textColor = [202, 138, 4];
+            else if (grade === 'A' || grade === 'A+') data.cell.styles.textColor = [22, 163, 74];
+          }
+        },
+      });
+      y = (doc as any).lastAutoTable.finalY + 5;
+    }
+
+    // Exposed paths (sensitive file/directory discovery)
+    const allExposedPaths = crawlResults.flatMap((cr: any) =>
+      ((cr.exposedPaths as any[]) || []).map((p: any) => ({ ...p, host: cr.domain || cr.targetUrl }))
+    );
+    if (allExposedPaths.length > 0) {
+      y = checkPageBreak(y, 30);
+      y = subheading(`Exposed Paths & Sensitive Files (${allExposedPaths.length})`, y);
+      autoTable!(doc, {
+        startY: y,
+        head: [['Host', 'Path', 'Status', 'Risk']],
+        body: allExposedPaths.slice(0, 20).map((p: any) => [
+          truncate(p.host?.replace(/^https?:\/\//, '') || '', 30),
+          truncate(p.path || p.url || '', 50),
+          String(p.status || p.httpStatus || 'N/A'),
+          p.risk || p.severity || 'medium',
+        ]),
+        theme: 'grid',
+        headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 6.5, fontStyle: 'bold', cellPadding: 2 },
+        bodyStyles: { fontSize: 6, cellPadding: 1.5, textColor: [51, 65, 85] },
+        alternateRowStyles: { fillColor: [241, 245, 249] },
+        margin: { left: margin, right: margin },
+      });
+      y = (doc as any).lastAutoTable.finalY + 5;
+    }
+
+    // Login forms discovered
+    const allForms = crawlResults.flatMap((cr: any) =>
+      ((cr.forms as any[]) || []).filter((f: any) => f.hasPasswordField).map((f: any) => ({ ...f, host: cr.domain || cr.targetUrl }))
+    );
+    if (allForms.length > 0) {
+      y = checkPageBreak(y, 25);
+      y = subheading(`Login Forms Discovered (${allForms.length})`, y);
+      autoTable!(doc, {
+        startY: y,
+        head: [['Host', 'Action URL', 'Method', 'Fields']],
+        body: allForms.slice(0, 15).map((f: any) => [
+          truncate(f.host?.replace(/^https?:\/\//, '') || '', 30),
+          truncate(f.action || f.actionUrl || 'N/A', 50),
+          (f.method || 'POST').toUpperCase(),
+          String(f.fieldCount || f.inputs?.length || 'N/A'),
+        ]),
+        theme: 'grid',
+        headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 6.5, fontStyle: 'bold', cellPadding: 2 },
+        bodyStyles: { fontSize: 6, cellPadding: 1.5, textColor: [51, 65, 85] },
+        alternateRowStyles: { fillColor: [241, 245, 249] },
+        margin: { left: margin, right: margin },
+      });
+      y = (doc as any).lastAutoTable.finalY + 5;
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // 9c. ACTIVE SCAN TOOL RESULTS
+  // ═══════════════════════════════════════════════════════════════════════
+  if (evidenceData?.scanResults && evidenceData.scanResults.length > 0) {
+    y = startSection('Active Scan Tool Results', y, 80);
+
+    const toolResults = evidenceData.scanResults;
+    // Group by tool
+    const toolGroups = new Map<string, typeof toolResults>();
+    for (const tr of toolResults) {
+      const tool = tr.tool || 'unknown';
+      if (!toolGroups.has(tool)) toolGroups.set(tool, []);
+      toolGroups.get(tool)!.push(tr);
+    }
+
+    // Summary table
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(51, 65, 85);
+    doc.text(`${toolResults.length} tool executions across ${toolGroups.size} tools`, margin, y);
+    y += 5;
+
+    autoTable!(doc, {
+      startY: y,
+      head: [['Tool', 'Runs', 'Findings', 'Avg Duration', 'Exit Codes']],
+      body: Array.from(toolGroups.entries()).map(([tool, runs]) => {
+        const totalFindings = runs.reduce((sum, r) => sum + (r.findingCount || 0), 0);
+        const avgDuration = runs.reduce((sum, r) => sum + (r.durationMs || 0), 0) / runs.length;
+        const exitCodes = [...new Set(runs.map(r => r.exitCode))].filter(c => c !== null);
+        return [
+          tool,
+          String(runs.length),
+          String(totalFindings),
+          `${(avgDuration / 1000).toFixed(1)}s`,
+          exitCodes.join(', '),
+        ];
+      }),
+      theme: 'grid',
+      headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 7, fontStyle: 'bold', cellPadding: 2 },
+      bodyStyles: { fontSize: 6.5, cellPadding: 1.5, textColor: [51, 65, 85] },
+      alternateRowStyles: { fillColor: [241, 245, 249] },
+      margin: { left: margin, right: margin },
+    });
+    y = (doc as any).lastAutoTable.finalY + 5;
+
+    // Show top 5 most interesting tool results with command + output snippet
+    const interestingResults = toolResults
+      .filter(r => (r.findingCount || 0) > 0 || r.exitCode !== 0)
+      .sort((a, b) => (b.findingCount || 0) - (a.findingCount || 0))
+      .slice(0, 5);
+
+    if (interestingResults.length > 0) {
+      y = subheading('Notable Tool Executions', y);
+
+      for (const tr of interestingResults) {
+        y = checkPageBreak(y, 25);
+
+        // Tool header badge
+        const toolBadgeColor: [number, number, number] = tr.exitCode === 0 ? [22, 101, 52] : [220, 38, 38];
+        doc.setFillColor(toolBadgeColor[0], toolBadgeColor[1], toolBadgeColor[2]);
+        const toolLabel = `${tr.tool} | ${tr.phase || 'scan'} | exit:${tr.exitCode ?? '?'} | ${tr.durationMs ? (tr.durationMs / 1000).toFixed(1) + 's' : 'N/A'}`;
+        const badgeW = doc.getTextWidth(toolLabel) * 1.3 + 6;
+        doc.roundedRect(margin, y, badgeW, 4.5, 1, 1, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(5.5);
+        doc.setFont('helvetica', 'bold');
+        doc.text(toolLabel, margin + 2, y + 3);
+        y += 6;
+
+        // Target
+        doc.setTextColor(71, 85, 105);
+        doc.setFontSize(5.5);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Target: ${truncate(tr.target, 80)} | Findings: ${tr.findingCount || 0}`, margin + 2, y);
+        y += 3;
+
+        // Command executed
+        if (tr.command) {
+          renderCodeBlock(tr.command, 'Command:', 2);
+        }
+
+        // Output snippet (first meaningful lines)
+        if (tr.rawOutput) {
+          const outputLines = tr.rawOutput.split('\n').filter((l: string) => l.trim().length > 0);
+          if (outputLines.length > 0) {
+            renderCodeBlock(outputLines.slice(0, 8).join('\n'), 'Output:', 8);
+          }
+        }
+        y += 2;
+      }
     }
   }
 

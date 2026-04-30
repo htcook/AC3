@@ -63,7 +63,14 @@ export default function DomainIntelReports() {
       const pipeline = fullScan.pipelineOutput || {};
       const assets = fullData.assets || [];
       const fullScanData = { ...fullScan, ...pipeline, assets, observations: pipeline?.observations || [] };
-      await exportDiReport(fullScan.primaryDomain, fullScanData);
+      // Fetch rich evidence data (nuclei findings, web crawl, scan results)
+      let evidenceData;
+      try {
+        const evidenceResp = await fetch(`/api/trpc/domainIntel.getReportEvidence?input=${encodeURIComponent(JSON.stringify({ scanId: scan.id }))}`);
+        const evidenceResult = await evidenceResp.json();
+        evidenceData = evidenceResult?.result?.data;
+      } catch { /* Evidence fetch is optional — report works without it */ }
+      await exportDiReport(fullScan.primaryDomain, fullScanData, undefined, evidenceData);
       toast.success("Domain Intelligence report PDF generated successfully");
     } catch (err: any) {
       toast.error("Report generation failed: " + (err.message || "Unknown error"));

@@ -3526,4 +3526,105 @@ export const domainIntelRouter = router({
         return db.getDITrainingStats();
       }),
 
+    /**
+     * Fetch detailed evidence data for DI report generation.
+     * Returns nuclei findings, web crawl results, and active scan tool results.
+     */
+    getReportEvidence: protectedProcedure
+      .input(z.object({ scanId: z.number() }))
+      .query(async ({ input }) => {
+        const { getDb } = await import('../db');
+        const dbInst = await getDb();
+        if (!dbInst) return { nucleiFindings: [], webCrawlResults: [], scanResults: [] };
+
+        const { eq: eqOp, desc: descOp } = await import('drizzle-orm');
+
+        // Fetch nuclei findings for this scan
+        let nucleiFindingsData: any[] = [];
+        try {
+          const { nucleiFindings: nfTable } = await import('../../drizzle/schema');
+          nucleiFindingsData = await dbInst.select({
+            id: nfTable.id,
+            templateId: nfTable.templateId,
+            templateName: nfTable.templateName,
+            severity: nfTable.severity,
+            host: nfTable.host,
+            matchedAt: nfTable.matchedAt,
+            extractedResults: nfTable.extractedResults,
+            curlCommand: nfTable.curlCommand,
+            description: nfTable.description,
+            cveId: nfTable.cveId,
+            cvssScore: nfTable.cvssScore,
+            nucleiCommand: nfTable.nucleiCommand,
+            verified: nfTable.verified,
+            nucleiVerified: nfTable.nucleiVerified,
+            createdAt: nfTable.createdAt,
+          }).from(nfTable)
+            .where(eqOp(nfTable.scanId, input.scanId))
+            .orderBy(descOp(nfTable.createdAt))
+            .limit(200);
+        } catch { /* nuclei_findings table may not exist */ }
+
+        // Fetch web crawl results for this scan
+        let webCrawlData: any[] = [];
+        try {
+          const { webCrawlResults: wcrTable } = await import('../../drizzle/schema');
+          webCrawlData = await dbInst.select({
+            id: wcrTable.id,
+            targetUrl: wcrTable.targetUrl,
+            finalUrl: wcrTable.finalUrl,
+            domain: wcrTable.domain,
+            httpStatus: wcrTable.httpStatus,
+            responseTimeMs: wcrTable.responseTimeMs,
+            securityHeaders: wcrTable.securityHeaders,
+            securityHeaderGrade: wcrTable.securityHeaderGrade,
+            detectedTechnologies: wcrTable.detectedTechnologies,
+            serverHeader: wcrTable.serverHeader,
+            poweredBy: wcrTable.poweredBy,
+            pageTitle: wcrTable.pageTitle,
+            forms: wcrTable.forms,
+            exposedPaths: wcrTable.exposedPaths,
+            cookies: wcrTable.cookies,
+            tlsInfo: wcrTable.tlsInfo,
+            findings: wcrTable.findings,
+            totalFindings: wcrTable.totalFindings,
+          }).from(wcrTable)
+            .where(eqOp(wcrTable.scanId, input.scanId))
+            .orderBy(descOp(wcrTable.totalFindings))
+            .limit(100);
+        } catch { /* webCrawlResults table may not exist */ }
+
+        // Fetch scan_results (tool execution records) via the DI scan's engagementId
+        let scanResultsData: any[] = [];
+        try {
+          const { domainIntelScans: disTable, scanResults: srTable } = await import('../../drizzle/schema');
+          const [diScan] = await dbInst.select({ engagementId: disTable.engagementId })
+            .from(disTable).where(eqOp(disTable.id, input.scanId)).limit(1);
+          if (diScan?.engagementId) {
+            scanResultsData = await dbInst.select({
+              id: srTable.id,
+              tool: srTable.tool,
+              target: srTable.target,
+              command: srTable.command,
+              rawOutput: srTable.rawOutput,
+              exitCode: srTable.exitCode,
+              durationMs: srTable.durationMs,
+              findings: srTable.findings,
+              findingCount: srTable.findingCount,
+              phase: srTable.phase,
+              createdAt: srTable.createdAt,
+            }).from(srTable)
+              .where(eqOp(srTable.engagementId, diScan.engagementId))
+              .orderBy(descOp(srTable.createdAt))
+              .limit(100);
+          }
+        } catch { /* scanResults table may not exist */ }
+
+        return {
+          nucleiFindings: nucleiFindingsData,
+          webCrawlResults: webCrawlData,
+          scanResults: scanResultsData,
+        };
+      }),
+
   });

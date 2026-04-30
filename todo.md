@@ -1007,3 +1007,16 @@
 - [x] Add environment-specific skipIf markers to 58 SSH-dependent and 33 DB-dependent tests (91 total modified)
 - [x] Fix scan-concurrency.test.ts — 3 tests were hitting per-tool limits causing 30s timeouts
 - [x] Fix scan-server-host.test.ts — remove hardcoded IP assertion (IP changes on droplet recreation)
+
+### DI Report Redesign & Report Audit (Apr 30)
+- [x] Audit existing DI report generation code — identify all data sources, formatting, evidence handling
+- [x] Audit other report types (pentest, phishing, CSPM, etc.) for completeness with new tools
+- [x] Identify gaps — new tools/workflows not captured in reports since last audit
+- [x] Fix evidence presentation — replace "Verified by Nuclei" with actual evidence data (raw output, matched patterns, HTTP responses)
+- [x] Redesign DI report layout — sales-worthy formatting matching Assets panel quality
+- [x] Add rich visuals — severity badges, tech stack chips, port/service tables, risk signal cards
+- [x] Ensure consistent numbering and overall risk scoring throughout DI report
+- [x] Add supporting evidence snapshots that clearly show what was analyzed (not just tool names)
+- [x] Add graphics/charts — risk distribution, attack surface visualization, severity breakdown
+- [x] Update all report types to capture data from newer tools (report-section-blueprints updated with nuclei/web_crawl/active_scan data sources)
+- [x] Write tests for report generation quality (13 tests passing)
