@@ -64,6 +64,8 @@ import { ENV } from "./_core/env";
 
 type StorageProvider = "do_spaces" | "aws_s3" | "minio" | "custom";
 
+type SSEAlgorithm = "none" | "AES256" | "aws:kms" | "aws:kms:dsse";
+
 interface StorageConfig {
   endpoint: string;
   region: string;
@@ -73,6 +75,11 @@ interface StorageConfig {
   forcePathStyle: boolean;
   publicUrlBase: string | null;
   provider: StorageProvider;
+  // Server-Side Encryption (SSE)
+  sseAlgorithm: SSEAlgorithm;
+  sseKmsKeyId: string | null;       // KMS Key ARN (required for aws:kms / aws:kms:dsse)
+  bucketKeyEnabled: boolean;         // Reduces KMS API calls via S3 Bucket Keys
+  privateMode: boolean;              // When true, skip public-read ACL and use presigned URLs
 }
 
 function resolveConfig(): StorageConfig {
@@ -87,6 +94,10 @@ function resolveConfig(): StorageConfig {
     const forcePathStyle = process.env.S3_FORCE_PATH_STYLE === "true";
     const publicUrlBase = process.env.S3_PUBLIC_URL_BASE || null;
     const provider = detectProvider(s3Endpoint);
+    const sseAlgorithm = (process.env.S3_SSE_ALGORITHM || "none") as SSEAlgorithm;
+    const sseKmsKeyId = process.env.S3_SSE_KMS_KEY_ID || null;
+    const bucketKeyEnabled = process.env.S3_BUCKET_KEY_ENABLED === "true";
+    const privateMode = process.env.S3_PRIVATE_MODE === "true" || sseAlgorithm !== "none";
     return {
       endpoint: s3Endpoint,
       region: s3Region || "us-east-1",
@@ -96,6 +107,10 @@ function resolveConfig(): StorageConfig {
       forcePathStyle,
       publicUrlBase,
       provider,
+      sseAlgorithm,
+      sseKmsKeyId,
+      bucketKeyEnabled,
+      privateMode,
     };
   }
 
@@ -115,6 +130,10 @@ function resolveConfig(): StorageConfig {
     forcePathStyle: false,
     publicUrlBase: null,
     provider: "do_spaces",
+    sseAlgorithm: "none" as SSEAlgorithm,
+    sseKmsKeyId: null,
+    bucketKeyEnabled: false,
+    privateMode: false,
   };
 }
 
@@ -218,10 +237,17 @@ function normalizeKey(relKey: string): string {
 
 /**
  * Upload a file to S3-compatible storage.
- * Returns the normalized key and a public URL.
+ * Returns the normalized key and a URL (public or presigned depending on config).
  *
- * Files are uploaded with public-read ACL so the returned URL works without
- * additional signing — matching the behaviour expected by downstream consumers.
+ * Behavior depends on encryption/privacy configuration:
+ *   - Default (no SSE): public-read ACL, returns direct public URL
+ *   - SSE enabled or S3_PRIVATE_MODE=true: no ACL, returns presigned URL
+ *
+ * SSE-KMS Configuration (env vars):
+ *   - S3_SSE_ALGORITHM: "AES256" | "aws:kms" | "aws:kms:dsse"
+ *   - S3_SSE_KMS_KEY_ID: KMS Key ARN (required for aws:kms)
+ *   - S3_BUCKET_KEY_ENABLED: "true" to reduce KMS API calls
+ *   - S3_PRIVATE_MODE: "true" to force presigned URLs without SSE
  *
  * @param relKey - Relative key path (leading slashes stripped)
  * @param data - File content as Buffer, Uint8Array, or string (UTF-8)
@@ -239,28 +265,62 @@ export async function doStoragePut(
   const body =
     typeof data === "string" ? Buffer.from(data, "utf-8") : data;
 
-  await client.send(
-    new PutObjectCommand({
-      Bucket: config.bucket,
-      Key: key,
-      Body: body,
-      ContentType: contentType,
-      ACL: "public-read",
-    })
-  );
+  // Build PutObject params with optional encryption
+  const putParams: Record<string, unknown> = {
+    Bucket: config.bucket,
+    Key: key,
+    Body: body,
+    ContentType: contentType,
+  };
+
+  // ACL: only set public-read when NOT in private/encrypted mode
+  if (!config.privateMode) {
+    putParams.ACL = "public-read";
+  }
+
+  // Server-Side Encryption parameters
+  if (config.sseAlgorithm !== "none") {
+    putParams.ServerSideEncryption = config.sseAlgorithm;
+
+    if ((config.sseAlgorithm === "aws:kms" || config.sseAlgorithm === "aws:kms:dsse") && config.sseKmsKeyId) {
+      putParams.SSEKMSKeyId = config.sseKmsKeyId;
+    }
+
+    if (config.bucketKeyEnabled) {
+      putParams.BucketKeyEnabled = true;
+    }
+  }
+
+  await client.send(new PutObjectCommand(putParams as any));
+
+  // In private mode, return a presigned URL instead of a public URL
+  if (config.privateMode) {
+    const getCmd = new GetObjectCommand({ Bucket: config.bucket, Key: key });
+    const url = await getSignedUrl(client, getCmd, { expiresIn: 3600 });
+    return { key, url };
+  }
 
   const url = buildPublicUrl(key);
   return { key, url };
 }
 
 /**
- * Get the public URL for an existing key in S3-compatible storage.
- * For public-read buckets, no presigning is needed.
+ * Get the URL for an existing key in S3-compatible storage.
+ * Returns a public URL for public buckets, or a presigned URL for private/encrypted buckets.
  */
 export async function doStorageGet(
   relKey: string
 ): Promise<{ key: string; url: string }> {
   const key = normalizeKey(relKey);
+  const config = getConfig();
+
+  if (config.privateMode) {
+    const client = getClient();
+    const command = new GetObjectCommand({ Bucket: config.bucket, Key: key });
+    const url = await getSignedUrl(client, command, { expiresIn: 3600 });
+    return { key, url };
+  }
+
   return { key, url: buildPublicUrl(key) };
 }
 
@@ -336,6 +396,12 @@ export function getStorageInfo(): {
   bucket: string;
   forcePathStyle: boolean;
   hasCredentials: boolean;
+  encryption: {
+    algorithm: SSEAlgorithm;
+    kmsKeyConfigured: boolean;
+    bucketKeyEnabled: boolean;
+  };
+  privateMode: boolean;
 } {
   const config = getConfig();
   return {
@@ -345,5 +411,11 @@ export function getStorageInfo(): {
     bucket: config.bucket,
     forcePathStyle: config.forcePathStyle,
     hasCredentials: !!(config.accessKeyId && config.secretAccessKey),
+    encryption: {
+      algorithm: config.sseAlgorithm,
+      kmsKeyConfigured: !!config.sseKmsKeyId,
+      bucketKeyEnabled: config.bucketKeyEnabled,
+    },
+    privateMode: config.privateMode,
   };
 }

@@ -96,6 +96,11 @@ export const ENV = {
   S3_BUCKET: process.env.S3_BUCKET ?? "",
   S3_FORCE_PATH_STYLE: process.env.S3_FORCE_PATH_STYLE ?? "false",
   S3_PUBLIC_URL_BASE: process.env.S3_PUBLIC_URL_BASE ?? "",
+  // Server-Side Encryption (FIPS 140-3 compliance for GovCloud / High-impact)
+  S3_SSE_ALGORITHM: process.env.S3_SSE_ALGORITHM ?? "",           // "AES256" | "aws:kms" | "aws:kms:dsse"
+  S3_SSE_KMS_KEY_ID: process.env.S3_SSE_KMS_KEY_ID ?? "",        // KMS Key ARN
+  S3_BUCKET_KEY_ENABLED: process.env.S3_BUCKET_KEY_ENABLED ?? "false",  // Reduce KMS API calls
+  S3_PRIVATE_MODE: process.env.S3_PRIVATE_MODE ?? "false",       // Force presigned URLs (auto-enabled with SSE)
   // DigitalOcean Spaces — legacy storage config (backward compat)
   // These are used if S3_* vars above are not set.
   DO_SPACES_KEY: process.env.DO_SPACES_KEY ?? "",

@@ -1047,3 +1047,16 @@
 - [x] Write tests for the storage abstraction (19 tests passing)
 - [x] Update architecture documentation (header comment + env.ts comments)
 - [x] Added new capabilities: doStorageGetSigned, doStorageExists, doStorageDelete, getStorageInfo, resetStorageClient
+
+### Server-Side Encryption (SSE-KMS) Support (Apr 30)
+- [x] Add S3_SSE_ALGORITHM env var (none, AES256, aws:kms, aws:kms:dsse)
+- [x] Add S3_SSE_KMS_KEY_ID env var for customer-managed KMS key ARN
+- [x] Add S3_BUCKET_KEY_ENABLED env var to reduce KMS API calls
+- [x] Add S3_PRIVATE_MODE env var (auto-enabled when SSE is configured)
+- [x] Pass encryption params in PutObjectCommand (ServerSideEncryption, SSEKMSKeyId, BucketKeyEnabled)
+- [x] Remove public-read ACL when encryption is enabled (use presigned URLs instead)
+- [x] doStorageGet returns presigned URLs in private mode
+- [x] doStoragePut returns presigned URLs in private mode
+- [x] Update getStorageInfo() to report encryption config (algorithm, kmsKeyConfigured, bucketKeyEnabled, privateMode)
+- [x] Write tests for SSE-KMS behavior (12 new tests, 31 total passing)
+- [x] Update env.ts with all new SSE env vars and documentation

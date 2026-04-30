@@ -296,5 +296,216 @@ describe('Storage Provider - Config Resolution & URL Generation', () => {
       // Verify credentials are NOT exposed
       expect(JSON.stringify(info)).not.toContain('SUPER_SECRET');
     });
+
+    it('should report encryption config in storage info', async () => {
+      process.env.S3_ENDPOINT = 'https://s3.us-gov-west-1.amazonaws.com';
+      process.env.S3_ACCESS_KEY = 'key';
+      process.env.S3_SECRET_KEY = 'secret';
+      process.env.S3_BUCKET = 'encrypted-bucket';
+      process.env.S3_REGION = 'us-gov-west-1';
+      process.env.S3_SSE_ALGORITHM = 'aws:kms';
+      process.env.S3_SSE_KMS_KEY_ID = 'arn:aws:kms:us-gov-west-1:123456:key/abc-def';
+      process.env.S3_BUCKET_KEY_ENABLED = 'true';
+
+      const { getStorageInfo } = await import('./do-storage');
+      const info = getStorageInfo();
+      expect(info.encryption.algorithm).toBe('aws:kms');
+      expect(info.encryption.kmsKeyConfigured).toBe(true);
+      expect(info.encryption.bucketKeyEnabled).toBe(true);
+      expect(info.privateMode).toBe(true);
+    });
+  });
+
+  describe('Server-Side Encryption (SSE-KMS)', () => {
+    it('should auto-enable private mode when SSE is configured', async () => {
+      process.env.S3_ENDPOINT = 'https://s3.us-gov-west-1.amazonaws.com';
+      process.env.S3_ACCESS_KEY = 'key';
+      process.env.S3_SECRET_KEY = 'secret';
+      process.env.S3_BUCKET = 'encrypted-bucket';
+      process.env.S3_REGION = 'us-gov-west-1';
+      process.env.S3_SSE_ALGORITHM = 'aws:kms';
+
+      const { getStorageInfo } = await import('./do-storage');
+      const info = getStorageInfo();
+      expect(info.privateMode).toBe(true);
+    });
+
+    it('should NOT enable private mode when SSE is "none"', async () => {
+      process.env.S3_ENDPOINT = 'https://s3.us-east-1.amazonaws.com';
+      process.env.S3_ACCESS_KEY = 'key';
+      process.env.S3_SECRET_KEY = 'secret';
+      process.env.S3_BUCKET = 'public-bucket';
+      process.env.S3_REGION = 'us-east-1';
+      process.env.S3_SSE_ALGORITHM = 'none';
+
+      const { getStorageInfo } = await import('./do-storage');
+      const info = getStorageInfo();
+      expect(info.privateMode).toBe(false);
+    });
+
+    it('should include SSE params in PutObjectCommand when aws:kms configured', async () => {
+      process.env.S3_ENDPOINT = 'https://s3.us-gov-west-1.amazonaws.com';
+      process.env.S3_ACCESS_KEY = 'key';
+      process.env.S3_SECRET_KEY = 'secret';
+      process.env.S3_BUCKET = 'encrypted-bucket';
+      process.env.S3_REGION = 'us-gov-west-1';
+      process.env.S3_SSE_ALGORITHM = 'aws:kms';
+      process.env.S3_SSE_KMS_KEY_ID = 'arn:aws:kms:us-gov-west-1:123456:key/abc-def';
+      process.env.S3_BUCKET_KEY_ENABLED = 'true';
+
+      const { PutObjectCommand } = await import('@aws-sdk/client-s3');
+      const { doStoragePut } = await import('./do-storage');
+      await doStoragePut('test/encrypted.pdf', Buffer.from('secret data'), 'application/pdf');
+
+      // Verify PutObjectCommand was called with SSE params
+      expect(PutObjectCommand).toHaveBeenCalledWith(
+        expect.objectContaining({
+          ServerSideEncryption: 'aws:kms',
+          SSEKMSKeyId: 'arn:aws:kms:us-gov-west-1:123456:key/abc-def',
+          BucketKeyEnabled: true,
+        })
+      );
+    });
+
+    it('should NOT include ACL when private mode is enabled', async () => {
+      process.env.S3_ENDPOINT = 'https://s3.us-gov-west-1.amazonaws.com';
+      process.env.S3_ACCESS_KEY = 'key';
+      process.env.S3_SECRET_KEY = 'secret';
+      process.env.S3_BUCKET = 'encrypted-bucket';
+      process.env.S3_REGION = 'us-gov-west-1';
+      process.env.S3_SSE_ALGORITHM = 'aws:kms';
+
+      const { PutObjectCommand } = await import('@aws-sdk/client-s3');
+      const { doStoragePut } = await import('./do-storage');
+      await doStoragePut('test/private.pdf', Buffer.from('data'), 'application/pdf');
+
+      // Verify ACL is NOT set (private mode)
+      const callArgs = (PutObjectCommand as any).mock.calls.slice(-1)[0][0];
+      expect(callArgs.ACL).toBeUndefined();
+    });
+
+    it('should include public-read ACL when no encryption configured', async () => {
+      process.env.S3_ENDPOINT = 'https://nyc3.digitaloceanspaces.com';
+      process.env.S3_ACCESS_KEY = 'key';
+      process.env.S3_SECRET_KEY = 'secret';
+      process.env.S3_BUCKET = 'public-bucket';
+      process.env.S3_REGION = 'nyc3';
+      // No SSE configured
+
+      const { PutObjectCommand } = await import('@aws-sdk/client-s3');
+      const { doStoragePut } = await import('./do-storage');
+      await doStoragePut('test/public.pdf', Buffer.from('data'), 'application/pdf');
+
+      const callArgs = (PutObjectCommand as any).mock.calls.slice(-1)[0][0];
+      expect(callArgs.ACL).toBe('public-read');
+    });
+
+    it('should return presigned URL when private mode is enabled', async () => {
+      process.env.S3_ENDPOINT = 'https://s3.us-gov-west-1.amazonaws.com';
+      process.env.S3_ACCESS_KEY = 'key';
+      process.env.S3_SECRET_KEY = 'secret';
+      process.env.S3_BUCKET = 'encrypted-bucket';
+      process.env.S3_REGION = 'us-gov-west-1';
+      process.env.S3_SSE_ALGORITHM = 'aws:kms';
+
+      const { doStoragePut } = await import('./do-storage');
+      const result = await doStoragePut('test/encrypted.pdf', Buffer.from('data'));
+      // Should return presigned URL (from mock)
+      expect(result.url).toBe('https://signed-url.example.com/key');
+    });
+
+    it('should return presigned URL from doStorageGet in private mode', async () => {
+      process.env.S3_ENDPOINT = 'https://s3.us-gov-west-1.amazonaws.com';
+      process.env.S3_ACCESS_KEY = 'key';
+      process.env.S3_SECRET_KEY = 'secret';
+      process.env.S3_BUCKET = 'encrypted-bucket';
+      process.env.S3_REGION = 'us-gov-west-1';
+      process.env.S3_PRIVATE_MODE = 'true';
+
+      const { doStorageGet } = await import('./do-storage');
+      const result = await doStorageGet('private/file.pdf');
+      expect(result.url).toBe('https://signed-url.example.com/key');
+    });
+
+    it('should support AES256 encryption (S3-managed keys)', async () => {
+      process.env.S3_ENDPOINT = 'https://s3.us-east-1.amazonaws.com';
+      process.env.S3_ACCESS_KEY = 'key';
+      process.env.S3_SECRET_KEY = 'secret';
+      process.env.S3_BUCKET = 'sse-s3-bucket';
+      process.env.S3_REGION = 'us-east-1';
+      process.env.S3_SSE_ALGORITHM = 'AES256';
+
+      const { PutObjectCommand } = await import('@aws-sdk/client-s3');
+      const { doStoragePut } = await import('./do-storage');
+      await doStoragePut('test/aes.pdf', Buffer.from('data'));
+
+      const callArgs = (PutObjectCommand as any).mock.calls.slice(-1)[0][0];
+      expect(callArgs.ServerSideEncryption).toBe('AES256');
+      // AES256 doesn't use KMS key
+      expect(callArgs.SSEKMSKeyId).toBeUndefined();
+    });
+
+    it('should support aws:kms:dsse (dual-layer encryption)', async () => {
+      process.env.S3_ENDPOINT = 'https://s3.us-gov-west-1.amazonaws.com';
+      process.env.S3_ACCESS_KEY = 'key';
+      process.env.S3_SECRET_KEY = 'secret';
+      process.env.S3_BUCKET = 'dsse-bucket';
+      process.env.S3_REGION = 'us-gov-west-1';
+      process.env.S3_SSE_ALGORITHM = 'aws:kms:dsse';
+      process.env.S3_SSE_KMS_KEY_ID = 'arn:aws:kms:us-gov-west-1:123456:key/dsse-key';
+
+      const { PutObjectCommand } = await import('@aws-sdk/client-s3');
+      const { doStoragePut } = await import('./do-storage');
+      await doStoragePut('test/dsse.pdf', Buffer.from('top secret'));
+
+      expect(PutObjectCommand).toHaveBeenCalledWith(
+        expect.objectContaining({
+          ServerSideEncryption: 'aws:kms:dsse',
+          SSEKMSKeyId: 'arn:aws:kms:us-gov-west-1:123456:key/dsse-key',
+        })
+      );
+    });
+
+    it('should NOT include SSE params when algorithm is none', async () => {
+      process.env.S3_ENDPOINT = 'https://nyc3.digitaloceanspaces.com';
+      process.env.S3_ACCESS_KEY = 'key';
+      process.env.S3_SECRET_KEY = 'secret';
+      process.env.S3_BUCKET = 'no-sse';
+      process.env.S3_REGION = 'nyc3';
+      process.env.S3_SSE_ALGORITHM = 'none';
+
+      const { PutObjectCommand } = await import('@aws-sdk/client-s3');
+      const { doStoragePut } = await import('./do-storage');
+      await doStoragePut('test/plain.pdf', Buffer.from('data'));
+
+      const callArgs = (PutObjectCommand as any).mock.calls.slice(-1)[0][0];
+      expect(callArgs.ServerSideEncryption).toBeUndefined();
+      expect(callArgs.SSEKMSKeyId).toBeUndefined();
+      expect(callArgs.BucketKeyEnabled).toBeUndefined();
+    });
+
+    it('should allow manual private mode without SSE (presigned-only access)', async () => {
+      process.env.S3_ENDPOINT = 'https://s3.us-east-1.amazonaws.com';
+      process.env.S3_ACCESS_KEY = 'key';
+      process.env.S3_SECRET_KEY = 'secret';
+      process.env.S3_BUCKET = 'private-no-sse';
+      process.env.S3_REGION = 'us-east-1';
+      process.env.S3_PRIVATE_MODE = 'true';
+      // No SSE configured
+
+      const { PutObjectCommand } = await import('@aws-sdk/client-s3');
+      const { doStoragePut, getStorageInfo } = await import('./do-storage');
+
+      const info = getStorageInfo();
+      expect(info.privateMode).toBe(true);
+      expect(info.encryption.algorithm).toBe('none');
+
+      await doStoragePut('test/private-plain.pdf', Buffer.from('data'));
+      const callArgs = (PutObjectCommand as any).mock.calls.slice(-1)[0][0];
+      // No ACL in private mode
+      expect(callArgs.ACL).toBeUndefined();
+      // No SSE params
+      expect(callArgs.ServerSideEncryption).toBeUndefined();
+    });
   });
 });
