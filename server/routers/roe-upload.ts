@@ -7,7 +7,7 @@
 import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
-import { storagePut } from "../storage";
+import { doStoragePut } from "../do-storage";
 import { parseRoeDocument, persistUploadedDocument, markUploadedDocFailed } from "../roe-document-parser";
 import { autoDesignEngagement } from "../roe-auto-engagement";
 import type { ParsedRoeDocument } from "../roe-document-parser";
@@ -50,7 +50,7 @@ export const roeUploadRouter = router({
       const randomSuffix = Math.random().toString(36).substring(2, 10);
       const ext = input.filename.split('.').pop() || 'bin';
       const storageKey = `roe-uploads/${ctx.user.id}/${Date.now()}-${randomSuffix}.${ext}`;
-      const { url: storageUrl } = await storagePut(storageKey, buffer, input.mimeType);
+      const { url: storageUrl } = await doStoragePut(storageKey, buffer, input.mimeType);
 
       try {
         // Parse the document

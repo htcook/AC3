@@ -136,6 +136,15 @@ export interface ReportEvidenceData {
     phase: string | null;
     createdAt: string;
   }>;
+  screenshotEvidence?: Array<{
+    id: number;
+    title: string;
+    severity: string;
+    screenshotPath: string;
+    hostname: string | null;
+    endpoint: string | null;
+    corroborationTier: string | null;
+  }>;
 }
 
 /**
@@ -3349,6 +3358,56 @@ export async function exportDiReport(
         renderCodeBlock(nf.nucleiCommand, 'Scan Command:', 2);
       }
     }
+
+    // ── Screenshot Evidence (visual proof) ──
+    if (evidenceData?.screenshotEvidence?.length) {
+      const titleNorm = titleOrFinding.toLowerCase().trim();
+      const matchingScreenshot = evidenceData.screenshotEvidence.find((ss: any) => {
+        const ssTitle = (ss.title || '').toLowerCase().trim();
+        return ssTitle === titleNorm ||
+          ssTitle.includes(titleNorm) ||
+          titleNorm.includes(ssTitle) ||
+          (cveId !== 'N/A' && ssTitle.includes(cveId.toLowerCase())) ||
+          (hosts[0] && ss.hostname === hosts[0]);
+      });
+      if (matchingScreenshot) {
+        y = checkPageBreak(y, 30);
+        // Screenshot caption
+        doc.setFontSize(5.5);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(71, 85, 105);
+        doc.text('\u25BC Visual Evidence (Screenshot):', margin + 3, y);
+        y += 2;
+        // Draw a placeholder frame with the screenshot URL reference
+        // (jsPDF can embed images via addImage if base64 is available;
+        //  for URL-based screenshots, we render a styled reference card)
+        const frameX = margin + 3;
+        const frameW = contentWidth - 8;
+        const frameH = 22;
+        doc.setDrawColor(148, 163, 184);
+        doc.setLineWidth(0.3);
+        doc.setFillColor(248, 250, 252);
+        doc.roundedRect(frameX, y, frameW, frameH, 1, 1, 'FD');
+        // Camera icon and label
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(51, 65, 85);
+        doc.text('\uD83D\uDCF7 Evidence Screenshot', frameX + 3, y + 5);
+        doc.setFontSize(5);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(100, 116, 139);
+        doc.text(`Finding: ${truncate(matchingScreenshot.title, 80)}`, frameX + 3, y + 9);
+        doc.text(`Host: ${matchingScreenshot.hostname || 'N/A'} | Endpoint: ${truncate(matchingScreenshot.endpoint || 'N/A', 60)}`, frameX + 3, y + 12);
+        doc.text(`Tier: ${matchingScreenshot.corroborationTier || 'unverified'} | Severity: ${matchingScreenshot.severity}`, frameX + 3, y + 15);
+        // URL reference (clickable in PDF viewers)
+        doc.setTextColor(37, 99, 235);
+        doc.setFontSize(4.5);
+        const ssUrl = matchingScreenshot.screenshotPath;
+        doc.textWithLink(truncate(ssUrl, 100), frameX + 3, y + 19, { url: ssUrl });
+        y += frameH + 2;
+      }
+    }
+
     y += 2; // Gap before next card
   };
 

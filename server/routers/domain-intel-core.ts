@@ -679,6 +679,43 @@ export const domainIntelRouter = router({
                   await runJarmHistoryHook(scanId, pipelineInput.primaryDomain, result.passiveRecon!.allObservations, result.assets || []);
                 });
               }
+              // ═══ EVIDENCE SCREENSHOTS (scan-only) — Capture visual proof for top findings ═══
+              if (pipelineInput.engagementId) {
+                setImmediate(async () => {
+                  try {
+                    const { selectFindingsForScreenshot, captureScreenshotBatch } = await import('../lib/scanners/screenshot-capture');
+                    const allVulns = (result.assets || []).flatMap((a: any) => {
+                      const baseUrl = a.hostname ? `https://${a.hostname}` : undefined;
+                      return (a.vulns || []).map((v: any) => ({
+                        id: v.id,
+                        title: v.title || v.name || 'Unknown',
+                        severity: v.severity || 'info',
+                        endpoint: v.endpoint || v.url || baseUrl,
+                        url: v.endpoint || v.url || baseUrl,
+                        source: v.source || v.tool,
+                        corroborationTier: v.corroborationTier,
+                      }));
+                    });
+                    const targets = selectFindingsForScreenshot(allVulns, 10);
+                    if (targets.length > 0) {
+                      console.log(`[DomainIntel] \uD83D\uDCF8 Capturing ${targets.length} evidence screenshots for scan ${scanId} (scan-only)`);
+                      const requests = targets.map(t => ({
+                        url: t.url,
+                        engagementId: pipelineInput.engagementId!,
+                        findingId: t.findingId,
+                        findingTitle: t.findingTitle,
+                        severity: t.severity,
+                      }));
+                      const ssResults = await captureScreenshotBatch(requests, { maxConcurrency: 3 });
+                      let captured = 0;
+                      for (const [, r] of ssResults) { if (r.success) captured++; }
+                      console.log(`[DomainIntel] \uD83D\uDCF8 Screenshots: ${captured}/${targets.length} captured for scan ${scanId} (scan-only)`);
+                    }
+                  } catch (ssErr: any) {
+                    console.warn(`[DomainIntel] Screenshot capture failed for scan ${scanId} (non-fatal):`, ssErr.message);
+                  }
+                });
+              }
             } else {
               // Full engagement: run threat actor matching + campaign design
               let threatActorMatches = null;
@@ -796,6 +833,44 @@ export const domainIntelRouter = router({
                 setImmediate(async () => {
                   const { runJarmHistoryHook } = await import('../lib/jarm-pipeline-hook');
                   await runJarmHistoryHook(scanId, pipelineInput.primaryDomain, result.passiveRecon!.allObservations, result.assets || []);
+                });
+              }
+              // ═══ EVIDENCE SCREENSHOTS — Capture visual proof for top findings ═══
+              if (pipelineInput.engagementId) {
+                setImmediate(async () => {
+                  try {
+                    const { selectFindingsForScreenshot, captureScreenshotBatch } = await import('../lib/scanners/screenshot-capture');
+                    // Collect web-accessible vulns from assets for screenshot capture
+                    const allVulns = (result.assets || []).flatMap((a: any) => {
+                      const baseUrl = a.hostname ? `https://${a.hostname}` : undefined;
+                      return (a.vulns || []).map((v: any) => ({
+                        id: v.id,
+                        title: v.title || v.name || 'Unknown',
+                        severity: v.severity || 'info',
+                        endpoint: v.endpoint || v.url || baseUrl,
+                        url: v.endpoint || v.url || baseUrl,
+                        source: v.source || v.tool,
+                        corroborationTier: v.corroborationTier,
+                      }));
+                    });
+                    const targets = selectFindingsForScreenshot(allVulns, 10);
+                    if (targets.length > 0) {
+                      console.log(`[DomainIntel] \uD83D\uDCF8 Capturing ${targets.length} evidence screenshots for scan ${scanId}`);
+                      const requests = targets.map(t => ({
+                        url: t.url,
+                        engagementId: pipelineInput.engagementId!,
+                        findingId: t.findingId,
+                        findingTitle: t.findingTitle,
+                        severity: t.severity,
+                      }));
+                      const ssResults = await captureScreenshotBatch(requests, { maxConcurrency: 3 });
+                      let captured = 0;
+                      for (const [, r] of ssResults) { if (r.success) captured++; }
+                      console.log(`[DomainIntel] \uD83D\uDCF8 Screenshots: ${captured}/${targets.length} captured for scan ${scanId}`);
+                    }
+                  } catch (ssErr: any) {
+                    console.warn(`[DomainIntel] Screenshot capture failed for scan ${scanId} (non-fatal):`, ssErr.message);
+                  }
                 });
               }
             }
@@ -3620,10 +3695,35 @@ export const domainIntelRouter = router({
           }
         } catch { /* scanResults table may not exist */ }
 
+        // Fetch screenshot evidence from engagement_findings
+        let screenshotEvidence: any[] = [];
+        try {
+          const { domainIntelScans: disTable, engagementFindings: efTable } = await import('../../drizzle/schema');
+          const [diScan2] = await dbInst.select({ engagementId: disTable.engagementId })
+            .from(disTable).where(eqOp(disTable.id, input.scanId)).limit(1);
+          if (diScan2?.engagementId) {
+            const { isNotNull } = await import('drizzle-orm');
+            screenshotEvidence = await dbInst.select({
+              id: efTable.id,
+              title: efTable.title,
+              severity: efTable.severity,
+              screenshotPath: efTable.screenshotPath,
+              hostname: efTable.hostname,
+              endpoint: efTable.endpoint,
+              corroborationTier: efTable.corroborationTier,
+            }).from(efTable)
+              .where(eqOp(efTable.engagementId, diScan2.engagementId))
+              .limit(50);
+            // Filter to only those with screenshots
+            screenshotEvidence = screenshotEvidence.filter((e: any) => e.screenshotPath);
+          }
+        } catch { /* engagement_findings table may not exist */ }
+
         return {
           nucleiFindings: nucleiFindingsData,
           webCrawlResults: webCrawlData,
           scanResults: scanResultsData,
+          screenshotEvidence,
         };
       }),
 

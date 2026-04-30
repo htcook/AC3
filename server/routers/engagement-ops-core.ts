@@ -4312,12 +4312,12 @@ Return ONLY a JSON object with vulnerabilities array.`;
 
       // If file data is provided, upload to S3
       if (input.evidence.fileData) {
-        const { storagePut } = await import('../storage');
+        const { doStoragePut } = await import('../do-storage');
         const buffer = Buffer.from(input.evidence.fileData, 'base64');
         sizeBytes = buffer.length;
         const suffix = Math.random().toString(36).slice(2, 8);
         const key = `manual-evidence/${input.engagementId}/${input.findingId}/${evidenceId}-${suffix}`;
-        const result = await storagePut(key, buffer, input.evidence.mimeType);
+        const result = await doStoragePut(key, buffer, input.evidence.mimeType);
         url = result.url;
         fileKey = result.key;
       }

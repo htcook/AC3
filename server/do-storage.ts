@@ -1,11 +1,38 @@
 /**
- * DigitalOcean Spaces Storage Helper
+ * Customer-Owned S3-Compatible Storage Helper
+ * ══════════════════════════════════════════════════════════════════════════════
  *
- * Drop-in replacement for the built-in storagePut/storageGet that writes to
- * the aceofcloud-reports DO Space instead of the Manus-managed S3 proxy.
+ * ARCHITECTURE: Customer Data Isolation Model
+ * ─────────────────────────────────────────────────────────────────────────────
+ * AC3 does NOT store customer-generated data on its hosted infrastructure.
+ * All customer artifacts (reports, evidence screenshots, exploit scripts, RoE
+ * documents, SBOMs, manual evidence uploads) are written to the customer's own
+ * S3-compatible storage instance.
  *
- * All generated reports, PDFs, DOCX exports, ROE documents, evidence artifacts,
- * and file transfers are stored here for full ownership and persistence.
+ * In production deployments (AWS GovCloud / FedRAMP High), the customer
+ * configures their own bucket via environment variables:
+ *   - DO_SPACES_ENDPOINT  → S3-compatible endpoint (AWS S3, DO Spaces, MinIO)
+ *   - DO_SPACES_REGION    → Bucket region
+ *   - DO_SPACES_KEY       → Access key ID
+ *   - DO_SPACES_SECRET    → Secret access key
+ *   - DO_SPACES_BUCKET    → Bucket name
+ *
+ * This ensures:
+ *   1. Customer data never leaves their authorization boundary
+ *   2. No security inheritance dependency on AC3 hosted infrastructure
+ *   3. Full data sovereignty — customer controls encryption, retention, access
+ *   4. Compatible with NIST 800-53 High SC-28 (Protection of Information at Rest)
+ *   5. Supports FIPS 140-2 encrypted endpoints (AWS S3 with SSE-KMS)
+ *
+ * IMPORTANT: The Manus-provided server/storage.ts (storagePut/storageGet) is
+ * intentionally unused in production. It exists only as a template artifact.
+ * All production code MUST use doStoragePut/doStorageGet from this module.
+ *
+ * For AWS deployments, set DO_SPACES_ENDPOINT to your S3 regional endpoint:
+ *   e.g. https://s3.us-gov-west-1.amazonaws.com (GovCloud)
+ *        https://s3.us-east-1.amazonaws.com (Commercial)
+ *
+ * Author: Harrison Cook — AceofCloud
  */
 
 import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";

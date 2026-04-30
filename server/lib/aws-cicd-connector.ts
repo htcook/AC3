@@ -1165,7 +1165,7 @@ export async function compareWithBaseline(
 
 export async function generateSbom(imageRef: string): Promise<{ url: string; packageCount: number; format: string }> {
   const { executeRawCommandViaHttp } = await import("./do-scan-api");
-  const { storagePut } = await import("../storage");
+  const { doStoragePut } = await import("../do-storage");
 
   // Generate SBOM using Syft (CycloneDX format)
   const result = await executeRawCommandViaHttp(
@@ -1189,7 +1189,7 @@ export async function generateSbom(imageRef: string): Promise<{ url: string; pac
   const timestamp = Date.now();
   const safeRef = imageRef.replace(/[^a-zA-Z0-9.-]/g, "_");
   const key = `cicd-sbom/${safeRef}-${timestamp}.json`;
-  const { url } = await storagePut(key, Buffer.from(sbomJson), "application/json");
+  const { url } = await doStoragePut(key, Buffer.from(sbomJson), "application/json");
 
   return { url, packageCount, format: "cyclonedx" };
 }

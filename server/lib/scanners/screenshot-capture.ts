@@ -14,7 +14,7 @@
  */
 
 import { executeRawCommand } from "../scan-server-executor";
-import { storagePut } from "../../storage";
+import { doStoragePut } from "../../do-storage";
 
 export interface ScreenshotRequest {
   url: string;
@@ -444,7 +444,7 @@ async function uploadScreenshotToS3(
   const fileKey = `evidence/engagement-${engagementId}/${safeTitle}-${timestamp}.png`;
 
   try {
-    const { url } = await storagePut(fileKey, buffer, 'image/png');
+    const { url } = await doStoragePut(fileKey, buffer, 'image/png');
     console.log(`[ScreenshotCapture] Uploaded screenshot to S3: ${url} (${buffer.length} bytes)`);
 
     // Cleanup the remote file

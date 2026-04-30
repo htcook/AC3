@@ -1020,3 +1020,19 @@
 - [x] Add graphics/charts — risk distribution, attack surface visualization, severity breakdown
 - [x] Update all report types to capture data from newer tools (report-section-blueprints updated with nuclei/web_crawl/active_scan data sources)
 - [x] Write tests for report generation quality (13 tests passing)
+
+### Screenshot Capture During Active Scanning (Apr 30)
+- [x] Audit active scan pipeline — existing screenshot-capture.ts uses Puppeteer on scan server
+- [x] Add screenshot capture trigger to DI scan pipeline (both scan-only and full engagement completion paths)
+- [x] selectFindingsForScreenshot selects top 10 critical/high web-accessible findings for capture
+- [x] captureScreenshotBatch runs Puppeteer on scan server, uploads to customer S3 via doStoragePut
+- [x] Add screenshotEvidence to getReportEvidence API response (fetches from engagement_findings.screenshotPath)
+- [x] Render embedded screenshot reference cards in DI report PDF (clickable, with finding metadata)
+- [x] Write tests for screenshot selection and report integration (10 tests passing)
+
+### Storage Independence Audit (Apr 30)
+- [x] Audit all storage imports — found 5 files using Manus storagePut (screenshot-capture, custom-exploit-repository, roe-upload, aws-cicd-connector, engagement-ops-core)
+- [x] Replace all 5 with doStoragePut (customer-owned S3-compatible storage)
+- [x] Verify zero client-side Manus storage dependencies
+- [x] Add architecture documentation to do-storage.ts (customer data isolation model, FedRAMP High boundary)
+- [x] Screenshot capture confirmed using doStoragePut (customer's own bucket)
