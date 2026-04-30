@@ -791,6 +791,83 @@ async function startServer() {
     }
   });
 
+  // Daily threat intel ingestion + actor crawl endpoint
+  app.post('/api/scheduled/threat-intel-daily', async (req, res) => {
+    try {
+      let user: any = null;
+      try {
+        user = await scheduledSdk.authenticateRequest(req);
+      } catch { /* unauthenticated */ }
+      if (!user) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const results: any = { timestamp: new Date().toISOString(), phases: [] };
+
+      // Phase 1: RSS feed sync (all threat intel feeds)
+      try {
+        const { syncAllThreatIntelFeeds } = await import("../lib/threat-intel-rss");
+        const rssResult = await syncAllThreatIntelFeeds();
+        results.phases.push({ phase: 'rss_sync', success: true, ...rssResult });
+      } catch (err: any) {
+        results.phases.push({ phase: 'rss_sync', success: false, error: err.message });
+      }
+
+      // Phase 2: Full multi-source ingestion (DFIR, CISA, Unit42, etc.)
+      try {
+        const { runFullIngest } = await import("../lib/threat-intel-ingest");
+        const ingestResult = await runFullIngest();
+        results.phases.push({ phase: 'full_ingest', success: true, ...ingestResult });
+      } catch (err: any) {
+        results.phases.push({ phase: 'full_ingest', success: false, error: err.message });
+      }
+
+      // Phase 3: Threat actor intelligence crawl (LLM-powered enrichment)
+      try {
+        const { runIntelligenceCrawl } = await import("../lib/threat-actor-crawler");
+        const crawlResult = await runIntelligenceCrawl({ maxArticles: 50, maxGroups: 20 });
+        results.phases.push({ phase: 'actor_crawl', success: true, ...crawlResult });
+      } catch (err: any) {
+        results.phases.push({ phase: 'actor_crawl', success: false, error: err.message });
+      }
+
+      // Phase 4: Targeted enrichment for high-priority actors
+      try {
+        const { runTargetedEnrichment } = await import("../lib/threat-actor-crawler");
+        const enrichResult = await runTargetedEnrichment({ maxActors: 10 });
+        results.phases.push({ phase: 'targeted_enrichment', success: true, ...enrichResult });
+      } catch (err: any) {
+        results.phases.push({ phase: 'targeted_enrichment', success: false, error: err.message });
+      }
+
+      // Phase 5: Ingest any new articles/IOCs the scheduled task found and POSTed
+      if (req.body.articles && Array.isArray(req.body.articles)) {
+        try {
+          const { recordGroupEvent, upsertGroupToCatalog } = await import("../lib/threat-intel-catalog");
+          const db = (await import("../db")).getDb();
+          let ingested = 0;
+          for (const article of req.body.articles) {
+            if (article.actorId && article.event) {
+              await recordGroupEvent(article.actorId, article.event);
+              ingested++;
+            }
+          }
+          results.phases.push({ phase: 'external_articles', success: true, ingested });
+        } catch (err: any) {
+          results.phases.push({ phase: 'external_articles', success: false, error: err.message });
+        }
+      }
+
+      const successCount = results.phases.filter((p: any) => p.success).length;
+      results.summary = `${successCount}/${results.phases.length} phases completed successfully`;
+      console.log(`[ThreatIntelDaily] ${results.summary}`);
+      return res.json({ success: true, ...results });
+    } catch (err: any) {
+      console.error('[ThreatIntelDaily] Scheduled endpoint error:', err.message);
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
   // ─── Rate Limiting ────────────────────────────────────────────────────
   const { apiRateLimiter, trpcAuthRateLimiter } = await import("../lib/rate-limiter");
 

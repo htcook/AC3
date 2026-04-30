@@ -959,4 +959,16 @@
 - [x] Add "Create Stack Profile" button to DI scan results page (scan_complete banner) with dialog
 - [x] Auto-populate technology versions from DI scan detection into the new profile
 - [x] Write vitest tests for auto-create stack profile from scan results (16 tests passing, 77 total)
+- [x] Push checkpoint to htcook/caldera-dashboard (aceofcloud/AC3 still 403)
+
+### Lazarus Mach-O Man Campaign + Daily Threat Intel Monitor (Apr 30)
+- [x] Review and analyze Lazarus Mach-O Man / ClickFix campaign article (ANY.RUN / Mauro Eldritch)
+- [x] Update Lazarus threat catalog entry with 6 new malware, 6 tools, 13 MITRE techniques
+- [x] Record campaign event in threatGroupEvents table (critical severity)
+- [x] Add 10 IOCs (filenames, techniques, behaviors) to threatActorIocs
+- [x] Cross-reference to lazarus-group-g0032 entry
+- [x] Build /api/scheduled/threat-intel-daily endpoint (5 phases: RSS sync, full ingest, actor crawl, targeted enrichment, external articles)
+- [x] Create daily scheduled task (6AM UTC) for automated threat intel monitoring
+- [x] Scheduled task: trigger internal feeds + deep research new APT campaigns + NVD CVE refresh + POST findings
+- [x] Write vitest tests (10 tests passing)
 - [ ] Push checkpoint to GitHub
