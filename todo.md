@@ -1084,9 +1084,9 @@
 - [x] Write tests for CSE encrypt/decrypt roundtrip (16 new tests passing)
 
 ### User Documentation & Guides (Apr 30)
-- [ ] Feature Guide — Platform overview with screenshots of each major page
-- [ ] User Guide — Step-by-step for Dashboard, running a DI scan, creating/running an engagement
-- [ ] Master Threat Catalog Guide — How threat catalog data flows through the platform, AC3 value vs. commercial tools
+- [x] Feature Guide — Platform overview with screenshots of each major page (docs/AC3-Feature-Guide.md)
+- [x] User Guide — Step-by-step for Dashboard, running a DI scan, creating/running an engagement (docs/AC3-Dashboard-User-Guide.md)
+- [x] Master Threat Catalog Guide — How threat catalog data flows through the platform, AC3 value vs. commercial tools (docs/AC3-Threat-Catalog-Guide.md)
 
 ### ZAP IP Connection Fix (Apr 30)
 - [x] Diagnose ZAP_BASE_URL IP mismatch (was 159.223.152.190:8090, not on DO account)
