@@ -1226,4 +1226,52 @@
 - [x] Reproduce Priceline BB engagement DOCX report generation error
 - [x] Fix report generation bugs (Chromium in Dockerfile, doStorageGetContent, splitLink, bug_bounty mapping)
 - [x] Test report generation works end-to-end (17 tests passing)
-- [ ] Save checkpoint and push to GitHub
+- [x] Save checkpoint and pushed to both aceofcloud/AC3 and htcook/caldera-dashboard
+
+### AC3 AWS Security Architecture Document (May 1)
+- [x] Research FedRAMP High / CMMC L2 controls relevant to AC3 deployment
+- [x] Research AWS GovCloud service availability and constraints
+- [x] Design KMS key strategy (per-environment + customer-specific for evidence/reports/audit/secrets)
+- [x] Design IAM role architecture with least-privilege justification (7 roles)
+- [x] Design network security architecture (C2 traffic isolation via dedicated NAT, ROE-enforced egress SG)
+- [x] Design audit logging architecture (3-tier: CloudWatch ops + S3 Object Lock evidence + CloudTrail control plane)
+- [x] Design secrets management with rotation policies (IAM DB auth, 90-day rotation, break-glass DBA)
+- [x] Design auth architecture (Cognito, engagement attribution via immutable sub, dual-approval, customer SSO)
+- [x] Define compliance positioning (commercial AWS focus, GovCloud-parameterized IaC)
+- [x] Create Terraform module structure (10 modules + 3 environments + root composition)
+- [x] Create ADR templates (ADR-001 C2 isolation, ADR-002 evidence integrity, ADR-003 Cognito auth, ADR-004 IAM DB auth)
+- [x] Deliver complete Security Architecture Document
+
+### AWS Security Architecture — Round 3 Revisions (May 1)
+- [x] Revise ADR-011: Add graduated containment (engagement-scoped vs full kill switch)
+- [x] Revise ADR-015: Change cross-tenant risk to "Medium with strong mitigations", add mid-engagement migration constraint
+- [x] Revise ADR-010: Move image signature verification to admission controller outside CI trust domain
+- [x] Revise ADR-009: Shorten token lifetime for high-privilege users to 15 minutes
+- [x] Revise ADR-012: Distinguish Restricted-during-engagement vs Restricted-after-engagement
+- [x] Revise ADR-013: Add customer coordination protocol for failover
+- [x] Produce ADR-016: Operational Model
+- [x] Produce ADR-017: Performance & Scaling
+- [x] Produce ADR-018: Platform Threat Model
+- [x] Produce Application Migration Workstream document
+- [x] Produce Consolidated Cost Estimate
+- [x] Produce Revised Implementation Timeline (22 weeks, updated to 24-25 with org_id subsystem)
+- [x] Package and deliver all documents (18 ADRs + 3 runbooks + 4 docs + state file)
+
+### AWS Dev Environment Build — Phase 0 (May 1)
+- [x] Create ECR repository for AC3
+- [ ] Build and push AC3 Docker image to ECR (BLOCKED: needs CodeBuild IAM role)
+- [x] Create VPC with C2 isolation architecture (8 subnets, 2 NATs, 4 route tables, IGW)
+- [x] Create KMS keys (platform, evidence, audit, secrets) — 4 CMKs with aliases
+- [x] Create S3 buckets (evidence w/ Object Lock + Compliance 365d, reports, assets, codebuild) — 4 buckets
+- [x] Create RDS MySQL 8.0 dev instance (db.t3.medium, Multi-AZ, KMS encrypted, 50GB gp3)
+- [x] Produce RUNBOOK-003: Tenant Migration (Pool→Bridge→Silo + org_id filtering spec)
+- [x] Produce Day 1/Day 2/Day 30 Operations Checklist
+- [x] Update Cost Estimate and Timeline with org_id subsystem + actual deployed resource costs
+- [x] Create security groups (ALB, App, Data, C2) with proper chaining
+- [x] Store RDS master credentials in Secrets Manager (KMS encrypted)
+- [x] Create ADR-019: Cross-Account Architecture
+- [ ] Create ALB + ACM certificate (after domain decision)
+- [ ] Create ECS cluster + task definitions (after CodeBuild produces image)
+- [ ] Create CloudWatch alarms and dashboards
+- [ ] Create WAF Web ACL (after ALB)
+- [ ] Admin creates ac3-codebuild-service-role (IAM request doc delivered)
