@@ -1140,3 +1140,14 @@
 - [x] Auto-import RoE on BB engagement creation when URL provided
 - [x] Parse H1 program policy pages and generate structured ProgramRoeConfig via LLM
 - [x] All 41 BB RoE enforcement tests passing
+
+### JIPOE-Adjacent Strategic Roadmap + ICD 203 Analytical Confidence Framework (Apr 30)
+- [ ] Write strategic roadmap document (docs/AC3-Analytical-Roadmap.md)
+- [ ] Design ICD 203 Analytical Confidence Framework module (server/lib/analytical-confidence.ts)
+- [ ] Implement confidence levels (High/Moderate/Low) with IC-standard definitions
+- [ ] Implement source reliability tracking (scanner, LLM-inference, OSINT, operator, customer-provided)
+- [ ] Implement named assumptions framework
+- [ ] Integrate confidence into hybrid scoring engine
+- [ ] Integrate confidence into findings data model
+- [ ] Integrate confidence into report pipeline output
+- [ ] Write tests for confidence framework
