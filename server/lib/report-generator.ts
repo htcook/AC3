@@ -194,6 +194,22 @@ export interface ReportData {
     }>;
     recommendations: string[];
   };
+  intelligenceGaps?: {
+    summary: string;
+    sections: Array<{
+      category: string;
+      categoryLabel: string;
+      gaps: Array<{
+        title: string;
+        reason: string;
+        impact: string;
+        recommendation: string;
+        assets: string[];
+      }>;
+    }>;
+    totalOpen: number;
+    totalResolved: number;
+  };
 }
 
 // ─── MITRE Tactic Order ─────────────────────────────────────────────────────
@@ -1027,6 +1043,24 @@ ${report.owaspCoverage.recommendations.length > 0 ? `
 <ol style="font-size: 13px;">
 ${report.owaspCoverage.recommendations.map(r => `<li style="margin: 4px 0;">${r}</li>`).join('')}
 </ol>` : ''}
+` : ''}
+
+${report.intelligenceGaps && report.intelligenceGaps.sections.length > 0 ? `
+<!-- Intelligence Gaps -->
+<h2>Intelligence Gaps Analysis</h2>
+<p style="font-size: 13px; color: #64748b; margin-bottom: 16px;">${report.intelligenceGaps.summary}</p>
+<table>
+<tr><th>Category</th><th>Gap</th><th>Reason</th><th>Impact</th><th>Recommendation</th><th>Affected Assets</th></tr>
+${report.intelligenceGaps.sections.flatMap(s => s.gaps.map(g => `<tr>
+<td><strong>${s.categoryLabel}</strong></td>
+<td>${g.title}</td>
+<td>${g.reason}</td>
+<td><span style="text-transform: uppercase; font-weight: 600; color: ${g.impact === 'critical' ? '#dc2626' : g.impact === 'high' ? '#ea580c' : g.impact === 'medium' ? '#d97706' : '#65a30d'};">${g.impact}</span></td>
+<td>${g.recommendation}</td>
+<td>${g.assets.length > 0 ? g.assets.join(', ') : 'N/A'}</td>
+</tr>`)).join('')}
+</table>
+<p style="font-size: 12px; color: #94a3b8; margin-top: 8px;">Open: ${report.intelligenceGaps.totalOpen} | Resolved: ${report.intelligenceGaps.totalResolved}</p>
 ` : ''}
 
 <!-- Recommendations -->

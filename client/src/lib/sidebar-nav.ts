@@ -297,6 +297,9 @@ export const sidebarNavGroups: NavGroup[] = [
       { label: "Vuln Intel", path: "/vuln-intel", icon: Scan },
       { label: "Credential Alerts", path: "/credential-alerts", icon: Key },
       { label: "DFIR Library", path: "/dfir-library", icon: Newspaper },
+      // ── Analytical Intelligence ──
+      { label: "Customer Intel Profiles", path: "/customer-intel", icon: Fingerprint },
+      { label: "Intelligence Gaps", path: "/intelligence-gaps", icon: AlertTriangle },
     ],
   },
 

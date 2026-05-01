@@ -173,6 +173,7 @@ export const ac3Reports = mysqlTable("ac3_reports", {
 	rptToolsUsed: json("rpt_tools_used"),
 	rptTestPhases: json("rpt_test_phases"),
 	engagementId: int("engagement_id"),
+	rptIntelligenceGaps: json("rpt_intelligence_gaps"),
 },
 (table) => [
 	index("ac3_reports_rpt_report_id_unique").on(table.rptReportId),

@@ -14231,10 +14231,48 @@ Respond in JSON: { "templateCategory": string, "pretext": string, "domainStrateg
       (state.metadata as any).autoReportId = reportId;
       (state.metadata as any).autoReportFindings = importedCount;
 
+      // ═══ INTELLIGENCE GAPS — Attach gap analysis to the auto-generated report ═══
+      let gapsSummary = '';
+      try {
+        const { listGaps, formatGapsForReport } = await import('./intelligence-gaps');
+        // Collect gaps from this engagement AND from the DI scan
+        const engGaps = state.engagementId
+          ? await listGaps({ engagementId: state.engagementId, limit: 500 })
+          : [];
+        // Also check for scan-level gaps if we have a scanId in metadata
+        const scanId = (state.metadata as any)?.diScanId;
+        const scanGaps = scanId
+          ? await listGaps({ scanId, limit: 500 })
+          : [];
+        // Merge and deduplicate by title
+        const seen = new Set<string>();
+        const allGaps = [];
+        for (const g of [...engGaps, ...scanGaps]) {
+          const key = `${g.category}:${g.title}`;
+          if (!seen.has(key)) { seen.add(key); allGaps.push(g); }
+        }
+        if (allGaps.length > 0) {
+          const gapReport = formatGapsForReport(allGaps);
+          // Store intelligence gaps on the report record
+          await reportDb.update(reportsTable).set({
+            rptIntelligenceGaps: gapReport,
+            rptUpdatedAt: Date.now(),
+          }).where(eqOp(reportsTable.rptReportId, reportId));
+          gapsSummary = ` Intelligence gaps: ${allGaps.length} (${gapReport.totalOpen} open).`;
+          addLog(state, {
+            phase: 'completed', type: 'info',
+            title: `🔍 Intelligence Gaps: ${allGaps.length} gaps attached to report`,
+            detail: gapReport.summary,
+          });
+        }
+      } catch (gapErr: any) {
+        console.warn(`[AutoReport] Intelligence gaps attachment failed (non-fatal): ${gapErr.message}`);
+      }
+
       addLog(state, {
         phase: 'completed', type: 'phase_complete',
         title: `📝 Auto-Report Complete: ${reportId}`,
-        detail: `Report "${reportName}" created with ${importedCount} findings, narratives with remediation, and executive summary. View in Reports tab.`,
+        detail: `Report "${reportName}" created with ${importedCount} findings, narratives with remediation, and executive summary.${gapsSummary} View in Reports tab.`,
         data: { reportId, findingsCount: importedCount },
       });
       broadcastOpsUpdate(state.engagementId, { type: 'log_update' });

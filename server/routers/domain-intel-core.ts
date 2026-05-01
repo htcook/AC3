@@ -716,6 +716,53 @@ export const domainIntelRouter = router({
                   }
                 });
               }
+              // ═══ INTELLIGENCE GAPS — Auto-detect gaps from DI scan context ═══
+              setImmediate(async () => {
+                try {
+                  const { detectGaps, createGapsBatch } = await import('../lib/intelligence-gaps');
+                  const { incrementDIScanCount } = await import('../lib/customer-intel-profile');
+                  const assets = Array.isArray(result.assets) ? result.assets : [];
+                  const allErrors: Array<{ tool: string; error: string; asset?: string }> = [];
+                  const allAuthFailures: Array<{ asset: string; service: string; reason: string }> = [];
+                  // Extract errors from pipeline stages
+                  if (result.passiveRecon?.errors) {
+                    for (const e of result.passiveRecon.errors) {
+                      allErrors.push({ tool: e.source || 'passive-recon', error: e.message || String(e) });
+                    }
+                  }
+                  const toolsUsed: string[] = [];
+                  if (result.passiveRecon?.connectorResults) {
+                    for (const cr of result.passiveRecon.connectorResults) {
+                      toolsUsed.push(cr.connector || cr.source || 'unknown');
+                    }
+                  }
+                  const gapCtx = {
+                    scanId,
+                    customerId: pipelineInput.customerName,
+                    scopeDomains: [pipelineInput.primaryDomain, ...(pipelineInput.additionalDomains || [])],
+                    scopeAssets: pipelineInput.scopedAssets || [],
+                    outOfScope: [],
+                    toolsUsed,
+                    scanDurationMs: Date.now() - _pipelineStartMs,
+                    findingsCount: result.totalFindings || 0,
+                    assetsScanned: assets.map((a: any) => a.asset?.hostname || a.hostname || 'unknown'),
+                    assetsDiscovered: assets.map((a: any) => a.asset?.hostname || a.hostname || 'unknown'),
+                    errorsEncountered: allErrors,
+                    authFailures: allAuthFailures,
+                  };
+                  const gaps = detectGaps(gapCtx);
+                  if (gaps.length > 0) {
+                    await createGapsBatch(gaps);
+                    console.log(`[DomainIntel] 🔍 Intelligence Gaps: ${gaps.length} gaps detected for scan ${scanId} (scan-only)`);
+                  }
+                  // Increment DI scan count on customer profile
+                  if (pipelineInput.customerName) {
+                    await incrementDIScanCount(pipelineInput.customerName).catch(() => {});
+                  }
+                } catch (gapErr: any) {
+                  console.warn(`[DomainIntel] Intelligence gap detection failed for scan ${scanId} (non-fatal):`, gapErr.message);
+                }
+              });
             } else {
               // Full engagement: run threat actor matching + campaign design
               let threatActorMatches = null;
@@ -873,6 +920,51 @@ export const domainIntelRouter = router({
                   }
                 });
               }
+              // ═══ INTELLIGENCE GAPS — Auto-detect gaps from full engagement DI scan context ═══
+              setImmediate(async () => {
+                try {
+                  const { detectGaps, createGapsBatch } = await import('../lib/intelligence-gaps');
+                  const { incrementDIScanCount } = await import('../lib/customer-intel-profile');
+                  const assets = Array.isArray(result.assets) ? result.assets : [];
+                  const allErrors: Array<{ tool: string; error: string; asset?: string }> = [];
+                  const allAuthFailures: Array<{ asset: string; service: string; reason: string }> = [];
+                  if (result.passiveRecon?.errors) {
+                    for (const e of result.passiveRecon.errors) {
+                      allErrors.push({ tool: e.source || 'passive-recon', error: e.message || String(e) });
+                    }
+                  }
+                  const toolsUsed: string[] = [];
+                  if (result.passiveRecon?.connectorResults) {
+                    for (const cr of result.passiveRecon.connectorResults) {
+                      toolsUsed.push(cr.connector || cr.source || 'unknown');
+                    }
+                  }
+                  const gapCtx = {
+                    scanId,
+                    customerId: pipelineInput.customerName,
+                    scopeDomains: [pipelineInput.primaryDomain, ...(pipelineInput.additionalDomains || [])],
+                    scopeAssets: pipelineInput.scopedAssets || [],
+                    outOfScope: [],
+                    toolsUsed,
+                    scanDurationMs: Date.now() - _pipelineStartMs,
+                    findingsCount: result.totalFindings || 0,
+                    assetsScanned: assets.map((a: any) => a.asset?.hostname || a.hostname || 'unknown'),
+                    assetsDiscovered: assets.map((a: any) => a.asset?.hostname || a.hostname || 'unknown'),
+                    errorsEncountered: allErrors,
+                    authFailures: allAuthFailures,
+                  };
+                  const gaps = detectGaps(gapCtx);
+                  if (gaps.length > 0) {
+                    await createGapsBatch(gaps);
+                    console.log(`[DomainIntel] 🔍 Intelligence Gaps: ${gaps.length} gaps detected for scan ${scanId} (full engagement)`);
+                  }
+                  if (pipelineInput.customerName) {
+                    await incrementDIScanCount(pipelineInput.customerName).catch(() => {});
+                  }
+                } catch (gapErr: any) {
+                  console.warn(`[DomainIntel] Intelligence gap detection failed for scan ${scanId} (non-fatal):`, gapErr.message);
+                }
+              });
             }
           } catch (err: any) {
             const errMsg = err?.message || (typeof err === 'string' ? err : 'Unknown pipeline error');

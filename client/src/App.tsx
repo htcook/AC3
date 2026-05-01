@@ -341,6 +341,8 @@ const OpsViewer = lazyWithRetry(() => import("./pages/OpsViewer"));
 const DocTracker = lazyWithRetry(() => import("./pages/DocTracker"));
 const StackProfiles = lazyWithRetry(() => import("./pages/StackProfiles"));
 const CustomerIntelProfile = lazyWithRetry(() => import("./pages/CustomerIntelProfile"));
+const CustomerIntelProfileList = lazyWithRetry(() => import("./pages/CustomerIntelProfileList"));
+const IntelligenceGapsOverview = lazyWithRetry(() => import("./pages/IntelligenceGapsOverview"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -1249,8 +1251,14 @@ function Router() {
         <Route path="/stack-profiles">
           <ProtectedRoute component={StackProfiles} pageName="StackProfiles" />
         </Route>
+        <Route path="/customer-intel">
+          <ProtectedRoute component={CustomerIntelProfileList} pageName="CustomerIntelProfileList" />
+        </Route>
         <Route path="/customer-intel/:customerId">
           <ProtectedRoute component={CustomerIntelProfile} pageName="CustomerIntelProfile" />
+        </Route>
+        <Route path="/intelligence-gaps">
+          <ProtectedRoute component={IntelligenceGapsOverview} pageName="IntelligenceGapsOverview" />
         </Route>
         <Route path="/ops-viewer">
           {/* TODO: restore ProtectedRoute after testing */}

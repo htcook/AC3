@@ -990,6 +990,7 @@ export const ac3ReportsRouter = {
           cvss_score: f.rfCvssScore || undefined,
           cvss_vector: f.rfCvssVector || undefined,
         })),
+        intelligence_gaps: (report.rptIntelligenceGaps as any) || null,
       };
     }),
 
@@ -2679,6 +2680,77 @@ export const ac3ReportsRouter = {
         }),
       );
 
+      // ── Intelligence Gaps Section ──
+      const intelligenceGapsSection: docx.Paragraph[] = [];
+      const gapsData = report.rptIntelligenceGaps as any;
+      if (gapsData && gapsData.sections && gapsData.sections.length > 0) {
+        intelligenceGapsSection.push(
+          new Paragraph({
+            heading: HeadingLevel.HEADING_1,
+            spacing: { before: 400, after: 200 },
+            children: [new TextRun({ text: 'Intelligence Gaps Analysis', bold: true, size: 28 })],
+          }),
+          new Paragraph({
+            spacing: { after: 200 },
+            children: [new TextRun({ text: gapsData.summary || '', size: 20, color: '64748b' })],
+          }),
+        );
+        for (const section of gapsData.sections) {
+          intelligenceGapsSection.push(
+            new Paragraph({
+              heading: HeadingLevel.HEADING_2,
+              spacing: { before: 300, after: 100 },
+              children: [new TextRun({ text: section.categoryLabel || section.category, bold: true, size: 24 })],
+            }),
+          );
+          for (const gap of section.gaps) {
+            intelligenceGapsSection.push(
+              new Paragraph({
+                spacing: { before: 200 },
+                children: [new TextRun({ text: gap.title, bold: true, size: 22 })],
+              }),
+              new Paragraph({
+                children: [
+                  new TextRun({ text: 'Reason: ', bold: true, size: 20 }),
+                  new TextRun({ text: gap.reason || 'Not specified', size: 20 }),
+                ],
+              }),
+              new Paragraph({
+                children: [
+                  new TextRun({ text: 'Impact: ', bold: true, size: 20 }),
+                  new TextRun({ text: (gap.impact || 'unknown').toUpperCase(), size: 20, bold: true,
+                    color: gap.impact === 'critical' ? 'DC2626' : gap.impact === 'high' ? 'EA580C' : gap.impact === 'medium' ? 'D97706' : '65A30D' }),
+                ],
+              }),
+              new Paragraph({
+                children: [
+                  new TextRun({ text: 'Recommendation: ', bold: true, size: 20 }),
+                  new TextRun({ text: gap.recommendation || 'No specific recommendation', size: 20 }),
+                ],
+              }),
+            );
+            if (gap.assets && gap.assets.length > 0) {
+              intelligenceGapsSection.push(
+                new Paragraph({
+                  children: [
+                    new TextRun({ text: 'Affected Assets: ', bold: true, size: 20 }),
+                    new TextRun({ text: gap.assets.join(', '), size: 20 }),
+                  ],
+                }),
+              );
+            }
+          }
+        }
+        intelligenceGapsSection.push(
+          new Paragraph({
+            spacing: { before: 200 },
+            children: [
+              new TextRun({ text: `Open: ${gapsData.totalOpen} | Resolved: ${gapsData.totalResolved}`, size: 18, color: '94a3b8', italics: true }),
+            ],
+          }),
+        );
+      }
+
       // Assemble document
       const frameworkDesc = isFedRAMP
         ? `FedRAMP ${report.fedrampImpactLevel || 'Moderate'} Assessment Report`
@@ -2699,6 +2771,7 @@ export const ac3ReportsRouter = {
             ...scopeSection,
             ...summarySection,
             ...findingsSection,
+            ...intelligenceGapsSection,
             ...appendixSection,
             ...chainOfCustodySealSection,
           ],

@@ -1191,3 +1191,20 @@
 - [x] Build EngagementSnapshot from state (findings, assets, technologies, weakness categories)
 - [x] Add log entries for gap detection and profile update results
 - [x] Save checkpoint and push to GitHub
+
+### Follow-Up Items — Nav, DI Scan Gaps, Report Export (May 1)
+- [x] Add Customer Intel Profile link to sidebar navigation (DashboardLayout)
+- [x] Create CustomerIntelProfileList.tsx page (list all profiles with grades, trends, stats)
+- [x] Create IntelligenceGapsOverview.tsx page (cross-engagement gap view with filters)
+- [x] Add /customer-intel and /intelligence-gaps routes to App.tsx
+- [x] Wire detectGaps() into DI scan completion path (domain-intel-core.ts, both scan-only and full engagement)
+- [x] Build GapDetectionContext from DI scan state (domains, tools, errors, findings, connector results)
+- [x] Wire incrementDIScanCount() into DI scan completion for customer profile tracking
+- [x] Add Intelligence Gaps section to auto-generated report PDF pipeline (HTML + DOCX)
+- [x] Wire formatGapsForReport() into the report generation block in engagement-orchestrator
+- [x] Add rptIntelligenceGaps JSON column to ac3_reports schema + migration
+- [x] Add intelligence_gaps to exportReportJson output
+- [x] Add Intelligence Gaps section to renderReportHTML (table with category/gap/reason/impact/recommendation/assets)
+- [x] Add Intelligence Gaps section to exportDocx (structured paragraphs with color-coded impact)
+- [x] Write tests for DI scan gap detection and report gap export (57 total tests passing)
+- [x] Save checkpoint and push to GitHub

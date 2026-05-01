@@ -1,0 +1,1 @@
+ALTER TABLE `ac3_reports` ADD `rpt_intelligence_gaps` json;

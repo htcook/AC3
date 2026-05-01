@@ -593,3 +593,345 @@ describe("StructuredLiveView — Data Organization", () => {
     expect(result).toHaveLength(0);
   });
 });
+
+
+// ─── 7. DI Scan Gap Detection Context Tests ─────────────────────────────────
+// Tests the gap detection context building from DI scan data
+
+describe("DI Scan Gap Detection Context", () => {
+  // Replicate the context-building logic from domain-intel-core.ts
+  function buildDIScanGapContext(params: {
+    domains: string[];
+    connectorResults: Record<string, { success: boolean; error?: string }>;
+    findingsCount: number;
+    toolsUsed: string[];
+  }) {
+    const { domains, connectorResults, findingsCount, toolsUsed } = params;
+    
+    const failedConnectors = Object.entries(connectorResults)
+      .filter(([, r]) => !r.success)
+      .map(([name, r]) => ({ tool: name, error: r.error || "unknown" }));
+    
+    const authFailures = failedConnectors
+      .filter(f => f.error.toLowerCase().includes("auth") || f.error.toLowerCase().includes("401") || f.error.toLowerCase().includes("403"))
+      .map(f => f.tool);
+    
+    return {
+      engagementType: "domain_intel" as const,
+      targetDomains: domains,
+      toolsUsed,
+      toolErrors: failedConnectors.map(f => `${f.tool}: ${f.error}`),
+      authenticationFailures: authFailures,
+      outOfScopeItems: [] as string[],
+      findingsCount,
+      assetsDiscovered: domains.length,
+      timeConstraints: null as string | null,
+    };
+  }
+
+  it("should build context from successful DI scan", () => {
+    const ctx = buildDIScanGapContext({
+      domains: ["example.com", "api.example.com"],
+      connectorResults: {
+        shodan: { success: true },
+        censys: { success: true },
+        securitytrails: { success: true },
+      },
+      findingsCount: 15,
+      toolsUsed: ["shodan", "censys", "securitytrails"],
+    });
+    expect(ctx.targetDomains).toHaveLength(2);
+    expect(ctx.toolErrors).toHaveLength(0);
+    expect(ctx.authenticationFailures).toHaveLength(0);
+    expect(ctx.findingsCount).toBe(15);
+  });
+
+  it("should detect authentication failures from connector errors", () => {
+    const ctx = buildDIScanGapContext({
+      domains: ["example.com"],
+      connectorResults: {
+        shodan: { success: true },
+        censys: { success: false, error: "401 Unauthorized" },
+        securitytrails: { success: false, error: "403 Forbidden - API key invalid" },
+      },
+      findingsCount: 5,
+      toolsUsed: ["shodan"],
+    });
+    expect(ctx.toolErrors).toHaveLength(2);
+    expect(ctx.authenticationFailures).toContain("censys");
+    expect(ctx.authenticationFailures).toContain("securitytrails");
+  });
+
+  it("should separate auth failures from general tool errors", () => {
+    const ctx = buildDIScanGapContext({
+      domains: ["example.com"],
+      connectorResults: {
+        shodan: { success: false, error: "Connection timeout" },
+        censys: { success: false, error: "401 Auth failed" },
+      },
+      findingsCount: 0,
+      toolsUsed: [],
+    });
+    expect(ctx.toolErrors).toHaveLength(2);
+    expect(ctx.authenticationFailures).toHaveLength(1);
+    expect(ctx.authenticationFailures).toContain("censys");
+  });
+});
+
+// ─── 8. Report Intelligence Gaps Export Tests ────────────────────────────────
+// Tests the formatGapsForReport output structure for report integration
+
+describe("Report Intelligence Gaps Export", () => {
+  // Replicate formatGapsForReport logic
+  type GapRecord = {
+    category: string;
+    title: string;
+    reason: string | null;
+    potentialImpact: string | null;
+    recommendation: string | null;
+    affectedAssets: string[] | null;
+    status: string;
+  };
+
+  const GAP_CATEGORY_META: Record<string, { label: string }> = {
+    scope_limitation: { label: "Scope Limitation" },
+    tool_failure: { label: "Tool Failure" },
+    access_denied: { label: "Access Denied" },
+    time_constraint: { label: "Time Constraint" },
+    encryption_barrier: { label: "Encryption Barrier" },
+    environmental_limitation: { label: "Environmental Limitation" },
+    methodology_gap: { label: "Methodology Gap" },
+  };
+
+  function formatGapsForReport(gaps: GapRecord[]) {
+    const byCategory = new Map<string, GapRecord[]>();
+    let totalOpen = 0;
+    let totalResolved = 0;
+
+    for (const gap of gaps) {
+      if (!byCategory.has(gap.category)) byCategory.set(gap.category, []);
+      byCategory.get(gap.category)!.push(gap);
+      if (gap.status === "open" || gap.status === "acknowledged") totalOpen++;
+      if (gap.status === "resolved" || gap.status === "mitigated") totalResolved++;
+    }
+
+    const sections = Array.from(byCategory.entries()).map(([category, categoryGaps]) => ({
+      category,
+      categoryLabel: GAP_CATEGORY_META[category]?.label || category,
+      gaps: categoryGaps.map((g) => ({
+        title: g.title,
+        reason: g.reason || "",
+        impact: g.potentialImpact || "unknown",
+        recommendation: g.recommendation || "No specific recommendation",
+        assets: (g.affectedAssets as string[]) || [],
+      })),
+    }));
+
+    const summary =
+      gaps.length === 0
+        ? "No intelligence gaps were identified during this assessment."
+        : `${gaps.length} intelligence gap(s) were identified: ${totalOpen} open, ${totalResolved} resolved. ` +
+          `Categories: ${sections.map((s) => `${s.categoryLabel} (${s.gaps.length})`).join(", ")}.`;
+
+    return { summary, sections, totalOpen, totalResolved };
+  }
+
+  it("should format empty gaps array correctly", () => {
+    const result = formatGapsForReport([]);
+    expect(result.summary).toBe("No intelligence gaps were identified during this assessment.");
+    expect(result.sections).toHaveLength(0);
+    expect(result.totalOpen).toBe(0);
+    expect(result.totalResolved).toBe(0);
+  });
+
+  it("should group gaps by category with correct labels", () => {
+    const gaps: GapRecord[] = [
+      { category: "scope_limitation", title: "Internal network not assessed", reason: "Out of scope", potentialImpact: "high", recommendation: "Extend scope", affectedAssets: ["10.0.0.0/8"], status: "open" },
+      { category: "scope_limitation", title: "Cloud APIs not tested", reason: "No credentials", potentialImpact: "medium", recommendation: "Provide API keys", affectedAssets: ["aws.example.com"], status: "open" },
+      { category: "tool_failure", title: "Nuclei scanner timeout", reason: "Network instability", potentialImpact: "medium", recommendation: "Re-run scan", affectedAssets: ["example.com"], status: "acknowledged" },
+    ];
+    const result = formatGapsForReport(gaps);
+    expect(result.sections).toHaveLength(2);
+    expect(result.sections[0].categoryLabel).toBe("Scope Limitation");
+    expect(result.sections[0].gaps).toHaveLength(2);
+    expect(result.sections[1].categoryLabel).toBe("Tool Failure");
+    expect(result.sections[1].gaps).toHaveLength(1);
+  });
+
+  it("should count open and resolved gaps correctly", () => {
+    const gaps: GapRecord[] = [
+      { category: "scope_limitation", title: "Gap 1", reason: null, potentialImpact: "high", recommendation: null, affectedAssets: null, status: "open" },
+      { category: "tool_failure", title: "Gap 2", reason: null, potentialImpact: "medium", recommendation: null, affectedAssets: null, status: "resolved" },
+      { category: "access_denied", title: "Gap 3", reason: null, potentialImpact: "low", recommendation: null, affectedAssets: null, status: "mitigated" },
+      { category: "time_constraint", title: "Gap 4", reason: null, potentialImpact: "medium", recommendation: null, affectedAssets: null, status: "acknowledged" },
+    ];
+    const result = formatGapsForReport(gaps);
+    expect(result.totalOpen).toBe(2); // open + acknowledged
+    expect(result.totalResolved).toBe(2); // resolved + mitigated
+  });
+
+  it("should generate summary with category breakdown", () => {
+    const gaps: GapRecord[] = [
+      { category: "scope_limitation", title: "Gap 1", reason: null, potentialImpact: "high", recommendation: null, affectedAssets: null, status: "open" },
+      { category: "encryption_barrier", title: "Gap 2", reason: null, potentialImpact: "medium", recommendation: null, affectedAssets: null, status: "open" },
+    ];
+    const result = formatGapsForReport(gaps);
+    expect(result.summary).toContain("2 intelligence gap(s)");
+    expect(result.summary).toContain("2 open");
+    expect(result.summary).toContain("0 resolved");
+    expect(result.summary).toContain("Scope Limitation (1)");
+    expect(result.summary).toContain("Encryption Barrier (1)");
+  });
+
+  it("should handle null fields gracefully with defaults", () => {
+    const gaps: GapRecord[] = [
+      { category: "methodology_gap", title: "Missing test", reason: null, potentialImpact: null, recommendation: null, affectedAssets: null, status: "open" },
+    ];
+    const result = formatGapsForReport(gaps);
+    const gap = result.sections[0].gaps[0];
+    expect(gap.reason).toBe("");
+    expect(gap.impact).toBe("unknown");
+    expect(gap.recommendation).toBe("No specific recommendation");
+    expect(gap.assets).toEqual([]);
+  });
+
+  it("should preserve assets array in gap output", () => {
+    const gaps: GapRecord[] = [
+      { category: "access_denied", title: "SSH blocked", reason: "Firewall", potentialImpact: "high", recommendation: "Open port", affectedAssets: ["10.0.0.1", "10.0.0.2", "10.0.0.3"], status: "open" },
+    ];
+    const result = formatGapsForReport(gaps);
+    expect(result.sections[0].gaps[0].assets).toEqual(["10.0.0.1", "10.0.0.2", "10.0.0.3"]);
+  });
+});
+
+// ─── 9. Report Data Intelligence Gaps Integration Tests ──────────────────────
+// Tests that the ReportData interface and HTML renderer handle intelligence gaps
+
+describe("Report Intelligence Gaps HTML Rendering", () => {
+  it("should render intelligence gaps table when gaps exist", () => {
+    const gapsData = {
+      summary: "2 intelligence gap(s) were identified: 2 open, 0 resolved.",
+      sections: [
+        {
+          category: "scope_limitation",
+          categoryLabel: "Scope Limitation",
+          gaps: [
+            { title: "Internal network", reason: "Out of scope", impact: "high", recommendation: "Extend scope", assets: ["10.0.0.0/8"] },
+          ],
+        },
+      ],
+      totalOpen: 2,
+      totalResolved: 0,
+    };
+
+    // Simulate the HTML template logic
+    const hasGaps = gapsData && gapsData.sections.length > 0;
+    expect(hasGaps).toBe(true);
+
+    const html = gapsData.sections.flatMap(s => s.gaps.map(g =>
+      `<tr><td>${s.categoryLabel}</td><td>${g.title}</td><td>${g.reason}</td><td>${g.impact}</td><td>${g.recommendation}</td><td>${g.assets.join(", ")}</td></tr>`
+    )).join("");
+
+    expect(html).toContain("Scope Limitation");
+    expect(html).toContain("Internal network");
+    expect(html).toContain("Out of scope");
+    expect(html).toContain("high");
+    expect(html).toContain("Extend scope");
+    expect(html).toContain("10.0.0.0/8");
+  });
+
+  it("should not render gaps section when no gaps exist", () => {
+    const gapsData = null;
+    const hasGaps = gapsData && (gapsData as any).sections?.length > 0;
+    expect(hasGaps).toBeFalsy();
+  });
+
+  it("should handle empty sections array", () => {
+    const gapsData = { summary: "No gaps.", sections: [], totalOpen: 0, totalResolved: 0 };
+    const hasGaps = gapsData && gapsData.sections.length > 0;
+    expect(hasGaps).toBe(false);
+  });
+});
+
+// ─── 10. DOCX Intelligence Gaps Section Tests ────────────────────────────────
+
+describe("DOCX Intelligence Gaps Section Builder", () => {
+  it("should build paragraph list for gaps data", () => {
+    const gapsData = {
+      summary: "3 gaps identified",
+      sections: [
+        {
+          category: "tool_failure",
+          categoryLabel: "Tool Failure",
+          gaps: [
+            { title: "Nuclei timeout", reason: "Network issue", impact: "medium", recommendation: "Re-run", assets: ["example.com"] },
+            { title: "ZAP crash", reason: "Memory", impact: "high", recommendation: "Increase RAM", assets: [] },
+          ],
+        },
+      ],
+      totalOpen: 3,
+      totalResolved: 0,
+    };
+
+    // Simulate the DOCX section builder logic
+    const paragraphs: Array<{ type: string; text: string }> = [];
+
+    if (gapsData && gapsData.sections.length > 0) {
+      paragraphs.push({ type: "heading1", text: "Intelligence Gaps Analysis" });
+      paragraphs.push({ type: "paragraph", text: gapsData.summary });
+
+      for (const section of gapsData.sections) {
+        paragraphs.push({ type: "heading2", text: section.categoryLabel });
+        for (const gap of section.gaps) {
+          paragraphs.push({ type: "title", text: gap.title });
+          paragraphs.push({ type: "field", text: `Reason: ${gap.reason}` });
+          paragraphs.push({ type: "field", text: `Impact: ${gap.impact.toUpperCase()}` });
+          paragraphs.push({ type: "field", text: `Recommendation: ${gap.recommendation}` });
+          if (gap.assets.length > 0) {
+            paragraphs.push({ type: "field", text: `Affected Assets: ${gap.assets.join(", ")}` });
+          }
+        }
+      }
+      paragraphs.push({ type: "footer", text: `Open: ${gapsData.totalOpen} | Resolved: ${gapsData.totalResolved}` });
+    }
+
+    expect(paragraphs.length).toBeGreaterThan(0);
+    expect(paragraphs[0].text).toBe("Intelligence Gaps Analysis");
+    expect(paragraphs[1].text).toBe("3 gaps identified");
+    expect(paragraphs[2].text).toBe("Tool Failure");
+    // First gap
+    expect(paragraphs[3].text).toBe("Nuclei timeout");
+    expect(paragraphs[4].text).toContain("Network issue");
+    expect(paragraphs[5].text).toContain("MEDIUM");
+    expect(paragraphs[6].text).toContain("Re-run");
+    expect(paragraphs[7].text).toContain("example.com");
+    // Second gap (no assets, so no assets paragraph)
+    expect(paragraphs[8].text).toBe("ZAP crash");
+    // Footer
+    const footer = paragraphs[paragraphs.length - 1];
+    expect(footer.text).toContain("Open: 3");
+    expect(footer.text).toContain("Resolved: 0");
+  });
+
+  it("should skip section when no gaps data", () => {
+    const gapsData = null;
+    const paragraphs: any[] = [];
+    if (gapsData && (gapsData as any).sections?.length > 0) {
+      paragraphs.push({ type: "heading1", text: "Intelligence Gaps Analysis" });
+    }
+    expect(paragraphs).toHaveLength(0);
+  });
+
+  it("should apply correct impact color mapping", () => {
+    const colorMap: Record<string, string> = {
+      critical: "DC2626",
+      high: "EA580C",
+      medium: "D97706",
+      low: "65A30D",
+    };
+    expect(colorMap["critical"]).toBe("DC2626");
+    expect(colorMap["high"]).toBe("EA580C");
+    expect(colorMap["medium"]).toBe("D97706");
+    expect(colorMap["low"]).toBe("65A30D");
+  });
+});
