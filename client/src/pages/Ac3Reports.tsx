@@ -862,15 +862,42 @@ function FindingsTab({ reportId, findings }: { reportId: string; findings: any[]
                     {/* Evidence */}
                     {(finding.evidence as any[] || []).length > 0 && (
                       <div>
-                        <Label className="text-xs text-muted-foreground">Evidence</Label>
-                        <div className="space-y-1 mt-1">
-                          {(finding.evidence as any[]).map((e: any, i: number) => (
-                            <div key={i} className="text-xs bg-background/50 rounded px-2 py-1 flex items-center gap-2">
-                              <Badge variant="outline" className="text-[10px]">{e.type}</Badge>
-                              <span>{e.description}</span>
-                              {e.url && <a href={e.url} target="_blank" rel="noopener" className="text-blue-400 hover:underline ml-auto">View</a>}
-                            </div>
-                          ))}
+                        <Label className="text-xs text-muted-foreground">Evidence ({(finding.evidence as any[]).length} items)</Label>
+                        <div className="space-y-2 mt-1">
+                          {(finding.evidence as any[]).map((e: any, i: number) => {
+                            const typeLabels: Record<string, string> = {
+                              poc: 'PoC', scanner_output: 'Scanner', raw_evidence: 'Raw Evidence',
+                              evidence_chain: 'Evidence Chain', evidence_detail: 'Detail',
+                              tool_output: 'Tool Output', exploit_attempt: 'Exploit',
+                              approval_gate: 'Approval', analysis: 'Analysis',
+                              command_output: 'Command', log: 'Log', network_capture: 'Network',
+                            };
+                            const typeColors: Record<string, string> = {
+                              poc: 'bg-red-500/10 text-red-400 border-red-500/30',
+                              scanner_output: 'bg-blue-500/10 text-blue-400 border-blue-500/30',
+                              raw_evidence: 'bg-green-500/10 text-green-400 border-green-500/30',
+                              evidence_chain: 'bg-purple-500/10 text-purple-400 border-purple-500/30',
+                              tool_output: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30',
+                              exploit_attempt: 'bg-orange-500/10 text-orange-400 border-orange-500/30',
+                            };
+                            return (
+                              <div key={i} className="text-xs bg-background/50 rounded-md border border-border/50 overflow-hidden">
+                                <div className="flex items-center gap-2 px-2 py-1.5">
+                                  <Badge variant="outline" className={`text-[10px] ${typeColors[e.type] || ''}`}>
+                                    {typeLabels[e.type] || e.type}
+                                  </Badge>
+                                  <span className="text-muted-foreground truncate">{e.reference || ''}</span>
+                                  {e.url && <a href={e.url} target="_blank" rel="noopener" className="text-blue-400 hover:underline ml-auto">View</a>}
+                                </div>
+                                {e.description && (
+                                  <div className="px-2 pb-1.5 text-foreground/80">{e.description}</div>
+                                )}
+                                {e.raw && (
+                                  <pre className="mx-2 mb-1.5 p-2 bg-black/30 rounded text-[10px] text-green-400/80 font-mono overflow-x-auto max-h-32 whitespace-pre-wrap">{e.raw.slice(0, 1000)}{e.raw.length > 1000 ? '\n... (truncated)' : ''}</pre>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     )}

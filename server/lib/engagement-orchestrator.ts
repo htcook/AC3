@@ -3015,15 +3015,53 @@ async function executeRecon(state: EngagementOpsState, engagement: any, operator
             }
           }
 
+          // Build rich evidence detail from DI scan finding data instead of generic placeholder
+          const richEvidenceParts: string[] = [];
+          // Use the original DI scan evidenceDetail if available (contains version-specific match info)
+          if (f.evidenceDetail) {
+            richEvidenceParts.push(f.evidenceDetail);
+          } else {
+            richEvidenceParts.push(`Detected via ${evidenceSource}${hasVersion ? ` (version ${f.detectedVersion})` : ''}`);
+          }
+          // Include NVD description for CVE context
+          if (f.nvdDescription) {
+            richEvidenceParts.push(`NVD: ${f.nvdDescription}`);
+          }
+          // Include affected version range for version-based findings
+          if (f.affectedVersions && f.detectedVersion) {
+            richEvidenceParts.push(`Affected versions: ${f.affectedVersions}. Detected: ${f.detectedVersion}`);
+          }
+          // Include evidence basis for traceability
+          if (f.evidenceBasis) {
+            const basisLabels: Record<string, string> = {
+              confirmed_cve: 'Confirmed CVE match',
+              kev_match: 'CISA KEV catalog match',
+              vuln_feed: 'Vulnerability feed match',
+              llm_inference: 'LLM-inferred risk',
+              technology_match: 'Technology fingerprint match',
+            };
+            richEvidenceParts.push(`Basis: ${basisLabels[f.evidenceBasis] || f.evidenceBasis}`);
+          }
+
           const vuln: any = {
             id: f.cveIds?.[0] || `passive-${domain}-${idx}`,
             severity: f.severity >= 8 ? 'critical' : f.severity >= 6 ? 'high' : f.severity >= 4 ? 'medium' : 'low',
             title: f.title || f.category || 'Unknown finding',
             cve: f.cveIds?.[0],
             corroborationTier: tier,
-            evidenceDetail: `Detected via ${evidenceSource}${hasVersion ? ` (version ${f.detectedVersion})` : ' (version unconfirmed)'}`,
+            evidenceDetail: richEvidenceParts.join(' | '),
             detectedVersion: f.detectedVersion || null,
             affectedVersions: f.affectedVersions || null,
+            // Preserve the full evidence chain from DI scan for report consumption
+            evidenceChain: f.evidenceChain || [],
+            // Preserve raw evidence fields for report pipeline
+            rawEvidence: f.evidenceChain ? f.evidenceChain.join('\n') : undefined,
+            description: f.nvdDescription || f.evidenceDetail || undefined,
+            source: f.source || evidenceSource,
+            tool: f.source || 'domain-intel',
+            kevListed: f.kevListed || false,
+            exploitAvailable: f.exploitAvailable || false,
+            cvssScore: f.cvssScore,
           };
 
           // Attach Nuclei fast-path hint if resolved
@@ -12689,8 +12727,8 @@ export async function executeEngagement(
                   asset: asset.hostname,
                   port: v.port || (asset.ports.length > 0 ? asset.ports[0].port : undefined),
                   service: v.service || (asset.ports.length > 0 ? asset.ports[0].service : undefined),
-                  rawOutput: v.rawOutput || toolOutput,
-                  tool: v.tool || toolMatch,
+                  rawOutput: v.rawOutput || v.rawEvidence || toolOutput,
+                  tool: v.tool || v.source || toolMatch,
                 };
               });
             });
@@ -14003,13 +14041,51 @@ Respond in JSON: { "templateCategory": string, "pretext": string, "domainStrateg
           const severity = mapSev(finding.severity, analysis.riskScore);
           const findingId = `FND-${randomUUID().slice(0, 8).toUpperCase()}`;
 
+          // Build rich evidence array from all available sources
+          const evidence: any[] = Array.isArray(finding.evidence) ? [...finding.evidence] : [];
+          // Add PoC from analysis
+          if (analysis.poc) {
+            evidence.push({ type: 'poc', reference: `PoC for ${finding.title || vuln.title}`, description: (typeof analysis.poc === 'string' ? analysis.poc : JSON.stringify(analysis.poc)).slice(0, 500) });
+          }
+          // Add raw scanner output from vuln-analysis-agents
+          if (finding.rawOutput) {
+            evidence.push({ type: 'scanner_output', reference: `Scanner output: ${finding.tool || 'tool'} on ${finding.asset || ''}`, raw: finding.rawOutput.slice(0, 2000), description: `Tool: ${finding.tool || 'unknown'}. Raw scanner output.` });
+          }
+          // Match back to original vuln for rawEvidence/evidenceChain
+          const origVuln = rptAssets.flatMap((a: any) => a.vulns || []).find((v: any) =>
+            v.title === finding.title && (v.cve === finding.cve || !finding.cve)
+          );
+          if (origVuln?.rawEvidence) {
+            evidence.push({ type: 'raw_evidence', reference: `Raw evidence: ${origVuln.source || origVuln.tool || 'scanner'}`, raw: String(origVuln.rawEvidence).slice(0, 2000), description: `Source: ${origVuln.source || origVuln.tool || 'scanner'}. Corroboration: ${origVuln.corroborationTier || 'unverified'}.` });
+          }
+          if (origVuln?.evidenceChain?.length) {
+            evidence.push({ type: 'evidence_chain', reference: `Evidence chain for ${finding.title || vuln.title}`, description: origVuln.evidenceChain.join(' \u2192 ') });
+          }
+          if (origVuln?.evidenceDetail) {
+            evidence.push({ type: 'evidence_detail', reference: `Evidence detail`, description: origVuln.evidenceDetail.slice(0, 1000) });
+          }
+          // Add tool results from matching asset
+          if (finding.asset) {
+            const matchingAsset = rptAssets.find((a: any) => (a.hostname || a.ip) === finding.asset);
+            if (matchingAsset?.toolResults?.length) {
+              const relevantTools = (matchingAsset.toolResults as any[]).filter((tr: any) => tr.findingCount > 0 && tr.outputPreview).slice(0, 2);
+              for (const tr of relevantTools) {
+                evidence.push({ type: 'tool_output', reference: `${tr.tool} scan on ${finding.asset}`, raw: (tr.rawOutput || tr.outputPreview || '').slice(0, 1500), description: `Command: ${(tr.command || '').slice(0, 200)}. Findings: ${tr.findingCount}.` });
+              }
+            }
+          }
+          // Fallback: add technical analysis if no other evidence
+          if (evidence.length === 0 && analysis.technicalAnalysis) {
+            evidence.push({ type: 'analysis', reference: `Analysis for ${finding.title || vuln.title}`, description: analysis.technicalAnalysis.slice(0, 1000) });
+          }
+
           await reportDb.insert(findingsTable).values({
             rfFindingId: findingId,
             rfReportId: reportId,
             rfTitle: finding.title || vuln.title || 'Untitled Finding',
             rfSeverity: severity as any,
             rfSummary: analysis.technicalAnalysis || finding.description || '',
-            rfEvidence: JSON.stringify(finding.evidence || []),
+            rfEvidence: JSON.stringify(evidence),
             rfAssets: JSON.stringify([finding.asset || '']),
             rfAttackTechniques: JSON.stringify(vuln.attackTechniques || []),
             rfControls: JSON.stringify(vuln.controls || []),
@@ -14036,7 +14112,11 @@ Respond in JSON: { "templateCategory": string, "pretext": string, "domainStrateg
                 rfTitle: v.title || v.cve || 'Untitled Vulnerability',
                 rfSeverity: mapSev(v.severity, v.cvss) as any,
                 rfSummary: v.description || `${v.title} found on ${rptAsset.hostname}`,
-                rfEvidence: JSON.stringify([{ tool: v.source || 'scanner', output: v.description }]),
+                rfEvidence: JSON.stringify([
+                  { type: 'raw_evidence', reference: `${v.source || 'scanner'} on ${rptAsset.hostname || rptAsset.ip}`, raw: v.rawEvidence ? String(v.rawEvidence).slice(0, 2000) : undefined, description: v.description || v.title },
+                  ...(v.evidenceChain?.length ? [{ type: 'evidence_chain', reference: `Evidence chain`, description: v.evidenceChain.join(' \u2192 ') }] : []),
+                  ...(v.evidenceDetail ? [{ type: 'evidence_detail', reference: `Evidence detail`, description: v.evidenceDetail.slice(0, 1000) }] : []),
+                ].filter((e: any) => e.description || e.raw)),
                 rfAssets: JSON.stringify([rptAsset.hostname || rptAsset.ip]),
                 rfAttackTechniques: JSON.stringify([]),
                 rfControls: JSON.stringify([]),

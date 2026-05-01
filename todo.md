@@ -1208,3 +1208,13 @@
 - [x] Add Intelligence Gaps section to exportDocx (structured paragraphs with color-coded impact)
 - [x] Write tests for DI scan gap detection and report gap export (57 total tests passing)
 - [x] Save checkpoint and push to GitHub
+
+### Report Evidence Fix — Real Scanner Evidence Instead of Placeholders (May 1)
+- [x] Trace finding creation pipeline (how findings get evidence field populated)
+- [x] Trace scanner data flow (rustscan, nuclei, nikto, etc.) into findings
+- [x] Fix evidence population to include actual scanner output (banner grabs, HTTP responses, version strings)
+- [x] Fix evidence population to include technology fingerprint data
+- [x] Fix report rendering to display actual evidence instead of generic "Detected via passive recon" placeholders
+- [x] Ensure CISA KEV findings include the actual matched technology/version evidence
+- [x] Write tests for evidence pipeline (23 tests passing)
+- [ ] Save checkpoint and push to GitHub

@@ -982,7 +982,12 @@ export const ac3ReportsRouter = {
           summary: f.rfSummary || "",
           business_impact: f.rfBusinessImpact || "",
           technical_details: f.rfTechnicalDetails || "",
-          evidence: (f.rfEvidence as any[] || []).map((e: any) => e.reference || e.description),
+          evidence: (f.rfEvidence as any[] || []).map((e: any) => ({
+            type: e.type || 'evidence',
+            reference: e.reference || '',
+            description: e.description || '',
+            raw: e.raw || undefined,
+          })),
           attack_techniques: (f.rfAttackTechniques as any[] || []).map((t: any) => t.id),
           controls: (f.rfControls as any[] || []).map((c: any) => c.id),
           remediation: f.rfRemediation || "",
@@ -1099,13 +1104,33 @@ export const ac3ReportsRouter = {
           ? [{ id: event.attackTechnique }]
           : [];
 
-        const evidence = [{
+        // Build evidence from event data + metadata (which may contain raw tool output)
+        const eventMeta = (typeof event.metadata === 'string' ? (() => { try { return JSON.parse(event.metadata); } catch { return null; } })() : event.metadata) || {};
+        const evidence: any[] = [{
           type: event.eventType === 'shell_obtained' ? 'command_output' :
                 event.eventType === 'credential_found' ? 'log' :
                 event.eventType === 'data_exfiltrated' ? 'network_capture' : 'log',
           reference: `Engagement ${eng.name} - ${event.eventType}`,
           description: event.description || event.title,
         }];
+        // Add raw tool output from event metadata if available
+        if (eventMeta.rawOutput || eventMeta.output || eventMeta.stdout) {
+          evidence.push({
+            type: 'tool_output',
+            reference: `${eventMeta.tool || event.sourceModule || 'tool'} output`,
+            raw: (eventMeta.rawOutput || eventMeta.output || eventMeta.stdout || '').slice(0, 2000),
+            description: `Source: ${event.sourceModule || 'engagement'}. Phase: ${event.phase}.`,
+          });
+        }
+        // Add exploit evidence from metadata
+        if (eventMeta.exploitOutput || eventMeta.payload) {
+          evidence.push({
+            type: 'exploit_attempt',
+            reference: `Exploit: ${eventMeta.module || eventMeta.cve || event.title}`,
+            raw: (eventMeta.exploitOutput || '').slice(0, 1500),
+            description: `Module: ${eventMeta.module || 'N/A'}. CVE: ${eventMeta.cve || 'N/A'}. Payload: ${(eventMeta.payload || '').slice(0, 200)}`,
+          });
+        }
 
         const assets = event.targetHost ? [event.targetHost] : [];
         if (event.targetPort) assets.push(`${event.targetHost}:${event.targetPort}`);
@@ -1637,7 +1662,7 @@ export const ac3ReportsRouter = {
         const analysis = vuln.analysis || {};
         const agentClass = vuln.agentClass || 'default';
 
-        const severity = mapVulnSeverity(finding.rfSeverity, analysis.riskScore);
+        const severity = mapVulnSeverity(finding.severity || finding.rfSeverity, analysis.riskScore);
         if (input.severityFilter && !input.severityFilter.includes(severity)) continue;
 
         // Extract ATT&CK techniques: from attack chains matching this asset, plus CVE-based
@@ -1660,7 +1685,7 @@ export const ac3ReportsRouter = {
           }
         }
         // ── Infer ATT&CK techniques from vulnerability type/title ──
-        const titleLower = (finding.rfTitle || '').toLowerCase();
+        const titleLower = (finding.title || finding.rfTitle || '').toLowerCase();
         const descLower = (analysis.technicalAnalysis || '').toLowerCase();
         const combined = titleLower + ' ' + descLower;
 
@@ -1746,8 +1771,17 @@ export const ac3ReportsRouter = {
         if (analysis.poc) {
           evidence.push({
             type: 'poc',
-            reference: `PoC for ${finding.rfTitle || finding.id}`,
+            reference: `PoC for ${finding.title || finding.rfTitle || finding.id}`,
             description: typeof analysis.poc === 'string' ? analysis.poc.slice(0, 500) : JSON.stringify(analysis.poc).slice(0, 500),
+          });
+        }
+        // From raw scanner output (rawOutput from vuln-analysis-agents, or rawEvidence from asset vulns)
+        if (finding.rawOutput) {
+          evidence.push({
+            type: 'scanner_output',
+            reference: `Scanner output: ${finding.tool || 'tool'} on ${assetName}`,
+            raw: finding.rawOutput.slice(0, 2000),
+            description: `Tool: ${finding.tool || 'unknown'}. Raw output from scanner.`,
           });
         }
         // From exploit attempts on this asset
@@ -1775,6 +1809,69 @@ export const ac3ReportsRouter = {
           });
         }
 
+        // ── Add evidence from the original vuln's rawEvidence/evidenceChain (DI scan data) ──
+        // The vuln object in vulnAnalysis.finding carries rawEvidence and evidenceChain from the
+        // engagement orchestrator's postureToVulns conversion of DI scan PostureFindings.
+        // Also check the original vuln entry for rawEvidence from active scan tools.
+        const origVuln = assets.flatMap((a: any) => a.vulns || []).find((v: any) =>
+          v.title === (finding.title || finding.rfTitle) && (v.cve === finding.cve || !finding.cve)
+        );
+        if (origVuln?.rawEvidence) {
+          evidence.push({
+            type: 'raw_evidence',
+            reference: `Raw evidence: ${origVuln.source || origVuln.tool || 'scanner'} on ${assetName}`,
+            raw: String(origVuln.rawEvidence).slice(0, 2000),
+            description: `Source: ${origVuln.source || origVuln.tool || 'scanner'}. Corroboration: ${origVuln.corroborationTier || 'unverified'}.`,
+          });
+        }
+        if (origVuln?.evidenceChain?.length) {
+          evidence.push({
+            type: 'evidence_chain',
+            reference: `Evidence chain for ${finding.title || finding.rfTitle || finding.id}`,
+            description: origVuln.evidenceChain.join(' → '),
+          });
+        }
+        if (origVuln?.evidenceDetail && !evidence.some((e: any) => e.description?.includes(origVuln.evidenceDetail?.slice(0, 50)))) {
+          evidence.push({
+            type: 'evidence_detail',
+            reference: `Evidence detail: ${finding.title || finding.rfTitle || finding.id}`,
+            description: origVuln.evidenceDetail.slice(0, 1000),
+          });
+        }
+
+        // ── Add evidence from asset toolResults (actual scanner command output) ──
+        if (assetName) {
+          const matchingAsset = assets.find((a: any) => (a.hostname || a.ip) === assetName);
+          if (matchingAsset?.toolResults?.length) {
+            // Find tool results relevant to this finding (by tool name match or finding count > 0)
+            const relevantTools = (matchingAsset.toolResults as any[]).filter((tr: any) =>
+              tr.findingCount > 0 && tr.outputPreview
+            ).slice(0, 3);
+            for (const tr of relevantTools) {
+              // Check if this tool result is related to the finding
+              const toolName = tr.tool?.toLowerCase() || '';
+              const findingTitle = (finding.title || finding.rfTitle || '').toLowerCase();
+              if (findingTitle.includes(toolName) || toolName.includes('nuclei') || toolName.includes('httpx') || toolName.includes('nmap') || toolName.includes('nikto') || toolName.includes('zap')) {
+                evidence.push({
+                  type: 'tool_output',
+                  reference: `${tr.tool} scan on ${assetName} (${tr.findingCount} findings, ${tr.durationMs}ms)`,
+                  raw: (tr.rawOutput || tr.outputPreview || '').slice(0, 1500),
+                  description: `Command: ${(tr.command || '').slice(0, 300)}. Exit code: ${tr.exitCode}. Findings: ${tr.findingCount}.`,
+                });
+              }
+            }
+          }
+        }
+
+        // ── If still no evidence, add the technical analysis as evidence ──
+        if (evidence.length === 0 && analysis.technicalAnalysis) {
+          evidence.push({
+            type: 'analysis',
+            reference: `Analysis for ${finding.title || finding.rfTitle || finding.id}`,
+            description: analysis.technicalAnalysis.slice(0, 1000),
+          });
+        }
+
         // Get CVSS score from ESS intelligence
         let cvssScore = '';
         for (const cve of (analysis.relatedCves || [])) {
@@ -1784,19 +1881,19 @@ export const ac3ReportsRouter = {
             break;
           }
         }
-
         // Build assets array
         const findingAssets = [assetName].filter(Boolean);
         if (finding.port) findingAssets.push(`${assetName}:${finding.port}`);
 
+        // Use rf-prefixed property names to match the insert code below
         findingsToCreate.push({
-          title: finding.rfTitle || `Vulnerability on ${assetName}`,
-          severity,
-          attackTechniques: uniqueTechniques.map(id => ({ id })),
-          controls,
-          evidence,
-          assets: findingAssets,
-          cvssScore: cvssScore || (analysis.riskScore ? String(analysis.riskScore) : ''),
+          rfTitle: finding.title || finding.rfTitle || `Vulnerability on ${assetName}`,
+          rfSeverity: severity,
+          rfAttackTechniques: uniqueTechniques.map(id => ({ id })),
+          rfControls: controls,
+          rfEvidence: evidence,
+          rfAssets: findingAssets,
+          rfCvssScore: cvssScore || (analysis.riskScore ? String(analysis.riskScore) : ''),
           agentClass,
           sourceContext: [
             analysis.technicalAnalysis ? `Technical Analysis: ${analysis.technicalAnalysis}` : '',
@@ -1805,7 +1902,7 @@ export const ac3ReportsRouter = {
             analysis.remediation ? `Remediation Steps: ${JSON.stringify(analysis.remediation)}` : '',
           ].filter(Boolean).join('\n\n'),
           // Pre-populate remediation from analysis (platform data)
-          remediation: Array.isArray(analysis.remediation)
+          rfRemediation: Array.isArray(analysis.remediation)
             ? analysis.remediation.join('\n')
             : (analysis.remediation || ''),
         });
@@ -2379,13 +2476,41 @@ export const ac3ReportsRouter = {
         if (evidence.length) {
           findingsSection.push(new Paragraph({ spacing: { before: 200 }, children: [new TextRun({ text: 'Evidence', bold: true })] }));
           evidence.forEach((e: any) => {
+            // Type label with color coding
+            const typeLabels: Record<string, string> = {
+              poc: 'Proof of Concept',
+              scanner_output: 'Scanner Output',
+              raw_evidence: 'Raw Evidence',
+              evidence_chain: 'Evidence Chain',
+              evidence_detail: 'Evidence Detail',
+              tool_output: 'Tool Output',
+              exploit_attempt: 'Exploit Attempt',
+              approval_gate: 'Approval Gate',
+              analysis: 'Analysis',
+            };
+            const typeLabel = typeLabels[e.type] || e.type || 'Evidence';
             findingsSection.push(new Paragraph({
               bullet: { level: 0 },
               children: [
-                new TextRun({ text: `[${e.type}] `, bold: true }),
-                new TextRun({ text: e.description || e.reference }),
+                new TextRun({ text: `[${typeLabel}] `, bold: true }),
+                new TextRun({ text: e.reference || '' }),
               ],
             }));
+            // Description line
+            if (e.description) {
+              findingsSection.push(new Paragraph({
+                indent: { left: 720 },
+                children: [new TextRun({ text: e.description, size: 20 })],
+              }));
+            }
+            // Raw output in monospace (scanner output, tool output, raw evidence)
+            if (e.raw) {
+              findingsSection.push(new Paragraph({
+                indent: { left: 720 },
+                spacing: { before: 60, after: 60 },
+                children: [new TextRun({ text: e.raw.slice(0, 1500), font: 'Courier New', size: 16, color: '333333' })],
+              }));
+            }
           });
         }
 
@@ -3337,7 +3462,7 @@ export const ac3ReportsRouter = {
           const finding = vuln.finding || {};
           const analysis = vuln.analysis || {};
           const agentClass = vuln.agentClass || 'default';
-          const severity = mapSeverity(finding.rfSeverity, analysis.riskScore);
+          const severity = mapSeverity(finding.severity || finding.rfSeverity, analysis.riskScore);
           if (input.severityFilter && !input.severityFilter.includes(severity)) continue;
 
           const techniqueIds: string[] = [];
@@ -3353,12 +3478,76 @@ export const ac3ReportsRouter = {
 
           const evidence: any[] = [];
           if (analysis.poc) {
-            evidence.push({ type: 'poc', reference: `PoC for ${finding.rfTitle || finding.id}`, description: (typeof analysis.poc === 'string' ? analysis.poc : JSON.stringify(analysis.poc)).slice(0, 500) });
+            evidence.push({ type: 'poc', reference: `PoC for ${finding.title || finding.rfTitle || finding.id}`, description: (typeof analysis.poc === 'string' ? analysis.poc : JSON.stringify(analysis.poc)).slice(0, 500) });
+          }
+          // From raw scanner output (rawOutput from vuln-analysis-agents)
+          if (finding.rawOutput) {
+            evidence.push({
+              type: 'scanner_output',
+              reference: `Scanner output: ${finding.tool || 'tool'} on ${assetName}`,
+              raw: finding.rawOutput.slice(0, 2000),
+              description: `Tool: ${finding.tool || 'unknown'}. Raw output from scanner.`,
+            });
           }
           if (assetName && assetExploitMap.has(assetName)) {
             for (const exploit of assetExploitMap.get(assetName)!.slice(0, 3)) {
               evidence.push({ type: 'exploit_attempt', reference: `Exploit: ${exploit.cve || exploit.module || 'unknown'} on ${assetName}`, description: `Module: ${exploit.module}. CVE: ${exploit.cve || 'N/A'}. Success: ${exploit.success}. Output: ${(exploit.exploitOutput || '').slice(0, 200)}` });
             }
+          }
+          // From original vuln's rawEvidence/evidenceChain (DI scan data or active scan data)
+          const origVuln = assets.flatMap((a: any) => a.vulns || []).find((v: any) =>
+            v.title === (finding.title || finding.rfTitle) && (v.cve === finding.cve || !finding.cve)
+          );
+          if (origVuln?.rawEvidence) {
+            evidence.push({
+              type: 'raw_evidence',
+              reference: `Raw evidence: ${origVuln.source || origVuln.tool || 'scanner'} on ${assetName}`,
+              raw: String(origVuln.rawEvidence).slice(0, 2000),
+              description: `Source: ${origVuln.source || origVuln.tool || 'scanner'}. Corroboration: ${origVuln.corroborationTier || 'unverified'}.`,
+            });
+          }
+          if (origVuln?.evidenceChain?.length) {
+            evidence.push({
+              type: 'evidence_chain',
+              reference: `Evidence chain for ${finding.title || finding.rfTitle || finding.id}`,
+              description: origVuln.evidenceChain.join(' \u2192 '),
+            });
+          }
+          if (origVuln?.evidenceDetail && !evidence.some((e: any) => e.description?.includes(origVuln.evidenceDetail?.slice(0, 50)))) {
+            evidence.push({
+              type: 'evidence_detail',
+              reference: `Evidence detail: ${finding.title || finding.rfTitle || finding.id}`,
+              description: origVuln.evidenceDetail.slice(0, 1000),
+            });
+          }
+          // From asset toolResults (actual scanner command output)
+          if (assetName) {
+            const matchingAsset = assets.find((a: any) => (a.hostname || a.ip) === assetName);
+            if (matchingAsset?.toolResults?.length) {
+              const relevantTools = (matchingAsset.toolResults as any[]).filter((tr: any) =>
+                tr.findingCount > 0 && tr.outputPreview
+              ).slice(0, 3);
+              for (const tr of relevantTools) {
+                const toolName = tr.tool?.toLowerCase() || '';
+                const findingTitle = (finding.title || finding.rfTitle || '').toLowerCase();
+                if (findingTitle.includes(toolName) || toolName.includes('nuclei') || toolName.includes('httpx') || toolName.includes('nmap') || toolName.includes('nikto') || toolName.includes('zap')) {
+                  evidence.push({
+                    type: 'tool_output',
+                    reference: `${tr.tool} scan on ${assetName} (${tr.findingCount} findings, ${tr.durationMs}ms)`,
+                    raw: (tr.rawOutput || tr.outputPreview || '').slice(0, 1500),
+                    description: `Command: ${(tr.command || '').slice(0, 300)}. Exit code: ${tr.exitCode}. Findings: ${tr.findingCount}.`,
+                  });
+                }
+              }
+            }
+          }
+          // If still no evidence, add the technical analysis
+          if (evidence.length === 0 && analysis.technicalAnalysis) {
+            evidence.push({
+              type: 'analysis',
+              reference: `Analysis for ${finding.title || finding.rfTitle || finding.id}`,
+              description: analysis.technicalAnalysis.slice(0, 1000),
+            });
           }
 
           let cvssScore = '';
@@ -3375,7 +3564,7 @@ export const ac3ReportsRouter = {
           await db.insert(ac3ReportFindings).values({
             rfFindingId: findingId,
             rfReportId: reportId,
-            rfTitle: finding.rfTitle || `Vulnerability on ${assetName}`,
+            rfTitle: finding.title || finding.rfTitle || `Vulnerability on ${assetName}`,
             rfSeverity: severity,
             rfAttackTechniques: uniqueTechniques.map(id => ({ id })),
             rfControls: controls,
