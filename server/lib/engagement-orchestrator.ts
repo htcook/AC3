@@ -14596,6 +14596,157 @@ Respond in JSON: { "templateCategory": string, "pretext": string, "domainStrateg
     } catch (gradErr: any) {
       console.warn(`[Graduation] Failed to record engagement outcomes for #${engagementId}:`, gradErr.message);
     }
+
+    // ═══ INTELLIGENCE GAPS — Auto-detect gaps from engagement context ═══
+    try {
+      const { detectGaps, createGapsBatch } = await import('./intelligence-gaps');
+
+      // Build gap detection context from engagement state
+      const toolsUsedSet = new Set<string>();
+      for (const asset of state.assets) {
+        for (const tr of (asset.toolResults || [])) {
+          toolsUsedSet.add(tr.tool);
+        }
+      }
+
+      // Collect error entries from logs for tool failures
+      const errorLogs = state.log.filter(l => l.type === 'error' || l.type === 'warning');
+      const errorsEncountered = errorLogs
+        .filter(l => l.title.match(/failed|error|timeout/i))
+        .slice(0, 50)
+        .map(l => ({
+          tool: l.title.match(/^(\w+)/)?.[1] || 'unknown',
+          error: l.detail || l.title,
+          asset: undefined as string | undefined,
+        }));
+
+      // Collect auth failures from logs
+      const authFailures = errorLogs
+        .filter(l => l.title.match(/auth|credential|login|access denied/i))
+        .slice(0, 20)
+        .map(l => ({
+          asset: l.detail?.match(/([\w.-]+\.\w{2,})/)?.[1] || 'unknown',
+          service: l.title.match(/^(\w+)/)?.[1] || 'unknown',
+          reason: l.detail || l.title,
+        }));
+
+      // Parse out-of-scope from RoE
+      let outOfScope: string[] = [];
+      try {
+        const roeScope = engagement.roeScope as any;
+        if (roeScope && typeof roeScope === 'object') {
+          outOfScope = roeScope.outOfScope || roeScope.excludedTargets || [];
+        }
+        if (state.bbRoeConfig?.testingRestrictions?.excludedTargets) {
+          outOfScope = [...outOfScope, ...state.bbRoeConfig.testingRestrictions.excludedTargets];
+        }
+      } catch { /* ignore RoE parse errors */ }
+
+      const gapCtx = {
+        engagementId,
+        customerId: engagement.customerName || `eng-${engagementId}`,
+        scopeDomains: (engagement.targetDomain || '').split(/[,;\s]+/).filter(Boolean),
+        scopeAssets: state.assets.map(a => a.hostname || a.ip || '').filter(Boolean),
+        outOfScope,
+        toolsUsed: [...toolsUsedSet],
+        scanDurationMs: state.completedAt ? state.completedAt - (state.startedAt || state.completedAt) : undefined,
+        maxDurationMs: undefined, // No hard limit tracked in state currently
+        findingsCount: state.stats.vulnsFound || 0,
+        assetsScanned: state.assets.filter(a => a.status !== 'discovered').map(a => a.hostname || a.ip || '').filter(Boolean),
+        assetsDiscovered: state.assets.map(a => a.hostname || a.ip || '').filter(Boolean),
+        portsScanned: state.assets.flatMap(a => a.ports.map(p => p.port)),
+        servicesDetected: [...new Set(state.assets.flatMap(a => a.ports.map(p => p.service).filter(Boolean)))],
+        errorsEncountered,
+        authFailures,
+      };
+
+      const detectedGaps = detectGaps(gapCtx);
+      if (detectedGaps.length > 0) {
+        const gapIds = await createGapsBatch(detectedGaps);
+        addLog(state, {
+          phase: 'completed', type: 'info',
+          title: `🔍 Intelligence Gaps: ${detectedGaps.length} gaps auto-detected`,
+          detail: [
+            ...detectedGaps.slice(0, 5).map(g => `• [${g.category}] ${g.title}`),
+            detectedGaps.length > 5 ? `... and ${detectedGaps.length - 5} more` : '',
+          ].filter(Boolean).join('\n'),
+          data: { gapCount: detectedGaps.length, gapIds },
+        });
+        broadcastOpsUpdate(state.engagementId, { type: 'log_update' });
+      } else {
+        addLog(state, {
+          phase: 'completed', type: 'info',
+          title: '🔍 Intelligence Gaps: No gaps detected',
+          detail: 'All scope areas appear to have been assessed. Manual review recommended.',
+        });
+      }
+      console.log(`[IntelGaps] Engagement #${engagementId}: ${detectedGaps.length} gaps auto-detected and persisted`);
+    } catch (gapErr: any) {
+      console.warn(`[IntelGaps] Failed to detect/persist gaps for #${engagementId}:`, gapErr.message);
+    }
+
+    // ═══ CUSTOMER INTELLIGENCE PROFILE — Auto-update from engagement results ═══
+    try {
+      const { updateProfileFromEngagement } = await import('./customer-intel-profile');
+
+      // Build EngagementSnapshot from state
+      const critCount = state.assets.reduce((sum, a) => sum + a.vulns.filter(v => v.severity === 'critical').length, 0);
+      const highCount = state.assets.reduce((sum, a) => sum + a.vulns.filter(v => v.severity === 'high').length, 0);
+      const medCount = state.assets.reduce((sum, a) => sum + a.vulns.filter(v => v.severity === 'medium').length, 0);
+      const lowCount = state.assets.reduce((sum, a) => sum + a.vulns.filter(v => v.severity === 'low' || v.severity === 'info').length, 0);
+      const totalServices = state.assets.reduce((sum, a) => sum + a.ports.filter(p => p.service && p.service !== 'unknown').length, 0);
+      const totalPorts = state.assets.reduce((sum, a) => sum + a.ports.length, 0);
+
+      // Collect technologies from assets
+      const technologies = [...new Set(
+        state.assets.flatMap(a => [
+          ...(a.passiveRecon?.technologies || []),
+          ...(a.ports || []).map(p => p.service).filter(Boolean),
+          a.wafDetected ? `WAF: ${a.wafDetected}` : '',
+        ].filter(Boolean))
+      )];
+
+      // Collect weakness categories from CWE/OWASP
+      const weaknessCategories = [...new Set(
+        state.assets.flatMap(a =>
+          a.vulns.map(v => v.cwe || '').filter(Boolean)
+        )
+      )];
+
+      const snapshot = {
+        engagementId,
+        date: new Date().toISOString(),
+        customerId: engagement.customerName || `eng-${engagementId}`,
+        customerName: engagement.customerName || engagement.name || `Engagement #${engagementId}`,
+        findings: {
+          total: state.stats.vulnsFound || 0,
+          critical: critCount,
+          high: highCount,
+          medium: medCount,
+          low: lowCount,
+        },
+        assets: {
+          total: state.assets.length,
+          hosts: state.assets.filter(a => a.hostname || a.ip).length,
+          services: totalServices,
+          exposedPorts: totalPorts,
+        },
+        technologies,
+        weaknessCategories,
+      };
+
+      await updateProfileFromEngagement(snapshot);
+
+      addLog(state, {
+        phase: 'completed', type: 'info',
+        title: `📊 Customer Intel Profile updated for "${snapshot.customerName}"`,
+        detail: `Profile updated with ${snapshot.findings.total} findings across ${snapshot.assets.total} assets. Technologies: ${technologies.length}. Weakness categories: ${weaknessCategories.length}.`,
+      });
+      broadcastOpsUpdate(state.engagementId, { type: 'log_update' });
+      console.log(`[CustomerIntel] Engagement #${engagementId}: Profile updated for "${snapshot.customerName}"`);
+    } catch (cipErr: any) {
+      console.warn(`[CustomerIntel] Failed to update profile for #${engagementId}:`, cipErr.message);
+    }
   } catch (e: any) {
     clearInterval(heartbeatInterval); // Clean up heartbeat on error
     clearInterval(periodicPersistInterval); // Clean up periodic persistence on error

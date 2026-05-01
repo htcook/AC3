@@ -1182,3 +1182,12 @@
 - [x] Ensure all items remain clickable for detail views
 - [x] Ensure OpsViewer + StructuredLiveView fits any browser viewport (mobile, tablet, desktop, ultrawide)
 - [x] Fix any overflow, horizontal scroll, or element clipping issues in OpsViewer toolbar/stats bar
+
+### Auto-Hook Wiring — detectGaps + updateProfileFromEngagement (May 1)
+- [x] Find engagement orchestrator completion handler (line ~14598 in engagement-orchestrator.ts)
+- [x] Wire detectGaps() to fire automatically on engagement completion
+- [x] Wire updateProfileFromEngagement() to fire automatically on engagement completion
+- [x] Build GapDetectionContext from state (tools, errors, auth failures, scope, out-of-scope from RoE)
+- [x] Build EngagementSnapshot from state (findings, assets, technologies, weakness categories)
+- [x] Add log entries for gap detection and profile update results
+- [x] Save checkpoint and push to GitHub
