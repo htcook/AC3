@@ -193,6 +193,10 @@ export default function BugBountyHub() {
   const deleteProgram = trpc.bugBounty.deleteProgram.useMutation({
     onSuccess: () => { toast.success("Program deleted"); refetchPrograms(); },
   });
+  const importRoeMut = trpc.bugBounty.importRoeFromUrl.useMutation({
+    onSuccess: (d: any) => { toast.success(`RoE imported for "${d.programHandle}": ${d.rulesCount.prohibitedActions} rules, ${d.rulesCount.eligibleCategories} acceptable categories`); },
+    onError: (e: any) => toast.error(`RoE import failed: ${e.message}`),
+  });
   const deleteFinding = trpc.bugBounty.deleteFinding.useMutation({
     onSuccess: () => { toast.success("Finding deleted"); refetchFindings(); refetchCorrelations(); },
   });
@@ -762,6 +766,12 @@ export default function BugBountyHub() {
                         </Button>
                         <Button variant="ghost" size="sm" className="text-xs h-7" onClick={() => { syncWeaknesses.mutate({ programHandle: p.handle }); }} disabled={syncWeaknesses.isPending}>
                           <AlertTriangle className="h-3 w-3 mr-1" /> CWEs
+                        </Button>
+                        <Button variant="ghost" size="sm" className="text-xs h-7 text-purple-400 hover:text-purple-300" onClick={() => {
+                          const policyUrl = p.url ? `${p.url}?view_policy=true` : `https://hackerone.com/${p.handle}?view_policy=true`;
+                          importRoeMut.mutate({ programUrl: policyUrl });
+                        }} disabled={importRoeMut.isPending}>
+                          {importRoeMut.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Shield className="h-3 w-3 mr-1" />} RoE
                         </Button>
                         <Button variant="ghost" size="sm" className="text-xs h-7 text-emerald-400 hover:text-emerald-300" onClick={() => { setShowCreateEngagementDialog(true); }}>
                           <Rocket className="h-3 w-3 mr-1" /> Engage

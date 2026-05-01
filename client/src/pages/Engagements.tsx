@@ -193,9 +193,23 @@ export default function Engagements() {
     onError: (err) => toast.error(sanitizeErrorForToast(err.message)),
   });
 
+  const importRoeMut = trpc.bugBounty.importRoeFromUrl.useMutation({
+    onSuccess: (data) => {
+      toast.success(`BB RoE imported: ${data.rulesCount.prohibitedActions} rules, ${data.rulesCount.eligibleCategories} acceptable categories for "${data.programHandle}"`);
+    },
+    onError: () => {
+      toast.error('BB RoE auto-import failed. You can manually import from the engagement\'s RoE & Scope tab.');
+    },
+  });
+
   const createMutation = trpc.engagements.create.useMutation({
-    onSuccess: () => {
+    onSuccess: (result: any) => {
       toast.success('Engagement created');
+      // Auto-import BB RoE if program URL was provided
+      const bbUrl = (formData as any).bbProgramUrl;
+      if (formData.engagementType === 'bug_bounty' && bbUrl && result?.id) {
+        importRoeMut.mutate({ programUrl: bbUrl, engagementId: result.id });
+      }
       setShowCreateForm(false);
       setShowTemplateSelector(false);
       setSelectedTemplateId(null);
@@ -662,6 +676,20 @@ export default function Engagements() {
                     ))}
                   </select>
                 </div>
+                {/* BB Program URL — only shown for bug_bounty type */}
+                {formData.engagementType === 'bug_bounty' && (
+                  <div className="bg-purple-500/5 border border-purple-500/20 rounded p-3">
+                    <label className="text-xs text-purple-400 tracking-wider block mb-1 font-semibold">BB PROGRAM URL</label>
+                    <input
+                      type="url"
+                      value={(formData as any).bbProgramUrl || ''}
+                      onChange={(e) => setFormData(p => ({ ...p, bbProgramUrl: e.target.value } as any))}
+                      placeholder="https://hackerone.com/program-name?view_policy=true"
+                      className="w-full px-3 py-2 bg-background border border-purple-500/30 text-sm focus:outline-none focus:border-purple-500"
+                    />
+                    <p className="text-[10px] text-muted-foreground mt-1">Paste the program's policy page URL. RoE rules will be auto-imported via AI after engagement creation.</p>
+                  </div>
+                )}
                 <div>
                   <label className="text-xs text-muted-foreground tracking-wider block mb-1">TARGET DOMAIN {!editingId && <span className="text-destructive">*</span>}</label>
                   <div className="flex gap-2">

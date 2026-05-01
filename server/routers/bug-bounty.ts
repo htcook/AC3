@@ -2566,4 +2566,282 @@ export const bugBountyRouter = router({
 
       return { success: true, findingId: input.findingId, newSeverity: input.newSeverity };
     }),
+
+  // ─── BB RoE Enforcement Procedures ───────────────────────────────────────
+
+  /** Get the operator briefing for a BB engagement's program */
+  getOperatorBriefing: protectedProcedure
+    .input(z.object({ engagementId: z.number() }))
+    .query(async ({ input }) => {
+      const { generateOperatorBriefing, getProgramRoE } = await import('../lib/bb-roe-enforcement');
+      const db = await getDbSafe();
+      const [eng] = await db.select().from(engagements).where(eq(engagements.id, input.engagementId)).limit(1);
+      if (!eng) throw new TRPCError({ code: 'NOT_FOUND', message: 'Engagement not found' });
+      if (eng.engagementType !== 'bug_bounty') return null;
+
+      // Try to get program handle from roeScope JSON
+      let programHandle: string | null = null;
+      try {
+        const roeData = JSON.parse(eng.roeScope || '{}');
+        programHandle = roeData.bbRoeConfig?.programHandle || roeData.programHandle || null;
+      } catch {}
+
+      // Fallback: try to match from engagement name or target domain
+      if (!programHandle) {
+        const name = (eng.name || '').toLowerCase();
+        if (name.includes('priceline')) programHandle = 'priceline';
+        else if (name.includes('nextcloud')) programHandle = 'nextcloud';
+        else if (name.includes('wordpress')) programHandle = 'wordpress';
+        else if (name.includes('node')) programHandle = 'nodejs';
+      }
+
+      if (!programHandle) return null;
+
+      const briefing = generateOperatorBriefing(programHandle);
+      const fullRoe = getProgramRoE(programHandle);
+
+      return {
+        briefing,
+        programHandle,
+        subTargetRules: fullRoe?.acceptableFindings.subTargetRules || [],
+        rateLimiting: fullRoe?.testingRestrictions.rateLimiting || null,
+        automatedScannersAllowed: fullRoe?.testingRestrictions.automatedScannersAllowed ?? true,
+        dataHandling: fullRoe?.testingRestrictions.dataHandling || [],
+      };
+    }),
+
+  /** Import RoE from a program URL using LLM to parse the policy page */
+  importRoeFromUrl: protectedProcedure
+    .input(z.object({
+      programUrl: z.string().url(),
+      engagementId: z.number().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { invokeLLM } = await import('../_core/llm');
+      const { registerProgramRoE } = await import('../lib/bb-roe-enforcement');
+
+      // Fetch the program policy page
+      let policyHtml = '';
+      try {
+        const resp = await fetch(input.programUrl, {
+          headers: { 'User-Agent': 'Mozilla/5.0 (compatible; AC3-RoE-Parser/1.0)' },
+        });
+        policyHtml = await resp.text();
+      } catch (e: any) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: `Failed to fetch program page: ${e.message}` });
+      }
+
+      // Strip HTML tags for cleaner LLM input (keep text content)
+      const textContent = policyHtml
+        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 15000); // Limit to 15k chars for LLM context
+
+      // Use LLM to parse the policy into structured RoE config
+      const response = await invokeLLM({
+        messages: [
+          {
+            role: 'system',
+            content: `You are a bug bounty Rules of Engagement parser. Extract structured program rules from the policy text provided. Return a JSON object with the following structure:
+{
+  "programHandle": "lowercase-program-name",
+  "platform": "hackerone|bugcrowd|other",
+  "identification": {
+    "customHeaders": { "header-name": "value-template" },
+    "emailAlias": "@domain.com suffix or null",
+    "includeIpInReport": boolean,
+    "platformUsername": null
+  },
+  "testingRestrictions": {
+    "prohibitedActions": [{ "action": "description", "category": "dos|availability_impact|inventory_manipulation|data_access|social_engineering|automated_scanning|fuzzing|account_manipulation|target_exclusion|data_exfiltration|ai_service_usage|noise|other", "enforcement": "hard|soft" }],
+    "excludedTargets": ["domain-or-pattern"],
+    "excludedEndpoints": [{ "pattern": "url-pattern", "reason": "why", "matchType": "contains|prefix|exact|regex" }],
+    "rateLimiting": { "maxRequestsPerSecond": number|null, "maxConcurrentScans": number|null },
+    "automatedScannersAllowed": boolean,
+    "scannerRestrictions": "description or null",
+    "dataHandling": [{ "dataType": "type", "rule": "rule", "enforcement": "hard|soft" }]
+  },
+  "acceptableFindings": {
+    "eligibleCategories": [{ "category": "CWE or name", "description": "what's acceptable", "examples": ["example"] }],
+    "subTargetRules": [{ "targetName": "name", "assets": ["asset"], "acceptableCategories": [...] }]
+  },
+  "ineligibleFindings": {
+    "h1CoreIneligible": boolean,
+    "programSpecificIneligible": [{ "pattern": "regex-pattern", "matchType": "regex|title_contains|category_equals", "reason": "why" }]
+  },
+  "submissionRequirements": {
+    "acceptsAutomatedScannerOutput": boolean,
+    "requiresDetailedPoC": boolean,
+    "cleanupRequired": [{ "action": "what", "timing": "immediate|after_test|after_engagement" }],
+    "reportFormat": "format description or null"
+  }
+}
+
+Be thorough. Extract EVERY rule mentioned in the policy. For prohibited actions, use "hard" enforcement for absolute prohibitions and "soft" for recommendations. Include all scope exclusions, data handling rules, and submission requirements.`
+          },
+          {
+            role: 'user',
+            content: `Parse this bug bounty program policy into structured RoE config:\n\n${textContent}`
+          }
+        ],
+        response_format: {
+          type: 'json_schema',
+          json_schema: {
+            name: 'bb_roe_config',
+            strict: false,
+            schema: {
+              type: 'object',
+              properties: {
+                programHandle: { type: 'string' },
+                platform: { type: 'string' },
+                identification: { type: 'object' },
+                testingRestrictions: { type: 'object' },
+                acceptableFindings: { type: 'object' },
+                ineligibleFindings: { type: 'object' },
+                submissionRequirements: { type: 'object' },
+              },
+              required: ['programHandle', 'platform', 'testingRestrictions'],
+            },
+          },
+        },
+      });
+
+      let parsedConfig: any;
+      try {
+        parsedConfig = JSON.parse(response.choices[0].message.content || '{}');
+      } catch {
+        throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Failed to parse LLM response into structured RoE config' });
+      }
+
+      // Build the full BugBountyProgramRoE object
+      const roeConfig = {
+        programHandle: parsedConfig.programHandle || 'unknown',
+        platform: parsedConfig.platform || 'hackerone',
+        policyUrl: input.programUrl,
+        lastParsedAt: Date.now(),
+        identification: {
+          customHeaders: parsedConfig.identification?.customHeaders || {},
+          emailAlias: parsedConfig.identification?.emailAlias || undefined,
+          includeIpInReport: parsedConfig.identification?.includeIpInReport ?? false,
+          platformUsername: parsedConfig.identification?.platformUsername || undefined,
+        },
+        testingRestrictions: {
+          prohibitedActions: (parsedConfig.testingRestrictions?.prohibitedActions || []).map((a: any) => ({
+            action: a.action || '',
+            category: a.category || 'other',
+            targets: a.targets || [],
+            enforcement: a.enforcement || 'hard',
+          })),
+          excludedTargets: parsedConfig.testingRestrictions?.excludedTargets || [],
+          excludedEndpoints: (parsedConfig.testingRestrictions?.excludedEndpoints || []).map((e: any) => ({
+            pattern: e.pattern || '',
+            reason: e.reason || '',
+            matchType: e.matchType || 'contains',
+          })),
+          rateLimiting: parsedConfig.testingRestrictions?.rateLimiting || undefined,
+          automatedScannersAllowed: parsedConfig.testingRestrictions?.automatedScannersAllowed ?? true,
+          scannerRestrictions: parsedConfig.testingRestrictions?.scannerRestrictions || undefined,
+          dataHandling: (parsedConfig.testingRestrictions?.dataHandling || []).map((d: any) => ({
+            dataType: d.dataType || '',
+            rule: d.rule || '',
+            enforcement: d.enforcement || 'soft',
+          })),
+        },
+        acceptableFindings: {
+          eligibleCategories: (parsedConfig.acceptableFindings?.eligibleCategories || []).map((c: any) => ({
+            category: c.category || '',
+            description: c.description || '',
+            examples: c.examples || [],
+          })),
+          subTargetRules: (parsedConfig.acceptableFindings?.subTargetRules || []).map((s: any) => ({
+            targetName: s.targetName || '',
+            assets: s.assets || [],
+            acceptableCategories: (s.acceptableCategories || []).map((c: any) => ({
+              category: c.category || '',
+              description: c.description || '',
+              examples: c.examples || [],
+            })),
+          })),
+        },
+        ineligibleFindings: {
+          h1CoreIneligible: parsedConfig.ineligibleFindings?.h1CoreIneligible ?? true,
+          programSpecificIneligible: (parsedConfig.ineligibleFindings?.programSpecificIneligible || []).map((p: any) => ({
+            pattern: p.pattern || '',
+            matchType: p.matchType || 'regex',
+            reason: p.reason || '',
+          })),
+        },
+        submissionRequirements: {
+          acceptsAutomatedScannerOutput: parsedConfig.submissionRequirements?.acceptsAutomatedScannerOutput ?? false,
+          requiresDetailedPoC: parsedConfig.submissionRequirements?.requiresDetailedPoC ?? true,
+          cleanupRequired: (parsedConfig.submissionRequirements?.cleanupRequired || []).map((c: any) => ({
+            action: c.action || '',
+            timing: c.timing || 'after_test',
+          })),
+          reportFormat: parsedConfig.submissionRequirements?.reportFormat || undefined,
+        },
+      };
+
+      // Register in memory
+      registerProgramRoE(roeConfig as any);
+
+      // If engagementId provided, update the engagement's roeScope with the BB config
+      if (input.engagementId) {
+        const db = await getDbSafe();
+        const [eng] = await db.select().from(engagements).where(eq(engagements.id, input.engagementId)).limit(1);
+        if (eng) {
+          let existingRoe: any = {};
+          try { existingRoe = JSON.parse(eng.roeScope || '{}'); } catch {}
+          existingRoe.bbRoeConfig = {
+            programHandle: roeConfig.programHandle,
+            importedAt: Date.now(),
+            policyUrl: input.programUrl,
+          };
+          await db.update(engagements)
+            .set({ roeScope: JSON.stringify(existingRoe) })
+            .where(eq(engagements.id, input.engagementId));
+        }
+      }
+
+      // Generate the operator briefing from the newly registered config
+      const { generateOperatorBriefing } = await import('../lib/bb-roe-enforcement');
+      const briefing = generateOperatorBriefing(roeConfig.programHandle);
+
+      return {
+        success: true,
+        programHandle: roeConfig.programHandle,
+        roeConfig,
+        briefing,
+        rulesCount: {
+          prohibitedActions: roeConfig.testingRestrictions.prohibitedActions.length,
+          excludedTargets: roeConfig.testingRestrictions.excludedTargets.length,
+          eligibleCategories: roeConfig.acceptableFindings.eligibleCategories.length,
+          ineligiblePatterns: roeConfig.ineligibleFindings.programSpecificIneligible.length,
+          cleanupActions: roeConfig.submissionRequirements.cleanupRequired.length,
+        },
+      };
+    }),
+
+  /** Get all registered program RoE configs */
+  listProgramRoEs: protectedProcedure
+    .query(async () => {
+      const { getAllProgramRoEs, generateOperatorBriefing } = await import('../lib/bb-roe-enforcement');
+      const allRoes = getAllProgramRoEs();
+      return allRoes.map(roe => ({
+        programHandle: roe.programHandle,
+        platform: roe.platform,
+        policyUrl: roe.policyUrl,
+        lastParsedAt: roe.lastParsedAt,
+        briefing: generateOperatorBriefing(roe.programHandle),
+        stats: {
+          prohibitedActions: roe.testingRestrictions.prohibitedActions.length,
+          excludedTargets: roe.testingRestrictions.excludedTargets.length,
+          eligibleCategories: roe.acceptableFindings.eligibleCategories.length,
+          subTargets: roe.acceptableFindings.subTargetRules.length,
+        },
+      }));
+    }),
 });

@@ -1127,3 +1127,16 @@
 - [x] Document what Claude got right, wrong, and missed entirely
 - [x] Provide recommended implementation path (Phase 1-3)
 - [x] Write JIPOE Analysis Assessment document (docs/JIPOE-Analysis-Assessment.md)
+
+### BB RoE UI Panel + Auto-Import (Apr 30)
+- [x] Add RoE Operator Briefing panel to engagement detail view (BbRoeBriefingPanel.tsx)
+- [x] Display critical rules, identification setup, acceptable/ineligible findings per program
+- [x] Add visual indicators for rule severity (red=critical, orange=warning, green=acceptable, cyan=info)
+- [x] Display sub-target rules, rate limits, scanner restrictions, data handling, cleanup actions
+- [x] Build RoE auto-import from program URL (LLM-assisted parsing via importRoeFromUrl tRPC)
+- [x] Add "Import RoE from URL" button to engagement creation flow (BB Program URL field)
+- [x] Add "RoE" import button to BB Hub program cards
+- [x] Add "Re-import RoE from Program URL" button in engagement detail RoE tab
+- [x] Auto-import RoE on BB engagement creation when URL provided
+- [x] Parse H1 program policy pages and generate structured ProgramRoeConfig via LLM
+- [x] All 41 BB RoE enforcement tests passing

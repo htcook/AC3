@@ -46,6 +46,7 @@ import { LabDeployerPanel } from "@/components/LabDeployerPanel";
 import AdjustmentEffectivenessWidget from "@/components/AdjustmentEffectivenessWidget";
 import CommsProtocolPanel from "@/components/CommsProtocolPanel";
 import FingerprintDiffPanel from "@/components/FingerprintDiffPanel";
+import BbRoeBriefingPanel from "@/components/BbRoeBriefingPanel";
 import {
   Play, Square, Shield, ShieldAlert, ShieldCheck, ShieldX,
   Target, Crosshair, Radar, Bug, Skull, Radio, Globe,
@@ -4168,6 +4169,11 @@ export default function EngagementOps() {
                       )}
                     </CardContent>
                   </Card>
+
+                  {/* BB RoE Operator Briefing Panel — only for bug_bounty engagements */}
+                  {engagement?.engagementType === 'bug_bounty' && engagement?.id && (
+                    <BbRoeBriefingPanel engagementId={engagement.id} />
+                  )}
 
                   {/* Comms Protocol & Scope Constraints from Uploaded Doc */}
                   {engagement?.id && <FingerprintDiffPanel engagementId={engagement.id} />}
