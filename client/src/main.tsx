@@ -1,7 +1,7 @@
 import { trpc } from "@/lib/trpc";
 import { UNAUTHED_ERR_MSG } from '@shared/const';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { httpBatchLink, TRPCClientError } from "@trpc/client";
+import { httpBatchLink, httpLink, splitLink, TRPCClientError } from "@trpc/client";
 import { createRoot } from "react-dom/client";
 import superjson from "superjson";
 import App from "./App";
@@ -151,12 +151,40 @@ async function fetchWithRetry(input: RequestInfo | URL, init?: RequestInit): Pro
   });
 }
 
+// Long-running operations (report export, engagement generation) need their own
+// non-batched link with extended timeout to avoid being killed by batch timeouts
+const LONG_RUNNING_OPERATIONS = [
+  'reports.exportPdf', 'reports.exportDocx', 'reports.generate',
+  'ac3Reports.exportDocx', 'ac3Reports.exportPdf',
+  'engagementOps.runFullEngagement', 'engagementOps.runDomainIntel',
+];
+
+function fetchWithTimeout(timeoutMs: number) {
+  return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      return await fetchWithRetry(input, { ...init, signal: controller.signal });
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+}
+
 const trpcClient = trpc.createClient({
   links: [
-    httpBatchLink({
-      url: "/api/trpc",
-      transformer: superjson,
-      fetch: fetchWithRetry,
+    splitLink({
+      condition: (op) => LONG_RUNNING_OPERATIONS.includes(`${op.path}`),
+      true: httpLink({
+        url: "/api/trpc",
+        transformer: superjson,
+        fetch: fetchWithTimeout(300_000), // 5 min timeout for exports
+      }),
+      false: httpBatchLink({
+        url: "/api/trpc",
+        transformer: superjson,
+        fetch: fetchWithRetry,
+      }),
     }),
   ],
 });

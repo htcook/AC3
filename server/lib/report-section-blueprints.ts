@@ -838,6 +838,8 @@ export function getReportBlueprint(assessmentType: string): ReportBlueprint {
     fedramp_sar: 'fedramp_sar',
     fedramp: 'fedramp_sar',
     sar: 'fedramp_sar',
+    bug_bounty: 'penetration_test',
+    pentest_assessment: 'penetration_test',
   };
   const mapped = typeMap[normalized] || 'penetration_test';
   return REPORT_BLUEPRINTS[mapped];

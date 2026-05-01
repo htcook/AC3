@@ -1217,4 +1217,13 @@
 - [x] Fix report rendering to display actual evidence instead of generic "Detected via passive recon" placeholders
 - [x] Ensure CISA KEV findings include the actual matched technology/version evidence
 - [x] Write tests for evidence pipeline (23 tests passing)
+- [x] Save checkpoint and push to GitHub
+
+### Re-ingest CVE-2026-32202 Article + Fix Priceline BB Report Generation (May 1)
+- [x] Re-ingest full article content (full HTML text) into incident_reports for CVE-2026-32202
+- [x] Re-enrich with full content (APT28 attribution, exploit chain, NTLM relay details)
+- [x] Reproduce Priceline BB engagement PDF report generation error
+- [x] Reproduce Priceline BB engagement DOCX report generation error
+- [x] Fix report generation bugs (Chromium in Dockerfile, doStorageGetContent, splitLink, bug_bounty mapping)
+- [x] Test report generation works end-to-end (17 tests passing)
 - [ ] Save checkpoint and push to GitHub

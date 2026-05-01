@@ -1,4 +1,4 @@
-import { doStoragePut } from "../do-storage";
+import { doStoragePut, doStorageGetContent } from "../do-storage";
 import { fetchGophish as _fetchGophish } from "../lib/gophish-client";
 
 /** Positional-args wrapper for backward compatibility */
@@ -1125,16 +1125,35 @@ Instructions: ${reportPrompt}`,
         const report = await db.getReportById(input.reportId);
         if (!report) throw new TRPCError({ code: 'NOT_FOUND', message: 'Report not found' });
 
-        // Fetch the markdown content
+        // Fetch the markdown content: prefer S3 SDK (handles presigned URL expiry), fallback to URL fetch
         let markdownContent = '';
-        if (report.reportUrl) {
+        // Method 1: Direct S3 download via reportKey (never expires)
+        if (!markdownContent && (report as any).reportKey) {
           try {
-            const resp = await fetch(report.reportUrl);
-            if (resp.ok) markdownContent = await resp.text();
-          } catch (e) { /* fallback below */ }
+            const result = await doStorageGetContent((report as any).reportKey);
+            if (result) markdownContent = result.data.toString('utf-8');
+          } catch (e) {
+            console.warn('[Report/PDF] S3 direct download failed, trying URL:', (e as any).message);
+          }
+        }
+        // Method 2: Fetch from stored URL with retry (works for public buckets)
+        if (!markdownContent && report.reportUrl) {
+          for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+              const resp = await fetch(report.reportUrl, { signal: AbortSignal.timeout(30000) });
+              if (resp.ok) { markdownContent = await resp.text(); break; }
+              if (resp.status === 403) {
+                console.warn('[Report/PDF] URL returned 403 (likely expired presigned URL)');
+                break; // Don't retry 403s
+              }
+            } catch (e) {
+              if (attempt === 2) console.error('[Report/PDF] Failed to fetch markdown after 3 attempts:', (e as any).message);
+              await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+            }
+          }
         }
         if (!markdownContent) {
-          throw new TRPCError({ code: 'NOT_FOUND', message: 'Report content not available' });
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'Report content not available. The stored URL may have expired \u2014 please regenerate the report.' });
         }
 
         // Convert markdown to HTML using marked
@@ -1208,17 +1227,43 @@ Instructions: ${reportPrompt}`,
 
         // Generate real PDF using puppeteer-core with system Chromium
         try {
-          // Using doStoragePut from do-storage.ts (DO Spaces)
           let pdfBuffer: Buffer;
+          // Resolve chromium path: env var > common paths
+          const chromiumPath = process.env.PUPPETEER_EXECUTABLE_PATH
+            || (await (async () => {
+              const { existsSync } = await import('fs');
+              for (const p of ['/usr/bin/chromium', '/usr/bin/chromium-browser', '/usr/bin/google-chrome']) {
+                if (existsSync(p)) return p;
+              }
+              return null;
+            })());
+
+          if (!chromiumPath) {
+            console.error('[Report/PDF] No Chromium binary found — uploading styled HTML instead');
+            const htmlKey = `reports/${report.engagementId}/${input.reportId}-report-${Date.now()}.html`;
+            const { url } = await doStoragePut(htmlKey, html, 'text/html');
+            return { url, filename: `${(report.title || 'report').replace(/[^a-zA-Z0-9]/g, '_')}.html`, format: 'html' };
+          }
+
           try {
             const puppeteer = await import('puppeteer-core');
             const browser = await puppeteer.default.launch({
-              executablePath: '/usr/bin/chromium-browser',
+              executablePath: chromiumPath,
               headless: true,
-              args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
+              args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-gpu',
+                '--disable-software-rasterizer',
+                '--single-process',
+              ],
             });
             const page = await browser.newPage();
-            await page.setContent(html, { waitUntil: 'networkidle0', timeout: 30000 });
+            // Use domcontentloaded for large reports to avoid networkidle0 timeout
+            await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 60000 });
+            // Wait a bit for styles to apply
+            await new Promise(r => setTimeout(r, 1000));
             const pdfUint8 = await page.pdf({
               format: 'A4',
               printBackground: true,
@@ -1226,19 +1271,20 @@ Instructions: ${reportPrompt}`,
               displayHeaderFooter: true,
               headerTemplate: '<div style="font-size:8px;width:100%;text-align:center;color:#999;">CONFIDENTIAL — Security Assessment Report</div>',
               footerTemplate: '<div style="font-size:8px;width:100%;text-align:center;color:#999;">Ace of Cloud LLC — Page <span class="pageNumber"></span> of <span class="totalPages"></span></div>',
+              timeout: 120000,
             });
             pdfBuffer = Buffer.from(pdfUint8);
             await browser.close();
           } catch (puppeteerErr: any) {
-            console.error('[Report/PDF] Puppeteer PDF generation failed, falling back to HTML:', puppeteerErr.message);
-            // Fallback: upload HTML if puppeteer fails in deployment
+            console.error('[Report/PDF] Puppeteer PDF generation failed:', puppeteerErr.message);
+            // Fallback: upload styled HTML
             const htmlKey = `reports/${report.engagementId}/${input.reportId}-report-${Date.now()}.html`;
             const { url } = await doStoragePut(htmlKey, html, 'text/html');
-            return { url, filename: `${(report.title || 'report').replace(/[^a-zA-Z0-9]/g, '_')}.html` };
+            return { url, filename: `${(report.title || 'report').replace(/[^a-zA-Z0-9]/g, '_')}.html`, format: 'html' };
           }
           const pdfKey = `reports/${report.engagementId}/${input.reportId}-report-${Date.now()}.pdf`;
           const { url } = await doStoragePut(pdfKey, pdfBuffer, 'application/pdf');
-          return { url, filename: `${(report.title || 'report').replace(/[^a-zA-Z0-9]/g, '_')}.pdf` };
+          return { url, filename: `${(report.title || 'report').replace(/[^a-zA-Z0-9]/g, '_')}.pdf`, format: 'pdf' };
         } catch (e: any) {
           throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Failed to generate PDF: ' + e.message });
         }
@@ -1251,16 +1297,35 @@ Instructions: ${reportPrompt}`,
         const report = await db.getReportById(input.reportId);
         if (!report) throw new TRPCError({ code: 'NOT_FOUND', message: 'Report not found' });
 
-        // Fetch the markdown content from S3
+        // Fetch the markdown content: prefer S3 SDK (handles presigned URL expiry), fallback to URL fetch
         let markdownContent = '';
-        if (report.reportUrl) {
+        // Method 1: Direct S3 download via reportKey (never expires)
+        if (!markdownContent && (report as any).reportKey) {
           try {
-            const resp = await fetch(report.reportUrl);
-            if (resp.ok) markdownContent = await resp.text();
-          } catch (e) { /* fallback below */ }
+            const result = await doStorageGetContent((report as any).reportKey);
+            if (result) markdownContent = result.data.toString('utf-8');
+          } catch (e) {
+            console.warn('[Report/DOCX] S3 direct download failed, trying URL:', (e as any).message);
+          }
+        }
+        // Method 2: Fetch from stored URL with retry (works for public buckets)
+        if (!markdownContent && report.reportUrl) {
+          for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+              const resp = await fetch(report.reportUrl, { signal: AbortSignal.timeout(30000) });
+              if (resp.ok) { markdownContent = await resp.text(); break; }
+              if (resp.status === 403) {
+                console.warn('[Report/DOCX] URL returned 403 (likely expired presigned URL)');
+                break;
+              }
+            } catch (e) {
+              if (attempt === 2) console.error('[Report/DOCX] Failed to fetch markdown after 3 attempts:', (e as any).message);
+              await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+            }
+          }
         }
         if (!markdownContent) {
-          throw new TRPCError({ code: 'NOT_FOUND', message: 'Report content not available. Please regenerate the report first.' });
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'Report content not available. The stored URL may have expired \u2014 please regenerate the report.' });
         }
 
         const dateStr = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
@@ -1275,22 +1340,30 @@ Instructions: ${reportPrompt}`,
           assessmentTypeDisplay = ((report as any).reportType || 'penetration_test').replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
         }
 
-        // Convert markdown to DOCX using our converter
-        const { markdownToDocx } = await import('../lib/markdown-to-docx');
-        const docxBuffer = await markdownToDocx(markdownContent, {
-          title: report.title || 'Security Assessment Report',
-          preparedFor: report.preparedFor || 'Client',
-          preparedBy: report.preparedBy || 'Ace of Cloud LLC',
-          assessmentType: assessmentTypeDisplay,
-          reportDate: dateStr,
-          reportId: String(input.reportId),
-        });
+        // Convert markdown to DOCX using our converter with error handling
+        try {
+          const { markdownToDocx } = await import('../lib/markdown-to-docx');
+          const docxBuffer = await markdownToDocx(markdownContent, {
+            title: report.title || 'Security Assessment Report',
+            preparedFor: report.preparedFor || 'Client',
+            preparedBy: report.preparedBy || 'Ace of Cloud LLC',
+            assessmentType: assessmentTypeDisplay,
+            reportDate: dateStr,
+            reportId: String(input.reportId),
+          });
 
-        // Upload to S3
-        const docxKey = `reports/${(report as any).engagementId}/${input.reportId}-report-${Date.now()}.docx`;
-        const { url } = await doStoragePut(docxKey, docxBuffer, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+          // Upload to S3
+          const docxKey = `reports/${(report as any).engagementId}/${input.reportId}-report-${Date.now()}.docx`;
+          const { url } = await doStoragePut(docxKey, docxBuffer, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
 
-        return { url, filename: `${(report.title || 'report').replace(/[^a-zA-Z0-9]/g, '_')}.docx` };
+          return { url, filename: `${(report.title || 'report').replace(/[^a-zA-Z0-9]/g, '_')}.docx` };
+        } catch (docxErr: any) {
+          console.error('[Report/DOCX] DOCX generation failed:', docxErr.message, docxErr.stack?.slice(0, 500));
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: `DOCX generation failed: ${docxErr.message}. Report has ${markdownContent.length} chars — if this is a large report, please try again or export as PDF instead.`,
+          });
+        }
       }),
   });
 

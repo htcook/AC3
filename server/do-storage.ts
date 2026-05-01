@@ -447,6 +447,33 @@ export async function doStorageExists(relKey: string): Promise<boolean> {
 }
 
 /**
+ * Download file content directly from S3 by key.
+ * Use this instead of fetching from a stored URL (which may be an expired presigned URL).
+ *
+ * @param relKey - Relative key path
+ * @returns Buffer containing the file content, or null if not found
+ */
+export async function doStorageGetContent(
+  relKey: string
+): Promise<{ key: string; data: Buffer; contentType: string } | null> {
+  const client = getClient();
+  const config = getConfig();
+  const key = normalizeKey(relKey);
+  try {
+    const response = await client.send(
+      new GetObjectCommand({ Bucket: config.bucket, Key: key })
+    );
+    const data = await streamToBuffer(response.Body);
+    return { key, data, contentType: response.ContentType || 'application/octet-stream' };
+  } catch (err: any) {
+    if (err.name === 'NoSuchKey' || err.$metadata?.httpStatusCode === 404) {
+      return null;
+    }
+    throw err;
+  }
+}
+
+/**
  * Delete an object from storage.
  */
 export async function doStorageDelete(relKey: string): Promise<void> {

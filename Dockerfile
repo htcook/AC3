@@ -1,10 +1,26 @@
 FROM node:22-slim
 
 # Install build dependencies needed by native modules (ssh2, node-gyp)
+# AND Chromium + dependencies for server-side PDF generation via puppeteer-core
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     make \
     g++ \
+    chromium \
+    fonts-liberation \
+    fonts-noto-color-emoji \
+    libatk-bridge2.0-0 \
+    libatk1.0-0 \
+    libcups2 \
+    libdrm2 \
+    libgbm1 \
+    libgtk-3-0 \
+    libnspr4 \
+    libnss3 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxrandr2 \
+    xdg-utils \
     && rm -rf /var/lib/apt/lists/*
 
 # Install exact pnpm version matching packageManager in package.json
@@ -42,8 +58,11 @@ RUN test -f dist/public/index.html && echo "OK: dist/public/index.html" || echo 
 # (in server/_core/vite.ts) that resolves at module load time even in production.
 # Removing vite causes ERR_MODULE_NOT_FOUND at startup.
 
-# Remove build dependencies to reduce image size
+# Remove build dependencies to reduce image size (keep chromium + runtime libs)
 RUN apt-get purge -y python3 make g++ && apt-get autoremove -y
+
+# Set Chromium path for puppeteer-core (Debian/slim uses /usr/bin/chromium)
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
 # Expose port (platform uses PORT env var, default 8080)
 EXPOSE 8080
