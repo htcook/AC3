@@ -5,7 +5,7 @@ import { useOpsViewerLiveStream } from "@/hooks/useOpsViewerLiveStream";
 import { useDIScanLiveStream } from "@/hooks/useDIScanLiveStream";
 import { BattlespaceEngine, type EngineCallbacks, type EngineStats } from "@/lib/battlespace-engine";
 import { transformEngagementGraph, transformDIScan } from "@/lib/battlespace-transform";
-import type { BattlespaceNode, BattlespaceMode, ZoomLevel, KillChainPhase } from "@/lib/battlespace-types";
+import type { BattlespaceNode, BattlespaceEdge, BattlespaceMode, ZoomLevel, KillChainPhase } from "@/lib/battlespace-types";
 import { NODE_VISUAL_CONFIG, SEVERITY_COLORS, KILL_CHAIN_COLORS, EDGE_VISUAL_CONFIG, TECH_ICONS, isVersionOutdated } from "@/lib/battlespace-types";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,11 +19,12 @@ import {
   ZoomIn, ZoomOut, Maximize2, Crosshair, Layers, Shield, AlertTriangle,
   Activity, Eye, EyeOff, Target, Network, Skull, Radio, Lock,
   ChevronRight, X, Cpu, Globe, Server, Database, Cloud, Brain, Zap, Timer,
-  ArrowLeft, GitBranch,
+  ArrowLeft, GitBranch, LayoutList,
 } from "lucide-react";
 import { TechDependencyGraph } from "@/components/TechDependencyGraph";
 import { buildTechDepGraph, type TechDepNode, CATEGORY_LABELS, CATEGORY_COLORS } from "@/lib/tech-dependency-graph";
 import { ScanProgressOverlay } from "@/components/ScanProgressOverlay";
+import StructuredLiveView from "@/components/StructuredLiveView";
 // wouter imports removed — back button uses window.history.back()
 
 // ── Reasoning Status Indicator ─────────────────────────────────────
@@ -753,6 +754,7 @@ export default function Battlespace() {
   });
 
   // State
+  const [viewMode, setViewMode] = useState<"structured" | "graph">("structured");
   const [mode, setMode] = useState<BattlespaceMode>(initialDi ? "di_scan" : "engagement");
   const [engagementId, setEngagementId] = useState<string>(initialEid);
   const [diScanId, setDiScanId] = useState<string>(initialDi);
@@ -948,6 +950,10 @@ export default function Battlespace() {
     };
   }, [callbacks]);
 
+  // ── Structured view state — tracks nodes/edges for the static list view ──
+  const [structuredNodes, setStructuredNodes] = useState<BattlespaceNode[]>([]);
+  const [structuredEdges, setStructuredEdges] = useState<BattlespaceEdge[]>([]);
+
   // Load graph data when engagement changes — use addNodes for live refetches
   // to avoid clobbering nodes that were added via the live stream
   const graphDataVersionRef = useRef(0);
@@ -956,6 +962,9 @@ export default function Battlespace() {
   useEffect(() => {
     if (!engineRef.current || !graphQuery.data) return;
     const graphData = transformEngagementGraph(graphQuery.data);
+    // Update structured view data
+    setStructuredNodes(graphData.nodes);
+    setStructuredEdges(graphData.edges);
     const isFirstLoad = graphDataVersionRef.current === 0;
     graphDataVersionRef.current += 1;
 
@@ -1009,6 +1018,9 @@ export default function Battlespace() {
   const handleLiveNodesDiscovered = useCallback((newNodes: BattlespaceNode[], newEdges: any[]) => {
     if (!engineRef.current) return;
     engineRef.current.addNodes(newNodes, newEdges);
+    // Also update structured view with new nodes
+    setStructuredNodes(prev => [...prev, ...newNodes]);
+    setStructuredEdges(prev => [...prev, ...newEdges]);
   }, []);
 
   const handlePhaseChanged = useCallback((phase: string, _prev: string) => {
@@ -1062,6 +1074,9 @@ export default function Battlespace() {
     if (!engineRef.current || !diScanQuery.data) return;
     const { scan, assets } = diScanQuery.data;
     const graphData = transformDIScan(scan, assets);
+    // Update structured view data
+    setStructuredNodes(graphData.nodes);
+    setStructuredEdges(graphData.edges);
     engineRef.current.loadGraph(graphData);
     setTimeout(() => engineRef.current?.fitToView(), 600);
   }, [diScanQuery.data]);
@@ -1069,6 +1084,9 @@ export default function Battlespace() {
   const handleDiNodesDiscovered = useCallback((newNodes: BattlespaceNode[], newEdges: any[]) => {
     if (!engineRef.current) return;
     engineRef.current.addNodes(newNodes, newEdges);
+    // Also update structured view with new nodes
+    setStructuredNodes(prev => [...prev, ...newNodes]);
+    setStructuredEdges(prev => [...prev, ...newEdges]);
   }, []);
 
   const handleDiStageChanged = useCallback((stage: string, _prev: string) => {
@@ -1273,6 +1291,20 @@ export default function Battlespace() {
 
           {/* Toolbar */}
           <div className="flex items-center gap-1">
+            {/* View Mode Toggle */}
+            <Button
+              variant="outline"
+              size="sm"
+              className={`h-7 px-2 rounded-none border-[#1A2332] text-[9px] font-mono uppercase tracking-wider ${
+                viewMode === "structured" ? "bg-teal-500/20 text-teal-400 border-teal-500/30" : "bg-transparent text-gray-400 hover:bg-[#1A2332]"
+              }`}
+              onClick={() => setViewMode(viewMode === "structured" ? "graph" : "structured")}
+              title={viewMode === "structured" ? "Switch to Graph View" : "Switch to Structured View"}
+            >
+              <LayoutList size={12} className="mr-1" />
+              {viewMode === "structured" ? "LIST" : "GRAPH"}
+            </Button>
+            <div className="h-6 w-px bg-[#1A2332]" />
             <Button
               variant="outline"
               size="sm"
@@ -1378,11 +1410,26 @@ export default function Battlespace() {
               boxShadow: 'inset 0 0 30px rgba(0, 229, 204, 0.06), inset 0 0 60px rgba(0, 229, 204, 0.03)',
             }} />
           )}
+
+          {/* ── STRUCTURED VIEW (default) ── */}
+          {viewMode === "structured" && (
+            <div className="absolute inset-0 z-20">
+              <StructuredLiveView
+                nodes={structuredNodes}
+                edges={structuredEdges}
+                mode={mode === "engagement" ? "engagement" : "di_scan"}
+                onNodeClick={(node) => setSelectedNode(node)}
+                isScanning={mode === "engagement" ? opsState?.isRunning : !diScanComplete && !!diScanId}
+                liveEventCount={mode === "engagement" ? liveEventCount : diLiveEventCount}
+              />
+            </div>
+          )}
+
           {/* Loading state — now shows fast-load progress */}
-          {graphQuery.isLoading && (
+          {graphQuery.isLoading && viewMode === "graph" && (
             <div className="absolute inset-0 z-40 flex items-center justify-center bg-[#0A0E14]/80">
               <div className="font-mono text-xs uppercase tracking-widest text-teal-400 flex flex-col items-center gap-2">
-                <Zap size={14} className="animate-pulse" />
+                <Zap size={14} />
                 <span>FAST-LOADING ATTACK GRAPH...</span>
                 <span className="text-[9px] text-gray-500">Deterministic build — no LLM wait</span>
               </div>
@@ -1462,17 +1509,19 @@ export default function Battlespace() {
             </div>
           )}
 
-          {/* Canvas 2D Engine */}
-          <div ref={containerRef} className="absolute inset-0" />
+          {/* Canvas 2D Engine — hidden when in structured view */}
+          <div ref={containerRef} className={`absolute inset-0 ${viewMode === "structured" ? "invisible" : ""}`} />
 
-          {/* Overlays */}
-          <StatsHUD stats={stats} mode={mode} />
-          <ReasoningStatusBar
-            reasoning={graphQuery.data?.reasoning}
-            performance={graphQuery.data?.performance}
-          />
-          <LegendPanel visible={showLegend} />
-          <TechSummaryPanel visible={showTechSummary} engineRef={engineRef} />
+          {/* Overlays — only show in graph mode */}
+          {viewMode === "graph" && <StatsHUD stats={stats} mode={mode} />}
+          {viewMode === "graph" && (
+            <ReasoningStatusBar
+              reasoning={graphQuery.data?.reasoning}
+              performance={graphQuery.data?.performance}
+            />
+          )}
+          {viewMode === "graph" && <LegendPanel visible={showLegend} />}
+          {viewMode === "graph" && <TechSummaryPanel visible={showTechSummary} engineRef={engineRef} />}
 
           {/* Tech Dependency Graph Overlay */}
           {showTechDepGraph && (
@@ -1538,14 +1587,16 @@ export default function Battlespace() {
             </div>
           )}
           <NodeDetailPanel node={selectedNode} onClose={() => { setSelectedNode(null); engineRef.current?.highlightTechOnAsset(null, null); }} />
-          <PathSelector
-            paths={reasoningMerged && reasoningQuery.data?.paths ? reasoningQuery.data.paths : (graphQuery.data?.paths || [])}
-            selectedPath={selectedPath}
-            onSelect={setSelectedPath}
-          />
+          {viewMode === "graph" && (
+            <PathSelector
+              paths={reasoningMerged && reasoningQuery.data?.paths ? reasoningQuery.data.paths : (graphQuery.data?.paths || [])}
+              selectedPath={selectedPath}
+              onSelect={setSelectedPath}
+            />
+          )}
 
-          {/* Hover Tooltip */}
-          {hoveredNode && (
+          {/* Hover Tooltip (graph mode only) */}
+          {viewMode === "graph" && hoveredNode && (
             <div
               className="absolute z-50 bg-[#0A0E14] border border-[#1A2332] px-2 py-1 font-mono text-[9px] pointer-events-none"
               style={{ left: hoveredNode.x + 12, top: hoveredNode.y - 8 }}
@@ -1562,8 +1613,8 @@ export default function Battlespace() {
             </div>
           )}
 
-          {/* Timeline Scrubber */}
-          {timeRange && mode === "engagement" && (
+          {/* Timeline Scrubber (graph mode only) */}
+          {viewMode === "graph" && timeRange && mode === "engagement" && (
             <TimelineScrubber
               minTime={timeRange.min}
               maxTime={timeRange.max}
@@ -1573,15 +1624,19 @@ export default function Battlespace() {
             />
           )}
 
-          {/* Scan line animation (decorative) */}
-          <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-teal-400/20 to-transparent animate-pulse pointer-events-none" />
-          <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-teal-400/10 to-transparent pointer-events-none" />
+          {/* Scan line decoration (static, no animation) */}
+          {viewMode === "graph" && (
+            <>
+              <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-teal-400/20 to-transparent pointer-events-none" />
+              <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-teal-400/10 to-transparent pointer-events-none" />
+            </>
+          )}
 
-          {/* Live discovery toast — shows when new nodes arrive during active scan */}
-          {opsState?.isRunning && liveEventCount > 0 && (
+          {/* Live discovery toast — shows when new nodes arrive during active scan (graph mode only) */}
+          {viewMode === "graph" && opsState?.isRunning && liveEventCount > 0 && (
             <div className="absolute bottom-4 right-4 z-40 pointer-events-none">
-              <div className="bg-[#0A0E14]/90 border border-teal-500/30 px-3 py-2 font-mono flex items-center gap-2 animate-pulse">
-                <div className="w-2 h-2 rounded-full bg-teal-400 shadow-[0_0_6px_rgba(0,229,204,0.6)]" />
+              <div className="bg-[#0A0E14]/90 border border-teal-500/30 px-3 py-2 font-mono flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-teal-400" />
                 <span className="text-[10px] uppercase tracking-wider text-teal-400">
                   {liveEventCount} live events
                 </span>

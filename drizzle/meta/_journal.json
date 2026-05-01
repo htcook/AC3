@@ -330,6 +330,13 @@
       "when": 1777556420077,
       "tag": "0046_black_doctor_faustus",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "5",
+      "when": 1777607968686,
+      "tag": "0047_curly_ricochet",
+      "breakpoints": true
     }
   ]
 }

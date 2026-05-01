@@ -1142,12 +1142,43 @@
 - [x] All 41 BB RoE enforcement tests passing
 
 ### JIPOE-Adjacent Strategic Roadmap + ICD 203 Analytical Confidence Framework (Apr 30)
-- [ ] Write strategic roadmap document (docs/AC3-Analytical-Roadmap.md)
-- [ ] Design ICD 203 Analytical Confidence Framework module (server/lib/analytical-confidence.ts)
-- [ ] Implement confidence levels (High/Moderate/Low) with IC-standard definitions
-- [ ] Implement source reliability tracking (scanner, LLM-inference, OSINT, operator, customer-provided)
-- [ ] Implement named assumptions framework
-- [ ] Integrate confidence into hybrid scoring engine
-- [ ] Integrate confidence into findings data model
-- [ ] Integrate confidence into report pipeline output
-- [ ] Write tests for confidence framework
+- [x] Write strategic roadmap document (docs/AC3-Analytical-Roadmap.md)
+- [x] Design ICD 203 Analytical Confidence Framework module (server/lib/analytical-confidence.ts)
+- [x] Implement confidence levels (High/Moderate/Low) with IC-standard definitions
+- [x] Implement source reliability tracking (scanner, LLM-inference, OSINT, operator, customer-provided)
+- [x] Implement named assumptions framework
+- [x] Integrate confidence into hybrid scoring engine
+- [x] Integrate confidence into findings data model
+- [x] Integrate confidence into report pipeline output
+- [x] Write tests for confidence framework (41 tests passing)
+
+### Analytical Improvements — Confidence Badges, Intelligence Gaps, Customer Intel Profile (Apr 30)
+- [x] Create ConfidenceBadge.tsx component (HIGH green / MODERATE yellow / LOW red with hover tooltips)
+- [x] Add confidence badges to DI findings table (DomainIntelResults.tsx)
+- [x] Add confidence badges to engagement results view (EngagementOps.tsx)
+- [x] Add confidence level tRPC procedure for client-side scoring (using client-side scoreToLevel from ConfidenceBadge)
+- [x] Create intelligence_gaps schema table in drizzle/schema.ts
+- [x] Run pnpm db:push for intelligence_gaps migration
+- [x] Create server/lib/intelligence-gaps.ts module (gap detection, categorization, tracking)
+- [x] Add intelligence gaps tRPC procedures (list, create, resolve, detect)
+- [x] Add Intelligence Gaps section to report pipeline output (formatGapsForReport)
+- [x] Create IntelligenceGapsPanel.tsx UI component in engagement detail view
+- [x] Create customer_intelligence_profiles schema table in drizzle/schema.ts
+- [x] Run pnpm db:push for customer_intelligence_profiles migration
+- [x] Create server/lib/customer-intel-profile.ts module (profile building, trend analysis, cross-engagement aggregation)
+- [x] Add customer intel profile tRPC procedures (getProfile, updateProfile, getTrends)
+- [x] Auto-update profile on engagement completion (updateProfileFromEngagement hook)
+- [x] Create CustomerIntelProfile.tsx UI page
+- [x] Write vitest tests for all three features (42 tests passing)
+- [x] Save checkpoint and push to GitHub
+
+### UI Simplification — Static Structured Live View (Apr 30)
+- [x] Replace animated network topology graph with static structured asset/port/service layout
+- [x] Remove physics simulation, bouncing nodes, and jittering animations from engagement live view
+- [x] Create structured tree/table layout: assets → ports → services → connections (readable hierarchy)
+- [x] Maintain full data fidelity (all ports, services, nginx proxies, connections still visible)
+- [x] Live-updating without layout shifts (new discoveries append cleanly)
+- [ ] Remove excessive CSS animations across the platform (pulse, bounce, spin on non-loading elements)
+- [x] Ensure all items remain clickable for detail views
+- [x] Ensure OpsViewer + StructuredLiveView fits any browser viewport (mobile, tablet, desktop, ultrawide)
+- [x] Fix any overflow, horizontal scroll, or element clipping issues in OpsViewer toolbar/stats bar

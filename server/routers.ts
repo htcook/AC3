@@ -233,6 +233,8 @@ import { cspmDashboardRouter } from "./routers/cspm-dashboard";
 import { cspmScheduledScansRouter } from "./routers/cspm-scheduled-scans";
 import { vaBugBountyRouter } from "./routers/va-bugbounty";
 import { stackProfileRouter } from "./routers/stack-profile";
+import { intelligenceGapsRouter } from "./routers/intelligence-gaps";
+import { customerIntelProfileRouter } from "./routers/customer-intel-profile";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -633,6 +635,10 @@ export const appRouter = router({
   cspmScheduledScans: cspmScheduledScansRouter,
   vaBugBounty: vaBugBountyRouter,
   stackProfile: stackProfileRouter,
+  // ─── Intelligence Gaps (ICD 203 Gap Tracking) ──
+  intelligenceGaps: intelligenceGapsRouter,
+  // ─── Customer Intelligence Profile (Cross-Engagement) ──
+  customerIntelProfile: customerIntelProfileRouter,
 });
 export type AppRouter = typeof appRouter;
 

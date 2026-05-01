@@ -40,6 +40,7 @@ import { TabGroupNav } from "@/components/TabGroupNav";
 import type { TabGroup } from "@/components/TabGroupNav";
 import { FindingStateBadge } from "@/components/FindingStateBadge";
 import { CorroborationTierBadge } from "@/components/CorroborationTierBadge";
+import { ConfidenceBadge } from "@/components/ConfidenceBadge";
 import type { ValidationResultExport, ValidationRunExport } from "@/lib/export-utils";
 
 // Lazy-loaded sub-tabs (split from monolithic file for bundle optimization)
@@ -1629,9 +1630,7 @@ export default function DomainIntelResults() {
                                 {sev}
                               </span>
                               {confidence != null && (
-                                <span className="text-[9px] px-1.5 py-0.5 rounded-full border border-zinc-600/40 bg-zinc-700/30 text-zinc-300 font-mono">
-                                  {(confidence * 100).toFixed(0)}%
-                                </span>
+                                <ConfidenceBadge score={confidence} size="xs" showScore showTooltip />
                               )}
                               {corroboration && (
                                 <CorroborationTierBadge tier={corroboration} size="xs" showTooltip={true} />
@@ -1946,7 +1945,7 @@ export default function DomainIntelResults() {
                             </div>
                             <div className="flex justify-between text-[10px]">
                               <span className="text-muted-foreground">Confidence</span>
-                              <span className="font-bold">{asset.confidence || 0}%</span>
+                              <ConfidenceBadge score={(asset.confidence || 0) / 100} size="xs" />
                             </div>
                             <div className="flex justify-between text-[10px]">
                               <span className="text-muted-foreground">Criticality</span>
@@ -2276,7 +2275,7 @@ export default function DomainIntelResults() {
                         {entity.estimatedRevenue && <p className="text-xs"><span className="text-muted-foreground">Est. Revenue:</span> <span className="font-semibold">{fmtCurrency(entity.estimatedRevenue)}</span></p>}
                         {entity.estimatedValuation && <p className="text-xs"><span className="text-muted-foreground">Est. Valuation:</span> <span className="font-semibold">{fmtCurrency(entity.estimatedValuation)}</span></p>}
                         {entity.clientType && <p className="text-xs"><span className="text-muted-foreground">Client Type:</span> <span className="font-semibold">{fmtLabel(entity.clientType)}</span></p>}
-                        {entity.confidence && <p className="text-xs"><span className="text-muted-foreground">Entity Confidence:</span> <span className="font-semibold">{entity.confidence}%</span></p>}
+                        {entity.confidence && <p className="text-xs flex items-center gap-1.5"><span className="text-muted-foreground">Entity Confidence:</span> <ConfidenceBadge score={entity.confidence / 100} size="xs" showScore /></p>}
                       </div>
                       <p className="text-[10px] text-muted-foreground italic mt-1">Financial context informs CARVER Criticality and Shock Effect scoring weights</p>
                     </div>
@@ -2781,9 +2780,7 @@ export default function DomainIntelResults() {
                           <div key={idx} className="p-3 rounded-lg border border-amber-500/20 bg-amber-500/5">
                             <div className="flex items-center justify-between gap-2 mb-1.5">
                               <span className="text-sm font-medium">{w.vendor || w.name}</span>
-                              <Badge className={`text-[9px] px-1.5 py-0 ${confColors[w.confidence] || confColors.medium}`}>
-                                {(w.confidence || 'medium').toUpperCase()}
-                              </Badge>
+                              <ConfidenceBadge level={w.confidence || 'moderate'} size="xs" />
                             </div>
                             {w.evidence && w.evidence.length > 0 && (
                               <div className="flex gap-1 flex-wrap mt-1">
@@ -2812,9 +2809,7 @@ export default function DomainIntelResults() {
                           <div key={idx} className="p-3 rounded-lg border border-orange-500/20 bg-orange-500/5">
                             <div className="flex items-center justify-between gap-2 mb-1.5">
                               <span className="text-sm font-medium">{n.vendor || n.name}</span>
-                              <Badge className={`text-[9px] px-1.5 py-0 ${confColors[n.confidence] || confColors.medium}`}>
-                                {(n.confidence || 'medium').toUpperCase()}
-                              </Badge>
+                              <ConfidenceBadge level={n.confidence || 'moderate'} size="xs" />
                             </div>
                             {n.evidence && n.evidence.length > 0 && (
                               <div className="flex gap-1 flex-wrap mt-1">
@@ -3091,7 +3086,7 @@ export default function DomainIntelResults() {
                               </div>
                               <div>
                                 <span className="text-muted-foreground">Confidence:</span>{" "}
-                                <span className="font-bold">{asset.confidence || 0}%</span>
+                                <ConfidenceBadge score={(asset.confidence || 0) / 100} size="xs" />
                               </div>
                             </div>
                           </div>
@@ -5669,9 +5664,7 @@ export default function DomainIntelResults() {
                                     <span key={j} className="font-mono text-foreground bg-muted/50 px-1 rounded">{h}</span>
                                   ))}
                                 </div>
-                                <span className="text-muted-foreground">
-                                  Confidence: <span className={confidencePct >= 80 ? "text-emerald-400" : confidencePct >= 50 ? "text-yellow-400" : "text-red-400"}>{confidencePct}%</span>
-                                </span>
+                                <ConfidenceBadge score={f.confidence || 0} size="xs" showScore />
                               </div>
 
                               {/* ─── Source Attribution Block ─── */}
@@ -5865,9 +5858,7 @@ export default function DomainIntelResults() {
                                     <span key={j} className="font-mono text-foreground bg-muted/50 px-1 rounded">{h}</span>
                                   ))}
                                 </div>
-                                <span className="text-muted-foreground">
-                                  Confidence: <span className={confidencePct >= 80 ? "text-emerald-400" : confidencePct >= 50 ? "text-yellow-400" : "text-red-400"}>{confidencePct}%</span>
-                                </span>
+                                <ConfidenceBadge score={f.confidence || 0} size="xs" showScore />
                               </div>
                               {!isFP && (
                                 <div className="mt-3 pt-3 border-t border-border/30 flex items-center justify-between">
@@ -5976,9 +5967,7 @@ export default function DomainIntelResults() {
                                     <span key={j} className="font-mono text-foreground bg-muted/50 px-1 rounded">{h}</span>
                                   ))}
                                 </div>
-                                <span className="text-muted-foreground">
-                                  Confidence: <span className={confidencePct >= 80 ? "text-emerald-400" : confidencePct >= 50 ? "text-yellow-400" : "text-red-400"}>{confidencePct}%</span>
-                                </span>
+                                <ConfidenceBadge score={f.confidence || 0} size="xs" showScore />
                               </div>
                               {!isFP && (
                                 <div className="mt-3 pt-3 border-t border-border/30 flex items-center justify-between">

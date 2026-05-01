@@ -24,6 +24,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
 import { CorroborationTierBadge } from "@/components/CorroborationTierBadge";
+import { ConfidenceBadge } from "@/components/ConfidenceBadge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
@@ -47,6 +48,7 @@ import AdjustmentEffectivenessWidget from "@/components/AdjustmentEffectivenessW
 import CommsProtocolPanel from "@/components/CommsProtocolPanel";
 import FingerprintDiffPanel from "@/components/FingerprintDiffPanel";
 import BbRoeBriefingPanel from "@/components/BbRoeBriefingPanel";
+import { IntelligenceGapsPanel } from "@/components/IntelligenceGapsPanel";
 import {
   Play, Square, Shield, ShieldAlert, ShieldCheck, ShieldX,
   Target, Crosshair, Radar, Bug, Skull, Radio, Globe,
@@ -765,7 +767,7 @@ function renderFeedEntry(entry: OpsLogEntry) {
                         }`}>{d.category.replace(/_/g, ' ')}</Badge>
                         <span className="text-orange-300 font-mono flex-none">{d.port}</span>
                         <span className="text-foreground/90 font-medium">{d.vendor} {d.product}</span>
-                        <span className="text-muted-foreground/60 ml-auto">{d.confidence}%</span>
+                        <span className="ml-auto"><ConfidenceBadge score={d.confidence / 100} size="xs" /></span>
                       </div>
                     ))}
                   </div>
@@ -2646,6 +2648,7 @@ export default function EngagementOps() {
                   { value: 'fpsuppression', label: 'FP Suppression', icon: <Filter className="h-3 w-3" /> },
                   { value: 'coverage', label: 'Coverage & Quality', icon: <Scissors className="h-3 w-3" /> },
                   { value: 'normalized', label: 'Normalized', icon: <Layers className="h-3 w-3" />, count: 0 },
+                  { value: 'intelgaps', label: 'Intel Gaps', icon: <AlertTriangle className="h-3 w-3" /> },
                 ],
               },
               {
@@ -3246,13 +3249,7 @@ export default function EngagementOps() {
                                   {e.cve && <span className="text-[10px] text-muted-foreground font-mono">{e.cve}</span>}
                                   {e.sessionId && <Badge variant="outline" className="text-[8px] bg-green-500/20 text-green-300 border-green-500/40">{e.sessionId}</Badge>}
                                   {e.confidence != null && (
-                                    <Badge variant="outline" className={`text-[8px] ${
-                                      e.confidence >= 0.7 ? 'text-green-300 border-green-500/30' :
-                                      e.confidence >= 0.4 ? 'text-yellow-300 border-yellow-500/30' :
-                                      'text-red-300 border-red-500/30'
-                                    }`}>
-                                      conf:{Math.round(e.confidence * 100)}%
-                                    </Badge>
+                                    <ConfidenceBadge score={e.confidence} size="xs" showScore />
                                   )}
                                   {e.timestamp && <span className="text-[9px] text-muted-foreground ml-auto">{new Date(e.timestamp).toLocaleTimeString()}</span>}
                                 </div>
@@ -4811,12 +4808,7 @@ export default function EngagementOps() {
                                   }`}>{v.severity}</Badge>
                                   <span className="font-medium text-foreground flex-1">{v.title}</span>
                                   {v.cve && <span className="text-muted-foreground font-mono text-[10px]">{v.cve}</span>}
-                                  <Badge variant="outline" className={`text-[8px] ${
-                                    v.confidence >= 90 ? 'text-green-400 border-green-500/30' :
-                                    v.confidence >= 70 ? 'text-emerald-400 border-emerald-500/30' :
-                                    v.confidence >= 50 ? 'text-yellow-400 border-yellow-500/30' :
-                                    'text-orange-400 border-orange-500/30'
-                                  }`}>{v.confidence}% conf</Badge>
+                                  <ConfidenceBadge score={v.confidence / 100} size="xs" showScore />
                                 </div>
                                 <div className="flex items-center gap-2 flex-wrap">
                                   {v.confirmedByActiveScan && (
@@ -4907,11 +4899,7 @@ export default function EngagementOps() {
                               <div className="flex items-center gap-2">
                                 <Skull className="h-4 w-4 text-red-400" />
                                 <span className="text-sm font-medium text-foreground">{exploit.filename}</span>
-                                <Badge variant="outline" className={`text-[9px] ${
-                                  exploit.confidence >= 80 ? 'text-green-400 border-green-500/30' :
-                                  exploit.confidence >= 50 ? 'text-yellow-400 border-yellow-500/30' :
-                                  'text-red-400 border-red-500/30'
-                                }`}>{exploit.confidence}%</Badge>
+                                <ConfidenceBadge score={exploit.confidence / 100} size="xs" showScore />
                               </div>
                               <div className="flex items-center gap-1">
                                 <Button size="sm" variant="outline" className="h-6 text-[10px] border-border/30" onClick={() => setViewingExploitIdx(idx)}>
@@ -5345,6 +5333,19 @@ export default function EngagementOps() {
                 </div>
               </ScrollArea>
             </TabsContent>
+
+            {/* ── Intelligence Gaps Tab ── */}
+            <TabsContent value="intelgaps" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+              <ScrollArea className="h-[calc(100vh-280px)]">
+                <div className="py-3">
+                  <h3 className="text-sm font-semibold text-zinc-200 mb-3 flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4 text-amber-400" />
+                    Intelligence Gaps — What Wasn't Assessed & Why
+                  </h3>
+                  <IntelligenceGapsPanel engagementId={engagementId} />
+                </div>
+              </ScrollArea>
+            </TabsContent>
           </Tabs>
         </div>
 
@@ -5672,11 +5673,7 @@ export default function EngagementOps() {
                       <div className="flex items-center gap-1.5 min-w-0">
                         <Skull className="h-3 w-3 text-red-400 flex-none" />
                         <span className="text-[10px] truncate">{ex.filename}</span>
-                        <Badge variant="outline" className={`text-[8px] flex-none ${
-                          ex.confidence >= 80 ? 'text-green-400 border-green-500/30' :
-                          ex.confidence >= 50 ? 'text-yellow-400 border-yellow-500/30' :
-                          'text-red-400 border-red-500/30'
-                        }`}>{ex.confidence}%</Badge>
+                        <ConfidenceBadge score={ex.confidence / 100} size="xs" />
                       </div>
                       <div className="flex items-center gap-0.5">
                         <Button size="sm" variant="ghost" className="h-5 w-5 p-0" onClick={() => setViewingExploitIdx(i)} title="View code">
@@ -6186,11 +6183,7 @@ export default function EngagementOps() {
               <Skull className="h-5 w-5 text-red-400" />
               {exploitDetailQ.data?.filename || 'Exploit Code'}
               {exploitDetailQ.data?.confidence && (
-                <Badge variant="outline" className={`text-xs ${
-                  exploitDetailQ.data.confidence >= 80 ? 'text-green-400 border-green-500/30' :
-                  exploitDetailQ.data.confidence >= 50 ? 'text-yellow-400 border-yellow-500/30' :
-                  'text-red-400 border-red-500/30'
-                }`}>{exploitDetailQ.data.confidence}% confidence</Badge>
+                <ConfidenceBadge score={exploitDetailQ.data.confidence / 100} size="sm" showScore />
               )}
             </AlertDialogTitle>
             {exploitDetailQ.data && (
@@ -7180,7 +7173,7 @@ function ScanReportImportPanel({ engagementId }: { engagementId: number }) {
                         <div className="font-medium text-foreground truncate">{v.title}</div>
                         <div className="text-muted-foreground mt-0.5">{v.reasoning}</div>
                       </div>
-                      <span className="text-muted-foreground shrink-0">{v.confidence}%</span>
+                      <ConfidenceBadge score={v.confidence / 100} size="xs" />
                     </div>
                   ))}
                 </div>
