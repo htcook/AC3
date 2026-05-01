@@ -1112,3 +1112,18 @@
 - [x] Node.js: open source tools only, no DoS, signal score requirement
 - [x] Write 41 tests covering all enforcement paths (all passing)
 - [ ] Add UI indicator for filtered findings in report view (future)
+
+### AWS Deployment Configs — Dev/Staging/Prod (Apr 30)
+- [x] Audit project structure and dependencies for containerization
+- [x] Create Dockerfile.aws (multi-stage FedRAMP-aligned build, non-root, dumb-init)
+- [x] Existing .dockerignore verified
+- [x] Create GitHub Actions CI/CD workflow — branch-based auto-deploy (dev→Dev, staging→Staging, main→Prod with approval gate)
+- [x] Create environment config templates (.env.dev, .env.staging, .env.prod) in deploy/env-templates/
+- [x] Write comprehensive AWS Deployment Guide (docs/AWS-Deployment-Guide.md)
+
+### JIPOE Feature Analysis Assessment (Apr 30)
+- [x] Analyze Claude JIPOE response against actual AC3 codebase
+- [x] Assess Step 1-4 mapping accuracy and identify overstated gaps
+- [x] Document what Claude got right, wrong, and missed entirely
+- [x] Provide recommended implementation path (Phase 1-3)
+- [x] Write JIPOE Analysis Assessment document (docs/JIPOE-Analysis-Assessment.md)
