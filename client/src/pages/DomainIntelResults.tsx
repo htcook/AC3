@@ -2016,7 +2016,16 @@ export default function DomainIntelResults() {
                               {mediumFindings.length > 0 && <Badge className="text-[10px] bg-yellow-500/20 text-yellow-300 border-yellow-500/40">{mediumFindings.length} Medium</Badge>}
                             </div>
                             <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                              {findings.map((f: any, i: number) => (
+                              {[...findings].sort((a: any, b: any) => {
+                                // Sort by confirmation tier first (confirmed > probable > potential)
+                                const tierOrder: Record<string, number> = { confirmed: 3, probable: 2, potential: 1 };
+                                const tierA = tierOrder[a.corroborationTier] || 0;
+                                const tierB = tierOrder[b.corroborationTier] || 0;
+                                if (tierB !== tierA) return tierB - tierA;
+                                // Then by severity (critical > high > medium > low)
+                                const sevOrder: Record<string, number> = { critical: 4, high: 3, medium: 2, low: 1 };
+                                return (sevOrder[b.severity] || 0) - (sevOrder[a.severity] || 0);
+                              }).map((f: any, i: number) => (
                                 <div key={i} className={`p-2 rounded border text-xs ${f.severity === 'critical' ? 'bg-red-500/5 border-red-500/30' : f.severity === 'high' ? 'bg-orange-500/5 border-orange-500/20' : 'bg-muted/20 border-border'}`}>
                                   <div className="flex items-center gap-1.5 flex-wrap mb-1">
                                     <Badge className={`text-[9px] px-1 py-0 ${SSEV_COLORS[f.severity] || SSEV_COLORS.medium}`}>{(f.severity || 'medium').toUpperCase()}</Badge>

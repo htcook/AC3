@@ -946,7 +946,16 @@ export async function matchTechnologiesAgainstAllFeeds(
 
       techMatches.push({
         technology: tech,
-        vulns: filteredVulns.sort((a, b) => (b.cvssScore || 0) - (a.cvssScore || 0)).slice(0, 25),
+        vulns: filteredVulns.sort((a, b) => {
+          // Sort by CVSS score descending (risk level)
+          const scoreA = a.cvssScore || 0;
+          const scoreB = b.cvssScore || 0;
+          if (scoreB !== scoreA) return scoreB - scoreA;
+          // Then by KEV status (KEV-listed first)
+          const kevA = a.kevListed ? 1 : 0;
+          const kevB = b.kevListed ? 1 : 0;
+          return kevB - kevA;
+        }).slice(0, 25),
         maxSeverity,
         exploitCount,
         kevCount,
@@ -969,7 +978,15 @@ export async function matchTechnologiesAgainstAllFeeds(
   }
 
   return {
-    matches: techMatches.sort((a, b) => b.riskScore - a.riskScore),
+    matches: techMatches.sort((a, b) => {
+      // Sort by confirmation tier first (confirmed > probable > potential)
+      const tierOrder: Record<string, number> = { confirmed: 3, probable: 2, potential: 1 };
+      const tierA = tierOrder[a.corroborationTier] || 0;
+      const tierB = tierOrder[b.corroborationTier] || 0;
+      if (tierB !== tierA) return tierB - tierA;
+      // Then by risk score (descending)
+      return b.riskScore - a.riskScore;
+    }),
     totalVulns,
     totalExploits,
     totalKev,

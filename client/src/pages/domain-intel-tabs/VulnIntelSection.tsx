@@ -38,7 +38,17 @@ export default function VulnIntelSection({ scanId }: { scanId: number }) {
         ? ['confirmed', 'probable']
         : ['confirmed'];
 
-    const filteredMatches = data.matches.filter((m: any) => allowedTiers.includes(m.corroborationTier));
+    const filteredMatches = data.matches
+      .filter((m: any) => allowedTiers.includes(m.corroborationTier))
+      .sort((a: any, b: any) => {
+        // Sort by confirmation tier first (confirmed > probable > potential)
+        const tierOrder: Record<string, number> = { confirmed: 3, probable: 2, potential: 1 };
+        const tierA = tierOrder[a.corroborationTier] || 0;
+        const tierB = tierOrder[b.corroborationTier] || 0;
+        if (tierB !== tierA) return tierB - tierA;
+        // Then by risk score (descending)
+        return (b.riskScore || 0) - (a.riskScore || 0);
+      });
 
     // Recount stats from only the filtered matches
     let vulns = 0, exploits = 0, kev = 0, zeroDay = 0;

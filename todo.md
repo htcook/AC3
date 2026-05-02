@@ -1304,3 +1304,9 @@
 - [x] Add entity override UI in DI scan results page (edit button, modal form, revert, low-confidence warning)
 - [x] Wire entity override into PDF report export (merge override fields, confidence=100%, fetched at export time)
 - [x] Test and verify both features (4 vitest tests passing, esbuild clean, dev server 200 OK)
+
+### DI Report & UI — Vulnerability Sorting (May 1)
+- [x] Sort vulnerabilities in PDF report by confirmation tier (confirmed > probable > potential), then by risk level (already structured: Confirmed → Probable → Potential sections, each sorted by CVSS+KEV)
+- [x] Sort vulnerabilities in scan results UI (VulnIntelSection, TechVulnsTab, DomainIntelResults findings all sorted by tier then severity)
+- [x] Sort backend matchTechVulns results by confirmation tier then risk score (vuln-feeds.ts)
+- [x] Verify: esbuild clean, dev server 200 OK

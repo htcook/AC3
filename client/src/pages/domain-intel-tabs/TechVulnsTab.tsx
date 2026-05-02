@@ -46,6 +46,15 @@ export default function TechVulnsTab({ scanId }: { scanId: number }) {
     if (searchTerm && !(tp.technology || '').toLowerCase().includes(searchTerm.toLowerCase()) &&
         !tp.cves?.some((c: any) => c.cveId?.toLowerCase().includes(searchTerm.toLowerCase()))) return false;
     return true;
+  }).sort((a: any, b: any) => {
+    // Sort by confirmation tier first (confirmed > probable > potential)
+    const tierOrder: Record<string, number> = { confirmed: 3, probable: 2, potential: 1 };
+    const tierA = tierOrder[a.corroborationTier] || 0;
+    const tierB = tierOrder[b.corroborationTier] || 0;
+    if (tierB !== tierA) return tierB - tierA;
+    // Then by severity (critical > high > medium > low)
+    const sevOrder: Record<string, number> = { critical: 4, high: 3, medium: 2, low: 1 };
+    return (sevOrder[b.highestSeverity] || 0) - (sevOrder[a.highestSeverity] || 0);
   });
 
   return (
@@ -158,7 +167,12 @@ export default function TechVulnsTab({ scanId }: { scanId: number }) {
                 {/* CVEs */}
                 {tp.cves?.length > 0 && (
                   <div className="space-y-2 mt-2">
-                    {tp.cves.map((cve: any, j: number) => (
+                    {[...tp.cves].sort((a: any, b: any) => {
+                      const sevOrder: Record<string, number> = { critical: 4, high: 3, medium: 2, low: 1 };
+                      const sevDiff = (sevOrder[b.severity] || 0) - (sevOrder[a.severity] || 0);
+                      if (sevDiff !== 0) return sevDiff;
+                      return (b.cvssScore || 0) - (a.cvssScore || 0);
+                    }).map((cve: any, j: number) => (
                       <div key={j} className={`p-2 rounded-lg border ${
                         cve.severity === 'critical' ? 'bg-red-500/5 border-red-500/30' :
                         cve.severity === 'high' ? 'bg-orange-500/5 border-orange-500/30' :
