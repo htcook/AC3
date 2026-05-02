@@ -275,6 +275,19 @@ export async function exportDiReport(
     }
   }
 
+  // ── Global asset partition: client-owned vs managed/third-party ──
+  // This partition is used throughout the report to ensure managed provider assets
+  // (e.g. outlook.com for M365) are excluded from all client-facing metrics.
+  const clientOwnedAssets: typeof assets = [];
+  const managedProviderAssets: typeof assets = [];
+  for (const asset of assets) {
+    if (_ownershipFilter.isClientOwned({ hostname: asset.hostname, tags: asset.tags })) {
+      clientOwnedAssets.push(asset);
+    } else {
+      managedProviderAssets.push(asset);
+    }
+  }
+
   const observations: any[] = rawObservations.length > 0 ? rawObservations : (() => {
     const synth: any[] = [];
     // Track CVE deduplication: same CVE across multiple assets → single observation with asset list
@@ -759,7 +772,9 @@ export async function exportDiReport(
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
   const metricsX = margin + 50;
-  doc.text(`Total Assets Discovered: ${scan.totalAssets ?? assets.length ?? 0}`, metricsX, y + 18);
+  // Use client-owned count: exclude managed provider assets from the headline metric
+  const _coverClientAssetCount = scan.riskScoreExclusions?.clientOwnedCount ?? (assets.length - (scan.riskScoreExclusions?.excludedCount ?? 0));
+  doc.text(`Total Assets Discovered: ${scan.totalAssets ?? _coverClientAssetCount ?? assets.length ?? 0}`, metricsX, y + 18);
   // Count confirmed findings — use observation-level counting (same as vuln section)
   // This ensures the cover page number matches what the vulnerability details section shows
   const _clientFindings = observations.filter((o: any) => !o.evidence?.providerManagedOnly);
@@ -864,13 +879,13 @@ export async function exportDiReport(
   // ═══════════════════════════════════════════════════════════════════════
   y = addSectionPage('Executive Summary');
 
-  // Pre-compute critical/high asset lists (used in BLUF and later sections)
-  const criticalAssets = assets.filter((a: any) => a.riskBand === 'critical' || a.hybridRiskScore >= 80);
-  const highAssets = assets.filter((a: any) => a.riskBand === 'high' || (a.hybridRiskScore >= 60 && a.hybridRiskScore < 80));
+  // Pre-compute critical/high asset lists (client-owned only — excludes managed provider assets)
+  const criticalAssets = clientOwnedAssets.filter((a: any) => a.riskBand === 'critical' || a.hybridRiskScore >= 80);
+  const highAssets = clientOwnedAssets.filter((a: any) => a.riskBand === 'high' || (a.hybridRiskScore >= 60 && a.hybridRiskScore < 80));
 
   // ─── BLUF (Bottom Line Up Front) ─────────────────────────────────────
   // Build a single data-driven paragraph that concisely summarizes the entire report.
-  const _totalAssets = scan.totalAssets ?? assets.length ?? 0;
+  const _totalAssets = scan.totalAssets ?? clientOwnedAssets.length ?? 0;
   // Compute findings breakdown — ALWAYS use observation-level counting to ensure
   // consistency between the BLUF, cover page, and vulnerability details section.
   // The observation synthesis deduplicates CVEs across assets, so these counts
@@ -1226,9 +1241,12 @@ export async function exportDiReport(
   // ═══════════════════════════════════════════════════════════════════════
   const entityProfile = scan.entityProfile || scan.pipelineOutput?.entityProfile || null;
   const financialImpact = scan.financialImpact || scan.pipelineOutput?.financialImpact || null;
-  if (entityProfile || financialImpact) {
+  // Confidence threshold: suppress entity profile if confidence is below 50%
+  // This prevents misidentified companies (e.g., wrong "Ace of Cloud" in India) from appearing
+  const entityConfidenceSufficient = entityProfile && (entityProfile.confidence ?? 0) >= 50;
+  if ((entityConfidenceSufficient || financialImpact) && (entityProfile || financialImpact)) {
     y = startSection('Organization Profile & Financial Impact', y, 80);
-    if (entityProfile) {
+    if (entityConfidenceSufficient && entityProfile) {
       const epRows: string[][] = [];
       if (entityProfile.orgName) epRows.push(['Organization', entityProfile.orgName]);
       if (entityProfile.industry) epRows.push(['Industry', entityProfile.industry]);
@@ -1255,6 +1273,18 @@ export async function exportDiReport(
         });
         y = (doc as any).lastAutoTable.finalY + 5;
       }
+    }
+    // Show a note if entity profile was suppressed due to low confidence
+    if (entityProfile && !entityConfidenceSufficient) {
+      doc.setFontSize(7);
+      doc.setFont('helvetica', 'italic');
+      doc.setTextColor(148, 163, 184);
+      doc.text(
+        `\u2020 Organization profile suppressed: identification confidence (${entityProfile.confidence ?? 0}%) below threshold. ` +
+        `Method: ${entityProfile.identificationMethod || 'unknown'}. Manual verification recommended.`,
+        margin, y
+      );
+      y += 6;
     }
     if (financialImpact) {
       y = checkPageBreak(y, 50);
@@ -1310,10 +1340,10 @@ export async function exportDiReport(
   // ═══════════════════════════════════════════════════════════════════════
   y = addSectionPage('Attack Surface Inventory');
 
-  // Asset type breakdown
+  // Asset type breakdown (client-owned only — managed provider assets excluded)
   const assetTypeCounts: Record<string, number> = {};
   const riskBandCounts: Record<string, number> = { critical: 0, high: 0, medium: 0, low: 0 };
-  for (const asset of assets) {
+  for (const asset of clientOwnedAssets) {
     const aType = asset.assetType || 'unknown';
     assetTypeCounts[aType] = (assetTypeCounts[aType] || 0) + 1;
     const band = (asset.riskBand || 'low').toLowerCase();
@@ -1331,7 +1361,7 @@ export async function exportDiReport(
       .map(([type, count]) => [
         type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
         String(count),
-        `${assets.length > 0 ? ((count / assets.length) * 100).toFixed(1) : 0}%`,
+        `${clientOwnedAssets.length > 0 ? ((count / clientOwnedAssets.length) * 100).toFixed(1) : 0}%`,
       ]),
     theme: 'grid',
     headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 7, fontStyle: 'bold', cellPadding: 2 },
@@ -1356,7 +1386,7 @@ export async function exportDiReport(
       .map(([band, count]) => [
         band.toUpperCase(),
         String(count),
-        `${assets.length > 0 ? ((count / assets.length) * 100).toFixed(1) : 0}%`,
+        `${clientOwnedAssets.length > 0 ? ((count / clientOwnedAssets.length) * 100).toFixed(1) : 0}%`,
       ]),
     theme: 'grid',
     headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 7, fontStyle: 'bold', cellPadding: 2 },
@@ -1375,8 +1405,8 @@ export async function exportDiReport(
   });
   y = (doc as any).lastAutoTable.finalY + 4;
 
-  // Full asset inventory table — comprehensive subdomain & asset listing
-  if (assets.length > 0) {
+  // Full asset inventory table — comprehensive subdomain & asset listing (client-owned only)
+  if (clientOwnedAssets.length > 0) {
     y = subheading('Discovered Subdomains & Assets', y);
 
     // Helper: extract primary IP from DNS A records
@@ -1412,8 +1442,8 @@ export async function exportDiReport(
       return '—';
     };
 
-    // Sort by risk score descending
-    const sortedAssets = [...assets].sort((a: any, b: any) => (b.hybridRiskScore ?? 0) - (a.hybridRiskScore ?? 0));
+    // Sort by risk score descending (client-owned only — managed assets shown in Provider-Managed section)
+    const sortedAssets = [...clientOwnedAssets].sort((a: any, b: any) => (b.hybridRiskScore ?? 0) - (a.hybridRiskScore ?? 0));
 
     autoTable!(doc, {
       startY: y,
@@ -1457,10 +1487,10 @@ export async function exportDiReport(
     // Summary line
     doc.setTextColor(113, 113, 122);
     doc.setFontSize(7);
-    const critCount = assets.filter((a: any) => (a.riskBand || '').toLowerCase() === 'critical').length;
-    const highCount = assets.filter((a: any) => (a.riskBand || '').toLowerCase() === 'high').length;
-    const medCount = assets.filter((a: any) => (a.riskBand || '').toLowerCase() === 'medium').length;
-    doc.text(`Total: ${assets.length} assets discovered — ${critCount} critical, ${highCount} high, ${medCount} medium risk`, margin, y);
+    const critCount = clientOwnedAssets.filter((a: any) => (a.riskBand || '').toLowerCase() === 'critical').length;
+    const highCount = clientOwnedAssets.filter((a: any) => (a.riskBand || '').toLowerCase() === 'high').length;
+    const medCount = clientOwnedAssets.filter((a: any) => (a.riskBand || '').toLowerCase() === 'medium').length;
+    doc.text(`Total: ${clientOwnedAssets.length} assets discovered — ${critCount} critical, ${highCount} high, ${medCount} medium risk${managedProviderAssets.length > 0 ? ` (${managedProviderAssets.length} third-party managed assets excluded)` : ''}`, margin, y);
     y += 6;
   }
 
@@ -3128,7 +3158,7 @@ export async function exportDiReport(
     'jQuery': 'jQuery', 'jquery': 'jQuery', 'JQuery': 'jQuery',
   };
   const allTechs = new Map<string, number>();
-  for (const asset of assets) {
+  for (const asset of clientOwnedAssets) {
     if (Array.isArray(asset.technologies)) {
       for (const tech of asset.technologies) {
         const normalized = _techAliases[tech] || tech;
@@ -3149,7 +3179,7 @@ export async function exportDiReport(
         .map(([tech, count]) => [
           tech,
           String(count),
-          `${assets.length > 0 ? ((count / assets.length) * 100).toFixed(1) : 0}%`,
+          `${clientOwnedAssets.length > 0 ? ((count / clientOwnedAssets.length) * 100).toFixed(1) : 0}%`,
         ]),
       theme: 'grid',
       headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 7, fontStyle: 'bold', cellPadding: 2 },

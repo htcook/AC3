@@ -1284,3 +1284,15 @@
 - [x] Write ECS task definition JSON (app: 2vCPU/4GB + c2-worker: 1vCPU/2GB, Secrets Manager refs, CloudWatch logs)
 - [x] Write ECS service definition (app: 2 tasks + ALB + circuit breaker, c2: 1 task isolated, auto-scaling 2-6)
 - [x] Write ECS IAM policies (execution role, app task role, c2 task role with explicit Deny on evidence)
+
+### DI Report — Provider-Managed Asset Exclusion Bug Fix (May 1)
+- [x] Trace report pipeline: identified outlook.com entering Attack Surface Inventory without exclusion
+- [x] Fix: Move clientOwnedAssets/managedProviderAssets partition to top of report function (line 278) — before Executive Summary
+- [x] Fix: Replace raw `assets` with `clientOwnedAssets` in Executive Summary (criticalAssets, highAssets, _totalAssets)
+- [x] Fix: Replace raw `assets` with `clientOwnedAssets` in Technology Stack section
+- [x] Fix: Remove duplicate partition declaration in Attack Surface section (was causing redeclaration)
+- [x] Fix: Cover page "Total Assets Discovered" now uses client-owned count
+- [x] Fix entity resolver: add domain disambiguation to LLM enrichment prompt (prevents wrong company match)
+- [x] Fix report renderer: add 50% confidence threshold for entity profile display
+- [x] Fix report renderer: show suppression footnote when entity profile confidence is below threshold
+- [x] Verify: esbuild confirms both files compile cleanly (export-di-report.ts + entity-resolver.ts)

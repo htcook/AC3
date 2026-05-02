@@ -385,6 +385,10 @@ ${params.industry ? `Industry: ${params.industry}` : ""}
 ${params.technologies?.length ? `Technologies detected: ${params.technologies.slice(0, 20).join(", ")}` : ""}
 ${params.employeeSignals?.length ? `Employee signals: ${params.employeeSignals.join("; ")}` : ""}
 
+CRITICAL: You MUST identify the company that OWNS AND OPERATES the domain "${params.domain}". 
+Do NOT confuse this with other companies that may have a similar name but operate different domains.
+If you are not confident that your answer describes the actual operator of ${params.domain}, set all values to null and companySize to "unknown".
+
 Analyze this company and provide:
 1. Whether they are publicly traded (check if they have a known stock ticker)
 2. Estimated annual revenue in USD (use public filings if available, otherwise estimate from industry, size signals, and technology stack)
@@ -401,7 +405,8 @@ IMPORTANT:
 - For private companies, estimate based on industry benchmarks, employee count signals, and technology sophistication
 - Revenue and valuation should be in USD (whole numbers, no decimals)
 - If you cannot determine a value with any confidence, use null
-- Be conservative in estimates — underestimate rather than overestimate`;
+- Be conservative in estimates — underestimate rather than overestimate
+- IMPORTANT: If there are multiple companies with similar names, you MUST identify the one that operates the domain "${params.domain}". If unsure, return null for all financial fields.`;
 
     const response = await invokeLLM({ _caller: "entity-resolver.enrichEntityFinancials", _priority: 'bulk',
       messages: [
