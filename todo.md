@@ -1345,3 +1345,10 @@
 - [x] Create CloudWatch alarm: RDS free storage space (<5GB)
 - [x] Create SNS topic (ac3-dev-alarms) — 9 alarms total, all routing to SNS
 - [x] Update infrastructure state file with alarms and SNS section
+
+### SNS Subscription + ECS Cluster (May 2)
+- [x] Subscribe Harrison.Cook@aceofcloud.com to ac3-dev-alarms SNS topic (pending email confirmation)
+- [x] Create ECS cluster (ac3-dev) with FARGATE (base=2) + FARGATE_SPOT (weight=3)
+- [x] Enable CloudWatch Container Insights on the cluster
+- [x] Create Cloud Map namespace (ac3-dev.local, ns-mkonnyacgwah6ane) for service discovery
+- [x] Update infrastructure state file with ECS cluster and SNS subscription
