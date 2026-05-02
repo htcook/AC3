@@ -1281,3 +1281,6 @@
 - [x] Write Dockerfile for AC3 application (multi-stage, Chromium for PDF, non-root, FedRAMP controls)
 - [x] Write docker-compose.yml for local development (MySQL + App + LocalStack offline profile)
 - [x] Create CodeBuild buildspec.yml (build + push) and buildspec-test.yml (PR validation)
+- [x] Write ECS task definition JSON (app: 2vCPU/4GB + c2-worker: 1vCPU/2GB, Secrets Manager refs, CloudWatch logs)
+- [x] Write ECS service definition (app: 2 tasks + ALB + circuit breaker, c2: 1 task isolated, auto-scaling 2-6)
+- [x] Write ECS IAM policies (execution role, app task role, c2 task role with explicit Deny on evidence)
