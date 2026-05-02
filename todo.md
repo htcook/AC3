@@ -1315,3 +1315,12 @@
 - [x] Add sort-by dropdown to VulnIntelSection (Confidence vs Severity toggle buttons)
 - [x] Provision ACM certificate for aceofcloud.io + *.aceofcloud.io (DNS validation, ARN: 48c2f087-d9db-4bf9-b2b4-fb4e514fc96f)
 - [x] Re-run aceofcloud.com DI scan (scanId: 2130004, 16 assets, risk 65/MEDIUM, managed providers detected correctly)
+
+### ALB + CloudWatch + VPC Flow Logs (May 1)
+- [x] Check ACM certificate validation status for aceofcloud.io (PENDING_VALIDATION - user needs CNAME)
+- [x] Create ALB in public subnets (ac3-dev-alb, active, deletion protection on, access logs to S3)
+- [x] Create target group for ECS app service (ac3-dev-app-tg, port 3000, /api/health, IP target type)
+- [x] Create HTTP listener on port 80 (temporary forward to TG; will convert to redirect after HTTPS listener created)
+- [x] Create CloudWatch Log Groups (7 groups: app, c2-worker, rds/slowquery, rds/error, vpc-flow-logs, alb, codebuild)
+- [x] Enable VPC Flow Logs to S3 (fl-0fb003b75f793a3e1, ALL traffic, 60s aggregation, custom format with flow-direction)
+- [x] Update infrastructure state file with ALB, CloudWatch, VPC Flow Logs, and S3 logs bucket
