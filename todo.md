@@ -1324,3 +1324,11 @@
 - [x] Create CloudWatch Log Groups (7 groups: app, c2-worker, rds/slowquery, rds/error, vpc-flow-logs, alb, codebuild)
 - [x] Enable VPC Flow Logs to S3 (fl-0fb003b75f793a3e1, ALL traffic, 60s aggregation, custom format with flow-direction)
 - [x] Update infrastructure state file with ALB, CloudWatch, VPC Flow Logs, and S3 logs bucket
+
+### WAF Web ACL (May 2)
+- [x] Create WAF Web ACL (ac3-dev-waf) with 5 managed rule groups (CommonRuleSet, SQLi, KnownBadInputs, Linux, IPReputation)
+- [x] Add custom rate limiting (2000 req/5min global, 500 req/5min for /api/ endpoints)
+- [x] Add geo-blocking for sanctioned countries (IR, KP, CU, SY, RU)
+- [x] Associate WAF Web ACL with ac3-dev-alb (verified active)
+- [x] Enable WAF logging to CloudWatch (aws-waf-logs-ac3-dev, 30d retention)
+- [x] Update infrastructure state file with WAF section
