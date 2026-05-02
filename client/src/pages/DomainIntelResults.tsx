@@ -696,7 +696,10 @@ export default function DomainIntelResults() {
               size="sm"
               className="text-xs bg-purple-600 hover:bg-purple-700 text-white"
               onClick={async () => {
-                const fullScanData = { ...scan, ...pipeline, assets, observations: pipeline?.observations || [] };
+                const overrideResp = await fetch(`/api/trpc/domainIntel.getEntityOverride?input=${encodeURIComponent(JSON.stringify({ scanId: scan.id }))}`);
+                const overrideRes = await overrideResp.json();
+                const entityOverride = overrideRes?.result?.data || null;
+                const fullScanData = { ...scan, ...pipeline, assets, observations: pipeline?.observations || [], entityOverride };
                 toast.success('Generating Domain Intelligence report PDF — this may take a moment');
                 let evidenceData;
                 try {
@@ -723,7 +726,10 @@ export default function DomainIntelResults() {
               <DropdownMenuLabel>Export Data</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={async () => {
-                const fullScanData = { ...scan, ...pipeline, assets, observations: pipeline?.observations || [] };
+                const overrideResp2 = await fetch(`/api/trpc/domainIntel.getEntityOverride?input=${encodeURIComponent(JSON.stringify({ scanId: scan.id }))}`);
+                const overrideRes2 = await overrideResp2.json();
+                const entityOverride2 = overrideRes2?.result?.data || null;
+                const fullScanData = { ...scan, ...pipeline, assets, observations: pipeline?.observations || [], entityOverride: entityOverride2 };
                 toast.success('Domain Intelligence report export started — this may take a moment');
                 let evidenceData;
                 try {
@@ -6697,7 +6703,7 @@ export default function DomainIntelResults() {
         {/* ─── Entity Profile & BIA Tab ─── */}
         {pipeline?.entityProfile && (
           <TabsContent value="entity-profile" className="space-y-4">
-            <Suspense fallback={<div className="flex items-center justify-center p-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>}><EntityProfileTab entityProfile={pipeline.entityProfile} financialImpact={pipeline.financialImpact} /></Suspense>
+            <Suspense fallback={<div className="flex items-center justify-center p-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>}><EntityProfileTab entityProfile={pipeline.entityProfile} financialImpact={pipeline.financialImpact} scanId={scanId} domain={scan.primaryDomain} /></Suspense>
           </TabsContent>
         )}
 

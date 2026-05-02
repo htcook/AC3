@@ -1239,8 +1239,47 @@ export async function exportDiReport(
   // ═══════════════════════════════════════════════════════════════════════
   // 2B. ENTITY PROFILE & FINANCIAL IMPACT
   // ═══════════════════════════════════════════════════════════════════════
-  const entityProfile = scan.entityProfile || scan.pipelineOutput?.entityProfile || null;
+  let entityProfile = scan.entityProfile || scan.pipelineOutput?.entityProfile || null;
   const financialImpact = scan.financialImpact || scan.pipelineOutput?.financialImpact || null;
+
+  // Apply manual entity override if present (operator correction takes precedence)
+  const entityOverride = scan.entityOverride || scan.pipelineOutput?.entityOverride || null;
+  if (entityOverride && entityProfile) {
+    entityProfile = {
+      ...entityProfile,
+      ...(entityOverride.orgName && { orgName: entityOverride.orgName }),
+      ...(entityOverride.industry && { industry: entityOverride.industry }),
+      ...(entityOverride.subSector && { subSector: entityOverride.subSector }),
+      ...(entityOverride.companySize && { companySize: entityOverride.companySize }),
+      ...(entityOverride.estimatedRevenue && { estimatedRevenue: entityOverride.estimatedRevenue }),
+      ...(entityOverride.estimatedEmployees && { estimatedEmployees: entityOverride.estimatedEmployees }),
+      ...(entityOverride.headquarters && { headquarters: entityOverride.headquarters }),
+      ...(entityOverride.foundedYear && { foundedYear: entityOverride.foundedYear }),
+      ...(entityOverride.isPublicCompany !== undefined && { isPublicCompany: !!entityOverride.isPublicCompany }),
+      ...(entityOverride.stockTicker && { stockTicker: entityOverride.stockTicker }),
+      ...(entityOverride.keyProducts && { keyProducts: entityOverride.keyProducts }),
+      confidence: 100, // Override = manually verified
+      identificationMethod: `manual_override (${entityOverride.overrideReason || 'operator correction'})`,
+    };
+  } else if (entityOverride && !entityProfile) {
+    // Create entity profile from override alone
+    entityProfile = {
+      orgName: entityOverride.orgName,
+      industry: entityOverride.industry,
+      subSector: entityOverride.subSector,
+      companySize: entityOverride.companySize,
+      estimatedRevenue: entityOverride.estimatedRevenue,
+      estimatedEmployees: entityOverride.estimatedEmployees,
+      headquarters: entityOverride.headquarters,
+      foundedYear: entityOverride.foundedYear,
+      isPublicCompany: !!entityOverride.isPublicCompany,
+      stockTicker: entityOverride.stockTicker,
+      keyProducts: entityOverride.keyProducts,
+      confidence: 100,
+      identificationMethod: `manual_override (${entityOverride.overrideReason || 'operator correction'})`,
+    };
+  }
+
   // Confidence threshold: suppress entity profile if confidence is below 50%
   // This prevents misidentified companies (e.g., wrong "Ace of Cloud" in India) from appearing
   const entityConfidenceSufficient = entityProfile && (entityProfile.confidence ?? 0) >= 50;
@@ -3676,8 +3715,154 @@ export async function exportDiReport(
       y = (doc as any).lastAutoTable.finalY + 4;
     }
 
-    // Managed CVEs removed from report — unproven product-family KEV matches
-    // without version confirmation. Provider is responsible for their own patching.
+    // ─── Vendor Risk Assessment ─────────────────────────────────────────
+    // Surfaces managed-provider CVEs with their own independent risk rating
+    // so the client understands their vendor dependency risk posture.
+    const providerManagedObs = observations.filter((o: any) => o.evidence?.providerManagedOnly);
+    if (providerManagedObs.length > 0 || managedProviderAssets.length > 0) {
+      y = checkPageBreak(y, 80);
+      y = subheading('Vendor Risk Assessment', y);
+      doc.setFontSize(8);
+      doc.setTextColor(80, 80, 80);
+      const vendorRiskIntro = `The following risk assessment covers vulnerabilities attributed to managed service provider infrastructure. ` +
+        `While these CVEs are the provider's responsibility to patch, they represent supply chain risk to the organization. ` +
+        `A vendor compromise could impact the organization's data confidentiality and service availability.`;
+      const vendorIntroLines = doc.splitTextToSize(vendorRiskIntro, contentWidth);
+      doc.text(vendorIntroLines, margin, y);
+      y += vendorIntroLines.length * 4 + 4;
+
+      // Vendor risk summary metrics
+      const vendorCritical = providerManagedObs.filter((o: any) => {
+        const cvss = o.evidence?.cvss_score ?? o.evidence?.cvssScore ?? 0;
+        return cvss >= 9.0;
+      }).length;
+      const vendorHigh = providerManagedObs.filter((o: any) => {
+        const cvss = o.evidence?.cvss_score ?? o.evidence?.cvssScore ?? 0;
+        return cvss >= 7.0 && cvss < 9.0;
+      }).length;
+      const vendorMedium = providerManagedObs.filter((o: any) => {
+        const cvss = o.evidence?.cvss_score ?? o.evidence?.cvssScore ?? 0;
+        return cvss >= 4.0 && cvss < 7.0;
+      }).length;
+      const vendorLow = providerManagedObs.filter((o: any) => {
+        const cvss = o.evidence?.cvss_score ?? o.evidence?.cvssScore ?? 0;
+        return cvss > 0 && cvss < 4.0;
+      }).length;
+      const vendorKev = providerManagedObs.filter((o: any) => o.tags?.includes('kev')).length;
+
+      // Vendor risk score: weighted severity calculation (independent of client score)
+      const vendorRiskScore = Math.min(100, Math.round(
+        (vendorCritical * 25 + vendorHigh * 15 + vendorMedium * 8 + vendorLow * 3 + vendorKev * 10) /
+        Math.max(1, providerManagedObs.length) * 10
+      ));
+      const vendorRiskBand = vendorRiskScore >= 80 ? 'CRITICAL' : vendorRiskScore >= 60 ? 'HIGH' : vendorRiskScore >= 40 ? 'MEDIUM' : vendorRiskScore >= 20 ? 'LOW' : 'MINIMAL';
+      const vendorBandColor = vendorRiskScore >= 80 ? [220, 38, 38] : vendorRiskScore >= 60 ? [234, 88, 12] : vendorRiskScore >= 40 ? [202, 138, 4] : vendorRiskScore >= 20 ? [34, 197, 94] : [100, 116, 139];
+
+      // Vendor risk badge
+      doc.setFillColor(vendorBandColor[0], vendorBandColor[1], vendorBandColor[2]);
+      doc.roundedRect(margin, y, 50, 7, 1.5, 1.5, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`Vendor Risk: ${vendorRiskBand} (${vendorRiskScore}/100)`, margin + 2, y + 5);
+      y += 11;
+
+      // Summary table
+      const vendorSummaryRows: string[][] = [
+        ['Provider', _managedMailProvider || 'Third-Party Provider'],
+        ['Total Vendor CVEs', String(providerManagedObs.length)],
+        ['Critical (CVSS ≥ 9.0)', String(vendorCritical)],
+        ['High (CVSS 7.0–8.9)', String(vendorHigh)],
+        ['Medium (CVSS 4.0–6.9)', String(vendorMedium)],
+        ['Low (CVSS < 4.0)', String(vendorLow)],
+        ['CISA KEV Listed', String(vendorKev)],
+        ['Managed Assets Affected', String(managedProviderAssets.length)],
+      ];
+      autoTable!(doc, {
+        startY: y,
+        head: [['Metric', 'Value']],
+        body: vendorSummaryRows,
+        theme: 'grid',
+        headStyles: { fillColor: [100, 116, 139], textColor: [255, 255, 255], fontSize: 7.5, fontStyle: 'bold', cellPadding: 2 },
+        bodyStyles: { fontSize: 7, cellPadding: 2, textColor: [51, 65, 85] },
+        alternateRowStyles: { fillColor: [241, 245, 249] },
+        columnStyles: { 0: { cellWidth: 50, fontStyle: 'bold' }, 1: { cellWidth: 'auto' } },
+        margin: { left: margin, right: margin },
+      });
+      y = (doc as any).lastAutoTable.finalY + 5;
+
+      // Top vendor CVEs table (up to 15)
+      if (providerManagedObs.length > 0) {
+        y = checkPageBreak(y, 60);
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(51, 65, 85);
+        doc.text('Vendor CVE Details (Provider Responsibility)', margin, y);
+        y += 5;
+
+        const sortedVendorObs = [...providerManagedObs].sort((a: any, b: any) => {
+          const scoreA = a.evidence?.cvss_score ?? a.evidence?.cvssScore ?? 0;
+          const scoreB = b.evidence?.cvss_score ?? b.evidence?.cvssScore ?? 0;
+          return scoreB - scoreA;
+        }).slice(0, 15);
+
+        autoTable!(doc, {
+          startY: y,
+          head: [['CVE ID', 'CVSS', 'Severity', 'Affected Product', 'KEV', 'Affected Hosts']],
+          body: sortedVendorObs.map((o: any) => {
+            const cvss = o.evidence?.cvss_score ?? o.evidence?.cvssScore ?? 0;
+            const severity = cvss >= 9.0 ? 'Critical' : cvss >= 7.0 ? 'High' : cvss >= 4.0 ? 'Medium' : 'Low';
+            const cveId = o.evidence?.cve_id || o.title?.match(/CVE-\d{4}-\d+/)?.[0] || 'N/A';
+            const product = o.evidence?.product || o.evidence?.vendor || 'Unknown';
+            const isKev = o.tags?.includes('kev') ? 'YES' : 'No';
+            const hosts = (o.evidence?.affectedHosts || []).slice(0, 3).join(', ') || 'N/A';
+            return [cveId, cvss.toFixed(1), severity, truncate(product, 30), isKev, truncate(hosts, 35)];
+          }),
+          theme: 'grid',
+          headStyles: { fillColor: [100, 116, 139], textColor: [255, 255, 255], fontSize: 7, fontStyle: 'bold', cellPadding: 1.5 },
+          bodyStyles: { fontSize: 6.5, cellPadding: 1.5, textColor: [51, 65, 85] },
+          alternateRowStyles: { fillColor: [248, 250, 252] },
+          columnStyles: { 0: { cellWidth: 28 }, 1: { cellWidth: 12 }, 2: { cellWidth: 16 }, 3: { cellWidth: 35 }, 4: { cellWidth: 12 }, 5: { cellWidth: 'auto' } },
+          margin: { left: margin, right: margin },
+          didParseCell: (data: any) => {
+            if (data.section === 'body' && data.column.index === 4) {
+              if (data.cell.raw === 'YES') data.cell.styles.textColor = [220, 38, 38];
+            }
+            if (data.section === 'body' && data.column.index === 2) {
+              const text = data.cell.raw;
+              if (text === 'Critical') data.cell.styles.textColor = [220, 38, 38];
+              else if (text === 'High') data.cell.styles.textColor = [234, 88, 12];
+              else if (text === 'Medium') data.cell.styles.textColor = [202, 138, 4];
+            }
+          },
+        });
+        y = (doc as any).lastAutoTable.finalY + 5;
+      }
+
+      // Vendor risk recommendations
+      y = checkPageBreak(y, 40);
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(51, 65, 85);
+      doc.text('Vendor Risk Recommendations', margin, y);
+      y += 5;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(80, 80, 80);
+      const vendorRecs = [
+        `1. Review ${_managedMailProvider || 'provider'} SLA and security commitments for patch response timelines.`,
+        `2. Verify ${_managedMailProvider || 'provider'} maintains SOC 2 Type II or equivalent certification.`,
+        `3. ${vendorKev > 0 ? `Escalate ${vendorKev} CISA KEV-listed CVE(s) with provider — these have known active exploitation.` : 'Monitor provider security advisories for emerging threats.'}`,
+        `4. Ensure contractual right-to-audit and breach notification clauses are current.`,
+        `5. Consider compensating controls (CASB, DLP, conditional access) to reduce blast radius of provider compromise.`,
+      ];
+      for (const rec of vendorRecs) {
+        const recLines = doc.splitTextToSize(rec, contentWidth - 5);
+        doc.text(recLines, margin + 3, y);
+        y += recLines.length * 3.5 + 2;
+      }
+      y += 3;
+    }
 
     // Risk score exclusion note
     const exclusions = scan.pipelineOutput?.riskScoreExclusions || scan.riskScoreExclusions || [];

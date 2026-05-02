@@ -3819,4 +3819,71 @@ export const domainIntelRouter = router({
         };
       }),
 
+    // ═══════════════════════════════════════════════════════════════════
+    // ENTITY PROFILE OVERRIDE — manual correction of auto-detected org
+    // ═══════════════════════════════════════════════════════════════════
+
+    getEntityOverride: protectedProcedure
+      .input(z.object({ scanId: z.number() }))
+      .query(async ({ input }) => {
+        const [override] = await db.db.select()
+          .from(schema.entityProfileOverrides)
+          .where(eq(schema.entityProfileOverrides.scanId, input.scanId))
+          .limit(1);
+        return override || null;
+      }),
+
+    setEntityOverride: protectedProcedure
+      .input(z.object({
+        scanId: z.number(),
+        domain: z.string(),
+        orgName: z.string().optional(),
+        industry: z.string().optional(),
+        subSector: z.string().optional(),
+        companySize: z.enum(['startup', 'small', 'medium', 'large', 'enterprise', 'unknown']).optional(),
+        estimatedRevenue: z.number().optional(),
+        estimatedEmployees: z.number().optional(),
+        headquarters: z.string().optional(),
+        foundedYear: z.number().optional(),
+        isPublicCompany: z.boolean().optional(),
+        stockTicker: z.string().optional(),
+        keyProducts: z.array(z.string()).optional(),
+        overrideReason: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { scanId, domain, isPublicCompany, ...rest } = input;
+        const data = {
+          ...rest,
+          scanId,
+          domain,
+          isPublicCompany: isPublicCompany === undefined ? undefined : (isPublicCompany ? 1 : 0),
+          overriddenBy: ctx.user.id,
+        };
+
+        // Upsert: check if override already exists for this scan
+        const [existing] = await db.db.select({ id: schema.entityProfileOverrides.id })
+          .from(schema.entityProfileOverrides)
+          .where(eq(schema.entityProfileOverrides.scanId, scanId))
+          .limit(1);
+
+        if (existing) {
+          await db.db.update(schema.entityProfileOverrides)
+            .set(data)
+            .where(eq(schema.entityProfileOverrides.id, existing.id));
+          return { success: true, action: 'updated', id: existing.id };
+        } else {
+          const [result] = await db.db.insert(schema.entityProfileOverrides)
+            .values(data as any);
+          return { success: true, action: 'created', id: result.insertId };
+        }
+      }),
+
+    deleteEntityOverride: protectedProcedure
+      .input(z.object({ scanId: z.number() }))
+      .mutation(async ({ input }) => {
+        await db.db.delete(schema.entityProfileOverrides)
+          .where(eq(schema.entityProfileOverrides.scanId, input.scanId));
+        return { success: true };
+      }),
+
   });

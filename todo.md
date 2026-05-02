@@ -1296,3 +1296,11 @@
 - [x] Fix report renderer: add 50% confidence threshold for entity profile display
 - [x] Fix report renderer: show suppression footnote when entity profile confidence is below threshold
 - [x] Verify: esbuild confirms both files compile cleanly (export-di-report.ts + entity-resolver.ts)
+
+### DI Report — Vendor Risk Section + Entity Override (May 1)
+- [x] Add Vendor Risk section to PDF report (surfaces excluded managed-provider assets with own risk assessment)
+- [x] Add entity override DB schema (entity_profile_overrides table)
+- [x] Add entity override tRPC procedures (get/set/delete override for a scan)
+- [x] Add entity override UI in DI scan results page (edit button, modal form, revert, low-confidence warning)
+- [x] Wire entity override into PDF report export (merge override fields, confidence=100%, fetched at export time)
+- [x] Test and verify both features (4 vitest tests passing, esbuild clean, dev server 200 OK)

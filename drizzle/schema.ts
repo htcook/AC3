@@ -8175,3 +8175,28 @@ export const customerIntelligenceProfiles = mysqlTable("customer_intelligence_pr
   index("cip_customer_id_idx").on(table.customerId),
   index("cip_customer_name_idx").on(table.customerName),
 ]);
+
+export const entityProfileOverrides = mysqlTable("entity_profile_overrides", {
+	id: int("id").autoincrement().primaryKey(),
+	scanId: int("scan_id").notNull().references(() => domainIntelScans.id, { onDelete: "cascade" }),
+	domain: varchar({ length: 255 }).notNull(),
+	orgName: varchar("org_name", { length: 255 }),
+	industry: varchar({ length: 128 }),
+	subSector: varchar("sub_sector", { length: 128 }),
+	companySize: mysqlEnum("company_size", ['startup', 'small', 'medium', 'large', 'enterprise', 'unknown']),
+	estimatedRevenue: bigint("estimated_revenue", { mode: 'number' }),
+	estimatedEmployees: int("estimated_employees"),
+	headquarters: varchar({ length: 255 }),
+	foundedYear: int("founded_year"),
+	isPublicCompany: tinyint("is_public_company"),
+	stockTicker: varchar("stock_ticker", { length: 16 }),
+	keyProducts: json("key_products").$type<string[]>(),
+	overrideReason: text("override_reason"),
+	overriddenBy: int("overridden_by").references(() => users.id),
+	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+},
+(table) => [
+	index("epo_scan_id_idx").on(table.scanId),
+	index("epo_domain_idx").on(table.domain),
+]);
