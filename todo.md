@@ -1352,3 +1352,8 @@
 - [x] Enable CloudWatch Container Insights on the cluster
 - [x] Create Cloud Map namespace (ac3-dev.local, ns-mkonnyacgwah6ane) for service discovery
 - [x] Update infrastructure state file with ECS cluster and SNS subscription
+
+### Enterprise Customer Readiness & Self-Monitoring Architecture (May 2)
+- [x] Write ENTERPRISE-CUSTOMER-READINESS.md — full architecture for enterprise AWS customer onboarding (CI/CD landing strategy, SOC/SIEM expansion, threat catalog integration, hybrid scoring, revenue model, readiness gaps)
+- [x] Write ACEOFCLOUD-SELF-MONITORING-ARCHITECTURE.md — self-monitoring architecture (AceofCloud as Customer Zero using its own platform)
+- [x] Copy both documents to /home/ubuntu/ac3-aws-terraform/docs/ for infrastructure repo
