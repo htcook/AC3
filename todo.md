@@ -1378,3 +1378,29 @@
 - [x] Sync PDF export with vendor risk tab data — added 4 new sections: Shared Responsibility Model (M365/Google/Cloudflare/AWS), Supply Chain Concentration Analysis (vendor deps with SPOF flags), Supply Chain Risk Findings, Infrastructure Posture Summary
 - [x] Wire infraMap data fetch into all 3 exportDiReport call sites (DomainIntelResults, DomainIntelReports, ScanHistory)
 - [x] Write tests for PDF export vendor risk sections (18 tests passing)
+
+### SharedServices ECR Cross-Account Architecture (May 2)
+- [x] Update admin request bundle with SharedServices account (890319879326) cross-account ECR
+- [x] Add Request 0: SharedServices ECR repo creation + cross-account resource policy
+- [x] Update CodeBuild role to push to SharedServices ECR (890319879326)
+- [x] Update ECS execution role to pull from SharedServices ECR (890319879326)
+- [x] Update terraform variables with shared_services_account_id = 890319879326
+- [x] Update container_image URI to point to SharedServices ECR
+- [x] Update infrastructure state file with SharedServices account and ECR references
+
+### CodeBuild + ECS Task Definitions (May 2)
+- [x] Create CodeBuild buildspec.yml for container image build and push to SharedServices ECR (updated existing)
+- [x] Update ECS task definition JSON for app container — SharedServices ECR URI + correct role names
+- [x] Update ECS task definition JSON for C2 worker container — SharedServices ECR URI + correct role names
+- [x] Create deploy.sh orchestration script (build → push → register → deploy → wait)
+- [x] Dockerfile.aws already optimized (multi-stage, FedRAMP controls, non-root, dumb-init)
+- [x] Update IAM execution role policy to scope ECR pull to SharedServices repo
+- [x] Update ECS README with correct role names and SharedServices ECR references
+- [x] Copy all deploy artifacts to ac3-aws-terraform repo
+
+### Vendor Risk Tab Polish (May 2)
+- [x] Create getVendorRiskHistory server procedure (last 6 scans, server-side vendor risk score computation per scan)
+- [x] Add trend indicator (up/down/stable arrow with delta) to vendor risk score banner with tooltip
+- [x] Add mini SVG sparkline chart showing vendor risk score history (color-coded by severity)
+- [x] Add historical comparison table with scan-over-scan delta column (date, vendor risk, band, CVEs, overall risk, assets, findings, Δ)
+- [x] Write tests for vendor risk history, trend computation, and deploy artifacts (29 tests passing, 74 total across all vendor risk test files)

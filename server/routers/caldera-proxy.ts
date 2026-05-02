@@ -1350,6 +1350,144 @@ export const calderaProxyRouter = router({
         return inferInfrastructure(primaryDomain, observations, assets, emailSecurity, managedProvider);
       }),
 
+    // ─── Vendor Risk History (Trend Indicators) ─────────────────────────────
+
+    getVendorRiskHistory: protectedProcedure
+      .input(z.object({ scanId: z.number(), domain: z.string() }))
+      .query(async ({ input }) => {
+        const { getDb } = await import('../db');
+        const { domainIntelScans } = await import('../../drizzle/schema');
+        const { eq, and: drizzleAnd, or: drizzleOr, desc: drizzleDesc } = await import('drizzle-orm');
+        const { createAssetOwnershipFilter } = await import('../../shared/managed-provider-filter');
+
+        const dbConn = await getDb();
+        if (!dbConn) return { history: [], trend: 'stable' as const, delta: 0 };
+
+        // Fetch last 6 completed scans for this domain (current + 5 historical)
+        const scans = await dbConn.select({
+          id: domainIntelScans.id,
+          pipelineOutput: domainIntelScans.pipelineOutput,
+          overallRiskScore: domainIntelScans.overallRiskScore,
+          overallRiskBand: domainIntelScans.overallRiskBand,
+          totalAssets: domainIntelScans.totalAssets,
+          totalFindings: domainIntelScans.totalFindings,
+          createdAt: domainIntelScans.createdAt,
+        }).from(domainIntelScans)
+          .where(
+            drizzleAnd(
+              eq(domainIntelScans.primaryDomain, input.domain),
+              drizzleOr(
+                eq(domainIntelScans.status, 'completed'),
+                eq(domainIntelScans.status, 'scan_complete'),
+              )!,
+            )!,
+          )
+          .orderBy(drizzleDesc(domainIntelScans.createdAt))
+          .limit(6);
+
+        if (scans.length === 0) return { history: [], trend: 'stable' as const, delta: 0 };
+
+        // Compute vendor risk score for each scan
+        const history = scans.map(scan => {
+          const pipeline = scan.pipelineOutput as any;
+          if (!pipeline) return {
+            scanId: scan.id,
+            date: scan.createdAt,
+            vendorRiskScore: 0,
+            vendorRiskBand: 'MINIMAL',
+            vendorCveCount: 0,
+            overallRiskScore: scan.overallRiskScore || 0,
+            overallRiskBand: scan.overallRiskBand || 'MINIMAL',
+            totalAssets: scan.totalAssets || 0,
+            totalFindings: scan.totalFindings || 0,
+          };
+
+          // Extract managed provider
+          const emailSec = pipeline?.emailSecurity || pipeline?.emailSecurityReport || null;
+          const mp = emailSec?.managedProvider || null;
+          const mxProv = emailSec?.mx?.provider || null;
+          const provName = mp?.name || mxProv || null;
+
+          // Build ownership filter
+          const filter = createAssetOwnershipFilter({
+            managedProviderName: provName,
+            primaryDomain: input.domain,
+          });
+
+          // Get managed hostnames
+          const allAssets = pipeline?.assets || [];
+          const managedHostnames = new Set<string>();
+          for (const a of allAssets) {
+            const hostname = (a.hostname || a.asset?.hostname || '').toLowerCase();
+            if (hostname && !filter.isClientOwned({ hostname, tags: a.tags || a.asset?.tags || [] })) {
+              managedHostnames.add(hostname);
+            }
+          }
+
+          // Count vendor CVEs
+          const connectorResults = pipeline?.passiveRecon?.connectorResults || [];
+          const seenCves = new Set<string>();
+          let critical = 0, high = 0, medium = 0, low = 0, kev = 0;
+
+          for (const cr of connectorResults) {
+            if (!cr.observations) continue;
+            for (const obs of cr.observations) {
+              const ev = obs.evidence || {};
+              const cveId = ev.cve_id || ev.cveId;
+              if (!cveId || seenCves.has(cveId)) continue;
+              const hostname = (ev.hostname || obs.assetHostname || '').toLowerCase();
+              if (managedHostnames.has(hostname) || ev.providerManagedOnly) {
+                seenCves.add(cveId);
+                const cvss = ev.cvss || ev.cvssScore || ev.cvss_score || 0;
+                const sev = ev.severity || (cvss >= 9 ? 'critical' : cvss >= 7 ? 'high' : cvss >= 4 ? 'medium' : 'low');
+                if (sev === 'critical' || cvss >= 9) critical++;
+                else if (sev === 'high' || cvss >= 7) high++;
+                else if (sev === 'medium' || cvss >= 4) medium++;
+                else low++;
+                if (ev.kevListed || ev.kev_listed) kev++;
+              }
+            }
+          }
+
+          const total = seenCves.size;
+          const score = total === 0 ? 0 : Math.min(100, Math.round(
+            (critical * 25 + high * 15 + medium * 8 + low * 3 + kev * 10) /
+            Math.max(1, total) * 10
+          ));
+          const band = score >= 80 ? 'CRITICAL' : score >= 60 ? 'HIGH' : score >= 40 ? 'MEDIUM' : score >= 20 ? 'LOW' : 'MINIMAL';
+
+          return {
+            scanId: scan.id,
+            date: scan.createdAt,
+            vendorRiskScore: score,
+            vendorRiskBand: band,
+            vendorCveCount: total,
+            overallRiskScore: scan.overallRiskScore || 0,
+            overallRiskBand: scan.overallRiskBand || 'MINIMAL',
+            totalAssets: scan.totalAssets || 0,
+            totalFindings: scan.totalFindings || 0,
+          };
+        });
+
+        // Compute trend (current vs previous)
+        const current = history.find(h => h.scanId === input.scanId);
+        const previous = history.find(h => h.scanId !== input.scanId);
+        let trend: 'improving' | 'worsening' | 'stable' = 'stable';
+        let delta = 0;
+
+        if (current && previous) {
+          delta = current.vendorRiskScore - previous.vendorRiskScore;
+          if (delta >= 5) trend = 'worsening';
+          else if (delta <= -5) trend = 'improving';
+        }
+
+        return {
+          history: history.reverse(), // oldest first for chart
+          trend,
+          delta,
+        };
+      }),
+
     // ─── JARM Historical Tracking ──────────────────────────────────────────
 
     getJarmTimeline: protectedProcedure

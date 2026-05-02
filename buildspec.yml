@@ -6,9 +6,10 @@
 # Produces: Docker image pushed to ECR, tagged with commit SHA + "latest"
 #
 # Required Environment Variables (set in CodeBuild project):
-#   AWS_ACCOUNT_ID        - AWS account ID (808038814732)
+#   AWS_ACCOUNT_ID        - Dev account ID (808038814732)
+#   ECR_ACCOUNT_ID        - SharedServices account ID (890319879326) — where ECR lives
 #   AWS_DEFAULT_REGION    - Region (us-east-1)
-#   ECR_REPO_NAME         - ECR repository name (ac3/caldera-dashboard)
+#   ECR_REPO_NAME         - ECR repository name (ace-c3/caldera-dashboard)
 #   IMAGE_TAG             - Override tag (default: commit SHA)
 #
 # Required IAM Permissions (ac3-codebuild-service-role):
@@ -29,7 +30,8 @@ version: 0.2
 
 env:
   variables:
-    ECR_REPO_NAME: "ac3/caldera-dashboard"
+    ECR_REPO_NAME: "ace-c3/caldera-dashboard"
+    ECR_ACCOUNT_ID: "890319879326"
     DOCKER_BUILDKIT: "1"
   exported-variables:
     - IMAGE_URI
@@ -54,11 +56,12 @@ phases:
   pre_build:
     commands:
       - echo "Logging in to Amazon ECR..."
-      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
+      # Authenticate to SharedServices ECR (cross-account push)
+      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $ECR_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
       - echo "Setting build variables..."
       - COMMIT_SHA=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-8)
       - IMAGE_TAG=${IMAGE_TAG:-$COMMIT_SHA}
-      - IMAGE_URI=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$ECR_REPO_NAME
+      - IMAGE_URI=$ECR_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$ECR_REPO_NAME
       - BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
       - echo "Image URI = $IMAGE_URI"
       - echo "Image Tag = $IMAGE_TAG"

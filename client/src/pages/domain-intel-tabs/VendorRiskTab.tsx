@@ -8,8 +8,8 @@ import { Progress } from "@/components/ui/progress";
 import {
   ShieldAlert, ShieldCheck, ShieldX, AlertTriangle, ChevronDown, ChevronUp,
   Loader2, Server, Globe, Network, Lock, Mail, Cloud, Building2,
-  Info, ExternalLink, Bug, FileText, Users, TrendingUp, CheckCircle2,
-  XCircle, Clock, Shield, Layers, TriangleAlert, Scale, Handshake
+  Info, ExternalLink, Bug, FileText, Users, TrendingUp, TrendingDown, Minus, CheckCircle2,
+  XCircle, Clock, Shield, Layers, TriangleAlert, Scale, Handshake, Activity
 } from "lucide-react";
 import { createAssetOwnershipFilter, type AssetOwnershipFilter } from "../../../../shared/managed-provider-filter";
 
@@ -36,15 +36,58 @@ interface VendorRiskTabProps {
   assets: any[];
 }
 
+// Mini sparkline component for vendor risk score history
+function VendorRiskSparkline({ history }: { history: { vendorRiskScore: number; date: string }[] }) {
+  if (history.length < 2) return null;
+  const scores = history.map(h => h.vendorRiskScore);
+  const max = Math.max(...scores, 100);
+  const min = Math.min(...scores, 0);
+  const range = max - min || 1;
+  const width = 120;
+  const height = 32;
+  const padding = 2;
+  const points = scores.map((s, i) => {
+    const x = padding + (i / (scores.length - 1)) * (width - padding * 2);
+    const y = height - padding - ((s - min) / range) * (height - padding * 2);
+    return `${x},${y}`;
+  });
+  const lastScore = scores[scores.length - 1];
+  const color = lastScore >= 60 ? '#ef4444' : lastScore >= 40 ? '#f59e0b' : lastScore >= 20 ? '#3b82f6' : '#10b981';
+  return (
+    <svg width={width} height={height} className="opacity-70">
+      <polyline
+        points={points.join(' ')}
+        fill="none"
+        stroke={color}
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {scores.map((s, i) => {
+        const x = padding + (i / (scores.length - 1)) * (width - padding * 2);
+        const y = height - padding - ((s - min) / range) * (height - padding * 2);
+        return <circle key={i} cx={x} cy={y} r={i === scores.length - 1 ? 3 : 1.5} fill={color} />;
+      })}
+    </svg>
+  );
+}
+
 export default function VendorRiskTab({ scanId, domain, pipeline, assets }: VendorRiskTabProps) {
   const [expandedVendorCves, setExpandedVendorCves] = useState(false);
   const [expandedConcentration, setExpandedConcentration] = useState(true);
   const [expandedRecommendations, setExpandedRecommendations] = useState(true);
   const [expandedSharedResp, setExpandedSharedResp] = useState(false);
+  const [expandedHistory, setExpandedHistory] = useState(false);
 
   // Fetch infrastructure map for vendor dependencies and supply chain risks
   const { data: infraMap, isLoading: infraLoading } = trpc.calderaProxy.inferInfrastructure.useQuery(
     { scanId },
+    { staleTime: 5 * 60 * 1000 }
+  );
+
+  // Fetch vendor risk history for trend indicators
+  const { data: riskHistory } = trpc.calderaProxy.getVendorRiskHistory.useQuery(
+    { scanId, domain },
     { staleTime: 5 * 60 * 1000 }
   );
 
@@ -287,6 +330,33 @@ export default function VendorRiskTab({ scanId, domain, pipeline, assets }: Vend
                     <Badge className={`text-xs ${SEVERITY_COLORS[vendorRiskMetrics.band.toLowerCase()] || SEVERITY_COLORS.minimal}`}>
                       {vendorRiskMetrics.score}/100
                     </Badge>
+                    {/* Trend indicator */}
+                    {riskHistory && riskHistory.history.length >= 2 && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                            riskHistory.trend === 'improving' ? 'bg-emerald-500/20 text-emerald-400' :
+                            riskHistory.trend === 'worsening' ? 'bg-red-500/20 text-red-400' :
+                            'bg-slate-500/20 text-slate-400'
+                          }`}>
+                            {riskHistory.trend === 'improving' ? <TrendingDown className="h-3 w-3" /> :
+                             riskHistory.trend === 'worsening' ? <TrendingUp className="h-3 w-3" /> :
+                             <Minus className="h-3 w-3" />}
+                            {riskHistory.delta !== 0 && (
+                              <span>{riskHistory.delta > 0 ? '+' : ''}{riskHistory.delta}</span>
+                            )}
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p className="text-xs">
+                            {riskHistory.trend === 'improving' ? 'Vendor risk improving vs previous scan' :
+                             riskHistory.trend === 'worsening' ? 'Vendor risk worsening vs previous scan' :
+                             'Vendor risk stable vs previous scan'}
+                            {riskHistory.delta !== 0 && ` (Δ ${riskHistory.delta > 0 ? '+' : ''}${riskHistory.delta} points)`}
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
                   </div>
                   <p className="text-xs text-muted-foreground mt-0.5">
                     {providerName ? `Primary managed provider: ${providerName}` : 'Third-party vendor dependency assessment'}
@@ -294,11 +364,14 @@ export default function VendorRiskTab({ scanId, domain, pipeline, assets }: Vend
                   </p>
                 </div>
               </div>
-              <div className="flex-1">
+              <div className="flex items-center gap-3 flex-1">
                 <Progress
                   value={vendorRiskMetrics.score}
-                  className="h-2"
+                  className="h-2 flex-1"
                 />
+                {riskHistory && riskHistory.history.length >= 2 && (
+                  <VendorRiskSparkline history={riskHistory.history} />
+                )}
               </div>
             </div>
           </CardContent>
@@ -349,6 +422,92 @@ export default function VendorRiskTab({ scanId, domain, pipeline, assets }: Vend
             </CardContent>
           </Card>
         </div>
+
+        {/* ─── Scan History Comparison ─── */}
+        {riskHistory && riskHistory.history.length >= 2 && (
+          <Collapsible open={expandedHistory} onOpenChange={setExpandedHistory}>
+            <Card className="border-cyan-500/20">
+              <CardHeader className="pb-3">
+                <CollapsibleTrigger className="flex items-center justify-between w-full">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Activity className="h-4 w-4 text-cyan-400" />
+                    Vendor Risk History ({riskHistory.history.length} scans)
+                  </CardTitle>
+                  {expandedHistory ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+                </CollapsibleTrigger>
+                <CardDescription>
+                  Vendor risk score trend across previous scans of {domain}
+                  {riskHistory.trend === 'improving' && ' — risk is decreasing'}
+                  {riskHistory.trend === 'worsening' && ' — risk is increasing'}
+                </CardDescription>
+              </CardHeader>
+              <CollapsibleContent>
+                <CardContent className="pt-0">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-border/50">
+                          <th className="text-left py-2 px-2 text-muted-foreground font-medium">Date</th>
+                          <th className="text-center py-2 px-2 text-muted-foreground font-medium">Vendor Risk</th>
+                          <th className="text-center py-2 px-2 text-muted-foreground font-medium">Band</th>
+                          <th className="text-center py-2 px-2 text-muted-foreground font-medium">Vendor CVEs</th>
+                          <th className="text-center py-2 px-2 text-muted-foreground font-medium">Overall Risk</th>
+                          <th className="text-center py-2 px-2 text-muted-foreground font-medium">Assets</th>
+                          <th className="text-center py-2 px-2 text-muted-foreground font-medium">Findings</th>
+                          <th className="text-center py-2 px-2 text-muted-foreground font-medium">Δ</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {riskHistory.history.map((h, i) => {
+                          const prev = i > 0 ? riskHistory.history[i - 1] : null;
+                          const delta = prev ? h.vendorRiskScore - prev.vendorRiskScore : 0;
+                          const isCurrent = h.scanId === scanId;
+                          return (
+                            <tr key={h.scanId} className={`border-b border-border/30 hover:bg-muted/30 ${isCurrent ? 'bg-cyan-500/5' : ''}`}>
+                              <td className="py-2 px-2">
+                                <div className="flex items-center gap-1.5">
+                                  {isCurrent && <Badge className="text-[9px] bg-cyan-500/20 text-cyan-400 border-cyan-500/40">Current</Badge>}
+                                  <span className="text-muted-foreground">
+                                    {h.date ? new Date(h.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="py-2 px-2 text-center font-mono font-bold">{h.vendorRiskScore}</td>
+                              <td className="py-2 px-2 text-center">
+                                <Badge className={`text-[10px] ${SEVERITY_COLORS[h.vendorRiskBand.toLowerCase()] || SEVERITY_COLORS.minimal}`}>
+                                  {h.vendorRiskBand}
+                                </Badge>
+                              </td>
+                              <td className="py-2 px-2 text-center">{h.vendorCveCount}</td>
+                              <td className="py-2 px-2 text-center">
+                                <Badge className={`text-[10px] ${SEVERITY_COLORS[h.overallRiskBand?.toString().toLowerCase()] || SEVERITY_COLORS.minimal}`}>
+                                  {h.overallRiskScore}
+                                </Badge>
+                              </td>
+                              <td className="py-2 px-2 text-center text-muted-foreground">{h.totalAssets}</td>
+                              <td className="py-2 px-2 text-center text-muted-foreground">{h.totalFindings}</td>
+                              <td className="py-2 px-2 text-center">
+                                {i === 0 ? (
+                                  <span className="text-muted-foreground">—</span>
+                                ) : delta > 0 ? (
+                                  <span className="text-red-400 font-medium">+{delta}</span>
+                                ) : delta < 0 ? (
+                                  <span className="text-emerald-400 font-medium">{delta}</span>
+                                ) : (
+                                  <span className="text-slate-400">0</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </CollapsibleContent>
+            </Card>
+          </Collapsible>
+        )}
 
         {/* ─── Shared Responsibility Model ─── */}
         {sharedResponsibility && (
