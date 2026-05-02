@@ -22,6 +22,7 @@
 import { invokeLLM } from "../_core/llm";
 import { SCANFORGE_DEDICATED_IP } from "./scan-service-url";
 import { throttledLLMCall } from "./llm-throttle";
+import { buildGobusterCommand, getScanProfile } from "./scan-profiles";
 import {
   executePassiveDiscovery,
   executeScopingReview,
@@ -2011,7 +2012,7 @@ export async function generateScanPlan(engagementId: number): Promise<ScanPlan> 
     'ScanForge Discovery (Masscan/Naabu/RustScan): port scan/service detection',
     'nuclei: vuln scanner (-u URL -severity critical,high,medium -nc -duc -ni -jsonl)',
     'nikto: web server scanner (-h URL)',
-    'gobuster: dir brute-forcer',
+    'gobuster: dir brute-forcer (supports -x extensions, -r follow redirects, --random-agent, -b exclude status codes, -m HTTP method, -c cookies for auth scanning)',
     'httpx: HTTP probe (echo URL | httpx -json -tech-detect -status-code -title -follow-redirects)',
     'hydra: credential brute-forcer',
     'enum4linux: SMB/NetBIOS enum',
@@ -2024,7 +2025,7 @@ export async function generateScanPlan(engagementId: number): Promise<ScanPlan> 
     's3scanner: S3 bucket ACL check (echo bucket | s3scanner scan --json)',
     'trufflehog: secret scanner for buckets',
     'aws: S3 CLI (aws s3 ls s3://bucket --no-sign-request)',
-    'gobuster: directory/file brute-force (gobuster dir -u URL -w /opt/SecLists/Discovery/Web-Content/common.txt -t 10 -q --no-error)',
+    'gobuster: directory/file brute-force (gobuster dir -u URL -w /opt/SecLists/Discovery/Web-Content/common.txt -t 10 -q --no-error -x php,html,js,txt -r --random-agent)',
     'sqlmap: SQLi exploitation (only confirmed targets)',
     'testssl: TLS/SSL vuln scanner',
     'whatweb: tech fingerprinter',
@@ -2041,6 +2042,13 @@ export async function generateScanPlan(engagementId: number): Promise<ScanPlan> 
 
 PHASE A — Discovery: ScanForge discovery --top-ports 1000 -T3 then httpx on web ports. discoveryFlags = scan type/evasion only (no -p, --top-ports, -T). Cloud/WAF targets: use '-Pn -sV -sC' only, no evasion flags.
 PHASE B — Targeted tools per asset based on recon: Web→nuclei,nikto,gobuster,whatweb,testssl; WP→wpscan; SQLi→sqlmap; Cloud→cloud_enum,s3scanner; SMB→enum4linux; LDAP→ldapsearch; DNS→dig; SNMP→onesixtyone; Login→hydra.
+
+GOBUSTER GUIDANCE:
+- When a login page is detected, recommend authenticated Gobuster scanning with discovered session cookies (-c flag)
+- When a specific tech stack is identified (PHP, ASP.NET, Java), recommend extension enumeration matching that stack (-x php,phtml or -x asp,aspx,ashx or -x jsp,do,action)
+- When WAF is detected, recommend status code filtering (-b 403) and reduced thread count (-t 10)
+- For API targets, recommend HTTP method enumeration (-m GET,POST,PUT,DELETE)
+- Always use --random-agent to avoid WAF fingerprinting of scanner User-Agents
 
 Tools:
 ${toolRef}
@@ -3525,14 +3533,38 @@ function parseToolOutput(
     }
     case "gobuster": {
       // Gobuster: found directories/files
+      // Output format: /{path} (Status: 200) [Size: 1234]
       for (const line of stdout.split("\n")) {
-        const match = line.match(/\/(\S+)\s+\(Status:\s*(\d+)/);
+        const match = line.match(/\/(\S+)\s+\(Status:\s*(\d+)\)(?:\s+\[Size:\s*(\d+)\])?/);
         if (match) {
-          const [, path, status] = match;
-          if (["200", "301", "302", "401", "403"].includes(status)) {
+          const [, path, status, sizeStr] = match;
+          const size = sizeStr ? parseInt(sizeStr, 10) : undefined;
+          if (["200", "301", "302", "401", "403", "405", "500"].includes(status)) {
+            // Severity classification based on status + content size
+            let severity: string;
+            if (status === "500") {
+              severity = "medium"; // Server error — potential vulnerability
+            } else if (status === "401" || status === "403") {
+              // Large 403/401 responses may indicate real protected content
+              severity = size && size > 500 ? "medium" : "low";
+            } else if (status === "200" || status === "301" || status === "302") {
+              // Sensitive paths get higher severity
+              const sensitivePaths = /\.(env|bak|sql|conf|config|log|old|swp|zip|tar|gz|xml|yml|yaml|json|git|svn|htpasswd|htaccess|DS_Store)/i;
+              const adminPaths = /\b(admin|dashboard|panel|manager|console|phpmyadmin|wp-admin|cpanel|debug|server-status|server-info)\b/i;
+              if (sensitivePaths.test(path)) {
+                severity = "high"; // Sensitive file exposure
+              } else if (adminPaths.test(path)) {
+                severity = "medium"; // Admin panel discovered
+              } else {
+                severity = "info";
+              }
+            } else {
+              severity = "info";
+            }
+            const sizeInfo = size !== undefined ? ` [${size}B]` : '';
             findings.push({
-              severity: status === "401" || status === "403" ? "low" : "info",
-              title: `[Gobuster] /${path} (${status})`,
+              severity,
+              title: `[Gobuster] /${path} (${status})${sizeInfo}`,
             });
           }
         }
@@ -5698,23 +5730,38 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
         }
       }
 
-      // Fix LLM-generated gobuster commands: replace Kali Linux wordlist paths with scan server paths
+      // Fix LLM-generated gobuster commands: use buildGobusterCommand() for profile-aware command generation
       if (cmd.tool === 'gobuster') {
-        // Strip duplicate 'gobuster' keywords, then re-add once
-        let gobCmd = cmd.command.replace(/\bgobuster\b/g, '').trim();
-        // Ensure 'dir' subcommand is present
-        if (!gobCmd.startsWith('dir')) gobCmd = `dir ${gobCmd}`;
-        gobCmd = `gobuster ${gobCmd}`;
-        gobCmd = gobCmd
-          .replace(/\/usr\/share\/wordlists\/dirbuster\/[\w.-]+/g, '/opt/SecLists/Discovery/Web-Content/common.txt')
-          .replace(/\/usr\/share\/wordlists\/dirb\/[\w.-]+/g, '/opt/SecLists/Discovery/Web-Content/common.txt')
-          .replace(/\/usr\/share\/wordlists\/[\w/.-]+/g, '/opt/SecLists/Discovery/Web-Content/common.txt')
-          .replace(/\/usr\/share\/seclists\/[\w/.-]+/gi, '/opt/SecLists/Discovery/Web-Content/common.txt');
-        if (!gobCmd.includes('-w ')) gobCmd += ' -w /opt/SecLists/Discovery/Web-Content/common.txt';
-        if (!gobCmd.includes('-q')) gobCmd += ' -q';
-        if (!gobCmd.includes('--no-error')) gobCmd += ' --no-error';
-        if (!gobCmd.includes('-t ')) gobCmd += ' -t 20';
-        cmd.command = gobCmd.replace(/\s+/g, ' ').trim();
+        // Extract target URL from the LLM-generated command
+        const gobUrlMatch = cmd.command.match(/-u\s+(\S+)/) || cmd.command.match(/(https?:\/\/\S+)/);
+        const gobTargetUrl = gobUrlMatch?.[1] || httpTarget;
+
+        // Gather runtime context for adaptive command building
+        const wafDetected = !!(asset.wafDetected && asset.wafDetected !== 'none');
+        const detectedTech = asset.passiveRecon?.technologies || [];
+        const isApiTarget = asset.type === 'api' ||
+          asset.ports.some(p => /api|graphql|rest/i.test(p.service || '')) ||
+          /\/api\/|\/v[0-9]+\//i.test(gobTargetUrl);
+
+        // Get auth cookie from confirmed credentials or training lab creds
+        let authCookie = '';
+        const webCreds = (asset.confirmedCredentials || []).filter((c: any) =>
+          ['http', 'web', 'form', 'http-get', 'http-post-form'].includes(c.service)
+        );
+        if (webCreds.length > 0 && (webCreds[0] as any).sessionCookie) {
+          authCookie = (webCreds[0] as any).sessionCookie;
+        } else if ((asset as any).trainingLabCreds?.sessionCookie) {
+          authCookie = (asset as any).trainingLabCreds.sessionCookie;
+        }
+
+        // Build the command using the scan profile helper
+        const profile = getScanProfile(state.scanProfile || 'standard');
+        cmd.command = buildGobusterCommand(profile, gobTargetUrl, {
+          wafDetected,
+          authCookie: authCookie || undefined,
+          detectedTech,
+          isApiTarget,
+        });
       }
 
       // Fix LLM-generated nikto commands: ensure -ssl flag for HTTPS targets

@@ -1434,3 +1434,16 @@
 - [x] Create customer-cross-account-role.yaml template (modular policies, confused deputy)
 - [x] Create enterprise-readiness.md template (3-tier assessment, shared responsibility)
 - [x] Copy skill to caldera-dashboard/docs/skills/ for reference
+
+### Gobuster Scan Enhancements (May 2)
+- [x] Enhancement 1: Authenticated scanning — inject session cookies from confirmed credentials into Gobuster (-c flag)
+- [x] Enhancement 2: Extension enumeration — profile-defined extensions (Standard: php,html,js,txt,bak,env,conf; Deep: 17 extensions) + auto-detection from tech stack
+- [x] Enhancement 3: Follow redirects — -r flag enabled for Standard/Deep profiles
+- [x] Enhancement 4: Random user-agent — --random-agent for Standard/Deep/Stealth to avoid WAF fingerprinting
+- [x] Enhancement 5: Status code filtering — WAF-adaptive -b 403 exclusion + profile-configurable excludeStatusCodes
+- [x] Enhancement 6: Custom HTTP methods — -m GET,POST for API targets, configurable per profile
+- [x] WAF-adaptive thread reduction — auto-reduce threads to max 10 + add --delay 200ms when WAF detected
+- [x] Enhanced output parser — capture response size [Size: N], severity classification (sensitive files → high, admin panels → medium, 500 → medium, large 403 → medium)
+- [x] Updated LLM prompt — Gobuster guidance section for authenticated scanning, tech-aware extensions, WAF evasion, API methods
+- [x] Refactored orchestrator — replaced inline gobuster command fix with buildGobusterCommand() helper from scan-profiles.ts
+- [x] Write vitest tests (53 tests passing: command generation, auth cookies, extensions, redirects, random-agent, status codes, HTTP methods, WAF adaptation, combined scenarios, profile config, output parser)
