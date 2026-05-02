@@ -65,6 +65,7 @@ const VendorAlertCorrelationTab = lazy(() => import("./domain-intel-tabs/VendorA
 const DomainHealthTab = lazy(() => import("./domain-intel-tabs/DomainHealthTab"));
 const InfrastructureMapTab = lazy(() => import("./domain-intel-tabs/InfrastructureMapTab"));
 const DiscoveryContextTab = lazy(() => import("./domain-intel-tabs/DiscoveryContextTab"));
+const VendorRiskTab = lazy(() => import("./domain-intel-tabs/VendorRiskTab"));
 import ComplianceFrameworkSelector from "@/components/ComplianceFrameworkSelector";
 
 const RISK_COLORS: Record<string, string> = {
@@ -1447,6 +1448,7 @@ export default function DomainIntelResults() {
               { value: 'analysis', label: 'AI Analysis', icon: <Lightbulb className="h-3 w-3" />, hidden: !postEnrichmentAnalysis },
               { value: 'methods', label: 'Methods', icon: <Workflow className="h-3 w-3" /> },
               { value: 'osint-sources', label: 'OSINT Sources', icon: <Radio className="h-3 w-3" /> },
+              { value: 'vendor-risk', label: 'Vendor Risk', icon: <ShieldAlert className="h-3 w-3" /> },
               { value: 'infra-map', label: 'Infrastructure Map', icon: <Network className="h-3 w-3" /> },
               { value: 'discovery-context', label: 'Discovery Context', icon: <Microscope className="h-3 w-3" /> },
             ],
@@ -5435,6 +5437,10 @@ export default function DomainIntelResults() {
           <Suspense fallback={<div className="flex items-center justify-center p-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>}><OsintSourcesTab /></Suspense>
         </TabsContent>
 
+        {/* Vendor Risk Tab */}
+        <TabsContent value="vendor-risk" className="space-y-4">
+          <Suspense fallback={<div className="flex items-center justify-center p-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>}><VendorRiskTab scanId={scan.id} domain={scan.primaryDomain} pipeline={pipeline} assets={[...assets, ...subdomainAssets]} /></Suspense>
+        </TabsContent>
         {/* Infrastructure Map Tab */}
         <TabsContent value="infra-map" className="space-y-4">
           <Suspense fallback={<div className="flex items-center justify-center p-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>}><InfrastructureMapTab scanId={scan.id} domain={scan.primaryDomain} /></Suspense>

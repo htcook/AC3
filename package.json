@@ -177,7 +177,8 @@
     "vite": "^6.4.1",
     "vite-plugin-compression2": "^2.5.1",
     "vite-plugin-manus-runtime": "^0.0.57",
-    "vitest": "^2.1.4"
+    "vitest": "^2.1.4",
+    "yaml": "^2.8.3"
   },
   "pnpm": {
     "patchedDependencies": {

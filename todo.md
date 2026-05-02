@@ -1355,5 +1355,17 @@
 
 ### Enterprise Customer Readiness & Self-Monitoring Architecture (May 2)
 - [x] Write ENTERPRISE-CUSTOMER-READINESS.md — full architecture for enterprise AWS customer onboarding (CI/CD landing strategy, SOC/SIEM expansion, threat catalog integration, hybrid scoring, revenue model, readiness gaps)
+- [x] Revise ENTERPRISE-CUSTOMER-READINESS.md v2 — incorporate independent architectural review corrections (honest readiness tiering, Phase A/B/C sequencing, false negative liability, detection rule framing, effort estimate corrections, shared responsibility model, early adopter framing, AWS timeline reconciliation)
 - [x] Write ACEOFCLOUD-SELF-MONITORING-ARCHITECTURE.md — self-monitoring architecture (AceofCloud as Customer Zero using its own platform)
 - [x] Copy both documents to /home/ubuntu/ac3-aws-terraform/docs/ for infrastructure repo
+
+### CloudFormation Template + Vendor Risk Tab (May 2)
+- [x] Build CloudFormation template for customer IAM cross-account role (P0 enterprise readiness gap)
+- [x] Write CloudFormation README with deployment instructions and parameter descriptions
+- [x] Add Vendor Risk tab to DI scan results UI (surface managed-provider vendor risk data from PDF export)
+- [x] Write tests for new features (27 tests passing — CloudFormation template validation, vendor risk score computation, shared responsibility model, managed provider filter integration)
+
+### Customer Zero Operational Validation Plan (May 2)
+- [x] Write CUSTOMER-ZERO-VALIDATION-PLAN.md — 24-week operational validation plan (SIEM prerequisite, detection rule maturity ratings, hunt campaign design, UX walkthrough protocol, exit criteria)
+- [x] Update ENTERPRISE-CUSTOMER-READINESS.md Phase A with SIEM prerequisite, 24-week timeline, instrumentation requirements
+- [x] Copy Customer Zero plan and updated enterprise readiness doc to ac3-aws-terraform/docs/
