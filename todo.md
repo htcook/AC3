@@ -1404,3 +1404,33 @@
 - [x] Add mini SVG sparkline chart showing vendor risk score history (color-coded by severity)
 - [x] Add historical comparison table with scan-over-scan delta column (date, vendor risk, band, CVEs, overall risk, assets, findings, Δ)
 - [x] Write tests for vendor risk history, trend computation, and deploy artifacts (29 tests passing, 74 total across all vendor risk test files)
+
+### CloudFormation Download Button (May 2)
+- [x] Add CloudFormation template download button to IntegrationsHub (Customer Onboarding tab)
+- [x] Generate template dynamically with customer-specific external ID via server procedure
+- [x] Add step-by-step instructions panel explaining the cross-account role setup
+
+### Vendor Risk Trend in PDF Export (May 2)
+- [x] Add vendor risk history trend section to PDF export (score progression table with trend arrows)
+- [x] Include sparkline-equivalent table showing score progression across last 6 scans
+- [x] Wire riskHistory data into all 3 exportDiReport call sites (DomainIntelResults, DomainIntelReports, ScanHistory)
+
+### ECS Service Definitions (May 2)
+- [x] Update service-app.json with actual TG ARN, alarm-based rollback, service discovery
+- [x] Update service-c2-worker.json with service discovery registration
+- [x] Create alb-target-group.json (health checks, LOR algorithm, sticky sessions, slow start)
+- [x] Create alb-listeners.json (HTTP existing + HTTPS pending ACM, TLS 1.3, redirect commands)
+- [x] Update autoscaling-app.json with actual ALB resource label + scheduled night scale-down
+- [x] Create cloudwatch-alarms.json (5 alarms: task count, CPU, memory for app + C2)
+- [x] Create service-discovery.json (Cloud Map: app.ac3-dev.local, c2-worker.ac3-dev.local)
+- [x] Create deploy-full.sh (7-phase orchestrator: build, register, deploy, autoscale, alarms, health, verify)
+- [x] Rewrite ECS README with architecture diagram, all 15 files documented, full deployment guide
+- [x] Copy all deploy artifacts to ac3-aws-terraform repo
+
+### Reusable Skill Creation (May 2)
+- [x] Create enterprise-infrastructure-deployment skill (SKILL.md + 3 templates)
+- [x] Document the iterative review → correction → validation → deployment cycle
+- [x] Create admin-request-bundle.md template (parameterized, copy-paste ready)
+- [x] Create customer-cross-account-role.yaml template (modular policies, confused deputy)
+- [x] Create enterprise-readiness.md template (3-tier assessment, shared responsibility)
+- [x] Copy skill to caldera-dashboard/docs/skills/ for reference

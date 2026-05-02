@@ -2,7 +2,7 @@ import { lazy } from "react";
 import type { ComponentType } from "react";
 import AppShell from "@/components/AppShell";
 import HubTabs from "@/components/HubTabs";
-import { Webhook, Database, MessageSquare, Workflow, GitBranch, Network, ArrowDownToLine } from "lucide-react";
+import { Webhook, Database, MessageSquare, Workflow, GitBranch, Network, ArrowDownToLine, Cloud } from "lucide-react";
 
 const IntegrationRegistry = lazy(() => import("./IntegrationRegistry"));
 const SiemConnectors = lazy(() => import("./SiemConnectors"));
@@ -11,6 +11,7 @@ const SoarConnectors = lazy(() => import("./SoarConnectors"));
 const Webhooks = lazy(() => import("./Webhooks"));
 const WebhookReceivers = lazy(() => import("./WebhookReceivers"));
 const CicdPipeline = lazy(() => import("./CicdPipeline"));
+const CustomerOnboarding = lazy(() => import("./CustomerOnboarding"));
 
 const tabs = [
   { id: "registry", label: "Integration Registry", icon: Network as ComponentType<{ className?: string }>, component: IntegrationRegistry },
@@ -20,6 +21,7 @@ const tabs = [
   { id: "webhooks", label: "Outbound Webhooks", icon: Webhook as ComponentType<{ className?: string }>, component: Webhooks },
   { id: "receivers", label: "Inbound Receivers", icon: ArrowDownToLine as ComponentType<{ className?: string }>, component: WebhookReceivers },
   { id: "cicd", label: "CI/CD Pipeline", icon: GitBranch as ComponentType<{ className?: string }>, component: CicdPipeline },
+  { id: "onboarding", label: "Customer Onboarding", icon: Cloud as ComponentType<{ className?: string }>, component: CustomerOnboarding },
 ];
 
 export default function IntegrationsHub() {

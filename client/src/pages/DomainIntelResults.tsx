@@ -714,7 +714,13 @@ export default function DomainIntelResults() {
                   const infraRes = await infraResp.json();
                   infraMapData = infraRes?.result?.data || null;
                 } catch { /* optional — infra map enriches but isn't required */ }
-                exportDiReport(scan.primaryDomain, fullScanData, undefined, evidenceData, infraMapData);
+                let vrHistory = null;
+                try {
+                  const vrResp = await fetch(`/api/trpc/calderaProxy.getVendorRiskHistory?input=${encodeURIComponent(JSON.stringify({ scanId: scan.id }))}`);
+                  const vrRes = await vrResp.json();
+                  vrHistory = vrRes?.result?.data?.history || null;
+                } catch { /* optional */ }
+                exportDiReport(scan.primaryDomain, fullScanData, undefined, evidenceData, infraMapData, vrHistory);
               }}
             >
               <FileText className="h-3.5 w-3.5 mr-1.5" />
@@ -750,7 +756,13 @@ export default function DomainIntelResults() {
                   const infraRes = await infraResp.json();
                   infraMapData = infraRes?.result?.data || null;
                 } catch { /* optional */ }
-                exportDiReport(scan.primaryDomain, fullScanData, undefined, evidenceData, infraMapData);
+                let vrHistory2 = null;
+                try {
+                  const vrResp2 = await fetch(`/api/trpc/calderaProxy.getVendorRiskHistory?input=${encodeURIComponent(JSON.stringify({ scanId: scan.id }))}`);
+                  const vrRes2 = await vrResp2.json();
+                  vrHistory2 = vrRes2?.result?.data?.history || null;
+                } catch { /* optional */ }
+                exportDiReport(scan.primaryDomain, fullScanData, undefined, evidenceData, infraMapData, vrHistory2);
               }}>
                 <ShieldAlert className="h-4 w-4 mr-2" /> Full DI Report (PDF)
               </DropdownMenuItem>

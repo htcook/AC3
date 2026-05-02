@@ -133,6 +133,7 @@ import { samlRouter } from "./routers/saml-auth";
 import { sessionRouter } from "./routers/session-management";
 import { tenantManagementRouter } from "./routers/tenant-management";
 import { tenantOnboardingRouter } from "./routers/tenant-onboarding";
+import { customerOnboardingRouter } from "./routers/customer-onboarding";
 import { complianceDashboardRouter } from "./routers/compliance-dashboard";
 import { scanWebhooksRouter } from "./routers/scan-webhooks";
 import { authAssessmentRouter } from "./routers/auth-assessment";
@@ -441,6 +442,7 @@ export const appRouter = router({
   sessions: sessionRouter,
   tenantManagement: tenantManagementRouter,
   tenantOnboarding: tenantOnboardingRouter,
+  onboarding: customerOnboardingRouter,
   complianceDashboard: complianceDashboardRouter,
   scanWebhooks: scanWebhooksRouter,
   authAssessment: authAssessmentRouter,

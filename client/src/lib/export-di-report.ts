@@ -150,6 +150,17 @@ export interface ReportEvidenceData {
 /**
  * Export a comprehensive Domain Intelligence PDF report
  */
+export interface VendorRiskHistoryEntry {
+  scanId: number;
+  completedAt: string;
+  vendorRiskScore: number;
+  riskBand: string;
+  managedCveCount: number;
+  overallRiskScore: number | null;
+  totalAssets: number;
+  totalFindings: number;
+}
+
 export interface InfraMapData {
   vendorDependencies?: Array<{ vendor: string; services: string[]; serviceCount: number; criticality: string; singlePointOfFailure: boolean; notes: string }>;
   supplyChainRisks?: Array<{ riskType: string; severity: string; description: string; affectedServices: string[]; recommendation: string }>;
@@ -162,6 +173,7 @@ export async function exportDiReport(
   wlConfig?: { platformName?: string; orgName?: string; reportCompanyName?: string; reportFooterText?: string; reportDisclaimerText?: string; reportAuthorName?: string; copyrightHolder?: string },
   evidenceData?: ReportEvidenceData,
   infraMap?: InfraMapData | null,
+  vendorRiskHistory?: VendorRiskHistoryEntry[] | null,
 ): Promise<void> {
   const _wl = {
     platformName: wlConfig?.platformName ?? 'AC3',
@@ -4051,6 +4063,82 @@ export async function exportDiReport(
         alternateRowStyles: { fillColor: [241, 245, 249] },
         columnStyles: { 0: { cellWidth: 55, fontStyle: 'bold' }, 1: { cellWidth: 'auto' } },
         margin: { left: margin, right: margin },
+      });
+      y = (doc as any).lastAutoTable.finalY + 5;
+    }
+
+    // ─── Vendor Risk Trend History ──────────────────────────────────────
+    // Historical vendor risk scores across scans (if available)
+    const _vrHistory = vendorRiskHistory || [];
+    if (_vrHistory.length > 1) {
+      y = checkPageBreak(y, 60);
+      y = subheading('Vendor Risk Score Trend', y);
+      doc.setFontSize(7.5);
+      doc.setTextColor(80, 80, 80);
+
+      const firstScore = _vrHistory[_vrHistory.length - 1].vendorRiskScore;
+      const lastScore = _vrHistory[0].vendorRiskScore;
+      const delta = lastScore - firstScore;
+      const trendWord = delta > 5 ? 'worsened' : delta < -5 ? 'improved' : 'remained stable';
+      const trendText = `Vendor risk score has ${trendWord} over the last ${_vrHistory.length} scans (${firstScore.toFixed(0)} → ${lastScore.toFixed(0)}, Δ${delta > 0 ? '+' : ''}${delta.toFixed(0)}).`;
+      const trendLines = doc.splitTextToSize(trendText, contentWidth);
+      doc.text(trendLines, margin, y);
+      y += trendLines.length * 4 + 3;
+
+      // History table
+      const historyRows = _vrHistory.map((entry, idx) => {
+        const prevEntry = _vrHistory[idx + 1];
+        const d = prevEntry ? entry.vendorRiskScore - prevEntry.vendorRiskScore : 0;
+        const deltaStr = idx === _vrHistory.length - 1 ? '—' : (d > 0 ? `+${d.toFixed(0)}` : d.toFixed(0));
+        return [
+          safeFormatDate(entry.completedAt),
+          entry.vendorRiskScore.toFixed(0),
+          entry.riskBand.charAt(0).toUpperCase() + entry.riskBand.slice(1),
+          String(entry.managedCveCount),
+          entry.overallRiskScore != null ? entry.overallRiskScore.toFixed(0) : 'N/A',
+          String(entry.totalAssets),
+          String(entry.totalFindings),
+          deltaStr,
+        ];
+      });
+
+      autoTable!(doc, {
+        startY: y,
+        head: [['Scan Date', 'Vendor Risk', 'Band', 'Managed CVEs', 'Overall Risk', 'Assets', 'Findings', 'Δ']],
+        body: historyRows,
+        theme: 'grid',
+        headStyles: { fillColor: [100, 116, 139], textColor: [255, 255, 255], fontSize: 7, fontStyle: 'bold', cellPadding: 1.5 },
+        bodyStyles: { fontSize: 6.5, cellPadding: 1.5, textColor: [51, 65, 85] },
+        alternateRowStyles: { fillColor: [241, 245, 249] },
+        columnStyles: {
+          0: { cellWidth: 28 },
+          1: { cellWidth: 18, halign: 'center' },
+          2: { cellWidth: 18 },
+          3: { cellWidth: 20, halign: 'center' },
+          4: { cellWidth: 18, halign: 'center' },
+          5: { cellWidth: 15, halign: 'center' },
+          6: { cellWidth: 17, halign: 'center' },
+          7: { cellWidth: 12, halign: 'center' },
+        },
+        margin: { left: margin, right: margin },
+        didParseCell: (data: any) => {
+          // Color the delta column
+          if (data.section === 'body' && data.column.index === 7) {
+            const val = parseFloat(data.cell.raw as string);
+            if (!isNaN(val)) {
+              data.cell.styles.textColor = val > 0 ? [220, 38, 38] : val < 0 ? [22, 163, 74] : [100, 116, 139];
+              data.cell.styles.fontStyle = 'bold';
+            }
+          }
+          // Color the vendor risk score
+          if (data.section === 'body' && data.column.index === 1) {
+            const score = parseFloat(data.cell.raw as string);
+            if (score >= 70) data.cell.styles.textColor = [220, 38, 38];
+            else if (score >= 40) data.cell.styles.textColor = [234, 179, 8];
+            else data.cell.styles.textColor = [22, 163, 74];
+            data.cell.styles.fontStyle = 'bold';
+          }
+        },
       });
       y = (doc as any).lastAutoTable.finalY + 5;
     }
