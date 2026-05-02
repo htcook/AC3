@@ -1332,3 +1332,16 @@
 - [x] Associate WAF Web ACL with ac3-dev-alb (verified active)
 - [x] Enable WAF logging to CloudWatch (aws-waf-logs-ac3-dev, 30d retention)
 - [x] Update infrastructure state file with WAF section
+
+### HTTPS Listener + CloudWatch Alarms (May 2)
+- [x] Check ACM cert validation status (PENDING_VALIDATION - user needs to add CNAME)
+- [ ] Create HTTPS listener on ALB (BLOCKED - ACM cert pending DNS validation)
+- [ ] Convert HTTP listener to 301 redirect (BLOCKED - needs HTTPS listener first)
+- [x] Create CloudWatch alarm: WAF block rate spike (>100 blocks/5min)
+- [x] Create CloudWatch alarm: ALB 5xx errors (>10/5min)
+- [x] Create CloudWatch alarm: ALB target response time (>2s avg, 2 periods) + unhealthy hosts
+- [x] Create CloudWatch alarm: RDS CPU utilization (>80% for 10min)
+- [x] Create CloudWatch alarm: RDS database connections (>80) + read/write latency (>20ms)
+- [x] Create CloudWatch alarm: RDS free storage space (<5GB)
+- [x] Create SNS topic (ac3-dev-alarms) — 9 alarms total, all routing to SNS
+- [x] Update infrastructure state file with alarms and SNS section
