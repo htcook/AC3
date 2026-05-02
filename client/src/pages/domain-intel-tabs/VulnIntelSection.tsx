@@ -17,11 +17,13 @@ import {
 import { CorroborationTierBadge } from "@/components/CorroborationTierBadge";
 
 type TierFilter = 'confirmed' | 'confirmed+probable' | 'all';
+type SortMode = 'tier-first' | 'severity-first';
 
 export default function VulnIntelSection({ scanId }: { scanId: number }) {
   const [expandedTech, setExpandedTech] = useState<string | null>(null);
   const [expandedCve, setExpandedCve] = useState<string | null>(null);
   const [tierFilter, setTierFilter] = useState<TierFilter>('confirmed');
+  const [sortMode, setSortMode] = useState<SortMode>('tier-first');
 
   const { data, isLoading, error } = trpc.calderaProxy.matchTechVulns.useQuery(
     { scanId },
@@ -41,13 +43,21 @@ export default function VulnIntelSection({ scanId }: { scanId: number }) {
     const filteredMatches = data.matches
       .filter((m: any) => allowedTiers.includes(m.corroborationTier))
       .sort((a: any, b: any) => {
-        // Sort by confirmation tier first (confirmed > probable > potential)
         const tierOrder: Record<string, number> = { confirmed: 3, probable: 2, potential: 1 };
-        const tierA = tierOrder[a.corroborationTier] || 0;
-        const tierB = tierOrder[b.corroborationTier] || 0;
-        if (tierB !== tierA) return tierB - tierA;
-        // Then by risk score (descending)
-        return (b.riskScore || 0) - (a.riskScore || 0);
+        if (sortMode === 'tier-first') {
+          // Sort by confirmation tier first, then risk score
+          const tierA = tierOrder[a.corroborationTier] || 0;
+          const tierB = tierOrder[b.corroborationTier] || 0;
+          if (tierB !== tierA) return tierB - tierA;
+          return (b.riskScore || 0) - (a.riskScore || 0);
+        } else {
+          // Sort by risk score first, then confirmation tier
+          const riskDiff = (b.riskScore || 0) - (a.riskScore || 0);
+          if (riskDiff !== 0) return riskDiff;
+          const tierA = tierOrder[a.corroborationTier] || 0;
+          const tierB = tierOrder[b.corroborationTier] || 0;
+          return tierB - tierA;
+        }
       });
 
     // Recount stats from only the filtered matches
@@ -67,7 +77,7 @@ export default function VulnIntelSection({ scanId }: { scanId: number }) {
     }
 
     return { vulns, exploits, kev, zeroDay, matches: filteredMatches };
-  }, [data, tierFilter]);
+  }, [data, tierFilter, sortMode]);
 
   if (isLoading) {
     return (
@@ -116,7 +126,7 @@ export default function VulnIntelSection({ scanId }: { scanId: number }) {
   return (
     <TooltipProvider>
     <>
-      {/* Tier Filter Toggle */}
+      {/* Tier Filter Toggle + Sort Mode */}
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground">Showing:</span>
@@ -131,6 +141,25 @@ export default function VulnIntelSection({ scanId }: { scanId: number }) {
               {tierLabel(tier)} ({tierCount(tier)})
             </button>
           ))}
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">Sort:</span>
+          <button
+            onClick={() => setSortMode('tier-first')}
+            className={`text-xs px-2 py-0.5 rounded border transition-all flex items-center gap-1 ${
+              sortMode === 'tier-first' ? 'bg-accent text-accent-foreground border-accent' : 'border-border text-muted-foreground hover:border-accent/50'
+            }`}
+          >
+            <CheckCircle2 className="h-3 w-3" /> Confidence
+          </button>
+          <button
+            onClick={() => setSortMode('severity-first')}
+            className={`text-xs px-2 py-0.5 rounded border transition-all flex items-center gap-1 ${
+              sortMode === 'severity-first' ? 'bg-accent text-accent-foreground border-accent' : 'border-border text-muted-foreground hover:border-accent/50'
+            }`}
+          >
+            <AlertTriangle className="h-3 w-3" /> Severity
+          </button>
         </div>
       </div>
 

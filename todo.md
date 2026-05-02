@@ -1310,3 +1310,8 @@
 - [x] Sort vulnerabilities in scan results UI (VulnIntelSection, TechVulnsTab, DomainIntelResults findings all sorted by tier then severity)
 - [x] Sort backend matchTechVulns results by confirmation tier then risk score (vuln-feeds.ts)
 - [x] Verify: esbuild clean, dev server 200 OK
+
+### VulnIntelSection Sort Dropdown + ACM Cert + Scan Re-run (May 1)
+- [x] Add sort-by dropdown to VulnIntelSection (Confidence vs Severity toggle buttons)
+- [x] Provision ACM certificate for aceofcloud.io + *.aceofcloud.io (DNS validation, ARN: 48c2f087-d9db-4bf9-b2b4-fb4e514fc96f)
+- [x] Re-run aceofcloud.com DI scan (scanId: 2130004, 16 assets, risk 65/MEDIUM, managed providers detected correctly)
