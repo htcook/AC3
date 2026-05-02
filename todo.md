@@ -1275,3 +1275,9 @@
 - [ ] Create CloudWatch alarms and dashboards
 - [ ] Create WAF Web ACL (after ALB)
 - [ ] Admin creates ac3-codebuild-service-role (IAM request doc delivered)
+
+### AWS Dev Environment — Pre-Deploy Prep (May 1)
+- [x] Configure RDS parameter group (slow query log, performance schema, connection limits) — ac3-dev-mysql80 applied
+- [x] Write Dockerfile for AC3 application (multi-stage, Chromium for PDF, non-root, FedRAMP controls)
+- [x] Write docker-compose.yml for local development (MySQL + App + LocalStack offline profile)
+- [x] Create CodeBuild buildspec.yml (build + push) and buildspec-test.yml (PR validation)

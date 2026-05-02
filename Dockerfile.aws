@@ -1,6 +1,6 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # AC3 Platform — AWS Dockerfile (FedRAMP High)
-# Author: Harrison Cook — AceofCloud (https://aceofcloud.com)
+# Author: Harrison Cook — AceofCloud (https://aceofcloud.io)
 # ─────────────────────────────────────────────────────────────────────────────
 # Multi-stage build for minimal attack surface:
 #   Stage 1 (builder): Install deps, build client + server
@@ -66,11 +66,26 @@ RUN echo "{\"sha\":\"${BUILD_SHA}\",\"date\":\"${BUILD_DATE}\",\"image\":\"aws\"
 # ═══════════════════════════════════════════════════════════════════════════════
 FROM node:22-slim AS runner
 
-# FedRAMP: Install only runtime security essentials
+# FedRAMP: Install runtime essentials + Chromium for PDF generation
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     ca-certificates \
     dumb-init \
+    chromium \
+    fonts-liberation \
+    fonts-noto-color-emoji \
+    libatk-bridge2.0-0 \
+    libatk1.0-0 \
+    libcups2 \
+    libdrm2 \
+    libgbm1 \
+    libgtk-3-0 \
+    libnspr4 \
+    libnss3 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxrandr2 \
+    xdg-utils \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
@@ -109,16 +124,20 @@ RUN chmod 1777 /tmp
 # Environment
 ENV NODE_ENV=production
 ENV PORT=8080
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
-# V8 heap tuned for ECS Fargate (2GB task = ~1.5GB heap)
-# Override via ECS task definition environment variables for larger tasks
-ENV NODE_OPTIONS="--max-old-space-size=1536 --expose-gc"
+# V8 heap tuned for ECS Fargate tasks:
+#   2 vCPU / 4 GB task  → --max-old-space-size=3072
+#   4 vCPU / 8 GB task  → --max-old-space-size=6144
+# Default: 2 vCPU / 4 GB (dev/staging)
+ENV NODE_OPTIONS="--max-old-space-size=3072 --expose-gc"
 
 # Build metadata labels (OCI standard)
 LABEL org.opencontainers.image.title="AC3 Platform"
 LABEL org.opencontainers.image.description="AceofCloud Cybersecurity Command Center"
 LABEL org.opencontainers.image.authors="Harrison Cook <harrison.cook@aceofcloud.com>"
 LABEL org.opencontainers.image.vendor="AceofCloud"
+LABEL org.opencontainers.image.url="https://aceofcloud.io"
 LABEL org.opencontainers.image.source="https://github.com/hcook-aoc/AC3"
 
 # Expose application port
@@ -127,7 +146,7 @@ EXPOSE 8080
 # FedRAMP: AC-6 — Run as non-root
 USER ac3
 
-# Health check for ECS
+# Health check for ECS (ALB also performs its own health checks)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
   CMD curl -f http://localhost:8080/api/health || exit 1
 
