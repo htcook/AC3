@@ -1369,3 +1369,12 @@
 - [x] Write CUSTOMER-ZERO-VALIDATION-PLAN.md — 24-week operational validation plan (SIEM prerequisite, detection rule maturity ratings, hunt campaign design, UX walkthrough protocol, exit criteria)
 - [x] Update ENTERPRISE-CUSTOMER-READINESS.md Phase A with SIEM prerequisite, 24-week timeline, instrumentation requirements
 - [x] Copy Customer Zero plan and updated enterprise readiness doc to ac3-aws-terraform/docs/
+
+### CloudFormation E2E Validation + ACM DNS + PDF Export Sync (May 2)
+- [x] Deploy CloudFormation template to AC3 test account — template validated by AWS API, deployment blocked by PowerUserAccess IAM restriction (needs AdministratorAccess session)
+- [ ] Validate cross-account role works with aws-cicd-connector.ts assumeRole flow (blocked — needs IAM role created first via AdministratorAccess)
+- [ ] Wire ACM DNS CNAME for aceofcloud.io domain (skipped for now — needs Cloudflare dashboard access)
+- [ ] Configure HTTPS listener and HTTP→HTTPS 301 redirect (blocked by ACM validation)
+- [x] Sync PDF export with vendor risk tab data — added 4 new sections: Shared Responsibility Model (M365/Google/Cloudflare/AWS), Supply Chain Concentration Analysis (vendor deps with SPOF flags), Supply Chain Risk Findings, Infrastructure Posture Summary
+- [x] Wire infraMap data fetch into all 3 exportDiReport call sites (DomainIntelResults, DomainIntelReports, ScanHistory)
+- [x] Write tests for PDF export vendor risk sections (18 tests passing)

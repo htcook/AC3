@@ -369,7 +369,13 @@ export default function ScanHistory() {
                                         const evResult = await evResp.json();
                                         evidenceData = evResult?.result?.data;
                                       } catch { /* optional */ }
-                                      await exportDiReport(fullScan.primaryDomain, fullScanData, undefined, evidenceData);
+                                      let infraMapData = null;
+                                      try {
+                                        const infraResp = await fetch(`/api/trpc/calderaProxy.inferInfrastructure?input=${encodeURIComponent(JSON.stringify({ scanId: scan.id }))}`);
+                                        const infraRes = await infraResp.json();
+                                        infraMapData = infraRes?.result?.data || null;
+                                      } catch { /* optional */ }
+                                      await exportDiReport(fullScan.primaryDomain, fullScanData, undefined, evidenceData, infraMapData);
                                       toast.success('DI report generated');
                                     } catch (err: any) {
                                       toast.error('Report failed: ' + (err.message || 'Unknown error'));

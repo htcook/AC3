@@ -708,7 +708,13 @@ export default function DomainIntelResults() {
                   const res = await resp.json();
                   evidenceData = res?.result?.data;
                 } catch { /* optional */ }
-                exportDiReport(scan.primaryDomain, fullScanData, undefined, evidenceData);
+                let infraMapData = null;
+                try {
+                  const infraResp = await fetch(`/api/trpc/calderaProxy.inferInfrastructure?input=${encodeURIComponent(JSON.stringify({ scanId: scan.id }))}`);
+                  const infraRes = await infraResp.json();
+                  infraMapData = infraRes?.result?.data || null;
+                } catch { /* optional — infra map enriches but isn't required */ }
+                exportDiReport(scan.primaryDomain, fullScanData, undefined, evidenceData, infraMapData);
               }}
             >
               <FileText className="h-3.5 w-3.5 mr-1.5" />
@@ -738,7 +744,13 @@ export default function DomainIntelResults() {
                   const res = await resp.json();
                   evidenceData = res?.result?.data;
                 } catch { /* optional */ }
-                exportDiReport(scan.primaryDomain, fullScanData, undefined, evidenceData);
+                let infraMapData = null;
+                try {
+                  const infraResp = await fetch(`/api/trpc/calderaProxy.inferInfrastructure?input=${encodeURIComponent(JSON.stringify({ scanId: scan.id }))}`);
+                  const infraRes = await infraResp.json();
+                  infraMapData = infraRes?.result?.data || null;
+                } catch { /* optional */ }
+                exportDiReport(scan.primaryDomain, fullScanData, undefined, evidenceData, infraMapData);
               }}>
                 <ShieldAlert className="h-4 w-4 mr-2" /> Full DI Report (PDF)
               </DropdownMenuItem>

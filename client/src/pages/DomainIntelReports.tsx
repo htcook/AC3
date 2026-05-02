@@ -70,7 +70,13 @@ export default function DomainIntelReports() {
         const evidenceResult = await evidenceResp.json();
         evidenceData = evidenceResult?.result?.data;
       } catch { /* Evidence fetch is optional — report works without it */ }
-      await exportDiReport(fullScan.primaryDomain, fullScanData, undefined, evidenceData);
+      let infraMapData = null;
+      try {
+        const infraResp = await fetch(`/api/trpc/calderaProxy.inferInfrastructure?input=${encodeURIComponent(JSON.stringify({ scanId: scan.id }))}`);
+        const infraRes = await infraResp.json();
+        infraMapData = infraRes?.result?.data || null;
+      } catch { /* optional */ }
+      await exportDiReport(fullScan.primaryDomain, fullScanData, undefined, evidenceData, infraMapData);
       toast.success("Domain Intelligence report PDF generated successfully");
     } catch (err: any) {
       toast.error("Report generation failed: " + (err.message || "Unknown error"));

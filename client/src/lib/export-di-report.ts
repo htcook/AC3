@@ -150,11 +150,18 @@ export interface ReportEvidenceData {
 /**
  * Export a comprehensive Domain Intelligence PDF report
  */
+export interface InfraMapData {
+  vendorDependencies?: Array<{ vendor: string; services: string[]; serviceCount: number; criticality: string; singlePointOfFailure: boolean; notes: string }>;
+  supplyChainRisks?: Array<{ riskType: string; severity: string; description: string; affectedServices: string[]; recommendation: string }>;
+  summary?: { totalServices: number; totalVendors: number; thirdPartyManaged: number; externallyExposed: number; criticalRisks: number; highRisks: number; topVendor: string | null; topVendorServiceCount: number; overallMaturity: string };
+}
+
 export async function exportDiReport(
   domain: string,
   scan: any,
   wlConfig?: { platformName?: string; orgName?: string; reportCompanyName?: string; reportFooterText?: string; reportDisclaimerText?: string; reportAuthorName?: string; copyrightHolder?: string },
   evidenceData?: ReportEvidenceData,
+  infraMap?: InfraMapData | null,
 ): Promise<void> {
   const _wl = {
     platformName: wlConfig?.platformName ?? 'AC3',
@@ -3862,6 +3869,190 @@ export async function exportDiReport(
         y += recLines.length * 3.5 + 2;
       }
       y += 3;
+    }
+
+    // ─── Shared Responsibility Model ──────────────────────────────────────
+    // Shows provider vs customer vs shared scope for the detected managed provider
+    if (_managedMailProvider) {
+      const KNOWN_PROVIDERS: Record<string, { providerScope: string[]; customerScope: string[]; sharedScope: string[] }> = {
+        'Microsoft 365': {
+          providerScope: ['Exchange Online server patching', 'Infrastructure security', 'Physical datacenter security', 'Platform availability (SLA)', 'Anti-malware engine updates'],
+          customerScope: ['SPF/DKIM/DMARC configuration', 'Tenant security settings', 'Conditional Access policies', 'User access management', 'Data classification & DLP rules'],
+          sharedScope: ['Incident response coordination', 'Threat intelligence sharing', 'Compliance reporting'],
+        },
+        'Google Workspace': {
+          providerScope: ['Gmail server infrastructure', 'Infrastructure security', 'Physical datacenter security', 'Platform availability (SLA)', 'Spam/phishing filter updates'],
+          customerScope: ['SPF/DKIM/DMARC configuration', 'Workspace admin console settings', 'User access management', 'Data Loss Prevention rules', 'Security investigation tool usage'],
+          sharedScope: ['Incident response coordination', 'Threat intelligence sharing', 'Compliance reporting'],
+        },
+        'Cloudflare': {
+          providerScope: ['CDN/WAF infrastructure', 'DDoS mitigation', 'Edge network availability', 'SSL/TLS certificate management', 'Bot management engine'],
+          customerScope: ['WAF rule configuration', 'Page rules & caching policies', 'DNS record management', 'Origin server security', 'Rate limiting configuration'],
+          sharedScope: ['Incident response coordination', 'Security event monitoring', 'Custom rule tuning'],
+        },
+        'AWS': {
+          providerScope: ['Physical infrastructure security', 'Hypervisor & network infrastructure', 'Managed service patching (RDS, Lambda)', 'Global infrastructure availability'],
+          customerScope: ['IAM policies & access control', 'Security group configuration', 'Data encryption configuration', 'Application security', 'OS patching (EC2)'],
+          sharedScope: ['Incident response coordination', 'Compliance framework alignment', 'Shared vulnerability disclosure'],
+        },
+      };
+
+      const srModel = KNOWN_PROVIDERS[_managedMailProvider] ||
+        Object.entries(KNOWN_PROVIDERS).find(([k]) => _managedMailProvider!.toLowerCase().includes(k.toLowerCase()))?.[1] ||
+        {
+          providerScope: ['Infrastructure security', 'Platform patching', 'Physical security', 'Service availability'],
+          customerScope: ['Configuration management', 'Access control', 'Data protection', 'Compliance monitoring'],
+          sharedScope: ['Incident response', 'Security monitoring', 'Compliance reporting'],
+        };
+
+      y = checkPageBreak(y, 80);
+      y = subheading(`Shared Responsibility Model — ${_managedMailProvider}`, y);
+      doc.setFontSize(7.5);
+      doc.setTextColor(80, 80, 80);
+      const srIntro = `The following table delineates security responsibilities between ${_managedMailProvider} (provider) and the client organization. Understanding these boundaries is critical for identifying gaps in the security posture that neither party may be actively monitoring.`;
+      const srIntroLines = doc.splitTextToSize(srIntro, contentWidth);
+      doc.text(srIntroLines, margin, y);
+      y += srIntroLines.length * 3.5 + 4;
+
+      // Build shared responsibility table rows
+      const srRows: string[][] = [];
+      const maxLen = Math.max(srModel.providerScope.length, srModel.customerScope.length, srModel.sharedScope.length);
+      for (let i = 0; i < maxLen; i++) {
+        srRows.push([
+          srModel.providerScope[i] || '',
+          srModel.customerScope[i] || '',
+          srModel.sharedScope[i] || '',
+        ]);
+      }
+
+      autoTable!(doc, {
+        startY: y,
+        head: [['Provider Responsibility', 'Customer Responsibility', 'Shared Responsibility']],
+        body: srRows,
+        theme: 'grid',
+        headStyles: { fillColor: [100, 116, 139], textColor: [255, 255, 255], fontSize: 7, fontStyle: 'bold', cellPadding: 2 },
+        bodyStyles: { fontSize: 6.5, cellPadding: 2, textColor: [51, 65, 85] },
+        alternateRowStyles: { fillColor: [248, 250, 252] },
+        columnStyles: { 0: { cellWidth: 55 }, 1: { cellWidth: 55 }, 2: { cellWidth: 'auto' } },
+        margin: { left: margin, right: margin },
+        didParseCell: (data: any) => {
+          if (data.section === 'head') {
+            if (data.column.index === 0) data.cell.styles.fillColor = [71, 85, 105];
+            else if (data.column.index === 1) data.cell.styles.fillColor = [30, 64, 175];
+            else data.cell.styles.fillColor = [109, 40, 217];
+          }
+        },
+      });
+      y = (doc as any).lastAutoTable.finalY + 5;
+    }
+
+    // ─── Supply Chain Concentration Analysis ──────────────────────────────
+    // Vendor dependencies from infrastructure inference (if available)
+    const _vendorDeps = infraMap?.vendorDependencies || [];
+    if (_vendorDeps.length > 0) {
+      y = checkPageBreak(y, 60);
+      y = subheading('Supply Chain Concentration Analysis', y);
+      doc.setFontSize(7.5);
+      doc.setTextColor(80, 80, 80);
+      const concIntro = `The following vendor dependencies were identified through infrastructure analysis. High vendor concentration increases supply chain risk — a single vendor compromise could cascade across multiple services.`;
+      const concIntroLines = doc.splitTextToSize(concIntro, contentWidth);
+      doc.text(concIntroLines, margin, y);
+      y += concIntroLines.length * 3.5 + 4;
+
+      autoTable!(doc, {
+        startY: y,
+        head: [['Vendor', 'Services', 'Count', 'Criticality', 'SPOF', 'Notes']],
+        body: _vendorDeps.map((vd: any) => [
+          truncate(vd.vendor, 25),
+          truncate(vd.services.join(', '), 40),
+          String(vd.serviceCount),
+          (vd.criticality || 'medium').charAt(0).toUpperCase() + (vd.criticality || 'medium').slice(1),
+          vd.singlePointOfFailure ? 'YES' : 'No',
+          truncate(vd.notes, 30),
+        ]),
+        theme: 'grid',
+        headStyles: { fillColor: [100, 116, 139], textColor: [255, 255, 255], fontSize: 7, fontStyle: 'bold', cellPadding: 1.5 },
+        bodyStyles: { fontSize: 6.5, cellPadding: 1.5, textColor: [51, 65, 85] },
+        alternateRowStyles: { fillColor: [248, 250, 252] },
+        columnStyles: { 0: { cellWidth: 25 }, 1: { cellWidth: 45 }, 2: { cellWidth: 12 }, 3: { cellWidth: 20 }, 4: { cellWidth: 12 }, 5: { cellWidth: 'auto' } },
+        margin: { left: margin, right: margin },
+        didParseCell: (data: any) => {
+          if (data.section === 'body' && data.column.index === 4 && data.cell.raw === 'YES') {
+            data.cell.styles.textColor = [220, 38, 38];
+            data.cell.styles.fontStyle = 'bold';
+          }
+          if (data.section === 'body' && data.column.index === 3) {
+            const text = (data.cell.raw || '').toLowerCase();
+            if (text === 'critical') data.cell.styles.textColor = [220, 38, 38];
+            else if (text === 'high') data.cell.styles.textColor = [234, 88, 12];
+          }
+        },
+      });
+      y = (doc as any).lastAutoTable.finalY + 5;
+    }
+
+    // ─── Supply Chain Risks ───────────────────────────────────────────────
+    // Specific risk findings from infrastructure inference
+    const _scRisks = infraMap?.supplyChainRisks || [];
+    if (_scRisks.length > 0) {
+      y = checkPageBreak(y, 50);
+      y = subheading('Supply Chain Risk Findings', y);
+
+      autoTable!(doc, {
+        startY: y,
+        head: [['Risk Type', 'Severity', 'Description', 'Affected Services', 'Recommendation']],
+        body: _scRisks.map((r: any) => [
+          (r.riskType || '').replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()),
+          (r.severity || 'medium').charAt(0).toUpperCase() + (r.severity || 'medium').slice(1),
+          truncate(r.description, 45),
+          truncate((r.affectedServices || []).join(', '), 30),
+          truncate(r.recommendation, 40),
+        ]),
+        theme: 'grid',
+        headStyles: { fillColor: [100, 116, 139], textColor: [255, 255, 255], fontSize: 7, fontStyle: 'bold', cellPadding: 1.5 },
+        bodyStyles: { fontSize: 6.5, cellPadding: 1.5, textColor: [51, 65, 85] },
+        alternateRowStyles: { fillColor: [248, 250, 252] },
+        columnStyles: { 0: { cellWidth: 28 }, 1: { cellWidth: 16 }, 2: { cellWidth: 45 }, 3: { cellWidth: 30 }, 4: { cellWidth: 'auto' } },
+        margin: { left: margin, right: margin },
+        didParseCell: (data: any) => {
+          if (data.section === 'body' && data.column.index === 1) {
+            const text = (data.cell.raw || '').toLowerCase();
+            if (text === 'critical') data.cell.styles.textColor = [220, 38, 38];
+            else if (text === 'high') data.cell.styles.textColor = [234, 88, 12];
+            else if (text === 'medium') data.cell.styles.textColor = [202, 138, 4];
+          }
+        },
+      });
+      y = (doc as any).lastAutoTable.finalY + 5;
+    }
+
+    // ─── Infrastructure Summary ───────────────────────────────────────────
+    const _infraSummary = infraMap?.summary;
+    if (_infraSummary) {
+      y = checkPageBreak(y, 40);
+      y = subheading('Infrastructure Posture Summary', y);
+      const summaryRows: string[][] = [
+        ['Total Services Detected', String(_infraSummary.totalServices)],
+        ['Total Vendors', String(_infraSummary.totalVendors)],
+        ['Third-Party Managed', String(_infraSummary.thirdPartyManaged)],
+        ['Externally Exposed', String(_infraSummary.externallyExposed)],
+        ['Critical Supply Chain Risks', String(_infraSummary.criticalRisks)],
+        ['High Supply Chain Risks', String(_infraSummary.highRisks)],
+        ['Top Vendor', _infraSummary.topVendor ? `${_infraSummary.topVendor} (${_infraSummary.topVendorServiceCount} services)` : 'N/A'],
+        ['Overall Infrastructure Maturity', (_infraSummary.overallMaturity || 'unknown').charAt(0).toUpperCase() + (_infraSummary.overallMaturity || 'unknown').slice(1)],
+      ];
+      autoTable!(doc, {
+        startY: y,
+        head: [['Metric', 'Value']],
+        body: summaryRows,
+        theme: 'grid',
+        headStyles: { fillColor: [100, 116, 139], textColor: [255, 255, 255], fontSize: 7.5, fontStyle: 'bold', cellPadding: 2 },
+        bodyStyles: { fontSize: 7, cellPadding: 2, textColor: [51, 65, 85] },
+        alternateRowStyles: { fillColor: [241, 245, 249] },
+        columnStyles: { 0: { cellWidth: 55, fontStyle: 'bold' }, 1: { cellWidth: 'auto' } },
+        margin: { left: margin, right: margin },
+      });
+      y = (doc as any).lastAutoTable.finalY + 5;
     }
 
     // Risk score exclusion note
