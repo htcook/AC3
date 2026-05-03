@@ -14855,6 +14855,66 @@ Respond in JSON: { "templateCategory": string, "pretext": string, "domainStrateg
       });
     }
 
+    // ═══ HOT PATH ANALYSIS — Analyze LLM call patterns from this engagement ═══
+    try {
+      const { getEngagementLlmTelemetryRaw } = await import('../db');
+      const { analyzeHotPaths } = await import('./llm-hot-path-analyzer');
+      const rawTelemetry = await getEngagementLlmTelemetryRaw(engagementId);
+
+      if (rawTelemetry.length >= 10) {
+        const hotPathAnalysis = analyzeHotPaths(rawTelemetry, { engagementId, topN: 10, minCallsForAnalysis: 3 });
+
+        // Store analysis in state metadata for UI retrieval
+        (state.metadata as any).hotPathAnalysis = {
+          analyzedAt: hotPathAnalysis.analyzedAt,
+          summary: hotPathAnalysis.summary,
+          top5: hotPathAnalysis.hotPaths.slice(0, 5).map(hp => ({
+            caller: hp.caller,
+            calls: hp.totalCalls,
+            pctOfTotal: hp.percentOfTotal.toFixed(1),
+            cost: hp.estimatedCost.toFixed(4),
+            graduation: hp.graduationRecommendation,
+            graduationScore: hp.graduationScore.toFixed(2),
+          })),
+          redundancyClusters: hotPathAnalysis.redundancyClusters.length,
+          recommendations: hotPathAnalysis.recommendations.slice(0, 5).map(r => ({
+            priority: r.priority,
+            category: r.category,
+            caller: r.caller,
+            title: r.title,
+            callsReduced: r.estimatedImpact.callsReduced,
+            costReduced: r.estimatedImpact.costReduced.toFixed(4),
+          })),
+          projectedSavings: hotPathAnalysis.projectedSavings,
+        };
+
+        // Log top 5 costliest call sites
+        const top5Lines = hotPathAnalysis.hotPaths.slice(0, 5).map((hp, i) =>
+          `${i + 1}. ${hp.caller}: ${hp.totalCalls} calls (${hp.percentOfTotal.toFixed(1)}%), $${hp.estimatedCost.toFixed(4)}, grad=${hp.graduationRecommendation}`
+        );
+
+        addLog(state, {
+          phase: 'completed', type: 'info',
+          title: `🔥 Hot Path Analysis: ${hotPathAnalysis.summary.totalCalls} calls, $${hotPathAnalysis.summary.totalCost.toFixed(4)} total cost`,
+          detail: [
+            `Top 5 costliest call sites (${hotPathAnalysis.summary.top5CallerPercent.toFixed(1)}% of all calls):`,
+            ...top5Lines,
+            '',
+            `Redundancy clusters: ${hotPathAnalysis.redundancyClusters.length}`,
+            `Optimization recommendations: ${hotPathAnalysis.recommendations.length}`,
+            `Projected savings: ${hotPathAnalysis.projectedSavings.callReductionPercent.toFixed(1)}% calls, ${hotPathAnalysis.projectedSavings.costReductionPercent.toFixed(1)}% cost`,
+          ].join('\n'),
+          data: { hotPathAnalysis: (state.metadata as any).hotPathAnalysis },
+        });
+        broadcastOpsUpdate(state.engagementId, { type: 'log_update' });
+        console.log(`[HotPath] Engagement #${engagementId}: ${hotPathAnalysis.summary.totalCalls} calls analyzed, ${hotPathAnalysis.recommendations.length} optimization recommendations`);
+      } else {
+        console.log(`[HotPath] Engagement #${engagementId}: Only ${rawTelemetry.length} telemetry records — skipping analysis (need >= 10)`);
+      }
+    } catch (hotPathErr: any) {
+      console.warn(`[HotPath] Failed to analyze hot paths for #${engagementId}:`, hotPathErr.message);
+    }
+
     // Free knowledge module memory after engagement completes
     const clearedMods = clearKnowledgeCache();
     if (clearedMods > 0) console.log(`[MemCleanup] Cleared ${clearedMods} knowledge module caches after completion`);

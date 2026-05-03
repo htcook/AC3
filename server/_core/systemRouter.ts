@@ -158,4 +158,112 @@ export const systemRouter = router({
       return { generatedAt: Date.now(), totalItems: 0, bySeverity: {}, byCategory: {}, topPriority: [], totalMaintenanceBurden: 0, healthScore: 100 };
     }
   }),
+
+  // ─── CI Error Pattern Scan ───────────────────────────────────────────────
+  runErrorPatternScan: adminProcedure
+    .input(z.object({
+      filePaths: z.array(z.string()).optional(),
+      strict: z.boolean().optional().default(false),
+    }))
+    .mutation(async ({ input }) => {
+      try {
+        const { quickScan, scanFileForCatchBlocks } = await import("../lib/ci-error-pattern-validator");
+        const fs = await import('fs');
+        const path = await import('path');
+
+        // Determine files to scan
+        let filePaths = input.filePaths;
+        if (!filePaths || filePaths.length === 0) {
+          // Default: scan all server TypeScript files (non-test, non-core)
+          const serverDir = path.resolve(process.cwd(), 'server');
+          const allFiles: string[] = [];
+          const walkDir = (dir: string, prefix: string) => {
+            try {
+              const entries = fs.readdirSync(dir, { withFileTypes: true });
+              for (const entry of entries) {
+                if (entry.name === 'node_modules' || entry.name === '_core') continue;
+                const fullPath = path.join(dir, entry.name);
+                const relPath = path.join(prefix, entry.name);
+                if (entry.isDirectory()) {
+                  walkDir(fullPath, relPath);
+                } else if (entry.name.endsWith('.ts') && !entry.name.endsWith('.test.ts')) {
+                  allFiles.push(relPath);
+                }
+              }
+            } catch { /* skip unreadable dirs */ }
+          };
+          walkDir(serverDir, 'server');
+          filePaths = allFiles;
+        }
+
+        // Read file contents
+        const fileContents = new Map<string, string>();
+        for (const fp of filePaths) {
+          try {
+            const fullPath = path.resolve(process.cwd(), fp);
+            const content = fs.readFileSync(fullPath, 'utf-8');
+            fileContents.set(fp, content);
+          } catch { /* skip unreadable files */ }
+        }
+
+        const result = quickScan(fileContents, input.strict);
+        return result;
+      } catch (err: any) {
+        return {
+          passed: false,
+          mode: 'full' as const,
+          filesScanned: 0,
+          totalSites: 0,
+          newIssues: [],
+          existingIssues: [],
+          summary: { critical: 0, high: 0, medium: 0, low: 0, swallowedErrors: 0, inconsistencies: 0, newAntiPatterns: 0 },
+          report: `Error running scan: ${err.message}`,
+          exitCode: 1 as const,
+        };
+      }
+    }),
+
+  // ─── Update Error Pattern Baseline ──────────────────────────────────────────
+  updateErrorBaseline: adminProcedure
+    .mutation(async () => {
+      try {
+        const { scanFileForCatchBlocks, generateBaseline, setBaseline } = await import("../lib/ci-error-pattern-validator");
+        const fs = await import('fs');
+        const path = await import('path');
+
+        const serverDir = path.resolve(process.cwd(), 'server');
+        const allFiles: string[] = [];
+        const walkDir = (dir: string, prefix: string) => {
+          try {
+            const entries = fs.readdirSync(dir, { withFileTypes: true });
+            for (const entry of entries) {
+              if (entry.name === 'node_modules' || entry.name === '_core') continue;
+              const fullPath = path.join(dir, entry.name);
+              const relPath = path.join(prefix, entry.name);
+              if (entry.isDirectory()) {
+                walkDir(fullPath, relPath);
+              } else if (entry.name.endsWith('.ts') && !entry.name.endsWith('.test.ts')) {
+                allFiles.push(relPath);
+              }
+            }
+          } catch { /* skip */ }
+        };
+        walkDir(serverDir, 'server');
+
+        const allSites: any[] = [];
+        for (const fp of allFiles) {
+          try {
+            const fullPath = path.resolve(process.cwd(), fp);
+            const content = fs.readFileSync(fullPath, 'utf-8');
+            allSites.push(...scanFileForCatchBlocks(content, fp));
+          } catch { /* skip */ }
+        }
+
+        const baseline = generateBaseline(allSites, new Date().toISOString());
+        setBaseline(baseline);
+        return { success: true, sitesBaselined: baseline.sites.length, version: baseline.version };
+      } catch (err: any) {
+        return { success: false, sitesBaselined: 0, version: '', error: err.message };
+      }
+    }),
 });

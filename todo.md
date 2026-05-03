@@ -1485,3 +1485,13 @@
 - [x] Build Error Pattern Analyzer (swallowed errors, inconsistent propagation, standardization suggestions, pattern classification)
 - [x] Add Metrics Dashboard UI pages (Hot Path Analyzer, Operational Metrics, Architecture Health — 3 pages with routes + sidebar nav)
 - [x] Write vitest tests for all new features (204 tests passing across 5 test files)
+
+### Hot Path Analyzer Instrumentation + Error Pattern CI Integration (May 2)
+- [x] Instrument engagement orchestrator to feed LLM telemetry into Hot Path Analyzer post-completion hook
+- [x] Build engagement-level hot path summary (top 5 costliest call sites per engagement with graduation recs)
+- [x] Add graduation recommendation engine (graduate_now, graduate_partial, cache, template, batch, monitor, review, keep)
+- [x] Create tRPC procedures: getEngagementHotPaths + getGlobalHotPaths in engagement-ops-core
+- [x] Wire Error Pattern Analyzer into CI pre-merge validation (ci-error-pattern-validator.ts with quickScan/runCIValidation)
+- [x] Create error pattern scanning endpoints: runErrorPatternScan + updateErrorBaseline in system router
+- [x] Add error pattern baseline tracking (generateBaseline, compareToBaseline, setBaseline/getBaseline persistence)
+- [x] Write vitest tests for all new features (26 tests: 20 CI validator + 6 hot path integration, 230 total across all files)

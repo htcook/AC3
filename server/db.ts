@@ -2725,6 +2725,79 @@ export async function getEngagementLlmCostTimeSeries(engagementId: number) {
 }
 
 
+// ─── Raw Telemetry for Hot Path Analyzer ────────────────────────────────────
+
+/**
+ * Get raw telemetry records for a specific engagement, formatted for the Hot Path Analyzer.
+ * Returns individual records (not aggregated) so the analyzer can compute stability/determinism.
+ */
+export async function getEngagementLlmTelemetryRaw(engagementId: number, limit: number = 10000) {
+  const db = await getDb();
+  const { sql } = await import("drizzle-orm");
+  const [rows] = await db.execute(sql`
+    SELECT
+      caller,
+      model,
+      llm_status as llmStatus,
+      latency_ms as latencyMs,
+      COALESCE(tokens_in, 0) as tokensIn,
+      COALESCE(tokens_out, 0) as tokensOut,
+      called_at as calledAt,
+      engagement_id as engagementId,
+      error_message as errorMessage
+    FROM llm_telemetry
+    WHERE engagement_id = ${engagementId}
+    ORDER BY called_at ASC
+    LIMIT ${limit}
+  `);
+  return (rows as any[]).map(r => ({
+    caller: r.caller || 'unknown',
+    model: r.model || 'gemini-2.5-flash',
+    llmStatus: r.llmStatus || 'success',
+    latencyMs: Number(r.latencyMs) || 0,
+    tokensIn: Number(r.tokensIn) || 0,
+    tokensOut: Number(r.tokensOut) || 0,
+    calledAt: String(r.calledAt),
+    engagementId: Number(r.engagementId) || engagementId,
+    errorMessage: r.errorMessage || undefined,
+  }));
+}
+
+/**
+ * Get raw telemetry records across all engagements for global hot path analysis.
+ */
+export async function getGlobalLlmTelemetryRaw(windowHours: number = 168, limit: number = 50000) {
+  const db = await getDb();
+  const { sql } = await import("drizzle-orm");
+  const [rows] = await db.execute(sql`
+    SELECT
+      caller,
+      model,
+      llm_status as llmStatus,
+      latency_ms as latencyMs,
+      COALESCE(tokens_in, 0) as tokensIn,
+      COALESCE(tokens_out, 0) as tokensOut,
+      called_at as calledAt,
+      engagement_id as engagementId,
+      error_message as errorMessage
+    FROM llm_telemetry
+    WHERE called_at >= DATE_SUB(NOW(), INTERVAL ${windowHours} HOUR)
+    ORDER BY called_at ASC
+    LIMIT ${limit}
+  `);
+  return (rows as any[]).map(r => ({
+    caller: r.caller || 'unknown',
+    model: r.model || 'gemini-2.5-flash',
+    llmStatus: r.llmStatus || 'success',
+    latencyMs: Number(r.latencyMs) || 0,
+    tokensIn: Number(r.tokensIn) || 0,
+    tokensOut: Number(r.tokensOut) || 0,
+    calledAt: String(r.calledAt),
+    engagementId: r.engagementId ? Number(r.engagementId) : undefined,
+    errorMessage: r.errorMessage || undefined,
+  }));
+}
+
 // ─── Exploit Plan History ────────────────────────────────────────────────────
 
 /**

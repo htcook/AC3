@@ -4535,4 +4535,38 @@ Return ONLY a JSON object with vulnerabilities array.`;
         }
         return result;
       }),
+
+    /** Get hot path analysis for a specific engagement */
+    getEngagementHotPaths: protectedProcedure
+      .input(z.object({
+        engagementId: z.number(),
+      }))
+      .query(async ({ input, ctx }) => {
+        const dbConn = await db.getDb();
+        if (dbConn) await assertEngagementAccess(dbConn, input.engagementId, ctx.user);
+        const { getEngagementLlmTelemetryRaw } = await import('../db');
+        const { analyzeHotPaths } = await import('../lib/llm-hot-path-analyzer');
+        const rawTelemetry = await getEngagementLlmTelemetryRaw(input.engagementId);
+        if (rawTelemetry.length < 10) {
+          return { available: false as const, reason: `Only ${rawTelemetry.length} telemetry records (need >= 10)`, analysis: null };
+        }
+        const analysis = analyzeHotPaths(rawTelemetry, { engagementId: input.engagementId, topN: 15, minCallsForAnalysis: 3 });
+        return { available: true as const, reason: null, analysis };
+      }),
+
+    /** Get global hot path analysis across all engagements */
+    getGlobalHotPaths: protectedProcedure
+      .input(z.object({
+        windowHours: z.number().min(1).max(720).default(168),
+      }))
+      .query(async ({ input }) => {
+        const { getGlobalLlmTelemetryRaw } = await import('../db');
+        const { analyzeHotPaths } = await import('../lib/llm-hot-path-analyzer');
+        const rawTelemetry = await getGlobalLlmTelemetryRaw(input.windowHours);
+        if (rawTelemetry.length < 10) {
+          return { available: false as const, reason: `Only ${rawTelemetry.length} telemetry records in the last ${input.windowHours}h (need >= 10)`, analysis: null };
+        }
+        const analysis = analyzeHotPaths(rawTelemetry, { topN: 20, minCallsForAnalysis: 5 });
+        return { available: true as const, reason: null, analysis };
+      }),
   });
