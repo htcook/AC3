@@ -27,7 +27,7 @@ import {
   CalendarClock, Trophy,
   type LucideIcon, ChevronRight, Settings, Users, Database, Wrench,
   ScrollText, GitBranch, Binary, Webhook, Bot, Boxes, CircuitBoard,
-  Laptop, Megaphone, PenTool, Skull, Sword, Flame, Telescope,
+  Laptop, Megaphone, PenTool, Skull, Sword, Flame, Telescope, HeartPulse,
   Microscope, Newspaper, Link2, Package, Cog, HardDrive, Wifi,
   ShieldAlert, Container, ClipboardCheck,
 } from "lucide-react";
@@ -508,6 +508,10 @@ export const sidebarNavGroups: NavGroup[] = [
       { label: "Agent Registry", path: "/agent-registry", icon: Bot, roles: ["admin", "team_lead"] },
       { label: "NEXUS Pipeline", path: "/nexus-pipeline", icon: Workflow, roles: ["admin", "team_lead"] },
       { label: "Graduation Engine", path: "/graduation-engine", icon: GraduationCap, roles: ["admin", "team_lead"] },
+      // ── Operational Metrics & Architecture Health (admin, team_lead) ──
+      { label: "Hot Path Analyzer", path: "/llm-hot-paths", icon: Flame, roles: ["admin", "team_lead"] },
+      { label: "Operational Metrics", path: "/operational-metrics", icon: Activity, roles: ["admin", "team_lead"] },
+      { label: "Architecture Health", path: "/architecture-health", icon: HeartPulse, roles: ["admin", "team_lead"] },
       // ── Guides ──
       { label: "Emulation Guide", path: "/guide/caldera", icon: BookOpen },
       { label: "GoPhish Guide", path: "/guide/gophish", icon: BookOpen },

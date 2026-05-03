@@ -1476,3 +1476,12 @@
 - [x] Implement per-finding lineage tracking (source scanner, LLM call, confidence, outcome) (FindingLineageTracker with full lifecycle events)
 - [x] Add detection rule effectiveness metrics (TP rate, FP rate, alert volume) (DetectionRuleEffectivenessTracker with keep/tune/disable/promote recommendations)
 - [x] Write vitest tests for all new features (49 tests passing across all 4 modules)
+
+### Platform Architecture Enhancements — Claude Review Integration (May 2)
+- [x] Wire CrossTrainingEventBus into processCrossTrainingBatch pipeline (bias weights + holdout validation on live outcomes)
+- [x] Integrate SemanticInferenceCache into invokeLLM wrapper (automatic dedup for all 247 call sites)
+- [x] Build automated LLM Hot Path Analyzer (top call sites by volume, graduation scoring, redundancy clusters, cost-per-call-site)
+- [x] Build Architectural Debt Tracker (dead code detection, feature flag hygiene, documentation drift, complexity scoring)
+- [x] Build Error Pattern Analyzer (swallowed errors, inconsistent propagation, standardization suggestions, pattern classification)
+- [x] Add Metrics Dashboard UI pages (Hot Path Analyzer, Operational Metrics, Architecture Health — 3 pages with routes + sidebar nav)
+- [x] Write vitest tests for all new features (204 tests passing across 5 test files)

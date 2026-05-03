@@ -591,46 +591,92 @@ export interface CrossTrainingResult {
   calibrationUpdates: number;
   toolEffectivenessUpdates: number;
   contaminationRejections: number;
+  /** New: event bus integration metrics */
+  eventBusMetrics?: {
+    eventsPublished: number;
+    holdoutDiverted: number;
+    biasAdjustedOutcomes: number;
+    avgBiasWeight: number;
+  };
 }
 
 /**
  * Process a batch of bug bounty outcomes and feed them into the cross-training pipeline.
  * This is the main entry point for cross-training.
+ * 
+ * When an eventBus is provided, outcomes are routed through bias correction and holdout
+ * validation before being applied to the calibration pipeline. This ensures:
+ * - Bug bounty source bias (over-reporting of XSS/IDOR) is corrected
+ * - A holdout set is preserved for validation of calibration quality
+ * - Full lineage is tracked for every signal that modifies calibration state
  */
 export function processCrossTrainingBatch(
   outcomes: OutcomeLogEntry[],
   patternRepo: PatternRepository,
   calibrationPipeline: CalibrationPipeline,
-  toolTracker: ToolEffectivenessTracker
+  toolTracker: ToolEffectivenessTracker,
+  eventBus?: import('./cross-training-event-bus').CrossTrainingEventBus
 ): CrossTrainingResult {
   let patternsExtracted = 0;
   let calibrationUpdates = 0;
   let toolEffectivenessUpdates = 0;
   let contaminationRejections = 0;
+  let eventsPublished = 0;
+  let holdoutDiverted = 0;
+  let biasAdjustedOutcomes = 0;
+  let totalBiasWeight = 0;
   
   for (const outcome of outcomes) {
-    // 1. Feed calibration pipeline
     const wasAccepted = outcome.outcome === 'accepted' || outcome.outcome === 'bounty_paid';
+    
+    // --- Event Bus Integration (bias correction + holdout) -----------------
+    let biasWeight = 1.0;
+    let isHoldout = false;
+    
+    if (eventBus) {
+      // Publish through event bus to get bias-corrected weight
+      const event = eventBus.publish(
+        'bug_bounty',
+        wasAccepted ? 'finding_validated' : 'finding_rejected',
+        outcome
+      );
+      biasWeight = event.biasWeight;
+      isHoldout = event.isHoldout || false;
+      eventsPublished++;
+      totalBiasWeight += biasWeight;
+      
+      if (biasWeight < 1.0) biasAdjustedOutcomes++;
+      
+      // If this outcome was diverted to holdout, skip training but still count
+      if (isHoldout) {
+        holdoutDiverted++;
+        continue; // Don't feed into calibration - preserve for validation
+      }
+    }
+    
+    // --- 1. Feed calibration pipeline (with bias-weighted confidence) ------
     calibrationPipeline.recordOutcome({
       vulnClass: outcome.vulnClass,
       scannerUsed: outcome.scannerUsed,
       detectionMethod: outcome.detectionMethod,
       wasAccepted,
+      // Pass bias weight so calibration can weight this outcome appropriately
+      ...(biasWeight !== 1.0 && { weight: biasWeight }),
     });
     calibrationUpdates++;
     
-    // 2. Feed tool effectiveness tracker
+    // --- 2. Feed tool effectiveness tracker -------------------------------
     toolTracker.recordPerformance({
       toolName: outcome.scannerUsed,
       vulnClass: outcome.vulnClass,
       detected: true,
       wasTruePositive: wasAccepted,
-      wasUniqueToTool: false, // Would need cross-scanner data
+      wasUniqueToTool: false,
       wasCorroborated: false,
     });
     toolEffectivenessUpdates++;
     
-    // 3. Extract patterns from outcomes
+    // --- 3. Extract patterns from outcomes --------------------------------
     for (const pattern of outcome.extractedPatterns) {
       if (patternRepo.addPattern(pattern)) {
         patternsExtracted++;
@@ -645,6 +691,14 @@ export function processCrossTrainingBatch(
     calibrationUpdates,
     toolEffectivenessUpdates,
     contaminationRejections,
+    ...(eventBus && {
+      eventBusMetrics: {
+        eventsPublished,
+        holdoutDiverted,
+        biasAdjustedOutcomes,
+        avgBiasWeight: eventsPublished > 0 ? totalBiasWeight / eventsPublished : 1.0,
+      },
+    }),
   };
 }
 

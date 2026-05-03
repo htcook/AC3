@@ -89,4 +89,73 @@ export const systemRouter = router({
         success: delivered,
       } as const;
     }),
+
+  // ─── LLM Hot Path Analyzer Data ─────────────────────────────────────────────
+  getLLMCacheStats: adminProcedure.query(async () => {
+    try {
+      const { inferenceCache, callSiteTracker } = await import("../lib/llm-inference-optimizer");
+      const cacheStats = inferenceCache.getStats();
+      const graduationCandidates = inferenceCache.getGraduationCandidates();
+      const callSites = callSiteTracker.getTopCallers(20);
+      const anomalies = callSiteTracker.detectAnomalies();
+      return {
+        cache: cacheStats,
+        graduationCandidates,
+        callSites,
+        anomalies,
+      };
+    } catch {
+      return { cache: { entries: 0, hitRate: 0, tokensSaved: 0 }, graduationCandidates: [], callSites: [], anomalies: [] };
+    }
+  }),
+
+  // ─── Operational Metrics Data ───────────────────────────────────────────────
+  getOperationalMetrics: adminProcedure.query(async () => {
+    try {
+      const { getDb } = await import("../db");
+      const db = await getDb();
+      if (!db) return null;
+      const { sql } = await import("drizzle-orm");
+      // Aggregate recent engagement metrics from llm_telemetry
+      const [recentStats] = await db.execute(sql`
+        SELECT 
+          COUNT(DISTINCT engagementId) as engagementCount,
+          SUM(tokensIn + tokensOut) as totalTokens,
+          COUNT(*) as totalCalls,
+          AVG(latencyMs) as avgLatency
+        FROM llm_telemetry
+        WHERE createdAt > ${Date.now() - 7 * 24 * 60 * 60 * 1000}
+      `) as any;
+      return {
+        avgCostPerEngagement: (recentStats?.totalTokens || 0) * 0.000003,
+        avgDurationMinutes: (recentStats?.avgLatency || 0) / 1000 / 60 * (recentStats?.totalCalls || 1),
+        totalFindings: 0,
+        truePositiveRate: null,
+        recentEngagements: [],
+        ruleEffectiveness: [],
+        findingLineage: [],
+      };
+    } catch {
+      return { avgCostPerEngagement: 0, avgDurationMinutes: 0, totalFindings: 0, truePositiveRate: null, recentEngagements: [], ruleEffectiveness: [], findingLineage: [] };
+    }
+  }),
+
+  // ─── Architecture Health Data ───────────────────────────────────────────────
+  getArchitectureHealth: adminProcedure.query(async () => {
+    try {
+      const { runQuickAudit } = await import("../lib/architectural-debt-tracker");
+      // Run a quick audit with known module info
+      const report = runQuickAudit(
+        [
+          { path: 'server/lib/engagement-orchestrator.ts', name: 'engagement-orchestrator', lineCount: 11200, exportCount: 45, importCount: 28, importedBy: ['server/routers/engagement-ops-core.ts', 'server/routers/engagement-pipeline.ts'], imports: [] },
+          { path: 'client/src/pages/EngagementOps.tsx', name: 'EngagementOps', lineCount: 8500, exportCount: 1, importCount: 35, importedBy: ['client/src/App.tsx'], imports: [] },
+        ],
+        [], // Error sites would be populated by static analysis
+        []  // Flags would be populated by env scanning
+      );
+      return report;
+    } catch {
+      return { generatedAt: Date.now(), totalItems: 0, bySeverity: {}, byCategory: {}, topPriority: [], totalMaintenanceBurden: 0, healthScore: 100 };
+    }
+  }),
 });

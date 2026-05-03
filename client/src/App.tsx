@@ -343,6 +343,9 @@ const StackProfiles = lazyWithRetry(() => import("./pages/StackProfiles"));
 const CustomerIntelProfile = lazyWithRetry(() => import("./pages/CustomerIntelProfile"));
 const CustomerIntelProfileList = lazyWithRetry(() => import("./pages/CustomerIntelProfileList"));
 const IntelligenceGapsOverview = lazyWithRetry(() => import("./pages/IntelligenceGapsOverview"));
+const LLMHotPaths = lazyWithRetry(() => import("./pages/LLMHotPaths"));
+const OperationalMetrics = lazyWithRetry(() => import("./pages/OperationalMetrics"));
+const ArchitectureHealth = lazyWithRetry(() => import("./pages/ArchitectureHealth"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -1263,6 +1266,15 @@ function Router() {
         <Route path="/ops-viewer">
           {/* TODO: restore ProtectedRoute after testing */}
           <Suspense fallback={<div className="h-screen bg-[#0A0E14] flex items-center justify-center font-mono text-xs text-teal-400">LOADING OPS VIEWER...</div>}><OpsViewer /></Suspense>
+        </Route>
+        <Route path="/llm-hot-paths">
+          <ProtectedRoute component={LLMHotPaths} pageName="LLMHotPaths" />
+        </Route>
+        <Route path="/operational-metrics">
+          <ProtectedRoute component={OperationalMetrics} pageName="OperationalMetrics" />
+        </Route>
+        <Route path="/architecture-health">
+          <ProtectedRoute component={ArchitectureHealth} pageName="ArchitectureHealth" />
         </Route>
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />

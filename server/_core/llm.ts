@@ -377,6 +377,35 @@ async function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+// ─── Semantic Inference Cache (automatic dedup for all call sites) ────────────
+import { SemanticInferenceCache, CallSiteVolumeTracker } from '../lib/llm-inference-optimizer';
+
+const inferenceCache = new SemanticInferenceCache({
+  maxEntries: 500,
+  defaultTtlMs: 5 * 60 * 1000, // 5 minute default TTL
+});
+
+const callSiteTracker = new CallSiteVolumeTracker();
+
+/** Get cache stats for monitoring */
+export function getLLMCacheStats() {
+  return {
+    cache: inferenceCache.getStats(),
+    callSites: callSiteTracker.getTopCallers(20),
+    graduationCandidates: inferenceCache.getGraduationCandidates(5),
+  };
+}
+
+/** Get per-engagement call summary */
+export function getEngagementLLMSummary(engagementId: number) {
+  return callSiteTracker.getEngagementSummary(engagementId);
+}
+
+/** Get anomalies detected in call patterns */
+export function getLLMAnomalies() {
+  return callSiteTracker.detectAnomalies();
+}
+
 export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   const {
     messages,
@@ -391,6 +420,30 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     _engagementId,
     _priority = 'standard',
   } = params;
+
+  // ─── Semantic Cache Lookup ──────────────────────────────────────────────────
+  // Only cache calls without tools (tool calls are inherently non-deterministic)
+  const isCacheable = !tools || tools.length === 0;
+  if (isCacheable && _caller) {
+    const cached = inferenceCache.lookup(messages as any[], _caller);
+    if (cached) {
+      console.log(`[LLM] Cache HIT for caller=${_caller} (saved API call)`);
+      // Track as a cached call (0 tokens, 0 latency)
+      callSiteTracker.recordCall(_caller, 0, 0, false, _engagementId);
+      // Return a synthetic InvokeResult from cache
+      return {
+        id: `cache-${cached.hash.slice(0, 12)}`,
+        created: Math.floor(Date.now() / 1000),
+        model: cached.model || 'cached',
+        choices: [{
+          index: 0,
+          message: { role: 'assistant' as const, content: cached.content },
+          finish_reason: 'stop',
+        }],
+        usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+      } as InvokeResult;
+    }
+  }
 
   const telemetryStart = Date.now();
   let telemetryRetries = 0;
@@ -553,6 +606,31 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
         hasResponseFormat: !!normalizedResponseFormat,
         engagementId: _engagementId,
       });
+
+      // ─── Store in Semantic Cache ──────────────────────────────────────────
+      if (isCacheable && _caller) {
+        const content = result.choices?.[0]?.message?.content;
+        if (typeof content === 'string' && content.length > 0) {
+          inferenceCache.store(
+            messages as any[],
+            content,
+            result.model || model,
+            tokensIn,
+            tokensOut,
+            _caller,
+            _engagementId
+          );
+        }
+      }
+
+      // ─── Track Call Site Volume ──────────────────────────────────────────
+      callSiteTracker.recordCall(
+        _caller || 'unknown',
+        tokensIn,
+        tokensOut,
+        false, // success
+        _engagementId
+      );
 
       // Fire-and-forget shadow testing — never blocks the primary response
       if (_caller && !_caller.startsWith('shadow-test:')) {
