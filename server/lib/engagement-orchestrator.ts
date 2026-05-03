@@ -5894,6 +5894,35 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
         if (!cmd.command.includes('-maxtime')) {
           cmd.command += ' -maxtime 300';
         }
+
+        // ═══ TRAINING LAB AUTO-AUTH FOR NIKTO ═══
+        // Inject session cookie from training lab auto-auth (acquired by Gobuster or earlier phase)
+        // so Nikto scans authenticated paths behind the login wall.
+        if (!cmd.command.includes('Cookie:') && !cmd.command.includes('-id ')) {
+          let niktoCookie = '';
+          // Check if Gobuster already acquired a session cookie for this asset
+          if ((asset as any).trainingLabCreds?.sessionCookie) {
+            niktoCookie = (asset as any).trainingLabCreds.sessionCookie;
+          } else {
+            // Check confirmed credentials for web session cookies
+            const niktoWebCreds = (asset.confirmedCredentials || []).filter((c: any) =>
+              ['http', 'web', 'form', 'http-get', 'http-post-form'].includes(c.service)
+            );
+            if (niktoWebCreds.length > 0 && (niktoWebCreds[0] as any).sessionCookie) {
+              niktoCookie = (niktoWebCreds[0] as any).sessionCookie;
+            }
+          }
+          if (niktoCookie) {
+            // Nikto custom header injection for cookie-based auth
+            cmd.command += ` -H "Cookie: ${niktoCookie}"`;
+            addLog(state, {
+              phase: 'enumeration', type: 'info',
+              title: `\u{1F510} Nikto Auth: Session cookie injected for ${asset.hostname}`,
+              detail: `Nikto will scan authenticated paths using the session acquired during auto-auth.`,
+            });
+          }
+        }
+
         cmd.command = cmd.command.replace(/\s+/g, ' ').trim();
       }
     }
@@ -8630,6 +8659,19 @@ export async function executeVulnDetection(state: EngagementOpsState, engagement
     // Build cookie/token string from confirmed credentials for authenticated scanning
     const webCreds = (webApp as any).confirmedCredentials || [];
     let cookieStr = webCreds.length > 0 ? webCreds[0]?.sessionCookie || "" : "";
+
+    // ═══ SHARED AUTO-AUTH: Reuse session cookie from Gobuster's earlier training lab auth ═══
+    // During enumeration phase, Gobuster's auto-auth may have already acquired a session cookie.
+    // Reuse it here so SQLMap doesn't need to re-authenticate (avoids duplicate login attempts
+    // and ensures consistent session state across tools).
+    if (!cookieStr && (webApp as any).trainingLabCreds?.sessionCookie) {
+      cookieStr = (webApp as any).trainingLabCreds.sessionCookie;
+      addLog(state, {
+        phase: "vuln_detection", type: "info",
+        title: `\u{1F504} SQLMap Auth: Reusing session from Gobuster auto-auth`,
+        detail: `Session cookie acquired during enumeration phase is being passed to SQLMap for authenticated injection testing on ${webApp.hostname}.`,
+      });
+    }
 
     // ── Training Lab Auth Handoff: acquire session token for authenticated SQLMap/XSStrike scanning ──
     // The training lab credentials are injected but don't include session cookies.

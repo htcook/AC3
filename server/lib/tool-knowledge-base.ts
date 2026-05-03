@@ -602,31 +602,69 @@ export const TOOL_KNOWLEDGE_BASE: Record<string, ToolKnowledge> = {
 
   nuclei: {
     tool: "nuclei",
-    description: "Fast, template-based vulnerability scanner using YAML templates. 9000+ community templates for comprehensive coverage.",
+    description: "Fast, template-based vulnerability scanner using YAML templates. 9000+ community templates for comprehensive coverage. Supports automatic tech-stack detection and conditional workflow scanning.",
     capabilities: [
       "Template-based vulnerability scanning",
       "Severity-filtered scanning (critical, high, medium, low, info)",
+      "Automatic tech-stack detection with -as flag",
+      "Tag-based template selection by technology",
+      "Conditional workflow templates (detect → scan)",
       "Custom template creation",
-      "Workflow-based scanning",
       "Rate limiting and concurrency control",
       "Multiple output formats (JSON, Markdown)",
       "Headless browser support for JS-heavy apps",
       "Interactsh integration for OOB testing",
+      "Authenticated scanning with cookies/headers",
     ],
     techniques: [
+      {
+        name: "Automatic Tech-Stack Scan",
+        description: "Fingerprint target technology and auto-select matching templates",
+        command: "nuclei -u {URL} -as -nc -duc -ni -jsonl",
+        useWhen: ["Initial scan with unknown tech stack", "Quick automated assessment", "First-pass vulnerability detection"],
+        tags: ["auto", "fingerprint", "tech-detect"],
+      },
+      {
+        name: "WordPress Targeted Scan",
+        description: "Comprehensive WordPress vulnerability scan including plugins, themes, and core",
+        command: "nuclei -u {URL} -tags wordpress,wp-plugin,wp-theme -nc -duc -ni -jsonl",
+        useWhen: ["WordPress detected", "WP-Content paths found", "wp-login.php discovered"],
+        tags: ["wordpress", "cms", "php"],
+      },
+      {
+        name: "Apache/Nginx Server Scan",
+        description: "Scan for web server misconfigurations and known CVEs",
+        command: "nuclei -u {URL} -tags apache,nginx -severity critical,high,medium -nc -duc -ni -jsonl",
+        useWhen: ["Apache or Nginx detected in headers", "Server version exposed", "Web server assessment"],
+        tags: ["apache", "nginx", "webserver"],
+      },
+      {
+        name: "Java/Tomcat Stack Scan",
+        description: "Target Java application servers and frameworks",
+        command: "nuclei -u {URL} -tags java,tomcat,spring,struts -nc -duc -ni -jsonl",
+        useWhen: ["Java stack detected", "Tomcat manager found", "Spring Boot actuator exposed", ".jsp pages found"],
+        tags: ["java", "tomcat", "spring", "struts"],
+      },
+      {
+        name: "CI/CD and DevOps Scan",
+        description: "Detect exposed CI/CD panels, misconfigs, and default credentials",
+        command: "nuclei -u {URL} -tags jenkins,gitlab,grafana,kibana,prometheus -nc -duc -ni -jsonl",
+        useWhen: ["DevOps tools detected", "Jenkins/GitLab exposed", "Monitoring dashboards found"],
+        tags: ["cicd", "devops", "jenkins", "gitlab"],
+      },
+      {
+        name: "Default Login Detection",
+        description: "Check for default credentials on detected services",
+        command: "nuclei -u {URL} -tags default-login -nc -duc -ni -jsonl",
+        useWhen: ["Admin panels discovered", "Service login pages found", "Default credential check"],
+        tags: ["default-login", "credentials", "panel"],
+      },
       {
         name: "Severity-Filtered Scan",
         description: "Scan for only critical and high severity vulnerabilities",
         command: "nuclei -u {URL} -severity critical,high -nc -duc -ni -jsonl",
         useWhen: ["Initial vulnerability assessment", "High-priority findings only", "Time-constrained scan"],
         tags: ["severity", "critical", "high-priority"],
-      },
-      {
-        name: "Technology-Specific Scan",
-        description: "Scan using templates matching detected technology",
-        command: "nuclei -u {URL} -tags {TECH} -nc -duc -ni -jsonl",
-        useWhen: ["Technology stack identified", "WordPress/Joomla/Drupal detected", "Specific framework"],
-        tags: ["tech-specific", "targeted", "framework"],
       },
       {
         name: "CVE-Focused Scan",
@@ -636,9 +674,23 @@ export const TOOL_KNOWLEDGE_BASE: Record<string, ToolKnowledge> = {
         tags: ["cve", "validation", "patch-check"],
       },
       {
+        name: "Exposure and Misconfiguration Scan",
+        description: "Detect exposed files, configs, and misconfigurations",
+        command: "nuclei -u {URL} -tags exposure,misconfig -nc -duc -ni -jsonl",
+        useWhen: ["Configuration audit", "Sensitive file detection", "Information disclosure check"],
+        tags: ["exposure", "misconfig", "information-disclosure"],
+      },
+      {
+        name: "Authenticated Nuclei Scan",
+        description: "Run templates with authentication cookies for deeper coverage",
+        command: 'nuclei -u {URL} -tags cve,misconfig -H "Cookie: {COOKIE}" -nc -duc -ni -jsonl',
+        useWhen: ["Session cookie available", "Authenticated scan required", "Post-login vulnerability check"],
+        tags: ["authenticated", "cookie", "session"],
+      },
+      {
         name: "Full Template Scan",
         description: "Run all available templates for comprehensive coverage",
-        command: "nuclei -u {URL} -nc -duc -ni -jsonl -rl 50",
+        command: "nuclei -u {URL} -nc -duc -ni -jsonl -rl 50 -c 25",
         useWhen: ["Deep scan authorized", "Comprehensive assessment", "No time constraints"],
         tags: ["full", "comprehensive", "deep"],
       },
@@ -654,18 +706,372 @@ export const TOOL_KNOWLEDGE_BASE: Record<string, ToolKnowledge> = {
       "Without -nc (no color) and -ni (no interactsh), output parsing breaks",
       "Full template scans generate massive traffic — use -rl for rate limiting",
       "Template updates (-duc disable update check) prevent scan delays",
-      "Some templates require authenticated access to find vulnerabilities",
-      "Headless templates are slow — use -headless only when needed",
+      "Some templates require authenticated access — use -H Cookie header",
+      "Headless templates are slow — use -headless only for JS-heavy apps",
+      "-as (auto-select) may miss templates if fingerprinting fails — combine with explicit -tags",
+      "Workflow templates require specific template paths — verify paths exist on scan server",
     ],
     evasionStrategies: [
-      "Use -rl (rate limit) to control requests per second",
-      "Use -c (concurrency) to limit parallel template executions",
-      "Add -H for custom headers (User-Agent, cookies)",
+      "Use -rl (rate limit) to control requests per second (recommended: 10-30 for WAF targets)",
+      "Use -c (concurrency) to limit parallel template executions (recommended: 5-10 for WAF)",
+      "Add -H for custom User-Agent to blend with normal traffic",
       "Use -proxy for traffic routing through intermediaries",
-      "Filter templates with -exclude-tags to reduce noise",
+      "Filter templates with -exclude-tags to reduce noise and traffic volume",
+      "Use -timeout to prevent hanging on slow/filtered responses",
+      "Split scans across time windows to avoid rate-limit triggers",
+    ],
+  },
+
+  nikto: {
+    tool: "nikto",
+    description: "Open-source web server scanner that detects 6700+ dangerous files/CGIs, outdated software, misconfigurations. Supports tuning-based scan filtering and IDS evasion.",
+    capabilities: [
+      "Web server vulnerability scanning (6700+ checks)",
+      "Outdated software detection",
+      "CGI directory scanning",
+      "Tuning-based scan category filtering",
+      "IDS/IPS evasion techniques (LibWhisker)",
+      "SSL/TLS scanning",
+      "HTTP authentication support",
+      "Cookie-based authenticated scanning",
+      "Multiple output formats (CSV, HTML, XML, Nessus, Metasploit)",
+      "Proxy support for traffic routing",
+      "Virtual host scanning",
+    ],
+    techniques: [
+      {
+        name: "Targeted Misconfiguration Scan",
+        description: "Scan only for misconfigurations and default files (fast, focused)",
+        command: "nikto -h {URL} -Tuning 2 -Format xml -o nikto-misconfig.xml -nointeractive",
+        useWhen: ["Quick misconfiguration check", "Default file detection", "Server hardening audit"],
+        tags: ["misconfig", "default", "quick"],
+      },
+      {
+        name: "Injection Vulnerability Scan",
+        description: "Focus on XSS, SQL injection, and command execution checks",
+        command: "nikto -h {URL} -Tuning 489 -Format xml -o nikto-injection.xml -nointeractive",
+        useWhen: ["Injection testing", "XSS detection", "SQL injection check", "Command execution"],
+        tags: ["injection", "xss", "sqli", "rce"],
+      },
+      {
+        name: "Information Disclosure Scan",
+        description: "Detect exposed sensitive information and files",
+        command: "nikto -h {URL} -Tuning 3 -Format xml -o nikto-disclosure.xml -nointeractive",
+        useWhen: ["Information gathering", "Sensitive file detection", "Data leakage check"],
+        tags: ["disclosure", "information", "sensitive"],
+      },
+      {
+        name: "Authentication Bypass Scan",
+        description: "Check for authentication bypass vulnerabilities",
+        command: "nikto -h {URL} -Tuning a -Format xml -o nikto-authbypass.xml -nointeractive",
+        useWhen: ["Auth bypass testing", "Access control audit", "Privilege escalation check"],
+        tags: ["auth-bypass", "access-control", "privilege"],
+      },
+      {
+        name: "Authenticated Scan with Cookie",
+        description: "Run Nikto with session cookie for authenticated scanning",
+        command: 'nikto -h {URL} -id {USER}:{PASS} -Format xml -o nikto-auth.xml -nointeractive',
+        useWhen: ["Session cookie available", "Post-login scanning", "Authenticated vulnerability check"],
+        tags: ["authenticated", "cookie", "session"],
+      },
+      {
+        name: "Comprehensive Scan with All Tuning",
+        description: "Run all scan categories for maximum coverage",
+        command: "nikto -h {URL} -Tuning 123456789abc -Cgidirs all -Format xml -o nikto-full.xml -nointeractive",
+        useWhen: ["Deep scan authorized", "Full vulnerability assessment", "No time constraints"],
+        tags: ["full", "comprehensive", "deep"],
+      },
+      {
+        name: "Evasive Scan (IDS Bypass)",
+        description: "Scan with IDS evasion techniques enabled",
+        command: "nikto -h {URL} -evasion 1234567 -Pause 2 -Format xml -o nikto-evasive.xml -nointeractive",
+        useWhen: ["IDS/IPS detected", "WAF present", "Stealth scan needed", "Evasion required"],
+        tags: ["evasion", "ids-bypass", "stealth", "waf"],
+      },
+      {
+        name: "SSL/TLS Scan",
+        description: "Scan HTTPS target with SSL mode forced",
+        command: "nikto -h {URL} -ssl -Tuning 123 -Format xml -o nikto-ssl.xml -nointeractive",
+        useWhen: ["HTTPS target", "SSL certificate check", "TLS misconfiguration"],
+        tags: ["ssl", "tls", "https"],
+      },
+      {
+        name: "CGI Directory Scan",
+        description: "Comprehensive CGI directory enumeration",
+        command: "nikto -h {URL} -Cgidirs all -Tuning 58 -Format xml -o nikto-cgi.xml -nointeractive",
+        useWhen: ["CGI scripts suspected", "Legacy web application", "Remote file retrieval check"],
+        tags: ["cgi", "legacy", "remote-file"],
+      },
+    ],
+    pitfalls: [
+      "Nikto is very noisy by default — always use -Pause for stealth",
+      "Without -nointeractive, scan may hang waiting for user input",
+      "Default timeout (10s) may be too short for slow targets — increase with -timeout",
+      "CGI scanning (-Cgidirs all) significantly increases scan time",
+      "Output format must match -o file extension or use explicit -Format",
+      "Nikto does not follow redirects well — verify target URL resolves directly",
+      "-maxtime is in seconds, not minutes — calculate carefully for large scans",
+    ],
+    evasionStrategies: [
+      "Use -evasion 1 (Random URI encoding) for basic IDS bypass",
+      "Use -evasion 2 (Directory self-reference /./) to confuse pattern matching",
+      "Use -evasion 4 (Prepend long random string) to overflow IDS buffers",
+      "Use -evasion 7 (Change URL case) to bypass case-sensitive rules",
+      "Combine multiple evasion techniques: -evasion 1247 for layered bypass",
+      "Add -Pause 2-5 seconds between requests to avoid rate-limit triggers",
+      "Use -useproxy to route through a proxy for IP rotation",
+      "Set -vhost to use virtual host header for shared hosting targets",
     ],
   },
 };
+
+/**
+ * Technology-to-Nuclei-tags mapping for automatic template selection
+ */
+export const NUCLEI_TECH_TAG_MAP: Record<string, string[]> = {
+  // CMS platforms
+  wordpress: ["wordpress", "wp-plugin", "wp-theme", "wpscan"],
+  joomla: ["joomla"],
+  drupal: ["drupal"],
+  magento: ["magento"],
+  shopify: ["shopify"],
+  ghost: ["ghost"],
+  typo3: ["typo3"],
+  // Web servers
+  apache: ["apache", "httpd"],
+  nginx: ["nginx"],
+  iis: ["iis", "microsoft", "asp"],
+  tomcat: ["tomcat", "java"],
+  lighttpd: ["lighttpd"],
+  caddy: ["caddy"],
+  // Frameworks
+  laravel: ["laravel", "php"],
+  django: ["django", "python"],
+  flask: ["flask", "python"],
+  spring: ["spring", "java", "springboot"],
+  struts: ["struts", "java"],
+  rails: ["rails", "ruby"],
+  express: ["express", "nodejs"],
+  nextjs: ["nextjs", "nodejs"],
+  // Languages
+  php: ["php"],
+  java: ["java", "tomcat", "spring"],
+  python: ["python", "django", "flask"],
+  ruby: ["ruby", "rails"],
+  nodejs: ["nodejs", "express"],
+  asp: ["asp", "iis", "microsoft"],
+  // Databases
+  mysql: ["mysql"],
+  postgresql: ["postgresql", "postgres"],
+  mongodb: ["mongodb"],
+  redis: ["redis"],
+  elasticsearch: ["elasticsearch", "elastic"],
+  mssql: ["mssql", "microsoft"],
+  // CI/CD & DevOps
+  jenkins: ["jenkins"],
+  gitlab: ["gitlab"],
+  grafana: ["grafana"],
+  kibana: ["kibana"],
+  prometheus: ["prometheus"],
+  sonarqube: ["sonarqube"],
+  docker: ["docker"],
+  kubernetes: ["kubernetes", "k8s"],
+  // Cloud
+  aws: ["aws", "amazon"],
+  azure: ["azure", "microsoft"],
+  gcp: ["gcp", "google"],
+  // Panels & Services
+  phpmyadmin: ["phpmyadmin"],
+  cpanel: ["cpanel"],
+  webmin: ["webmin"],
+  confluence: ["confluence", "atlassian"],
+  jira: ["jira", "atlassian"],
+  bitbucket: ["bitbucket", "atlassian"],
+};
+
+/**
+ * Nikto tuning profiles by scan objective
+ */
+export const NIKTO_TUNING_PROFILES: Record<string, { tuning: string; description: string; evasion?: string }> = {
+  quick: {
+    tuning: "12b",
+    description: "Interesting files, misconfigs, and software identification",
+  },
+  injection: {
+    tuning: "489",
+    description: "XSS, SQL injection, command execution, and file upload",
+  },
+  disclosure: {
+    tuning: "3",
+    description: "Information disclosure only",
+  },
+  comprehensive: {
+    tuning: "123456789abc",
+    description: "All scan categories for maximum coverage",
+  },
+  stealth: {
+    tuning: "12b",
+    description: "Quick scan with IDS evasion enabled",
+    evasion: "1247",
+  },
+  authBypass: {
+    tuning: "a",
+    description: "Authentication bypass checks only",
+  },
+  remoteFile: {
+    tuning: "57",
+    description: "Remote file retrieval (inside web root and server-wide)",
+  },
+  rce: {
+    tuning: "8",
+    description: "Command execution and remote shell checks",
+  },
+};
+
+/**
+ * Get Nuclei tags for a detected technology
+ */
+export function getNucleiTagsForTech(technologies: string[]): string[] {
+  const tags = new Set<string>();
+  for (const tech of technologies) {
+    const normalized = tech.toLowerCase().replace(/[^a-z0-9]/g, "");
+    // Direct match
+    if (NUCLEI_TECH_TAG_MAP[normalized]) {
+      for (const tag of NUCLEI_TECH_TAG_MAP[normalized]) tags.add(tag);
+    }
+    // Partial match (e.g., "Apache/2.4.51" → "apache")
+    for (const [key, tagList] of Object.entries(NUCLEI_TECH_TAG_MAP)) {
+      if (normalized.includes(key) || key.includes(normalized)) {
+        for (const tag of tagList) tags.add(tag);
+      }
+    }
+  }
+  return Array.from(tags);
+}
+
+/**
+ * Build Nuclei command with technology-aware template selection
+ */
+export function buildNucleiCommand(options: {
+  target: string;
+  technologies?: string[];
+  severity?: string;
+  authenticated?: boolean;
+  cookie?: string;
+  wafDetected?: boolean;
+  scanDepth?: "quick" | "standard" | "deep";
+}): string {
+  const { target, technologies, severity, authenticated, cookie, wafDetected, scanDepth = "standard" } = options;
+  const parts: string[] = ["nuclei", "-u", target];
+
+  // Technology-based tag selection
+  if (technologies && technologies.length > 0) {
+    const tags = getNucleiTagsForTech(technologies);
+    if (tags.length > 0) {
+      parts.push("-tags", tags.slice(0, 10).join(","));
+    }
+  } else {
+    // Use automatic selection when no tech info available
+    parts.push("-as");
+  }
+
+  // Severity filter
+  if (severity) {
+    parts.push("-severity", severity);
+  } else if (scanDepth === "quick") {
+    parts.push("-severity", "critical,high");
+  }
+
+  // Authentication
+  if (authenticated && cookie) {
+    parts.push("-H", `"Cookie: ${cookie}"`);
+  }
+
+  // Rate limiting for WAF targets
+  if (wafDetected) {
+    parts.push("-rl", "15", "-c", "5", "-timeout", "15");
+  } else if (scanDepth === "deep") {
+    parts.push("-rl", "50", "-c", "25");
+  } else {
+    parts.push("-rl", "100", "-c", "25");
+  }
+
+  // Standard flags
+  parts.push("-nc", "-duc", "-ni", "-jsonl");
+
+  return parts.join(" ");
+}
+
+/**
+ * Build Nikto command with tuning profile and context awareness
+ */
+export function buildNiktoCommand(options: {
+  target: string;
+  tuningProfile?: keyof typeof NIKTO_TUNING_PROFILES;
+  authenticated?: boolean;
+  credentials?: { user: string; pass: string };
+  cookie?: string;
+  wafDetected?: boolean;
+  ssl?: boolean;
+  maxTime?: number;
+  outputFile?: string;
+}): string {
+  const {
+    target,
+    tuningProfile = "quick",
+    authenticated,
+    credentials,
+    cookie,
+    wafDetected,
+    ssl,
+    maxTime,
+    outputFile = "nikto-output.xml",
+  } = options;
+
+  const profile = NIKTO_TUNING_PROFILES[tuningProfile] || NIKTO_TUNING_PROFILES.quick;
+  const parts: string[] = ["nikto", "-h", target];
+
+  // Tuning
+  parts.push("-Tuning", profile.tuning);
+
+  // SSL
+  if (ssl || target.startsWith("https")) {
+    parts.push("-ssl");
+  }
+
+  // Authentication
+  if (authenticated && credentials) {
+    parts.push("-id", `${credentials.user}:${credentials.pass}`);
+  }
+
+  // Cookie injection (for session-based auth)
+  if (cookie) {
+    // Nikto doesn't have a native -c flag; use custom header approach via config
+    // The orchestrator injects this via the scan server's nikto.conf or -H flag
+    parts.push("-H", `"Cookie: ${cookie}"`);
+  }
+
+  // Evasion (from profile or WAF detection)
+  const evasion = profile.evasion || (wafDetected ? "1247" : undefined);
+  if (evasion) {
+    parts.push("-evasion", evasion);
+  }
+
+  // Rate limiting for WAF
+  if (wafDetected) {
+    parts.push("-Pause", "3");
+  }
+
+  // Max time
+  if (maxTime) {
+    parts.push("-maxtime", String(maxTime));
+  }
+
+  // Output
+  parts.push("-Format", "xml", "-o", outputFile, "-nointeractive");
+
+  return parts.join(" ");
+}
 
 /**
  * Get contextual tool knowledge for a specific tool

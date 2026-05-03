@@ -1455,3 +1455,12 @@
 - [x] Add re-scan escalation UI button to EngagementOps asset cards
 - [x] Implement training lab auto-auth Gobuster cookie injection (DVWA/Juice Shop session handoff)
 - [x] Write vitest tests for all new features (81 tests passing: 53 gobuster + 28 rescan/auth/knowledge)
+
+### Nuclei/Nikto Knowledge + Shared Auto-Auth for Nikto/SQLMap (May 2)
+- [x] Research Nuclei template selection by tech stack (WordPress, Apache, Nginx, Java, etc.)
+- [x] Research Nikto tuning options (scan tuning, evasion, auth, output)
+- [x] Extend tool-knowledge-base.ts with Nuclei template selection guidance (NUCLEI_TECH_TAG_MAP, getNucleiTagsForTech, buildNucleiCommand)
+- [x] Extend tool-knowledge-base.ts with Nikto tuning knowledge (NIKTO_TUNING_PROFILES, buildNiktoCommand, 9 techniques, 8 evasion strategies)
+- [x] Wire training lab auto-auth into credential discovery phase for Nikto scans (cookie injection via -H flag)
+- [x] Wire training lab auto-auth into credential discovery phase for SQLMap scans (reuse Gobuster session cookie)
+- [x] Write vitest tests for all new features (41 tests passing: nuclei tech tags, command builder, nikto profiles, shared auth)
