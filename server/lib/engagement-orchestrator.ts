@@ -12707,6 +12707,27 @@ export async function executeEngagement(
         state.progress = 15;
         await phaseCheckpoint('passive_discovery');
         if (!state.isRunning) return;
+
+        // ═══ HYPOTHESIS GENERATOR — Auto-generate vulnerability hypotheses from recon data ═══
+        try {
+          const { runHypothesisGeneration, formatHypothesisLogEntry, buildScanPriorityAdjustments } = await import('./hypothesis-orchestrator-hook');
+          const hypothesisResult = await runHypothesisGeneration(state);
+          if (hypothesisResult.generated) {
+            const logEntry = formatHypothesisLogEntry(hypothesisResult);
+            addLog(state, { phase: 'passive_discovery', type: 'info', title: logEntry.title, detail: logEntry.detail, data: { hypothesisResult } });
+            broadcastOpsUpdate(engagementId, { type: 'hypothesis_generated', hypothesisCount: hypothesisResult.hypothesisCount, highConfidence: hypothesisResult.highConfidenceCount });
+            // Store scan priority adjustments for scan plan generation
+            const priorities = buildScanPriorityAdjustments(state);
+            if (priorities.length > 0) {
+              (state.metadata as any).hypothesisScanPriorities = priorities;
+              addLog(state, { phase: 'passive_discovery', type: 'info', title: `🎯 Scan Priority Adjustments: ${priorities.length} endpoints prioritized`, detail: priorities.slice(0, 5).map(p => `• [${p.priority.toUpperCase()}] ${p.endpoint} — ${p.vulnClass}: ${p.reason}`).join('\n') });
+            }
+            console.log(`[HypothesisGen] Engagement #${engagementId}: ${hypothesisResult.hypothesisCount} hypotheses generated (${hypothesisResult.highConfidenceCount} high-confidence)`);
+          }
+        } catch (hypErr: any) {
+          console.warn(`[HypothesisGen] Failed for #${engagementId}:`, hypErr.message);
+          addLog(state, { phase: 'passive_discovery', type: 'warning', title: '⚠️ Hypothesis Generation Failed', detail: hypErr.message });
+        }
       } catch (err: any) {
         addLog(state, { phase: 'passive_discovery', type: 'warning', title: 'Passive Discovery Error', detail: err.message });
       }
@@ -14913,6 +14934,54 @@ Respond in JSON: { "templateCategory": string, "pretext": string, "domainStrateg
       }
     } catch (hotPathErr: any) {
       console.warn(`[HotPath] Failed to analyze hot paths for #${engagementId}:`, hotPathErr.message);
+    }
+
+    // ═══ NEGATIVE EXAMPLE FEEDBACK LOOP — Feed rejected findings into calibration ═══
+    try {
+      const { feedbackLoop } = await import('./negative-example-feedback-loop');
+      const { confidenceCalibrationEngine } = await import('./bounty-confidence-calibration');
+      const { crossTrainingBus } = await import('./cross-training-event-bus');
+
+      // Collect rejected/false-positive findings from this engagement
+      const rejectedFindings: Array<any> = [];
+      for (const asset of state.assets) {
+        for (const vuln of (asset.vulns || [])) {
+          if (vuln.verified === false || vuln.corroborationTier === 'false_positive' || vuln.status === 'rejected') {
+            rejectedFindings.push({
+              id: `neg-${engagementId}-${vuln.cve || vuln.title || Math.random().toString(36).slice(2)}`,
+              vulnClass: vuln.cwe || vuln.vulnClass || 'unknown',
+              title: vuln.title || vuln.cve || 'Untitled',
+              affectedEndpoint: vuln.endpoint || vuln.url || asset.hostname,
+              technology: asset.passiveRecon?.technologies?.[0],
+              severity: vuln.severity || 'medium',
+              rejectionReason: vuln.corroborationTier === 'false_positive' ? 'false_positive' : 'not_reproducible',
+              rejectionDetail: vuln.description || 'Unverified finding from automated scan',
+              programHandle: state.bbRoeConfig?.programHandle,
+              submittedAt: new Date(state.startedAt || Date.now()).toISOString(),
+              rejectedAt: new Date().toISOString(),
+              lessonsLearned: [`Unverified ${vuln.cwe || 'finding'} on ${asset.hostname} — needs manual validation`],
+              tags: [state.engagementType, vuln.source || 'unknown'],
+            });
+          }
+        }
+      }
+
+      if (rejectedFindings.length > 0) {
+        const batchResult = feedbackLoop.processBatch(rejectedFindings, confidenceCalibrationEngine, crossTrainingBus);
+        addLog(state, {
+          phase: 'completed', type: 'info',
+          title: `🔄 Negative Example Feedback: ${batchResult.processed} rejections processed`,
+          detail: [
+            `Calibration updates: ${batchResult.calibrationUpdates}`,
+            `Event bus publications: ${batchResult.eventsPublished}`,
+            batchResult.driftDetected ? `⚠️ Calibration drift detected: ${batchResult.driftReport?.direction} (${batchResult.driftReport?.severity})` : 'No calibration drift detected',
+          ].join('\n'),
+        });
+        broadcastOpsUpdate(state.engagementId, { type: 'log_update' });
+        console.log(`[NegFeedback] Engagement #${engagementId}: ${batchResult.processed} rejections fed into calibration loop`);
+      }
+    } catch (negErr: any) {
+      console.warn(`[NegFeedback] Failed for #${engagementId}:`, negErr.message);
     }
 
     // Free knowledge module memory after engagement completes

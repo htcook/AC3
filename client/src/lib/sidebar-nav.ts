@@ -29,7 +29,7 @@ import {
   ScrollText, GitBranch, Binary, Webhook, Bot, Boxes, CircuitBoard,
   Laptop, Megaphone, PenTool, Skull, Sword, Flame, Telescope, HeartPulse,
   Microscope, Newspaper, Link2, Package, Cog, HardDrive, Wifi,
-  ShieldAlert, Container, ClipboardCheck,
+  ShieldAlert, Container, ClipboardCheck, FileCheck,
 } from "lucide-react";
 
 export type UserRole = 'admin' | 'operator' | 'analyst' | 'team_lead' | 'executive' | 'client' | 'soc' | 'viewer';
@@ -159,6 +159,7 @@ export const sidebarNavGroups: NavGroup[] = [
       { label: "Audit Log", path: "/audit-log", icon: ScrollText, roles: ["admin", "team_lead", "executive"] },
       { label: "Bug Bounty Hub", path: "/bug-bounty", icon: Bug },
       { label: "Bug Bounty Workspace", path: "/bug-bounty-workspace", icon: Bug, roles: ["admin", "operator", "team_lead"] },
+      { label: "Submission Prep", path: "/submission-prep", icon: FileCheck, roles: ["admin", "operator", "team_lead"] },
       { label: "VA Wizard", path: "/va-wizard", icon: ShieldCheck, roles: ["admin", "operator", "team_lead"] },
     ],
   },

@@ -133,6 +133,7 @@ const PurpleTeam = lazyWithRetry(() => import("./pages/PurpleTeam"));
 const Webhooks = lazyWithRetry(() => import("./pages/Webhooks"));
 const BugBountyHub = lazyWithRetry(() => import("./pages/BugBountyHub"));
 const BugBountyWorkspace = lazyWithRetry(() => import("./pages/BugBountyWorkspace"));
+const SubmissionPrep = lazyWithRetry(() => import("./pages/SubmissionPrep"));
 const VAWizard = lazyWithRetry(() => import("./pages/VAWizard"));
 const FindingTriageQueue = lazyWithRetry(() => import("./pages/FindingTriageQueue"));
 const ScoringHub = lazyWithRetry(() => import("./pages/ScoringHub"));
@@ -776,6 +777,9 @@ function Router() {
         </Route>
         <Route path="/bug-bounty-workspace">
           <ProtectedRoute component={BugBountyWorkspace} />
+        </Route>
+        <Route path="/submission-prep">
+          <ProtectedRoute component={SubmissionPrep} />
         </Route>
         <Route path="/va-wizard">
           <ProtectedRoute component={VAWizard} />

@@ -24,6 +24,7 @@ import { attackPathsRouter } from "./routers/attack-paths";
 import { purpleTeamRouter } from "./routers/purple-team";
 import { webhooksRouter } from "./routers/webhooks";
 import { bugBountyRouter } from "./routers/bug-bounty";
+import { bountySubmissionPrepRouter } from "./routers/bounty-submission-prep";
 import { scoringRouter } from "./routers/scoring";
 import { accuracyEngineRouter } from "./routers/accuracy-engine";
 import { sshKeysRouter } from "./routers/ssh-keys";
@@ -325,6 +326,7 @@ export const appRouter = router({
   purpleTeam: purpleTeamRouter,
   webhooks: webhooksRouter,
   bugBounty: bugBountyRouter,
+  bountySubmissionPrep: bountySubmissionPrepRouter,
   platformCredentials: platformCredentialsRouter,
   scoring: scoringRouter,
   accuracyEngine: accuracyEngineRouter,

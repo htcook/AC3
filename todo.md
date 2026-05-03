@@ -1515,3 +1515,13 @@
 - [x] Add license compliance checker (GPL/AGPL/MIT/NPSL analysis for internal/commercial/SaaS/distribution usage)
 - [x] Write vitest tests for all new modules (34 tests passing across 6 describe blocks)
 - [x] Push all changes to GitHub for DO deployment
+
+### Hypothesis Generator Integration + Submission Prep UI + Negative Example Feedback (May 2)
+- [x] Wire Hypothesis Generator into engagement orchestrator post-recon phase (auto-generate hypotheses after recon)
+- [x] Build tRPC procedures for hypothesis generation results (get/list per engagement)
+- [x] Build Submission Prep UI panel (review, edit, export optimized submissions for HackerOne/Bugcrowd)
+- [x] Add tRPC procedures for submission prep (generate, edit, export)
+- [x] Connect Negative Example Pipeline to bounty training engine calibration loop
+- [x] Wire rejection feedback into cross-training event bus for LLM calibration drift correction
+- [x] Write vitest tests for all three features (21 tests passing)
+- [x] Push all changes to GitHub for DO deployment
