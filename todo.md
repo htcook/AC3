@@ -1504,3 +1504,14 @@
 - [x] Build Program-Aware Context module (scope checking, bounty estimation, reward tiers, LLM context builder)
 - [x] Enhance Confidence Calibration with explicit reasoning chains (6 weighted factors), Bayesian curve updating, drift detection, program-specific adjustments
 - [x] Write vitest tests for all new modules (31 tests passing across 6 describe blocks, 261 total across all files)
+
+### Bug Bounty Tooling Knowledge Enhancement (May 2 — from expert tooling review)
+- [x] Extend tool-knowledge-base.ts with Tier 1 tools: ffuf, katana, alterx, puredns (command builders, evasion, profiles)
+- [x] Extend tool-knowledge-base.ts with Tier 2 tools: dalfox, interactsh, ssrfmap, subjack (full knowledge entries)
+- [x] Build vulnerability class specialist module (8 classes: XSS, SSRF, subdomain takeover, CORS, open redirect, race conditions, cache poisoning, GraphQL)
+- [x] Build tool adapter architecture (GobusterAdapter, FfufAdapter, KatanaAdapter, DalfoxAdapter + registry + selectBestAdapter)
+- [x] Build wordlist intelligence module (16 profiles: common→full, tech-specific PHP/Java/WP/Spring, specialized git/backup, subdomain, credential)
+- [x] Add tool currency/version tracking (15 tools tracked, version comparison, update urgency, deprecation warnings)
+- [x] Add license compliance checker (GPL/AGPL/MIT/NPSL analysis for internal/commercial/SaaS/distribution usage)
+- [x] Write vitest tests for all new modules (34 tests passing across 6 describe blocks)
+- [x] Push all changes to GitHub for DO deployment
