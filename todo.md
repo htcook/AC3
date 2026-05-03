@@ -1534,3 +1534,12 @@
 - [x] Vitest tests for deployment config validation (33/33 passing)
 - [x] Terraform: cross-account ECR locals, external role ARN support, dev.tfvars with actual ARNs
 - [x] Checkpoint and push to GitHub
+
+### AWS Deployment Next Steps (May 3 — Round 2)
+- [x] Create Secrets Manager population script (seed-secrets-dev.sh) for all runtime secrets with ac3/caldera-dashboard/dev/ prefix
+- [x] Enhance cfn-deploy-dev.sh with VPC/subnet auto-discovery and post-deploy health check verification
+- [x] Create staging.tfvars with staging-specific role ARNs and separate ECS cluster config
+- [x] Create staging backend config (backend-staging.hcl) for Terraform state isolation
+- [x] Create staging deployment script (deploy-staging.sh)
+- [x] Write vitest tests for all new deployment artifacts
+- [x] Checkpoint and push to GitHub
