@@ -1447,3 +1447,11 @@
 - [x] Updated LLM prompt — Gobuster guidance section for authenticated scanning, tech-aware extensions, WAF evasion, API methods
 - [x] Refactored orchestrator — replaced inline gobuster command fix with buildGobusterCommand() helper from scan-profiles.ts
 - [x] Write vitest tests (53 tests passing: command generation, auth cookies, extensions, redirects, random-agent, status codes, HTTP methods, WAF adaptation, combined scenarios, profile config, output parser)
+
+### Re-scan with Deeper Profile + Training Lab Auth + Hacking Articles Knowledge (May 2)
+- [x] Crawl Hacking Articles for tool knowledge (Nuclei, SQLMap, Hydra, Nikto, Gobuster, enum4linux, etc.)
+- [x] Build knowledge base module from crawled techniques and integrate into LLM context
+- [x] Implement "re-scan with deeper profile" tRPC procedure (Quick→Standard→Deep escalation per asset)
+- [x] Add re-scan escalation UI button to EngagementOps asset cards
+- [x] Implement training lab auto-auth Gobuster cookie injection (DVWA/Juice Shop session handoff)
+- [x] Write vitest tests for all new features (81 tests passing: 53 gobuster + 28 rescan/auth/knowledge)

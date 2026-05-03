@@ -4505,4 +4505,34 @@ Return ONLY a JSON object with vulnerabilities array.`;
         return { success: false, error: err.message };
       }
     }),
+
+    /** Re-scan a specific asset with a deeper Gobuster profile (Quick → Standard → Deep) */
+    rescanWithDeeperProfile: protectedProcedure
+      .input(z.object({
+        engagementId: z.number(),
+        assetHostname: z.string().min(1),
+        targetProfile: z.enum(['quick', 'standard', 'deep']).optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const dbConn = await db.getDb();
+        if (dbConn) await assertEngagementAccess(dbConn, input.engagementId, ctx.user);
+        const { rescanAssetWithDeeperProfile } = await import('../lib/engagement-orchestrator');
+        const result = await rescanAssetWithDeeperProfile(
+          input.engagementId,
+          input.assetHostname,
+          {
+            targetProfile: input.targetProfile,
+            operatorId: ctx.user.openId,
+            operatorName: ctx.user.name || undefined,
+          }
+        );
+        if (result.success) {
+          await db.logActivity({
+            userId: ctx.user.id,
+            action: 'engagement_rescan_escalation',
+            details: `Escalated scan profile for ${input.assetHostname} in engagement #${input.engagementId}: ${result.previousProfile} → ${result.newProfile}`,
+          });
+        }
+        return result;
+      }),
   });

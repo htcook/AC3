@@ -249,6 +249,49 @@ const PHASES: Array<{ id: string; label: string; icon: React.ReactNode; color: s
   { id: "completed", label: "Complete", icon: <CheckCircle2 className="h-4 w-4" />, color: "text-green-400" },
 ];
 
+// ─── Rescan Escalation Button ─────────────────────────────────────────────
+function RescanEscalationButton({ engagementId, assetHostname, currentProfile }: {
+  engagementId: number;
+  assetHostname: string;
+  currentProfile: string;
+}) {
+  const PROFILES = ['quick', 'standard', 'deep'] as const;
+  const currentIdx = PROFILES.indexOf(currentProfile as any);
+  const nextProfile = currentIdx < PROFILES.length - 1 ? PROFILES[currentIdx + 1] : null;
+  const rescanMut = trpc.engagementOps.rescanWithDeeperProfile.useMutation({
+    onSuccess: (result) => {
+      if (result.success) {
+        toast.success(`Deeper scan complete: ${result.message}`);
+      } else {
+        toast.error(result.message);
+      }
+    },
+    onError: (err) => toast.error(`Rescan failed: ${err.message}`),
+  });
+
+  if (!nextProfile) return null;
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          className="ml-auto h-7 px-2 text-[10px] gap-1 border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10 hover:border-cyan-500/50"
+          disabled={rescanMut.isPending}
+          onClick={() => rescanMut.mutate({ engagementId, assetHostname, targetProfile: nextProfile })}
+        >
+          {rescanMut.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <TrendingUp className="h-3 w-3" />}
+          {nextProfile.charAt(0).toUpperCase() + nextProfile.slice(1)}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="max-w-xs">
+        <p className="text-xs">Re-scan with <strong>{nextProfile}</strong> profile (deeper wordlist, more extensions, slower rate). Current: {currentProfile}.</p>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 function getPhaseIndex(phase: string): number {
   if (phase === "recon_complete") return 0; // still in recon area
   if (phase === "complete") return PHASES.findIndex(p => p.id === "completed"); // normalize 'complete' → 'completed'
@@ -2829,6 +2872,7 @@ export default function EngagementOps() {
                         {assetIcon(selectedAssetData.type)}
                         <h3 className="font-semibold text-foreground">{selectedAssetData.hostname}{selectedAssetData.ip && selectedAssetData.ip !== selectedAssetData.hostname && <span className="text-sm font-normal text-muted-foreground ml-2">({selectedAssetData.ip})</span>}</h3>
                         {assetStatusBadge(selectedAssetData.status)}
+                        <RescanEscalationButton engagementId={engagementId} assetHostname={selectedAssetData.hostname} currentProfile={(ops as any)?.scanProfile || 'quick'} />
                       </div>
                       {selectedAssetData.wafDetected && (
                         <div className="flex items-center gap-2 text-xs text-orange-400 bg-orange-500/10 rounded px-2 py-1">

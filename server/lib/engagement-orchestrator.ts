@@ -5754,6 +5754,112 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
           authCookie = (asset as any).trainingLabCreds.sessionCookie;
         }
 
+        // ═══ TRAINING LAB AUTO-AUTH FOR GOBUSTER ═══
+        // If no session cookie exists yet but this is a known training lab,
+        // acquire one now so Gobuster can enumerate authenticated paths.
+        // This runs during the enumeration phase (before vuln_detection acquires cookies for ZAP).
+        if (!authCookie && state.trainingLabMode) {
+          const hostname = asset.hostname.toLowerCase();
+          const GOBUSTER_LAB_CREDS: Record<string, { username: string; password: string; loginPath: string; authType: 'form-csrf' | 'json-jwt' | 'form-simple' }> = {
+            'dvwa': { username: 'admin', password: 'password', loginPath: '/login.php', authType: 'form-csrf' },
+            'bwapp': { username: 'bee', password: 'bug', loginPath: '/login.php', authType: 'form-simple' },
+            'juiceshop': { username: 'admin@juice-sh.op', password: 'admin123', loginPath: '/rest/user/login', authType: 'json-jwt' },
+            'juice-shop': { username: 'admin@juice-sh.op', password: 'admin123', loginPath: '/rest/user/login', authType: 'json-jwt' },
+            'webgoat': { username: 'guest', password: 'guest', loginPath: '/WebGoat/login', authType: 'form-simple' },
+            'hackazon': { username: 'test_user', password: 'test_user', loginPath: '/user/login', authType: 'form-simple' },
+            'mutillidae': { username: 'admin', password: 'admin', loginPath: '/index.php?page=login.php', authType: 'form-simple' },
+            'bodgeit': { username: 'test@test.com', password: 'test', loginPath: '/bodgeit/login.jsp', authType: 'form-simple' },
+            'broken-crystals': { username: 'john@mail.com', password: 'Admin123!', loginPath: '/api/auth/login', authType: 'json-jwt' },
+            'brokencrystals': { username: 'john@mail.com', password: 'Admin123!', loginPath: '/api/auth/login', authType: 'json-jwt' },
+          };
+
+          let matchedLab: { key: string; creds: typeof GOBUSTER_LAB_CREDS[string] } | undefined;
+          for (const [labKey, creds] of Object.entries(GOBUSTER_LAB_CREDS)) {
+            if (hostname.includes(labKey.replace('-', ''))) {
+              matchedLab = { key: labKey, creds };
+              break;
+            }
+          }
+
+          if (matchedLab) {
+            try {
+              const { executeTool } = await import('./scan-server-executor');
+              const authBaseUrl = gobTargetUrl.replace(/\/[^/]*$/, '') || `http://${asset.hostname}`;
+
+              if (matchedLab.creds.authType === 'json-jwt') {
+                // JSON API login (Juice Shop, Broken Crystals)
+                const loginResult = await executeTool({
+                  tool: 'curl',
+                  args: `-s -X POST ${authBaseUrl}${matchedLab.creds.loginPath} -H "Content-Type: application/json" -d '{"email":"${matchedLab.creds.username}","password":"${matchedLab.creds.password}"}'`,
+                  timeout: 15,
+                });
+                if (loginResult.stdout) {
+                  try {
+                    const resp = JSON.parse(loginResult.stdout);
+                    const token = resp.authentication?.token || resp.token || resp.access_token;
+                    if (token) {
+                      authCookie = `token=${token}`;
+                      (asset as any).trainingLabCreds = { ...matchedLab.creds, sessionCookie: authCookie };
+                      addLog(state, {
+                        phase: 'enumeration', type: 'info',
+                        title: `\u{1F511} Gobuster Auto-Auth: JWT acquired for ${matchedLab.key}`,
+                        detail: `Logged in as ${matchedLab.creds.username} via ${matchedLab.creds.loginPath}. Gobuster will scan authenticated paths.`,
+                      });
+                    }
+                  } catch { /* JSON parse failed */ }
+                }
+              } else if (matchedLab.creds.authType === 'form-csrf') {
+                // DVWA-style: GET login page for CSRF token, then POST with cookie jar
+                const getLogin = await executeTool({
+                  tool: 'curl',
+                  args: `-s -c /tmp/gobuster_auth_cookies.txt -b /tmp/gobuster_auth_cookies.txt ${authBaseUrl}${matchedLab.creds.loginPath}`,
+                  timeout: 15,
+                });
+                const csrfMatch = getLogin.stdout?.match(/user_token.*?value=['"]([^'"]+)['"]/i);
+                const csrfToken = csrfMatch?.[1] || '';
+                const postLogin = await executeTool({
+                  tool: 'curl',
+                  args: `-s -c /tmp/gobuster_auth_cookies.txt -b /tmp/gobuster_auth_cookies.txt -X POST ${authBaseUrl}${matchedLab.creds.loginPath} -d "username=${matchedLab.creds.username}&password=${matchedLab.creds.password}&Login=Login&user_token=${csrfToken}" -D -`,
+                  timeout: 15,
+                });
+                const sessionMatch = postLogin.stdout?.match(/PHPSESSID=([^;\s]+)/i);
+                if (sessionMatch?.[1]) {
+                  authCookie = `PHPSESSID=${sessionMatch[1]}; security=low`;
+                  (asset as any).trainingLabCreds = { ...matchedLab.creds, sessionCookie: authCookie };
+                  addLog(state, {
+                    phase: 'enumeration', type: 'info',
+                    title: `\u{1F511} Gobuster Auto-Auth: DVWA session acquired`,
+                    detail: `Logged in as ${matchedLab.creds.username} with CSRF token handling. Gobuster will scan behind login wall.`,
+                  });
+                }
+              } else {
+                // Generic form POST login
+                const loginResult = await executeTool({
+                  tool: 'curl',
+                  args: `-s -X POST ${authBaseUrl}${matchedLab.creds.loginPath} -d "username=${matchedLab.creds.username}&password=${matchedLab.creds.password}" -D -`,
+                  timeout: 15,
+                });
+                const setCookie = loginResult.stdout?.match(/Set-Cookie:\s*([^\n]+)/i);
+                if (setCookie?.[1]) {
+                  authCookie = setCookie[1].split(';')[0].trim();
+                  (asset as any).trainingLabCreds = { ...matchedLab.creds, sessionCookie: authCookie };
+                  addLog(state, {
+                    phase: 'enumeration', type: 'info',
+                    title: `\u{1F511} Gobuster Auto-Auth: Session acquired for ${matchedLab.key}`,
+                    detail: `Logged in as ${matchedLab.creds.username}. Gobuster will scan authenticated paths.`,
+                  });
+                }
+              }
+            } catch (authErr: any) {
+              addLog(state, {
+                phase: 'enumeration', type: 'warning',
+                title: `Gobuster Auto-Auth Failed: ${matchedLab.key}`,
+                detail: `Could not acquire session cookie for authenticated Gobuster scan: ${authErr.message}. Continuing unauthenticated.`,
+              });
+            }
+          }
+        }
+
         // Build the command using the scan profile helper
         const profile = getScanProfile(state.scanProfile || 'standard');
         cmd.command = buildGobusterCommand(profile, gobTargetUrl, {
@@ -15255,4 +15361,205 @@ export async function rerunFromPhase(
     success: true,
     message: `Re-running engagement #${engagementId} from ${targetPhase}. Preserved ${phasesToKeep.length} prior phase(s), ${state.assets.length} assets, ${state.log.length} log entries.`,
   };
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// RE-SCAN WITH DEEPER PROFILE — Escalate Quick → Standard → Deep on a single asset
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Profile escalation order: quick → standard → deep
+ * Allows operators to re-run content discovery (Gobuster) on a specific asset
+ * with a more thorough profile without re-running the entire engagement.
+ */
+const PROFILE_ESCALATION_ORDER: Array<'quick' | 'standard' | 'deep' | 'stealth'> = [
+  'quick', 'standard', 'deep',
+];
+
+export interface RescanEscalationResult {
+  success: boolean;
+  message: string;
+  previousProfile?: string;
+  newProfile?: string;
+  assetHostname?: string;
+  command?: string;
+}
+
+export async function rescanAssetWithDeeperProfile(
+  engagementId: number,
+  assetHostname: string,
+  options?: {
+    targetProfile?: 'quick' | 'standard' | 'deep';
+    operatorId?: string;
+    operatorName?: string;
+  }
+): Promise<RescanEscalationResult> {
+  // Get state
+  let state = getOpsState(engagementId);
+  if (!state) state = await getOpsStateWithRecovery(engagementId);
+  if (!state) {
+    return { success: false, message: 'No engagement state found. Run the engagement first.' };
+  }
+
+  // Find the target asset
+  const asset = state.assets.find(a =>
+    a.hostname.toLowerCase() === assetHostname.toLowerCase() ||
+    a.ip === assetHostname
+  );
+  if (!asset) {
+    return {
+      success: false,
+      message: `Asset "${assetHostname}" not found in engagement #${engagementId}. Available: ${state.assets.map(a => a.hostname).join(', ')}`,
+    };
+  }
+
+  // Determine current profile and escalation target
+  const currentProfile = state.scanProfile || 'quick';
+  const currentIdx = PROFILE_ESCALATION_ORDER.indexOf(currentProfile as any);
+  let targetProfile = options?.targetProfile;
+
+  if (!targetProfile) {
+    // Auto-escalate to next level
+    const nextIdx = Math.min(currentIdx + 1, PROFILE_ESCALATION_ORDER.length - 1);
+    targetProfile = PROFILE_ESCALATION_ORDER[nextIdx];
+    if (targetProfile === currentProfile) {
+      return {
+        success: false,
+        message: `Asset "${assetHostname}" is already at the maximum profile level (${currentProfile}). Cannot escalate further.`,
+        previousProfile: currentProfile,
+      };
+    }
+  }
+
+  // Validate the target profile is actually deeper
+  const targetIdx = PROFILE_ESCALATION_ORDER.indexOf(targetProfile);
+  if (targetIdx < 0) {
+    return { success: false, message: `Invalid target profile: ${targetProfile}. Must be one of: ${PROFILE_ESCALATION_ORDER.join(', ')}` };
+  }
+  if (targetIdx <= currentIdx && !options?.targetProfile) {
+    return {
+      success: false,
+      message: `Target profile "${targetProfile}" is not deeper than current "${currentProfile}".`,
+      previousProfile: currentProfile,
+    };
+  }
+
+  // Build the deeper Gobuster command
+  const profile = getScanProfile(targetProfile);
+  const httpPort = asset.ports.find(p => p.service === 'http' || p.service === 'https' || p.port === 80 || p.port === 443);
+  const protocol = httpPort?.port === 443 || httpPort?.service === 'https' ? 'https' : 'http';
+  const port = httpPort?.port || 80;
+  const targetUrl = port === 80 || port === 443
+    ? `${protocol}://${asset.hostname}`
+    : `${protocol}://${asset.hostname}:${port}`;
+
+  // Gather context
+  const wafDetected = !!(asset.wafDetected && asset.wafDetected !== 'none');
+  const detectedTech = asset.passiveRecon?.technologies || [];
+  const isApiTarget = asset.type === 'api' ||
+    asset.ports.some(p => /api|graphql|rest/i.test(p.service || '')) ||
+    /\/api\/|\/v[0-9]+\//i.test(targetUrl);
+
+  // Get auth cookie if available
+  let authCookie = '';
+  const webCreds = (asset.confirmedCredentials || []).filter((c: any) =>
+    ['http', 'web', 'form', 'http-get', 'http-post-form'].includes(c.service)
+  );
+  if (webCreds.length > 0 && (webCreds[0] as any).sessionCookie) {
+    authCookie = (webCreds[0] as any).sessionCookie;
+  } else if ((asset as any).trainingLabCreds?.sessionCookie) {
+    authCookie = (asset as any).trainingLabCreds.sessionCookie;
+  }
+
+  const command = buildGobusterCommand(profile, targetUrl, {
+    wafDetected,
+    authCookie: authCookie || undefined,
+    detectedTech,
+    isApiTarget,
+  });
+
+  // Log the escalation
+  addLog(state, {
+    phase: state.phase || 'enumeration',
+    type: 'info',
+    title: `⬆️ Profile Escalation: ${currentProfile} → ${targetProfile} for ${asset.hostname}`,
+    detail: `Operator requested deeper content discovery scan. Previous profile: ${currentProfile}, new profile: ${targetProfile}.\nCommand: ${command}`,
+    data: { previousProfile: currentProfile, newProfile: targetProfile, asset: asset.hostname, command },
+  });
+
+  // Execute the scan via scan server
+  try {
+    const { executeTool } = await import('./scan-server-executor');
+    const scanResult = await executeTool({
+      tool: 'gobuster',
+      args: command.replace(/^gobuster\s+/, ''),
+      timeout: profile.gobuster.timeout || 600,
+    });
+
+    // Parse results and merge into asset
+    const newPaths: string[] = [];
+    if (scanResult.stdout) {
+      const lines = scanResult.stdout.split('\n');
+      for (const line of lines) {
+        // Match gobuster output: /path (Status: 200) [Size: 1234]
+        const pathMatch = line.match(/^(\/\S+)\s+\(Status:\s*(\d+)\)/);
+        if (pathMatch) {
+          const [, path, status] = pathMatch;
+          const statusCode = parseInt(status);
+          if (statusCode >= 200 && statusCode < 400) {
+            newPaths.push(path);
+          }
+        }
+      }
+    }
+
+    // Merge new tool results
+    if (!asset.toolResults) asset.toolResults = [];
+    asset.toolResults.push({
+      tool: 'gobuster',
+      command,
+      output: scanResult.stdout?.substring(0, 5000) || '',
+      timestamp: Date.now(),
+      profile: targetProfile,
+      pathsFound: newPaths.length,
+    } as any);
+
+    addLog(state, {
+      phase: state.phase || 'enumeration',
+      type: newPaths.length > 0 ? 'finding' : 'info',
+      title: `✅ Deeper Scan Complete: ${newPaths.length} new paths on ${asset.hostname}`,
+      detail: `Profile "${targetProfile}" Gobuster scan completed. Found ${newPaths.length} accessible paths.${newPaths.length > 0 ? '\nNew paths: ' + newPaths.slice(0, 20).join(', ') + (newPaths.length > 20 ? ` (+${newPaths.length - 20} more)` : '') : ''}`,
+      data: { paths: newPaths, profile: targetProfile, command },
+    });
+
+    // Update the engagement's scan profile to the new level
+    state.scanProfile = targetProfile;
+    broadcastOpsUpdate(engagementId, { type: 'log_update' });
+    await persistOpsStateNow(engagementId);
+
+    return {
+      success: true,
+      message: `Deeper scan completed: ${newPaths.length} paths found on ${asset.hostname} with "${targetProfile}" profile.`,
+      previousProfile: currentProfile,
+      newProfile: targetProfile,
+      assetHostname: asset.hostname,
+      command,
+    };
+  } catch (err: any) {
+    addLog(state, {
+      phase: state.phase || 'enumeration',
+      type: 'error',
+      title: `❌ Deeper Scan Failed: ${asset.hostname}`,
+      detail: `Profile escalation scan failed: ${err.message}`,
+    });
+    broadcastOpsUpdate(engagementId, { type: 'log_update' });
+    return {
+      success: false,
+      message: `Deeper scan failed: ${err.message}`,
+      previousProfile: currentProfile,
+      newProfile: targetProfile,
+      assetHostname: asset.hostname,
+    };
+  }
 }
