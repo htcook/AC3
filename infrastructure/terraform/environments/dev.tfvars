@@ -20,6 +20,15 @@ db_max_capacity       = 2
 db_deletion_protection = false
 db_backup_retention_days = 1
 
+# Cross-Account ECR (SharedServices: 890319879326)
+ecr_account_id      = "890319879326"
+ecr_repository_name = "ace-c3/caldera-dashboard"
+ecr_kms_key_arn     = "arn:aws:kms:us-east-1:890319879326:key/8e215533-9e88-4cae-b514-93a892e6e6c8"
+
+# Pre-existing IAM Roles (Dev account: 808038814732)
+external_execution_role_arn = "arn:aws:iam::808038814732:role/ac3-dev-ecs-execution-role"
+external_task_role_arn      = "arn:aws:iam::808038814732:role/ac3-dev-app-task-role"
+
 # ECS (small for dev)
 ecs_cpu           = 512
 ecs_memory        = 1024

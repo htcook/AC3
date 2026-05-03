@@ -105,6 +105,38 @@ variable "db_backup_retention_days" {
   default     = 7
 }
 
+# ─── Cross-Account ECR (SharedServices) ───────────────────────────────────────
+variable "ecr_account_id" {
+  description = "AWS account ID where ECR lives (SharedServices). Leave empty to use local ECR."
+  type        = string
+  default     = ""
+}
+
+variable "ecr_repository_name" {
+  description = "Cross-account ECR repository name (e.g., ace-c3/caldera-dashboard). Leave empty to use local ECR."
+  type        = string
+  default     = ""
+}
+
+variable "ecr_kms_key_arn" {
+  description = "KMS key ARN used for ECR encryption in SharedServices account"
+  type        = string
+  default     = ""
+}
+
+# ─── Pre-Existing IAM Roles (optional, for admin-managed environments) ───────
+variable "external_execution_role_arn" {
+  description = "Pre-existing ECS execution role ARN. If set (with external_task_role_arn), skips role creation."
+  type        = string
+  default     = ""
+}
+
+variable "external_task_role_arn" {
+  description = "Pre-existing ECS task role ARN. If set (with external_execution_role_arn), skips role creation."
+  type        = string
+  default     = ""
+}
+
 # ─── ECS / Fargate ──────────────────────────────────────────────────────────
 variable "image_tag" {
   description = "Docker image tag to deploy"

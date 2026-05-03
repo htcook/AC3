@@ -20,3 +20,15 @@ variable "app_secrets" {
   type        = map(string)
   description = "Map of env var name → Secrets Manager ARN"
 }
+
+variable "external_execution_role_arn" {
+  description = "Pre-existing ECS execution role ARN. If set, skips creating a new one."
+  type        = string
+  default     = ""
+}
+
+variable "external_task_role_arn" {
+  description = "Pre-existing ECS task role ARN. If set, skips creating a new one."
+  type        = string
+  default     = ""
+}

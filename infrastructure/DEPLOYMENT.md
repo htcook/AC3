@@ -513,10 +513,79 @@ aws wafv2 get-logging-configuration \
 
 ---
 
+## Quick Deploy with CloudFormation
+
+For rapid dev environment standup without Terraform, use the CloudFormation template with the pre-existing IAM roles.
+
+### Prerequisites
+
+The following resources must already exist (created by admin):
+
+| Resource | ARN / ID |
+|---|---|
+| ECR Repository | `890319879326.dkr.ecr.us-east-1.amazonaws.com/ace-c3/caldera-dashboard` |
+| ECS Execution Role | `arn:aws:iam::808038814732:role/ac3-dev-ecs-execution-role` |
+| App Task Role | `arn:aws:iam::808038814732:role/ac3-dev-app-task-role` |
+| ECR KMS Key | `arn:aws:kms:us-east-1:890319879326:key/8e215533-9e88-4cae-b514-93a892e6e6c8` |
+
+### Option A: Script Deploy
+
+```bash
+./infrastructure/scripts/cfn-deploy-dev.sh \
+  --vpc-id vpc-XXXXXXXX \
+  --private-subnets subnet-AAA,subnet-BBB \
+  --public-subnets subnet-CCC,subnet-DDD \
+  --database-url "mysql://user:pass@host:3306/ac3_dev" \
+  --jwt-secret "$(openssl rand -hex 32)"
+```
+
+### Option B: AWS CLI Direct
+
+```bash
+aws cloudformation deploy \
+  --template-file infrastructure/cloudformation/ac3-dev-ecs.yaml \
+  --stack-name ac3-dev \
+  --parameter-overrides \
+    VpcId=vpc-XXXXXXXX \
+    PrivateSubnetIds=subnet-AAA,subnet-BBB \
+    PublicSubnetIds=subnet-CCC,subnet-DDD \
+    ImageUri=890319879326.dkr.ecr.us-east-1.amazonaws.com/ace-c3/caldera-dashboard:latest \
+  --capabilities CAPABILITY_IAM
+```
+
+### Manual Image Push
+
+```bash
+# Quick push to ECR (builds, tags, pushes, and force-deploys ECS)
+./infrastructure/scripts/deploy-dev.sh
+
+# Or with a specific tag:
+./infrastructure/scripts/deploy-dev.sh v1.2.3
+```
+
+### Operational Scripts
+
+```bash
+# Shell into a running container
+./infrastructure/scripts/ecs-exec.sh dev
+
+# Tail CloudWatch logs
+./infrastructure/scripts/ecs-logs.sh dev --follow
+```
+
+---
+
 ## File Structure
 
 ```
 infrastructure/
+├── cloudformation/
+│   └── ac3-dev-ecs.yaml                 # CloudFormation quick-deploy (uses pre-existing roles)
+├── scripts/
+│   ├── deploy-dev.sh                    # Manual ECR push + ECS force-deploy
+│   ├── cfn-deploy-dev.sh                # CloudFormation deploy wrapper
+│   ├── ecs-exec.sh                      # Interactive shell into running container
+│   └── ecs-logs.sh                      # CloudWatch log tail
 ├── terraform/
 │   ├── main.tf                          # Root module — composes all child modules
 │   ├── variables.tf                     # Input variables
@@ -539,7 +608,7 @@ infrastructure/
 │       └── oidc/                        # GitHub Actions OIDC federation
 ├── DEPLOYMENT.md                        # This file
 .github/workflows/
-├── deploy-aws.yml                       # AWS ECS deployment (OIDC)
+├── deploy-aws.yml                       # AWS ECS deployment (OIDC + cross-account ECR)
 ├── deploy-do.yml                        # DigitalOcean deployment (existing)
 ├── ci.yml                               # CI pipeline
 ├── prebuild-client.yml                  # Client asset pre-build

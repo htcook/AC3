@@ -1525,3 +1525,12 @@
 - [x] Wire rejection feedback into cross-training event bus for LLM calibration drift correction
 - [x] Write vitest tests for all three features (21 tests passing)
 - [x] Push all changes to GitHub for DO deployment
+### AWS ECS Deployment Infrastructure (May 3)
+- [x] Dockerfile.aws — already existed (FedRAMP multi-stage build)
+- [x] buildspec.yml — already existed; updated deploy-aws.yml for cross-account ECR (890319879326)
+- [x] CloudFormation template (ac3-dev-ecs.yaml) using pre-existing IAM roles + cross-account ECR
+- [x] Deployment scripts: deploy-dev.sh, cfn-deploy-dev.sh, ecs-exec.sh, ecs-logs.sh
+- [x] Updated DEPLOYMENT.md with CloudFormation quick-deploy section + file structure
+- [x] Vitest tests for deployment config validation (33/33 passing)
+- [x] Terraform: cross-account ECR locals, external role ARN support, dev.tfvars with actual ARNs
+- [x] Checkpoint and push to GitHub

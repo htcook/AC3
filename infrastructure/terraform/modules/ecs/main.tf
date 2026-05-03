@@ -1,7 +1,19 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # ECS Fargate Module — Cluster, Service, Task Definition, Auto-Scaling
 # FedRAMP High: FIPS mode, encrypted logs, least-privilege IAM, private subnets
+#
+# Supports two modes:
+#   1. Self-managed roles (default) — creates execution + task roles
+#   2. External roles — uses pre-existing roles from admin (set external_*_role_arn)
 # ─────────────────────────────────────────────────────────────────────────────
+
+# ─── Role Resolution ─────────────────────────────────────────────────────────
+locals {
+  use_external_roles = var.external_execution_role_arn != "" && var.external_task_role_arn != ""
+  execution_role_arn = local.use_external_roles ? var.external_execution_role_arn : aws_iam_role.task_execution[0].arn
+  task_role_arn      = local.use_external_roles ? var.external_task_role_arn : aws_iam_role.task[0].arn
+  create_roles       = local.use_external_roles ? 0 : 1
+}
 
 # ─── ECS Cluster ─────────────────────────────────────────────────────────────
 resource "aws_ecs_cluster" "main" {
@@ -26,8 +38,10 @@ resource "aws_ecs_cluster" "main" {
 }
 
 # ─── Task Execution Role (pulls images, writes logs) ────────────────────────
+# Skipped when external_execution_role_arn is provided
 resource "aws_iam_role" "task_execution" {
-  name = "${var.project_name}-${var.environment}-task-execution"
+  count = local.create_roles
+  name  = "${var.project_name}-${var.environment}-task-execution"
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -39,14 +53,16 @@ resource "aws_iam_role" "task_execution" {
 }
 
 resource "aws_iam_role_policy_attachment" "task_execution_base" {
-  role       = aws_iam_role.task_execution.name
+  count      = local.create_roles
+  role       = aws_iam_role.task_execution[0].name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
 # Allow reading secrets from Secrets Manager
 resource "aws_iam_role_policy" "task_execution_secrets" {
-  name = "${var.project_name}-${var.environment}-task-exec-secrets"
-  role = aws_iam_role.task_execution.id
+  count = local.create_roles
+  name  = "${var.project_name}-${var.environment}-task-exec-secrets"
+  role  = aws_iam_role.task_execution[0].id
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
@@ -69,8 +85,10 @@ resource "aws_iam_role_policy" "task_execution_secrets" {
 }
 
 # ─── Task Role (application permissions) ────────────────────────────────────
+# Skipped when external_task_role_arn is provided
 resource "aws_iam_role" "task" {
-  name = "${var.project_name}-${var.environment}-task"
+  count = local.create_roles
+  name  = "${var.project_name}-${var.environment}-task"
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -83,8 +101,9 @@ resource "aws_iam_role" "task" {
 
 # S3 access for report/evidence storage
 resource "aws_iam_role_policy" "task_s3" {
-  name = "${var.project_name}-${var.environment}-task-s3"
-  role = aws_iam_role.task.id
+  count = local.create_roles
+  name  = "${var.project_name}-${var.environment}-task-s3"
+  role  = aws_iam_role.task[0].id
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -105,9 +124,9 @@ resource "aws_iam_role_policy" "task_s3" {
 
 # ECS Exec for debugging (non-prod only)
 resource "aws_iam_role_policy" "task_exec_command" {
-  count = var.enable_execute_command ? 1 : 0
+  count = var.enable_execute_command && !local.use_external_roles ? 1 : 0
   name  = "${var.project_name}-${var.environment}-task-exec-cmd"
-  role  = aws_iam_role.task.id
+  role  = aws_iam_role.task[0].id
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -156,8 +175,8 @@ resource "aws_ecs_task_definition" "app" {
   requires_compatibilities = ["FARGATE"]
   cpu                      = var.cpu
   memory                   = var.memory
-  execution_role_arn       = aws_iam_role.task_execution.arn
-  task_role_arn            = aws_iam_role.task.arn
+  execution_role_arn       = local.execution_role_arn
+  task_role_arn            = local.task_role_arn
 
   # FedRAMP: Enable FIPS mode on Fargate
   runtime_platform {

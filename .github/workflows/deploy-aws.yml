@@ -49,6 +49,9 @@ concurrency:
 env:
   AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
   PROJECT_NAME: ac3
+  # Cross-account ECR lives in SharedServices (890319879326)
+  ECR_ACCOUNT_ID: '890319879326'
+  ECR_REPO_NAME: ace-c3/caldera-dashboard
 
 permissions:
   id-token: write   # OIDC federation
@@ -91,7 +94,8 @@ jobs:
           fi
 
           echo "environment=$ENV" >> $GITHUB_OUTPUT
-          echo "ecr_repo=${{ env.PROJECT_NAME }}-${ENV}" >> $GITHUB_OUTPUT
+          # ECR repo is shared across environments in SharedServices account
+          echo "ecr_repo=${{ env.ECR_REPO_NAME }}" >> $GITHUB_OUTPUT
           echo "ecs_cluster=${{ env.PROJECT_NAME }}-${ENV}" >> $GITHUB_OUTPUT
           echo "ecs_service=${{ env.PROJECT_NAME }}-${ENV}-service" >> $GITHUB_OUTPUT
           echo "task_family=${{ env.PROJECT_NAME }}-${ENV}" >> $GITHUB_OUTPUT
@@ -164,9 +168,11 @@ jobs:
           role-to-assume: ${{ needs.setup.outputs.deploy_role }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Login to Amazon ECR
+      - name: Login to Amazon ECR (cross-account to SharedServices)
         id: ecr-login
         uses: aws-actions/amazon-ecr-login@v2
+        with:
+          registries: ${{ env.ECR_ACCOUNT_ID }}
 
       - name: Build, tag, and push Docker image
         id: build

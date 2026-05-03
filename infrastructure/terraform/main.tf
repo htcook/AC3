@@ -95,6 +95,16 @@ module "secrets" {
   database_secret_arn = module.database.master_secret_arn
 }
 
+# ─── Cross-Account ECR Resolution ─────────────────────────────────────────────
+locals {
+  # If ecr_account_id is set, use the cross-account ECR in SharedServices.
+  # Otherwise, fall back to the per-environment ECR created by the ecr module.
+  use_cross_account_ecr = var.ecr_account_id != "" && var.ecr_repository_name != ""
+  ecr_repository_url = local.use_cross_account_ecr ? (
+    "${var.ecr_account_id}.dkr.ecr.${var.aws_region}.amazonaws.com/${var.ecr_repository_name}"
+  ) : module.ecr.repository_url
+}
+
 # ─── ECS Fargate ─────────────────────────────────────────────────────────────
 module "ecs" {
   source = "./modules/ecs"
@@ -105,7 +115,7 @@ module "ecs" {
   vpc_id              = module.networking.vpc_id
   private_subnet_ids  = module.networking.private_subnet_ids
   target_group_arn    = module.networking.target_group_arn
-  ecr_repository_url  = module.ecr.repository_url
+  ecr_repository_url  = local.ecr_repository_url
   image_tag           = var.image_tag
   container_port      = var.container_port
   cpu                 = var.ecs_cpu
@@ -119,6 +129,10 @@ module "ecs" {
   enable_execute_command = var.environment != "prod"
 
   app_secrets = module.secrets.app_secret_arns
+
+  # Pre-existing IAM roles (skip creation when provided)
+  external_execution_role_arn = var.external_execution_role_arn
+  external_task_role_arn      = var.external_task_role_arn
 }
 
 # ─── Security (GuardDuty, Security Hub, CloudTrail, Config, KMS) ────────────
