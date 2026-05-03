@@ -2219,6 +2219,31 @@ export const engagementOpsRouter = router({
                 }
                 // Store the plan on state for downstream access
                 (state as any).activeScanPlan = activeScanPlan;
+
+                // ── Hypothesis → ScanForge Bridge: Enrich scan plan with hypothesis priorities ──
+                try {
+                  const { buildScanPriorityAdjustments } = await import('../lib/hypothesis-orchestrator-hook');
+                  const { enrichScanPlanWithHypotheses, formatHypothesisEnrichmentSummary } = await import('../lib/hypothesis-scanforge-bridge');
+                  const hypothesisAdjustments = buildScanPriorityAdjustments(state!);
+                  if (hypothesisAdjustments.length > 0) {
+                    const enrichment = enrichScanPlanWithHypotheses(activeScanPlan, hypothesisAdjustments);
+                    const summary = formatHypothesisEnrichmentSummary(enrichment);
+                    addLog(state!, {
+                      phase: 'scanning', type: 'success',
+                      title: `\u{1f9e0} Hypothesis Enrichment: ${enrichment.targetsEnriched} targets boosted`,
+                      detail: summary,
+                    });
+                  } else {
+                    addLog(state!, {
+                      phase: 'scanning', type: 'info',
+                      title: '\u{1f9e0} Hypothesis Enrichment: No adjustments',
+                      detail: 'No high-confidence hypotheses available for scan plan enrichment.',
+                    });
+                  }
+                } catch (hypothesisErr: any) {
+                  addLog(state!, { phase: 'scanning', type: 'warning', title: '\u26a0\ufe0f Hypothesis enrichment skipped', detail: `Non-critical: ${hypothesisErr.message}` });
+                }
+
               } catch (err: any) {
                 addLog(state!, { phase: 'scanning', type: 'error', title: '\u274c Scan Plan Generation failed', detail: `Falling back to default scan configs. Error: ${err.message}` });
               }

@@ -1556,3 +1556,23 @@
 - [x] Created OPERATOR-RUNBOOK.md with exact copy-paste commands for all 3 steps
 - [x] Created ac3-staging-iam-roles.yaml CloudFormation template with FedRAMP-compliant least-privilege roles
 - [x] Vitest tests for all new artifacts (60/60 passing)
+
+### Feature Round 4 (May 3)
+#### 1. CI Preflight Gate + ECR Lifecycle Policy
+- [x] Add preflight-check.sh as first job in deploy-aws.yml GitHub Actions workflow
+- [x] Create ECR lifecycle policy JSON (expire untagged after 7 days, keep last 10 tagged per env)
+#### 3. Hypothesis Scan Priorities → ScanForge
+- [x] Wire hypothesis scan priorities into ScanForge scan plan generator
+- [x] Auto-focus active scanning on endpoints flagged by high-confidence hypotheses
+#### 4. Submission History Database Table
+- [x] Create submission_history table in drizzle schema
+- [x] Add tRPC procedures for CRUD + trend analysis + win-rate tracking
+- [x] Integrate with existing Submission Prep UI
+#### 5. Production Hardening
+- [x] Add rate limiting middleware
+- [x] Tighten CORS configuration
+- [x] Add CSP (Content Security Policy) headers
+- [x] Add structured logging with correlation IDs
+#### Tests & Delivery
+- [x] Write vitest tests for all four features
+- [x] Checkpoint and push to GitHub

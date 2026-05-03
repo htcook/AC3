@@ -262,6 +262,22 @@ async function startServer() {
     next();
   });
 
+  // ─── Production Hardening Middleware ─────────────────────────────────
+  // Correlation ID: assigns/propagates trace IDs for distributed tracing
+  const { correlationIdMiddleware, requestLoggingMiddleware } = await import("../lib/correlation-id");
+  app.use(correlationIdMiddleware);
+
+  // Security headers: CSP, X-Frame-Options, X-Content-Type-Options, etc.
+  const { cspMiddleware, securityHeadersMiddleware, corsMiddleware } = await import("../lib/security-headers");
+  app.use(securityHeadersMiddleware);
+  app.use(cspMiddleware);
+
+  // CORS: restrict API origins in production
+  app.use("/api", corsMiddleware);
+
+  // Request logging: structured logs with correlation IDs and timing
+  app.use(requestLoggingMiddleware);
+
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
