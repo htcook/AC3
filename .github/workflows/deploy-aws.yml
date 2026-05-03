@@ -49,9 +49,6 @@ concurrency:
 env:
   AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
   PROJECT_NAME: ac3
-  # Cross-account ECR lives in SharedServices (890319879326)
-  ECR_ACCOUNT_ID: '890319879326'
-  ECR_REPO_NAME: ace-c3/caldera-dashboard
 
 permissions:
   id-token: write   # OIDC federation
@@ -94,8 +91,7 @@ jobs:
           fi
 
           echo "environment=$ENV" >> $GITHUB_OUTPUT
-          # ECR repo is shared across environments in SharedServices account
-          echo "ecr_repo=${{ env.ECR_REPO_NAME }}" >> $GITHUB_OUTPUT
+          echo "ecr_repo=${{ env.PROJECT_NAME }}-${ENV}" >> $GITHUB_OUTPUT
           echo "ecs_cluster=${{ env.PROJECT_NAME }}-${ENV}" >> $GITHUB_OUTPUT
           echo "ecs_service=${{ env.PROJECT_NAME }}-${ENV}-service" >> $GITHUB_OUTPUT
           echo "task_family=${{ env.PROJECT_NAME }}-${ENV}" >> $GITHUB_OUTPUT
@@ -149,63 +145,11 @@ jobs:
         run: npx vite build
 
   # ─────────────────────────────────────────────
-  # Pre-flight AWS permission validation
-  # ─────────────────────────────────────────────
-  preflight:
-    name: AWS Preflight (${{ needs.setup.outputs.environment }})
-    needs: [setup]
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ needs.setup.outputs.deploy_role }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Run preflight permission checks
-        env:
-          ENVIRONMENT: ${{ needs.setup.outputs.environment }}
-          ECR_ACCOUNT_ID: ${{ env.ECR_ACCOUNT_ID }}
-          ECR_REPO_NAME: ${{ env.ECR_REPO_NAME }}
-        run: |
-          chmod +x infrastructure/scripts/preflight-check.sh
-          ./infrastructure/scripts/preflight-check.sh --env "$ENVIRONMENT" --verbose
-
-      - name: Verify ECR repository access
-        run: |
-          echo "🔍 Verifying cross-account ECR access..."
-          aws ecr describe-repositories \
-            --registry-id "${{ env.ECR_ACCOUNT_ID }}" \
-            --repository-names "${{ env.ECR_REPO_NAME }}" \
-            --region "${{ env.AWS_REGION }}" \
-            --query 'repositories[0].repositoryUri' \
-            --output text
-          echo "✅ ECR repository accessible"
-
-      - name: Verify ECS cluster exists
-        run: |
-          echo "🔍 Verifying ECS cluster..."
-          CLUSTER_STATUS=$(aws ecs describe-clusters \
-            --clusters "${{ needs.setup.outputs.ecs_cluster }}" \
-            --query 'clusters[0].status' \
-            --output text 2>/dev/null || echo "MISSING")
-          if [ "$CLUSTER_STATUS" = "ACTIVE" ]; then
-            echo "✅ ECS cluster ${{ needs.setup.outputs.ecs_cluster }} is ACTIVE"
-          else
-            echo "::warning::ECS cluster ${{ needs.setup.outputs.ecs_cluster }} status: $CLUSTER_STATUS"
-            echo "::warning::Cluster may need to be created before first deploy"
-          fi
-
-  # ─────────────────────────────────────────────
   # Build, push, and deploy
   # ─────────────────────────────────────────────
   deploy:
     name: Build & Deploy (${{ needs.setup.outputs.environment }})
-    needs: [setup, ci-gate, preflight]
+    needs: [setup, ci-gate]
     runs-on: ubuntu-latest
     environment: ${{ needs.setup.outputs.environment }}
     timeout-minutes: 30
@@ -220,11 +164,9 @@ jobs:
           role-to-assume: ${{ needs.setup.outputs.deploy_role }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Login to Amazon ECR (cross-account to SharedServices)
+      - name: Login to Amazon ECR
         id: ecr-login
         uses: aws-actions/amazon-ecr-login@v2
-        with:
-          registries: ${{ env.ECR_ACCOUNT_ID }}
 
       - name: Build, tag, and push Docker image
         id: build
