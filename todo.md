@@ -1495,3 +1495,12 @@
 - [x] Create error pattern scanning endpoints: runErrorPatternScan + updateErrorBaseline in system router
 - [x] Add error pattern baseline tracking (generateBaseline, compareToBaseline, setBaseline/getBaseline persistence)
 - [x] Write vitest tests for all new features (26 tests: 20 CI validator + 6 hot path integration, 230 total across all files)
+
+### Bug Bounty Analytics & Skills Enhancement (May 2 — from expert LLM training review)
+- [x] Build Bug Bounty Hypothesis Generator specialist (tech stack → ranked hypotheses, recon quality assessment, chain potential analysis)
+- [x] Build Bug Bounty Duplicate Detector (CVE cross-reference, program-adjusted probability, novel opportunity flagging)
+- [x] Build Bug Bounty Submission Optimizer (platform-specific formatting, CWE/CVSS mapping, quality scoring, reproduction steps)
+- [x] Build Negative Example Training Pipeline (rejection pattern analysis, training signals, lessons learned aggregation)
+- [x] Build Program-Aware Context module (scope checking, bounty estimation, reward tiers, LLM context builder)
+- [x] Enhance Confidence Calibration with explicit reasoning chains (6 weighted factors), Bayesian curve updating, drift detection, program-specific adjustments
+- [x] Write vitest tests for all new modules (31 tests passing across 6 describe blocks, 261 total across all files)
