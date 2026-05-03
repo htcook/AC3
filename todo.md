@@ -1464,3 +1464,15 @@
 - [x] Wire training lab auto-auth into credential discovery phase for Nikto scans (cookie injection via -H flag)
 - [x] Wire training lab auto-auth into credential discovery phase for SQLMap scans (reuse Gobuster session cookie)
 - [x] Write vitest tests for all new features (41 tests passing: nuclei tech tags, command builder, nikto profiles, shared auth)
+
+### Bug Bounty & Cross-Training Improvements (May 2) — Expert Review Implementation
+- [x] Implement LLM inference deduplication with semantic hash caching (SemanticInferenceCache with TTL, eviction, graduation candidates)
+- [x] Add LLM call-site instrumentation for volume/cost tracking per engagement (CallSiteVolumeTracker, buildCostReport, anomaly detection)
+- [x] Build cross-training event bus with bias correction and source lineage tracking (CrossTrainingEventBus, 6 source bias profiles, SignalLineageTracker)
+- [x] Add holdout validation data management for cross-training quality assurance (HoldoutValidationManager, deterministic selection, validation metrics)
+- [x] Enhance CVE matching with confidence calibration (passive vs active scoring) (CONFIDENCE_CALIBRATION matrix, detectCalibrationDrift)
+- [x] Add technique-vs-vulnerability distinction in CVE matching logic (6 match types: exact_vulnerability → false_match, safeToPropagateForTraining flag)
+- [x] Implement per-engagement operational metrics (calls, cost, time, findings, FP rate) (buildEngagementMetrics, compareEngagements)
+- [x] Implement per-finding lineage tracking (source scanner, LLM call, confidence, outcome) (FindingLineageTracker with full lifecycle events)
+- [x] Add detection rule effectiveness metrics (TP rate, FP rate, alert volume) (DetectionRuleEffectivenessTracker with keep/tune/disable/promote recommendations)
+- [x] Write vitest tests for all new features (49 tests passing across all 4 modules)
