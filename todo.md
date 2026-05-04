@@ -1658,3 +1658,15 @@
 - [x] Add "Who It's For" section with 6 personas + sector expertise grid
 - [x] Add mobile hamburger menu with Sheet component
 - [x] Add threat intelligence source provenance disclaimer
+
+### Request a Demo Form (May 4)
+- [x] Add demo_requests table to Drizzle schema (name, email, organization, job_title, use_case, status, notes, ip_address, user_agent, timestamps)
+- [x] Create tRPC router with getDb() for demo request CRUD (submit, list, updateStatus, stats)
+- [x] Add public tRPC procedure for submitting demo requests (with IP-based rate limiting, 3/hr)
+- [x] Add protected tRPC procedures for listing/managing demo requests (admin only, with search/filter/pagination)
+- [x] Send owner notification on new demo request submission (title + markdown content)
+- [x] Build RequestDemoModal component (form validation, success state, error display)
+- [x] Replace all 5 mailto links on homepage with RequestDemoModal trigger
+- [x] Add duplicate email detection (24-hour window)
+- [x] Write vitest tests for demo request feature (28/28 passing)
+- [x] Checkpoint and push to GitHub

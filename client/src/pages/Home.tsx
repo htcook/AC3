@@ -17,6 +17,7 @@ import {
 import {
   Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle,
 } from "@/components/ui/sheet";
+import RequestDemoModal from "@/components/RequestDemoModal";
 
 // ─── Collapsible Section ────────────────────────────────────────────
 function CollapsibleSection({ title, subtitle, defaultOpen = false, children }: {
@@ -174,12 +175,12 @@ export default function Home() {
                 SIGN IN
               </Button>
             </Link>
-            <a href="mailto:harrison@aceofcloud.com?subject=AC3%20Early%20Access%20Request">
+            <RequestDemoModal trigger={
               <Button className="hidden sm:inline-flex font-display tracking-wider bg-primary hover:bg-primary/90 text-sm">
                 REQUEST EARLY ACCESS
                 <ChevronRight className="w-4 h-4 ml-1" />
               </Button>
-            </a>
+            } />
             {/* Mobile hamburger menu */}
             <Sheet>
               <SheetTrigger asChild>
@@ -222,11 +223,11 @@ export default function Home() {
                       SIGN IN
                     </span>
                   </Link>
-                  <a href="mailto:harrison@aceofcloud.com?subject=AC3%20Early%20Access%20Request">
+                  <RequestDemoModal trigger={
                     <Button className="w-full mt-2 font-display tracking-wider bg-primary hover:bg-primary/90 text-sm">
                       REQUEST EARLY ACCESS
                     </Button>
-                  </a>
+                  } />
                 </nav>
               </SheetContent>
             </Sheet>
@@ -273,12 +274,12 @@ export default function Home() {
             </div>
 
             <div className="flex flex-wrap justify-center gap-4 mb-12">
-              <a href="mailto:harrison@aceofcloud.com?subject=AC3%20Early%20Access%20Request">
+              <RequestDemoModal trigger={
                 <Button size="lg" className="font-display tracking-wider bg-primary hover:bg-primary/90 text-white px-8 py-6 text-base">
                   REQUEST EARLY ACCESS
                   <ArrowRight className="w-5 h-5 ml-2" />
                 </Button>
-              </a>
+              } />
               <a href="#how-it-works">
                 <Button size="lg" variant="outline" className="font-display tracking-wider border-2 border-white/30 hover:border-white hover:bg-white hover:text-background px-8 py-6 text-base">
                   SEE HOW IT WORKS
@@ -617,12 +618,12 @@ export default function Home() {
             and direct access to the engineering team.
           </p>
           <div className="flex flex-wrap justify-center gap-4">
-            <a href="mailto:harrison@aceofcloud.com?subject=AC3%20Early%20Access%20Request">
+            <RequestDemoModal trigger={
               <Button size="lg" className="font-display tracking-wider bg-primary hover:bg-primary/90 text-white px-8 py-6">
                 REQUEST EARLY ACCESS
                 <ArrowRight className="w-5 h-5 ml-2" />
               </Button>
-            </a>
+            } />
             <Link href="/login?returnTo=%2Fdashboard">
               <Button size="lg" variant="outline" className="font-display tracking-wider border-2 border-primary text-primary hover:bg-primary hover:text-white px-8 py-6">
                 <Lock className="w-4 h-4 mr-2" />
@@ -1102,12 +1103,12 @@ export default function Home() {
             evidence-backed findings, and safety architecture you can trust.
           </p>
           <div className="flex flex-wrap justify-center gap-4">
-            <a href="mailto:harrison@aceofcloud.com?subject=AC3%20Early%20Access%20Request">
+            <RequestDemoModal trigger={
               <Button size="lg" className="font-display tracking-wider bg-primary hover:bg-primary/90 text-white px-8 py-6">
                 REQUEST EARLY ACCESS
                 <ArrowRight className="w-5 h-5 ml-2" />
               </Button>
-            </a>
+            } />
             <a href="https://aceofcloud.com" target="_blank" rel="noopener noreferrer">
               <Button size="lg" variant="outline" className="font-display tracking-wider border-2 border-primary text-primary hover:bg-primary hover:text-white px-8 py-6">
                 ABOUT ACE OF CLOUD

@@ -8294,3 +8294,24 @@ export const irRunbookEntries = mysqlTable("ir_runbook_entries", {
   index("irr_category_idx").on(table.category),
   index("irr_is_active_idx").on(table.isActive),
 ]);
+
+
+// ─── Demo Requests ──────────────────────────────────────────────────
+export const demoRequests = mysqlTable("demo_requests", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  email: varchar("email", { length: 255 }).notNull(),
+  organization: varchar("organization", { length: 255 }).notNull(),
+  jobTitle: varchar("job_title", { length: 255 }),
+  useCase: text("use_case").notNull(),
+  status: mysqlEnum("status", ["new", "contacted", "scheduled", "completed", "declined"]).default("new").notNull(),
+  notes: text("notes"),
+  ipAddress: varchar("ip_address", { length: 45 }),
+  userAgent: varchar("user_agent", { length: 512 }),
+  createdAt: timestamp("created_at", { mode: "string" }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { mode: "string" }).defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("dr_email_idx").on(table.email),
+  index("dr_status_idx").on(table.status),
+  index("dr_created_at_idx").on(table.createdAt),
+]);
