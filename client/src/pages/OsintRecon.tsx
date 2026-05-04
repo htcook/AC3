@@ -79,6 +79,7 @@ export default function OsintRecon() {
   const { data: findings } = trpc.osint.getFindings.useQuery({ engagementId });
 
   // Mutations
+  const utils = trpc.useUtils();
   const startRecon = trpc.osint.startRecon.useMutation();
   const batchCheck = trpc.osint.batchCheckTyposquats.useMutation();
   const updateTyposquatStatus = trpc.osint.updateTyposquatStatus.useMutation();
@@ -184,9 +185,7 @@ export default function OsintRecon() {
   const handleSingleWhois = async (domain: string, typosquatId: number) => {
     setWhoisLoading(prev => ({ ...prev, [domain]: true }));
     try {
-      const result = await fetch(`/api/trpc/whois.lookup?input=${encodeURIComponent(JSON.stringify({ domain }))}`)
-        .then(r => r.json())
-        .then(r => r.result?.data);
+      const result = await utils.whois.lookup.fetch({ domain });
       setWhoisData(prev => ({ ...prev, [domain]: result }));
       setExpandedWhois(typosquatId);
     } catch (err: any) {

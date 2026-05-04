@@ -243,6 +243,7 @@ import { stackProfileRouter } from "./routers/stack-profile";
 import { intelligenceGapsRouter } from "./routers/intelligence-gaps";
 import { customerIntelProfileRouter } from "./routers/customer-intel-profile";
 import { demoRequestsRouter } from "./routers/demo-requests";
+import { dnsSecurityRouter } from "./routers/dns-security";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -656,6 +657,8 @@ export const appRouter = router({
   customerIntelProfile: customerIntelProfileRouter,
   // ─── Demo Requests (Public Lead Capture) ──
   demoRequests: demoRequestsRouter,
+  // ─── DNS Security Validator ──
+  dnsSecurity: dnsSecurityRouter,
 });
 export type AppRouter = typeof appRouter;
 

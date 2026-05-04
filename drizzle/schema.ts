@@ -4552,7 +4552,7 @@ export const integrationExecutionLog = mysqlTable("integration_execution_log", {
 ]);
 
 export const integrationHealthChecks = mysqlTable("integration_health_checks", {
-	id: int().autoincrement().notNull(),
+	id: int().autoincrement().primaryKey(),
 	integrationId: varchar("integration_id", { length: 128 }).notNull(),
 	checkType: mysqlEnum("check_type", ['connectivity','auth_validation','rate_limit','full_probe']).default('connectivity').notNull(),
 	status: mysqlEnum(['healthy','degraded','unreachable','auth_failed','rate_limited','timeout','error']).notNull(),

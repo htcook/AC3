@@ -1981,6 +1981,261 @@ export async function exportDiReport(
   }
 
   // ═══════════════════════════════════════════════════════════════════════
+  // 4c. DNS SECURITY ASSESSMENT (from DnsSecurityValidator)
+  // ═══════════════════════════════════════════════════════════════════════
+  const dnsSecurityReport = scan.pipelineOutput?.passiveDiscovery?.dnsSecurityReport || null;
+  if (dnsSecurityReport) {
+    y = startSection('DNS Security Assessment', y, 80);
+
+    // Summary box
+    const dnsSum = dnsSecurityReport.summary;
+    const riskLabel = (dnsSum.overallRisk || 'unknown').toUpperCase();
+    const riskColor: [number, number, number] = riskLabel === 'CRITICAL' ? [220, 38, 38] : riskLabel === 'HIGH' ? [234, 88, 12] : riskLabel === 'MEDIUM' ? [202, 138, 4] : [22, 163, 74];
+    doc.setFillColor(30, 41, 59);
+    doc.roundedRect(margin, y, contentWidth, 18, 2, 2, 'F');
+    doc.setFontSize(8);
+    doc.setTextColor(148, 163, 184);
+    doc.text('Overall DNS Risk:', margin + 4, y + 6);
+    doc.setFontSize(11);
+    doc.setTextColor(...riskColor);
+    doc.text(riskLabel, margin + 38, y + 6);
+    doc.setFontSize(7);
+    doc.setTextColor(148, 163, 184);
+    doc.text(`${dnsSum.totalChecks} checks | ${dnsSum.passedChecks} passed | ${dnsSum.failedChecks} failed`, margin + 4, y + 12);
+    doc.text(`Findings: ${dnsSum.critical} critical, ${dnsSum.high} high, ${dnsSum.medium} medium, ${dnsSum.low} low, ${dnsSum.info || 0} info`, margin + 4, y + 16);
+    y += 22;
+
+    // DNS Records Table
+    if (dnsSecurityReport.records?.length > 0) {
+      y = checkPageBreak(y, 30);
+      y = subheading('DNS Records', y);
+      const recordRows = dnsSecurityReport.records.slice(0, 40).map((r: any) => [
+        r.type || '',
+        truncate(r.name, 35),
+        truncate(r.value, 50),
+        r.ttl != null ? `${r.ttl}s` : '—',
+        r.priority != null ? String(r.priority) : '—',
+      ]);
+      autoTable!(doc, {
+        startY: y,
+        head: [['Type', 'Name', 'Value', 'TTL', 'Priority']],
+        body: recordRows,
+        theme: 'grid',
+        headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 6.5, fontStyle: 'bold', cellPadding: 1.5 },
+        bodyStyles: { fontSize: 6, cellPadding: 1.2, textColor: [51, 65, 85] },
+        margin: { left: margin, right: margin },
+        columnStyles: { 0: { cellWidth: 14 }, 1: { cellWidth: 35 }, 3: { cellWidth: 14 }, 4: { cellWidth: 14 } },
+      });
+      y = (doc as any).lastAutoTable.finalY + 4;
+    }
+
+    // DNSSEC Chain-of-Trust
+    y = checkPageBreak(y, 40);
+    y = subheading('DNSSEC Status', y);
+    const dnssec = dnsSecurityReport.dnssec;
+    const dnssecRows: string[][] = [
+      ['DNSSEC Enabled', dnssec.enabled ? 'Yes' : 'No'],
+      ['Delegation Signed', dnssec.delegationSigned ? 'Yes' : 'No'],
+      ['RRSIG Present', dnssec.rrsigPresent ? 'Yes' : 'No'],
+      ['Chain of Trust Valid', dnssec.chainOfTrustValid ? 'Yes' : 'No / Not Applicable'],
+      ['Algorithm Strength', dnssec.algorithmStrength || 'N/A'],
+    ];
+    if (dnssec.signatureExpiry) dnssecRows.push(['Signature Expiry', dnssec.signatureExpiry]);
+    autoTable!(doc, {
+      startY: y,
+      head: [['Property', 'Value']],
+      body: dnssecRows,
+      theme: 'grid',
+      headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 7, fontStyle: 'bold', cellPadding: 2 },
+      bodyStyles: { fontSize: 7, cellPadding: 1.5, textColor: [51, 65, 85] },
+      margin: { left: margin, right: margin },
+      columnStyles: { 0: { cellWidth: 40 } },
+      didParseCell: (data: any) => {
+        if (data.section === 'body' && data.column.index === 1) {
+          const text = String(data.cell.text);
+          if (text === 'No' || text.includes('Not Applicable') || text === 'weak') {
+            data.cell.styles.textColor = [220, 38, 38];
+          } else if (text === 'Yes' || text === 'strong') {
+            data.cell.styles.textColor = [22, 163, 74];
+          }
+        }
+      },
+    });
+    y = (doc as any).lastAutoTable.finalY + 4;
+
+    // DS Records
+    if (dnssec.dsRecords?.length > 0) {
+      y = checkPageBreak(y, 20);
+      const dsRows = dnssec.dsRecords.map((ds: any) => [
+        String(ds.keyTag),
+        ds.algorithmName || String(ds.algorithm),
+        String(ds.digestType),
+        truncate(ds.digest, 40),
+      ]);
+      autoTable!(doc, {
+        startY: y,
+        head: [['Key Tag', 'Algorithm', 'Digest Type', 'Digest']],
+        body: dsRows,
+        theme: 'grid',
+        headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 6.5, fontStyle: 'bold', cellPadding: 1.5 },
+        bodyStyles: { fontSize: 6, cellPadding: 1.2, textColor: [51, 65, 85], font: 'courier' },
+        margin: { left: margin, right: margin },
+      });
+      y = (doc as any).lastAutoTable.finalY + 4;
+    }
+
+    // DNSKEY Records
+    if (dnssec.dnskeyRecords?.length > 0) {
+      y = checkPageBreak(y, 20);
+      const dnskeyRows = dnssec.dnskeyRecords.map((k: any) => [
+        String(k.flags) + (k.flags === 257 ? ' (KSK)' : k.flags === 256 ? ' (ZSK)' : ''),
+        k.algorithmName || String(k.algorithm),
+        k.keyLength ? `${k.keyLength} bits` : 'N/A',
+      ]);
+      autoTable!(doc, {
+        startY: y,
+        head: [['Flags', 'Algorithm', 'Key Length']],
+        body: dnskeyRows,
+        theme: 'grid',
+        headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 6.5, fontStyle: 'bold', cellPadding: 1.5 },
+        bodyStyles: { fontSize: 6.5, cellPadding: 1.2, textColor: [51, 65, 85] },
+        margin: { left: margin, right: margin },
+      });
+      y = (doc as any).lastAutoTable.finalY + 4;
+    }
+
+    // DNSSEC Issues
+    if (dnssec.issues?.length > 0) {
+      y = checkPageBreak(y, 15);
+      doc.setFontSize(7);
+      doc.setTextColor(220, 38, 38);
+      for (const issue of dnssec.issues) {
+        y = checkPageBreak(y, 8);
+        doc.text(`⚠ ${issue}`, margin + 2, y);
+        y += 4;
+      }
+      doc.setTextColor(51, 65, 85);
+      y += 2;
+    }
+
+    // Dangling DNS / Subdomain Takeover Findings
+    const danglingFindings = dnsSecurityReport.findings?.filter((f: any) => f.category === 'dangling_dns') || [];
+    if (danglingFindings.length > 0) {
+      y = checkPageBreak(y, 30);
+      y = subheading('Dangling DNS / Subdomain Takeover Risk', y);
+      const danglingRows = danglingFindings.map((f: any) => [
+        f.severity?.toUpperCase() || 'N/A',
+        truncate(f.title, 45),
+        truncate(f.affectedRecord || '', 35),
+        truncate(f.remediation, 40),
+      ]);
+      autoTable!(doc, {
+        startY: y,
+        head: [['Severity', 'Finding', 'Affected Record', 'Remediation']],
+        body: danglingRows,
+        theme: 'grid',
+        headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 6.5, fontStyle: 'bold', cellPadding: 1.5 },
+        bodyStyles: { fontSize: 6, cellPadding: 1.2, textColor: [51, 65, 85] },
+        margin: { left: margin, right: margin },
+        columnStyles: { 0: { cellWidth: 16 } },
+        didParseCell: (data: any) => {
+          if (data.section === 'body' && data.column.index === 0) {
+            const sev = String(data.cell.text).toLowerCase();
+            if (sev === 'critical') data.cell.styles.textColor = [220, 38, 38];
+            else if (sev === 'high') data.cell.styles.textColor = [234, 88, 12];
+            else if (sev === 'medium') data.cell.styles.textColor = [202, 138, 4];
+          }
+        },
+      });
+      y = (doc as any).lastAutoTable.finalY + 4;
+    }
+
+    // All Other DNS Security Findings (non-dangling)
+    const otherFindings = dnsSecurityReport.findings?.filter((f: any) => f.category !== 'dangling_dns') || [];
+    if (otherFindings.length > 0) {
+      y = checkPageBreak(y, 30);
+      y = subheading('DNS Security Findings', y);
+      const findingRows = otherFindings.slice(0, 30).map((f: any) => [
+        f.severity?.toUpperCase() || 'N/A',
+        truncate(f.title, 40),
+        f.category?.replace(/_/g, ' ') || '',
+        f.mitreAttackId || '—',
+        truncate(f.remediation, 35),
+      ]);
+      autoTable!(doc, {
+        startY: y,
+        head: [['Severity', 'Finding', 'Category', 'MITRE', 'Remediation']],
+        body: findingRows,
+        theme: 'grid',
+        headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 6.5, fontStyle: 'bold', cellPadding: 1.5 },
+        bodyStyles: { fontSize: 6, cellPadding: 1.2, textColor: [51, 65, 85] },
+        margin: { left: margin, right: margin },
+        columnStyles: { 0: { cellWidth: 14 }, 3: { cellWidth: 18 } },
+        didParseCell: (data: any) => {
+          if (data.section === 'body' && data.column.index === 0) {
+            const sev = String(data.cell.text).toLowerCase();
+            if (sev === 'critical') data.cell.styles.textColor = [220, 38, 38];
+            else if (sev === 'high') data.cell.styles.textColor = [234, 88, 12];
+            else if (sev === 'medium') data.cell.styles.textColor = [202, 138, 4];
+          }
+        },
+      });
+      y = (doc as any).lastAutoTable.finalY + 4;
+    }
+
+    // DNS Security Posture Summary (SPF/DKIM/DMARC, CAA, etc.)
+    const emailFindings = dnsSecurityReport.findings?.filter((f: any) => f.category === 'email_security') || [];
+    const caaFindings = dnsSecurityReport.findings?.filter((f: any) => f.category === 'caa') || [];
+    const postureItems: string[][] = [];
+    // Email security posture
+    if (emailFindings.length === 0) {
+      postureItems.push(['SPF/DKIM/DMARC', 'Properly configured', '✓']);
+    } else {
+      for (const ef of emailFindings) {
+        postureItems.push(['Email Auth', truncate(ef.title, 50), ef.severity?.toUpperCase() || 'N/A']);
+      }
+    }
+    // CAA posture
+    if (caaFindings.length === 0) {
+      postureItems.push(['CAA Records', 'Certificate Authority Authorization configured', '✓']);
+    } else {
+      for (const cf of caaFindings) {
+        postureItems.push(['CAA', truncate(cf.title, 50), cf.severity?.toUpperCase() || 'N/A']);
+      }
+    }
+    // Zone transfer
+    const ztFindings = dnsSecurityReport.findings?.filter((f: any) => f.category === 'zone_transfer') || [];
+    postureItems.push(['Zone Transfer', ztFindings.length === 0 ? 'Blocked (Secure)' : 'ALLOWED — zone data exposed', ztFindings.length === 0 ? '✓' : 'HIGH']);
+    // Version disclosure
+    const vdFindings = dnsSecurityReport.findings?.filter((f: any) => f.category === 'version_disclosure') || [];
+    postureItems.push(['Version Disclosure', vdFindings.length === 0 ? 'Not disclosed' : 'Nameserver version exposed', vdFindings.length === 0 ? '✓' : 'LOW']);
+
+    if (postureItems.length > 0) {
+      y = checkPageBreak(y, 30);
+      y = subheading('DNS Security Posture Summary', y);
+      autoTable!(doc, {
+        startY: y,
+        head: [['Control', 'Status', 'Result']],
+        body: postureItems,
+        theme: 'grid',
+        headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 7, fontStyle: 'bold', cellPadding: 2 },
+        bodyStyles: { fontSize: 6.5, cellPadding: 1.5, textColor: [51, 65, 85] },
+        margin: { left: margin, right: margin },
+        columnStyles: { 0: { cellWidth: 30 }, 2: { cellWidth: 16 } },
+        didParseCell: (data: any) => {
+          if (data.section === 'body' && data.column.index === 2) {
+            const text = String(data.cell.text);
+            if (text === '✓') data.cell.styles.textColor = [22, 163, 74];
+            else if (text === 'HIGH' || text === 'CRITICAL') data.cell.styles.textColor = [220, 38, 38];
+            else if (text === 'MEDIUM') data.cell.styles.textColor = [202, 138, 4];
+          }
+        },
+      });
+      y = (doc as any).lastAutoTable.finalY + 4;
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
   // 4b. DOMAIN REGISTRATION DETAILS (RDAP/WHOIS)
   // ═══════════════════════════════════════════════════════════════════════
   const domainRegistration = scan.domainRegistration || scan.pipelineOutput?.domainRegistration || null;

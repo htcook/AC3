@@ -15,6 +15,8 @@
 import { invokeLLM } from "../_core/llm";
 import { throttledLLMCall } from "./llm-throttle";
 import type { OpsPhase } from "./engagement-orchestrator";
+import { DnsSecurityValidator } from "./dns-security-validator";
+import type { DnsSecurityReport } from "./dns-security-validator";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -356,6 +358,24 @@ export async function executePassiveDiscovery(
     }
   }
 
+  // Run comprehensive DNS Security Validation
+  let dnsSecurityReport: DnsSecurityReport | null = null;
+  try {
+    const dnsValidator = new DnsSecurityValidator(engagement.targetDomain || state.domain, "di_scan");
+    dnsSecurityReport = await dnsValidator.runFullAssessment();
+    addLog(state, {
+      phase: "passive_discovery", type: "info",
+      title: "🛡️ DNS Security Assessment Complete",
+      detail: `${dnsSecurityReport.summary.totalChecks} checks performed. Risk: ${dnsSecurityReport.summary.overallRisk.toUpperCase()}. Findings: ${dnsSecurityReport.summary.critical} critical, ${dnsSecurityReport.summary.high} high, ${dnsSecurityReport.summary.medium} medium, ${dnsSecurityReport.summary.low} low.`,
+    });
+  } catch (err: any) {
+    addLog(state, {
+      phase: "passive_discovery", type: "warning",
+      title: "⚠️ DNS Security Assessment Partial",
+      detail: `DNS security validator encountered an error: ${err.message}. Basic DNS checks from passive recon still apply.`,
+    });
+  }
+
   // Store results in state
   state.passiveDiscovery = {
     completedAt: Date.now(),
@@ -367,6 +387,7 @@ export async function executePassiveDiscovery(
     wafDetected: result.wafDetected,
     emailAddresses: result.emailAddresses,
     breachExposure: result.breachExposure,
+    dnsSecurityReport,
   };
 
   addLog(state, {

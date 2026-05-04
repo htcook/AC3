@@ -63,6 +63,7 @@ const WebCrawlResultsTab = lazy(() => import("./domain-intel-tabs/WebCrawlResult
 const EntityProfileTab = lazy(() => import("./domain-intel-tabs/EntityProfileTab"));
 const VendorAlertCorrelationTab = lazy(() => import("./domain-intel-tabs/VendorAlertCorrelationTab"));
 const DomainHealthTab = lazy(() => import("./domain-intel-tabs/DomainHealthTab"));
+const DnsSecurityTab = lazy(() => import("./domain-intel-tabs/DnsSecurityTab"));
 const InfrastructureMapTab = lazy(() => import("./domain-intel-tabs/InfrastructureMapTab"));
 const DiscoveryContextTab = lazy(() => import("./domain-intel-tabs/DiscoveryContextTab"));
 const VendorRiskTab = lazy(() => import("./domain-intel-tabs/VendorRiskTab"));
@@ -1404,6 +1405,7 @@ export default function DomainIntelResults() {
               { value: 'spider', label: 'Web Crawl', icon: <Route className="h-3 w-3" /> },
               { value: 'web-crawl', label: 'Crawl Data', icon: <Telescope className="h-3 w-3" /> },
               { value: 'email-security', label: 'Email Security', icon: <Mail className="h-3 w-3" /> },
+              { value: 'dns-security', label: 'DNS Security', icon: <Shield className="h-3 w-3" /> },
             ],
           },
           {
@@ -6110,6 +6112,11 @@ export default function DomainIntelResults() {
         {/* Email Security Tab */}
         <TabsContent value="email-security" className="space-y-6">
           <Suspense fallback={<div className="flex items-center justify-center p-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>}><EmailSecurityTab pipeline={pipeline} domain={scan.primaryDomain} /></Suspense>
+        </TabsContent>
+
+        {/* DNS Security Tab */}
+        <TabsContent value="dns-security" className="space-y-6">
+          <Suspense fallback={<div className="flex items-center justify-center p-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>}><DnsSecurityTab pipeline={pipeline} domain={scan.primaryDomain} /></Suspense>
         </TabsContent>
 
         {/* Accuracy Insights Tab */}

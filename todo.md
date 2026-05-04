@@ -1674,3 +1674,68 @@
 ### Bug Fixes (May 4) — DI Reports
 - [x] Fix DI report generation — replaced raw fetch() with tRPC utils.fetch() for superjson compatibility (DomainIntelReports.tsx, DomainIntelResults.tsx, ScanHistory.tsx — 8 raw fetch calls fixed across 3 files)
 - [x] Fix reports section "failing to retrieve scan data" — root cause was superjson-encoded response parsed as plain JSON (result.result.data path was wrong, needed utils.*.fetch() for proper deserialization)
+
+### DNS Security Validation Module (May 4)
+#### 1. Core Detection Engine (dns-security-validator.ts)
+- [ ] Build dangling DNS detector with takeover fingerprint database (35+ vulnerable services from can-i-take-over-xyz)
+- [ ] Implement CNAME → dead endpoint detection (NXDOMAIN, known error pages)
+- [ ] Implement A/AAAA → unallocated/unresponsive IP detection
+- [ ] Implement NS delegation → dead nameserver detection (zone takeover)
+- [ ] Implement MX → dead mail server detection
+- [ ] DNSSEC validation (DS/DNSKEY presence, algorithm strength, signature expiry, chain-of-trust)
+- [ ] Zone transfer (AXFR) attempt detection
+- [ ] DNS cache poisoning susceptibility (source port randomization, TXID entropy, Kaminsky-style)
+- [ ] DNS rebinding vulnerability check
+- [ ] Open resolver detection
+- [ ] DNS amplification/reflection risk (ANY query response ratio)
+- [ ] Wildcard DNS detection (*.domain resolution)
+- [ ] SPF/DKIM/DMARC validation (email security posture)
+- [ ] CAA record validation (certificate authority authorization)
+- [ ] NSEC/NSEC3 zone walking exposure
+- [ ] DNS tunneling indicator detection (high-entropy TXT queries, unusual subdomain lengths)
+- [ ] Nameserver version disclosure (BIND version.bind, etc.)
+- [ ] DNS cookie support check (RFC 7873)
+- [ ] Response rate limiting (RRL) detection
+- [ ] Add severity classification (critical: NS/zone takeover, high: CNAME takeover/no DNSSEC, medium: stale records/weak config)
+#### 2. Multi-Engagement Integration
+- [ ] Integrate DNS security checks into DI scan pipeline (automatic on every domain scan)
+- [ ] Integrate into Vuln/Pentest engagement flow (DNS weaknesses as finding category)
+- [ ] Integrate into Red Team engagement flow (DNS attack surface for initial access, persistence)
+- [x] Create tRPC procedures (runDnsSecurityCheck, getDnsFindings, getDnsHistory, getDnsSummary)
+- [ ] Store results in database (dns_security_findings table with engagement_id FK)
+- [x] Map DNS findings to MITRE ATT&CK techniques (T1071.004 DNS tunneling, T1568 Dynamic Resolution, T1584.002 DNS Server)
+#### 3. UI & Visualization
+- [x] Build DNS Security Assessment sub-tab in DI scan results
+- [ ] Add DNS findings to Vuln/Pentest engagement findings list
+- [ ] Add DNS attack surface section to Red Team engagement planning
+- [x] Add remediation guidance per finding type (remove record, re-claim resource, enable DNSSEC, etc.)
+- [x] Severity badges, risk scores, and CVSS mapping for each DNS weakness
+#### 4. DI Report PDF — DNS/DNSSEC Section
+- [x] Add full DNS records section (A, AAAA, CNAME, MX, NS, TXT, SOA, SRV, CAA with TTLs)
+- [x] Add DNSSEC validation section (DS records, DNSKEY, RRSIG, algorithm, key length, expiry, chain-of-trust status)
+- [x] Add Dangling DNS findings section (findings table, severity, affected records, remediation)
+- [x] Add DNS security posture summary (SPF/DKIM/DMARC status, CAA, zone transfer, version disclosure)
+- [x] Include supporting details: nameserver response times, zone transfer results, open resolver status
+#### 5. Continuous Monitoring & Cloud Correlation
+- [ ] Add scheduled monitoring endpoint (/api/scheduled/dns-security-check) for periodic re-validation
+- [ ] Add AWS cloud inventory correlation (Route53 ↔ EC2/ELB/S3/CloudFront via existing AWS creds)
+- [ ] Add alerting via owner notification when new dangling record or DNS weakness detected
+- [ ] Track DNS record changes over time (detect the "30-minute window" scenario)
+#### Tests & Delivery
+- [x] Write vitest tests for detection engine (fingerprint matching, severity classification, DNSSEC validation, edge cases) — 28 tests passing
+- [x] Checkpoint and push to GitHub
+
+### Report Generation Audit (May 4)
+- [ ] Audit all report generation paths (DI, Vuln/Pentest, Red Team, RoE, Bug Bounty)
+- [ ] Fix any remaining raw fetch() calls that bypass superjson
+- [ ] Verify all document format types work (PDF, DOCX, CSV, JSON export)
+- [ ] Ensure report generation functions handle errors gracefully with user feedback
+
+### DNS Security Module Completion (May 4)
+- [x] Fix integration_health_checks INSERT bug (add primaryKey to id column)
+- [x] Build standalone DNS Security page (/dns-security) with domain input, assessment results, MITRE mapping
+- [x] Add DNS Security nav entry in AppShell sidebar
+- [x] Add DNS Security route in App.tsx
+- [x] Add DNS Security sub-tab in DI scan results (DnsSecurityTab component)
+- [x] Add DNS Security Assessment section to DI report PDF (records, DNSSEC, findings, posture summary)
+- [x] Write vitest tests for DNS security validator (28 tests passing)
