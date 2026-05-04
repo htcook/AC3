@@ -1576,3 +1576,15 @@
 #### Tests & Delivery
 - [x] Write vitest tests for all four features
 - [x] Checkpoint and push to GitHub
+
+### Round 5: Application + Infrastructure Improvements
+- [x] Build Calibration Dashboard widget on Bug Bounty Hub (drift status, rejection patterns)
+- [x] Add Submission History UI tab to Submission Prep page (win-rate charts, platform breakdown, trends)
+- [x] Build API Health Dashboard page (integration status, latency, last-check timestamps)
+- [x] Create GitHub Actions PR check workflow (tflint, CFN validate, vitest)
+- [x] Create security scanning workflow (Trivy container scan, npm audit)
+- [x] Create monitoring/alerting CloudFormation template (CloudWatch alarms for ECS, ALB, targets)
+- [x] Add Terraform remote state locking DynamoDB config
+- [x] Add SBOM generation to CI pipeline (FedRAMP compliance)
+- [x] Write vitest tests for all Round 5 features
+- [x] Checkpoint and push to GitHub

@@ -11,6 +11,7 @@
  * 7. View calibration drift status
  */
 import { useState, useMemo, useCallback } from "react";
+import { SubmissionHistoryTab } from "@/components/SubmissionHistoryTab";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -318,7 +319,7 @@ export default function SubmissionPrep() {
         </Card>
       ) : (
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="hypotheses" className="gap-1.5">
               <Brain className="h-3.5 w-3.5" /> Hypotheses
               {hypotheses.length > 0 && (
@@ -333,6 +334,9 @@ export default function SubmissionPrep() {
             </TabsTrigger>
             <TabsTrigger value="calibration" className="gap-1.5">
               <TrendingUp className="h-3.5 w-3.5" /> Calibration
+            </TabsTrigger>
+            <TabsTrigger value="history" className="gap-1.5">
+              <BarChart3 className="h-3.5 w-3.5" /> History
             </TabsTrigger>
             <TabsTrigger value="priorities" className="gap-1.5">
               <Crosshair className="h-3.5 w-3.5" /> Scan Priorities
@@ -834,6 +838,11 @@ export default function SubmissionPrep() {
                 </CardContent>
               </Card>
             )}
+          </TabsContent>
+
+          {/* ═══ HISTORY TAB ═══ */}
+          <TabsContent value="history" className="space-y-4">
+            <SubmissionHistoryTab />
           </TabsContent>
         </Tabs>
       )}

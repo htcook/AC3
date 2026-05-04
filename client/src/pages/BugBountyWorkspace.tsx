@@ -6,6 +6,7 @@
  */
 
 import { useState, useMemo, useCallback } from "react";
+import { CalibrationDashboardWidget } from "@/components/CalibrationDashboardWidget";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -370,6 +371,9 @@ export default function BugBountyWorkspace() {
           </div>
         </div>
       </div>
+
+      {/* Calibration Dashboard Widget — real-time drift status */}
+      <CalibrationDashboardWidget />
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="mb-6">

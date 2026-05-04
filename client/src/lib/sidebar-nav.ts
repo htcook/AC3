@@ -513,6 +513,7 @@ export const sidebarNavGroups: NavGroup[] = [
       { label: "Hot Path Analyzer", path: "/llm-hot-paths", icon: Flame, roles: ["admin", "team_lead"] },
       { label: "Operational Metrics", path: "/operational-metrics", icon: Activity, roles: ["admin", "team_lead"] },
       { label: "Architecture Health", path: "/architecture-health", icon: HeartPulse, roles: ["admin", "team_lead"] },
+      { label: "API Health Dashboard", path: "/api-health", icon: Activity, roles: ["admin", "team_lead", "operator"] },
       // ── Guides ──
       { label: "Emulation Guide", path: "/guide/caldera", icon: BookOpen },
       { label: "GoPhish Guide", path: "/guide/gophish", icon: BookOpen },
