@@ -1639,3 +1639,22 @@
 
 ### Bug Fixes (May 4)
 - [x] Fix engagement_timeline_events insert failure on target approval (column/value mismatch — missing `timestamp` field, `createdAt: new Date()` on string-mode column, `BigInt(Date.now())` on number-mode bigint). Fixed in engagements-core.ts (3 inserts), bug-bounty.ts (3 inserts), auto-persistence.ts (1 insert)
+
+### Homepage Revamp (May 4)
+- [x] Soften aggressive capability framing ("run real exploits" → "execute authorized exploits with full audit trail", etc.)
+- [x] Remove typosquat domain purchasing from public-facing copy
+- [x] Reframe "cloud-provisioned exploit infrastructure" → "cloud-provisioned engagement infrastructure"
+- [x] Reconcile inconsistent module counts — uses live API stats (32 modules) consistently
+- [x] Add Safety Architecture positioning section (five gates, hash-chained evidence, scope enforcement, FIPS crypto, QA pipeline)
+- [x] Add Mission framing section (why AC3 exists — improving frameworks, lowering cost of accurate assessment, real exposure over compliance theater)
+- [x] Add stage/availability statement (early access partnership mode, Q4 2026 GA)
+- [x] Improve CTA hierarchy (primary: Request Early Access; secondary: Sign In; tertiary: See How It Works)
+- [x] Add "How AC3 is Different" competitive differentiation section (comparison card format)
+- [x] Add Trust & Transparency section (practitioner-built, compliance-ready, safety-first AI, early access model)
+- [x] Soften "PROVE SECURITY WORKS" → "VALIDATE YOUR DEFENSES" with inclusive framing
+- [x] Remove practitioner provenance specifics (FedRAMP roots, personal background) for confidentiality
+- [x] Combine all AceofCloud expertise into unified platform positioning without revealing specific backgrounds
+- [x] Add "How It Works" 4-step section for prospect education
+- [x] Add "Who It's For" section with 6 personas + sector expertise grid
+- [x] Add mobile hamburger menu with Sheet component
+- [x] Add threat intelligence source provenance disclaimer
