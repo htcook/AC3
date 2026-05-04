@@ -1636,3 +1636,6 @@
 #### Tests & Delivery
 - [x] Write vitest tests for both features (58/58 passing)
 - [x] Checkpoint and push to GitHub
+
+### Bug Fixes (May 4)
+- [x] Fix engagement_timeline_events insert failure on target approval (column/value mismatch — missing `timestamp` field, `createdAt: new Date()` on string-mode column, `BigInt(Date.now())` on number-mode bigint). Fixed in engagements-core.ts (3 inserts), bug-bounty.ts (3 inserts), auto-persistence.ts (1 insert)

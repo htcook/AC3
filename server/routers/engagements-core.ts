@@ -336,7 +336,7 @@ export const engagementsRouter = router({
               justification: input.justification,
               timestamp: new Date().toISOString(),
             }),
-            createdAt: new Date(),
+            timestamp: Date.now(),
           });
         }
         return {
@@ -445,7 +445,7 @@ export const engagementsRouter = router({
             globalJustification: input.globalJustification,
             timestamp: new Date().toISOString(),
           }),
-          createdAt: new Date(),
+          timestamp: Date.now(),
         });
 
         await db.logActivity({
@@ -533,7 +533,7 @@ export const engagementsRouter = router({
             roeReference: input.roeReference,
             timestamp: new Date().toISOString(),
           }),
-          createdAt: new Date(),
+          timestamp: Date.now(),
         });
 
         await db.logActivity({

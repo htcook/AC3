@@ -107,20 +107,19 @@ export async function recordAction(event: ActionEvent): Promise<{
   try {
     if (!dbInstance) throw new Error("DB not available");
     await dbInstance.insert(engagementTimelineEvents).values({
-      id: timelineEventId,
-      engagementId: event.engagementId || "global",
+      engagementId: typeof event.engagementId === 'number' ? event.engagementId : 0,
       phase,
-      eventType: event.success ? "action_completed" : "action_failed",
+      eventType: event.success ? 'tool_executed' : 'scan_completed',
       title: event.actionName,
       description: event.description,
-      source: event.source,
+      sourceModule: event.source || 'auto-persistence',
       metadata: JSON.stringify({
         category: event.category,
         target: event.target,
         success: event.success,
         resultData: event.resultData,
       }),
-      createdAt: timestamp,
+      timestamp,
     });
   } catch (err) {
     // Don't let persistence failures break the main action

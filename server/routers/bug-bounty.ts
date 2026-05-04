@@ -399,8 +399,7 @@ async function autoRegisterLabAsset(
       removedOutOfScope,
       action: 'auto_register_lab_asset',
     }),
-    timestamp: BigInt(Date.now()),
-    createdAt: new Date(),
+    timestamp: Date.now(),
   });
 
   console.log(`[LabAssetRegister] Registered ${labUrl} for engagement #${engagementId}. Removed ${removedOutOfScope.length} out-of-scope domains.`);
@@ -458,8 +457,7 @@ async function removeOutOfScopeNextcloudAssets(
       title: 'Out-of-Scope Assets Removed',
       description: `Removed ${removed.length} out-of-scope domain(s): ${removed.join(', ')}. HackerOne Nextcloud program requires all testing on self-hosted instances only — *.nextcloud.com domains are NOT bounty-eligible.`,
       metadata: JSON.stringify({ removed, action: 'remove_out_of_scope' }),
-      timestamp: BigInt(Date.now()),
-      createdAt: new Date(),
+      timestamp: Date.now(),
     });
   }
 
@@ -2220,8 +2218,7 @@ export const bugBountyRouter = router({
           testLabUrl: input.testLabUrl,
           scanServerHost: input.scanServerHost,
         }),
-        timestamp: BigInt(Date.now()),
-        createdAt: new Date(),
+        timestamp: Date.now(),
       });
 
       return { success: true, targetDomain: host };
