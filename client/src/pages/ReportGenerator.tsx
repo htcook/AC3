@@ -125,31 +125,32 @@ export default function ReportGenerator() {
     exportDocxMut.mutate({ reportId });
   };
 
-  const exportPdfMut = trpc.reports.exportPdf.useMutation({
-    onSuccess: (data) => {
-      setExportingPdfId(null);
-      if (data.url) {
-        // Direct download via anchor element — no popup blocker issues
-        const a = document.createElement('a');
-        a.href = data.url;
-        a.download = data.filename || 'report.pdf';
-        a.target = '_blank';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        const isPdf = data.filename?.endsWith('.pdf') || data.url.endsWith('.pdf');
-        toast.success(isPdf ? 'PDF report downloaded' : 'Report downloaded (HTML fallback)');
-      }
-    },
-    onError: (err) => {
-      setExportingPdfId(null);
-      toast.error('Export failed: ' + err.message);
-    },
-  });
-
-  const handleExportPdf = (reportId: number) => {
+  const handleExportPdf = async (reportId: number) => {
     setExportingPdfId(reportId);
-    exportPdfMut.mutate({ reportId });
+    try {
+      // Client-side PDF generation — no server Chromium/Puppeteer needed
+      const { exportEngagementReportPdf } = await import('@/lib/export-engagement-report');
+      const res = await fetch(`/api/trpc/reports.getReportMarkdown?input=${encodeURIComponent(JSON.stringify({ reportId }))}`, { credentials: 'include' });
+      const json = await res.json();
+      if (!res.ok || json?.error) {
+        throw new Error(json?.error?.message || 'Failed to fetch report content');
+      }
+      const data = json?.result?.data;
+      if (!data?.markdown) throw new Error('Report content not available');
+      await exportEngagementReportPdf(data.markdown, {
+        title: data.title,
+        preparedFor: data.preparedFor,
+        preparedBy: data.preparedBy,
+        reportType: data.reportType,
+        generatedAt: data.generatedAt,
+      });
+      toast.success('PDF report downloaded');
+    } catch (err: any) {
+      console.error('[PDF Export] Client-side generation failed:', err);
+      toast.error('PDF export failed: ' + (err.message || 'Unknown error'));
+    } finally {
+      setExportingPdfId(null);
+    }
   };
 
   const copyToClipboard = (text: string) => {

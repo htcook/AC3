@@ -1365,8 +1365,45 @@ Instructions: ${reportPrompt}`,
           });
         }
       }),
-  });
 
+    /** Get raw markdown content for client-side PDF generation */
+    getReportMarkdown: protectedProcedure
+      .input(z.object({ reportId: z.number() }))
+      .query(async ({ input }) => {
+        const report = await db.getReportById(input.reportId);
+        if (!report) throw new TRPCError({ code: 'NOT_FOUND', message: 'Report not found' });
+        let markdownContent = '';
+        // Method 1: Direct S3 download via reportKey (never expires)
+        if ((report as any).reportKey) {
+          try {
+            const result = await doStorageGetContent((report as any).reportKey);
+            if (result) markdownContent = result.data.toString('utf-8');
+          } catch (e) {
+            console.warn('[Report/Markdown] S3 direct download failed:', (e as any).message);
+          }
+        }
+        // Method 2: Fetch from stored URL
+        if (!markdownContent && report.reportUrl) {
+          try {
+            const resp = await fetch(report.reportUrl, { signal: AbortSignal.timeout(30000) });
+            if (resp.ok) markdownContent = await resp.text();
+          } catch (e) {
+            console.warn('[Report/Markdown] URL fetch failed:', (e as any).message);
+          }
+        }
+        if (!markdownContent) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'Report content not available. Please regenerate the report.' });
+        }
+        return {
+          markdown: markdownContent,
+          title: report.title || 'Security Assessment Report',
+          preparedFor: (report as any).preparedFor || 'Client',
+          preparedBy: (report as any).preparedBy || 'Ace of Cloud LLC',
+          reportType: (report as any).reportType || 'pentest_assessment',
+          generatedAt: (report as any).generatedAt || new Date().toISOString(),
+        };
+      }),
+  });
 export const templateGeneratorRouter = router({
     // Generate phishing email template based on threat actor IOCs and TTPs
     generateFromThreatActor: protectedProcedure
@@ -1550,6 +1587,6 @@ Make the email realistic and based on actual ${input.threatActorName} phishing c
           }
         }
 
-        return results;
+           return results;
       }),
   });

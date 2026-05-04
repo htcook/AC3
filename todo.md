@@ -1775,3 +1775,16 @@
 - [ ] Push to aceofcloud/ac3 (GITHUB_CLASSIC_TOKEN expired — user will push manually)
 - [ ] Create daily scheduled task (06:00 EDT) — requires deployment first
 - [x] Checkpoint and deliver
+
+### PDF Report Download Bug Fix (May 4)
+- [x] Investigated: Puppeteer OOM in Manus 256MB container; DO/AWS have 3-4GB so Puppeteer works there
+- [x] Built client-side jsPDF engagement report generator (export-engagement-report.ts)
+- [x] Updated ReportGenerator.tsx to use client-side PDF (fetches markdown via getReportMarkdown, renders locally)
+- [x] Added getReportMarkdown tRPC query procedure to reportsRouter
+- [x] Fixed fetch credentials for auth cookie inclusion
+- [x] Verified DO Dockerfile: 4GB heap, Chromium installed, PUPPETEER_EXECUTABLE_PATH set
+- [x] Verified AWS Dockerfile: 3GB heap, FedRAMP compliant, non-root user, Chromium installed
+- [x] Increased AWS HEALTHCHECK start-period from 60s to 120s for cold start
+- [x] Verified GitHub Actions deploy workflows for both DO and AWS
+- [x] All 16 vitest tests passing
+- [x] Checkpoint and push to GitHub
