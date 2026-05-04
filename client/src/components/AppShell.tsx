@@ -452,6 +452,8 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/ssil", icon: Scan, label: "SSIL" },
           { href: "/live-infra", icon: Server, label: "INFRASTRUCTURE" },
           { href: "/scan-server", icon: Activity, label: "SCAN SERVER" },
+          { href: "/monitoring-deploy", icon: Activity, label: "MONITORING DEPLOY" },
+          { href: "/api-health", icon: Activity, label: "API HEALTH" },
           { href: "/error-dashboard", icon: Bug, label: "ERROR DASHBOARD" },
           { href: "/llm-telemetry", icon: BarChart3, label: "LLM TELEMETRY" },
           { href: "/llm-reliability", icon: HeartPulse, label: "LLM RELIABILITY" },

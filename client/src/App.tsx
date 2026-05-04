@@ -348,6 +348,7 @@ const LLMHotPaths = lazyWithRetry(() => import("./pages/LLMHotPaths"));
 const OperationalMetrics = lazyWithRetry(() => import("./pages/OperationalMetrics"));
 const ArchitectureHealth = lazyWithRetry(() => import("./pages/ArchitectureHealth"));
 const ApiHealthDashboard = lazyWithRetry(() => import("./pages/ApiHealthDashboard"));
+const MonitoringDeploy = lazyWithRetry(() => import("./pages/MonitoringDeploy"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -1283,6 +1284,9 @@ function Router() {
         </Route>
         <Route path="/api-health">
           <ProtectedRoute component={ApiHealthDashboard} pageName="ApiHealthDashboard" />
+        </Route>
+        <Route path="/monitoring-deploy">
+          <ProtectedRoute component={MonitoringDeploy} pageName="MonitoringDeploy" />
         </Route>
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />

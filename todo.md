@@ -1607,3 +1607,14 @@
 #### Tests & Delivery
 - [x] Write vitest tests for all Round 6 features (64/64 passing)
 - [x] Checkpoint and push to GitHub
+
+### Round 6.5: Monitoring Deployment Wizard UI (May 4)
+- [x] Create monitoringDeployRouter (tRPC procedures for config, commands, validation, templates)
+- [x] Build MonitoringDeploy page with 4-phase guided wizard (Configure → Review → Deploy → Verify)
+- [x] Add configuration form (environment, region, ECS names, thresholds, notifications)
+- [x] Add command generation with copy-paste CLI blocks and step completion tracking
+- [x] Add config validation (region format, thresholds, notification channels, prod warnings)
+- [x] Add stack resource inventory table (17 AWS resources)
+- [x] Wire route in App.tsx (/monitoring-deploy) and sidebar nav in AppShell.tsx
+- [x] Write vitest tests (43/43 passing)
+- [x] Checkpoint and push to GitHub

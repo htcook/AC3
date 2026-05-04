@@ -25,6 +25,7 @@ import { purpleTeamRouter } from "./routers/purple-team";
 import { webhooksRouter } from "./routers/webhooks";
 import { bugBountyRouter } from "./routers/bug-bounty";
 import { bugBountyFeedsRouter } from "./routers/bug-bounty-feeds";
+import { monitoringDeployRouter } from "./routers/monitoring-deploy";
 import { bountySubmissionPrepRouter } from "./routers/bounty-submission-prep";
 import { submissionHistoryRouter } from "./routers/submission-history";
 import { scoringRouter } from "./routers/scoring";
@@ -329,6 +330,7 @@ export const appRouter = router({
   webhooks: webhooksRouter,
   bugBounty: bugBountyRouter,
   bugBountyFeeds: bugBountyFeedsRouter,
+  monitoringDeploy: monitoringDeployRouter,
   bountySubmissionPrep: bountySubmissionPrepRouter,
   submissionHistory: submissionHistoryRouter,
   platformCredentials: platformCredentialsRouter,
