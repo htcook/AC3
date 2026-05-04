@@ -151,6 +151,7 @@ export default function DomainIntelResults() {
   const params = useParams<{ id: string }>();
   const [, navigate] = useLocation();
   const scanId = Number(params.id);
+  const utils = trpc.useUtils();
 
   // Delete scan mutation
   const deleteScanMut = trpc.domainIntel.deleteScan.useMutation({
@@ -697,28 +698,24 @@ export default function DomainIntelResults() {
               size="sm"
               className="text-xs bg-purple-600 hover:bg-purple-700 text-white"
               onClick={async () => {
-                const overrideResp = await fetch(`/api/trpc/domainIntel.getEntityOverride?input=${encodeURIComponent(JSON.stringify({ scanId: scan.id }))}`);
-                const overrideRes = await overrideResp.json();
-                const entityOverride = overrideRes?.result?.data || null;
+                let entityOverride = null;
+                try {
+                  entityOverride = await utils.domainIntel.getEntityOverride.fetch({ scanId: scan.id });
+                } catch { /* optional */ }
                 const fullScanData = { ...scan, ...pipeline, assets, observations: pipeline?.observations || [], entityOverride };
-                toast.success('Generating Domain Intelligence report PDF — this may take a moment');
+                toast.info('Generating Domain Intelligence report PDF — this may take a moment...');
                 let evidenceData;
                 try {
-                  const resp = await fetch(`/api/trpc/domainIntel.getReportEvidence?input=${encodeURIComponent(JSON.stringify({ scanId: scan.id }))}`);
-                  const res = await resp.json();
-                  evidenceData = res?.result?.data;
+                  evidenceData = await utils.domainIntel.getReportEvidence.fetch({ scanId: scan.id });
                 } catch { /* optional */ }
                 let infraMapData = null;
                 try {
-                  const infraResp = await fetch(`/api/trpc/calderaProxy.inferInfrastructure?input=${encodeURIComponent(JSON.stringify({ scanId: scan.id }))}`);
-                  const infraRes = await infraResp.json();
-                  infraMapData = infraRes?.result?.data || null;
+                  infraMapData = await utils.calderaProxy.inferInfrastructure.fetch({ scanId: scan.id });
                 } catch { /* optional — infra map enriches but isn't required */ }
                 let vrHistory = null;
                 try {
-                  const vrResp = await fetch(`/api/trpc/calderaProxy.getVendorRiskHistory?input=${encodeURIComponent(JSON.stringify({ scanId: scan.id }))}`);
-                  const vrRes = await vrResp.json();
-                  vrHistory = vrRes?.result?.data?.history || null;
+                  const vrData = await utils.calderaProxy.getVendorRiskHistory.fetch({ scanId: scan.id });
+                  vrHistory = (vrData as any)?.history || null;
                 } catch { /* optional */ }
                 exportDiReport(scan.primaryDomain, fullScanData, undefined, evidenceData, infraMapData, vrHistory);
               }}
@@ -739,28 +736,24 @@ export default function DomainIntelResults() {
               <DropdownMenuLabel>Export Data</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={async () => {
-                const overrideResp2 = await fetch(`/api/trpc/domainIntel.getEntityOverride?input=${encodeURIComponent(JSON.stringify({ scanId: scan.id }))}`);
-                const overrideRes2 = await overrideResp2.json();
-                const entityOverride2 = overrideRes2?.result?.data || null;
+                let entityOverride2 = null;
+                try {
+                  entityOverride2 = await utils.domainIntel.getEntityOverride.fetch({ scanId: scan.id });
+                } catch { /* optional */ }
                 const fullScanData = { ...scan, ...pipeline, assets, observations: pipeline?.observations || [], entityOverride: entityOverride2 };
-                toast.success('Domain Intelligence report export started — this may take a moment');
+                toast.info('Domain Intelligence report export started — this may take a moment...');
                 let evidenceData;
                 try {
-                  const resp = await fetch(`/api/trpc/domainIntel.getReportEvidence?input=${encodeURIComponent(JSON.stringify({ scanId: scan.id }))}`);
-                  const res = await resp.json();
-                  evidenceData = res?.result?.data;
+                  evidenceData = await utils.domainIntel.getReportEvidence.fetch({ scanId: scan.id });
                 } catch { /* optional */ }
                 let infraMapData = null;
                 try {
-                  const infraResp = await fetch(`/api/trpc/calderaProxy.inferInfrastructure?input=${encodeURIComponent(JSON.stringify({ scanId: scan.id }))}`);
-                  const infraRes = await infraResp.json();
-                  infraMapData = infraRes?.result?.data || null;
+                  infraMapData = await utils.calderaProxy.inferInfrastructure.fetch({ scanId: scan.id });
                 } catch { /* optional */ }
                 let vrHistory2 = null;
                 try {
-                  const vrResp2 = await fetch(`/api/trpc/calderaProxy.getVendorRiskHistory?input=${encodeURIComponent(JSON.stringify({ scanId: scan.id }))}`);
-                  const vrRes2 = await vrResp2.json();
-                  vrHistory2 = vrRes2?.result?.data?.history || null;
+                  const vrData2 = await utils.calderaProxy.getVendorRiskHistory.fetch({ scanId: scan.id });
+                  vrHistory2 = (vrData2 as any)?.history || null;
                 } catch { /* optional */ }
                 exportDiReport(scan.primaryDomain, fullScanData, undefined, evidenceData, infraMapData, vrHistory2);
               }}>

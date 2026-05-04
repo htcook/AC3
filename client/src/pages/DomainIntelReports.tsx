@@ -2,13 +2,12 @@ import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  Globe, Search, FileText, Download, Eye, Shield,
-  AlertTriangle, CheckCircle2, Loader2, Brain, ExternalLink, Trash2,
+  Globe, Search, Download, Eye, Loader2, Brain, Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { exportDiReport } from "@/lib/export-di-report";
@@ -26,6 +25,7 @@ export default function DomainIntelReports() {
   const scansQuery = trpc.domainIntel.listScans.useQuery();
   const [search, setSearch] = useState("");
   const [generatingId, setGeneratingId] = useState<number | null>(null);
+  const utils = trpc.useUtils();
 
   // Delete scan mutation
   const deleteScan = trpc.domainIntel.deleteScan.useMutation({
@@ -51,40 +51,42 @@ export default function DomainIntelReports() {
   const handleGenerateReport = async (scan: any) => {
     setGeneratingId(scan.id);
     try {
-      // Fetch full scan data for the report
-      const response = await fetch(`/api/trpc/domainIntel.getScan?input=${encodeURIComponent(JSON.stringify({ id: scan.id }))}`);
-      const result = await response.json();
-      const fullData = result?.result?.data;
+      // Use tRPC utils.fetch to properly handle superjson deserialization
+      const fullData = await utils.domainIntel.getScan.fetch({ id: scan.id });
       if (!fullData?.scan) {
         toast.error("Failed to load scan data for report generation");
         return;
       }
       const fullScan = fullData.scan;
-      const pipeline = fullScan.pipelineOutput || {};
+      const pipeline = (fullScan as any).pipelineOutput || {};
       const assets = fullData.assets || [];
       const fullScanData = { ...fullScan, ...pipeline, assets, observations: pipeline?.observations || [] };
+
+      toast.info('Generating Domain Intelligence report PDF — this may take a moment...');
+
       // Fetch rich evidence data (nuclei findings, web crawl, scan results)
       let evidenceData;
       try {
-        const evidenceResp = await fetch(`/api/trpc/domainIntel.getReportEvidence?input=${encodeURIComponent(JSON.stringify({ scanId: scan.id }))}`);
-        const evidenceResult = await evidenceResp.json();
-        evidenceData = evidenceResult?.result?.data;
+        evidenceData = await utils.domainIntel.getReportEvidence.fetch({ scanId: scan.id });
       } catch { /* Evidence fetch is optional — report works without it */ }
+
+      // Fetch infrastructure map data
       let infraMapData = null;
       try {
-        const infraResp = await fetch(`/api/trpc/calderaProxy.inferInfrastructure?input=${encodeURIComponent(JSON.stringify({ scanId: scan.id }))}`);
-        const infraRes = await infraResp.json();
-        infraMapData = infraRes?.result?.data || null;
+        infraMapData = await utils.calderaProxy.inferInfrastructure.fetch({ scanId: scan.id });
       } catch { /* optional */ }
+
+      // Fetch vendor risk history
       let vrHistory = null;
       try {
-        const vrResp = await fetch(`/api/trpc/calderaProxy.getVendorRiskHistory?input=${encodeURIComponent(JSON.stringify({ scanId: scan.id }))}`);
-        const vrRes = await vrResp.json();
-        vrHistory = vrRes?.result?.data?.history || null;
+        const vrData = await utils.calderaProxy.getVendorRiskHistory.fetch({ scanId: scan.id });
+        vrHistory = (vrData as any)?.history || null;
       } catch { /* optional */ }
+
       await exportDiReport(fullScan.primaryDomain, fullScanData, undefined, evidenceData, infraMapData, vrHistory);
       toast.success("Domain Intelligence report PDF generated successfully");
     } catch (err: any) {
+      console.error("Report generation error:", err);
       toast.error("Report generation failed: " + (err.message || "Unknown error"));
     } finally {
       setGeneratingId(null);

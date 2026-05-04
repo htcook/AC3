@@ -62,6 +62,7 @@ function riskColor(score: number | null | undefined) {
 
 export default function ScanHistory() {
   const [, navigate] = useLocation();
+  const utils = trpc.useUtils();
   const scansQuery = trpc.domainIntel.listScans.useQuery();
   const retryScan = trpc.domainIntel.retryScan.useMutation({
     onSuccess: () => { toast.success("Scan retried"); scansQuery.refetch(); },
@@ -355,31 +356,24 @@ export default function ScanHistory() {
                                   onClick={async () => {
                                     try {
                                       toast.info('Generating DI report...');
-                                      const response = await fetch(`/api/trpc/domainIntel.getScan?input=${encodeURIComponent(JSON.stringify({ id: scan.id }))}`);
-                                      const result = await response.json();
-                                      const fullData = result?.result?.data;
+                                      const fullData = await utils.domainIntel.getScan.fetch({ id: scan.id });
                                       if (!fullData?.scan) { toast.error('Failed to load scan data'); return; }
                                       const fullScan = fullData.scan;
-                                      const pipeline = fullScan.pipelineOutput || {};
+                                      const pipeline = (fullScan as any).pipelineOutput || {};
                                       const assets = fullData.assets || [];
                                       const fullScanData = { ...fullScan, ...pipeline, assets, observations: pipeline?.observations || [] };
                                       let evidenceData;
                                       try {
-                                        const evResp = await fetch(`/api/trpc/domainIntel.getReportEvidence?input=${encodeURIComponent(JSON.stringify({ scanId: scan.id }))}`);
-                                        const evResult = await evResp.json();
-                                        evidenceData = evResult?.result?.data;
+                                        evidenceData = await utils.domainIntel.getReportEvidence.fetch({ scanId: scan.id });
                                       } catch { /* optional */ }
                                       let infraMapData = null;
                                       try {
-                                        const infraResp = await fetch(`/api/trpc/calderaProxy.inferInfrastructure?input=${encodeURIComponent(JSON.stringify({ scanId: scan.id }))}`);
-                                        const infraRes = await infraResp.json();
-                                        infraMapData = infraRes?.result?.data || null;
+                                        infraMapData = await utils.calderaProxy.inferInfrastructure.fetch({ scanId: scan.id });
                                       } catch { /* optional */ }
                                       let vrHistory = null;
                                       try {
-                                        const vrResp = await fetch(`/api/trpc/calderaProxy.getVendorRiskHistory?input=${encodeURIComponent(JSON.stringify({ scanId: scan.id }))}`);
-                                        const vrRes = await vrResp.json();
-                                        vrHistory = vrRes?.result?.data?.history || null;
+                                        const vrData = await utils.calderaProxy.getVendorRiskHistory.fetch({ scanId: scan.id });
+                                        vrHistory = (vrData as any)?.history || null;
                                       } catch { /* optional */ }
                                       await exportDiReport(fullScan.primaryDomain, fullScanData, undefined, evidenceData, infraMapData, vrHistory);
                                       toast.success('DI report generated');

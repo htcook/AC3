@@ -1670,3 +1670,7 @@
 - [x] Add duplicate email detection (24-hour window)
 - [x] Write vitest tests for demo request feature (28/28 passing)
 - [x] Checkpoint and push to GitHub
+
+### Bug Fixes (May 4) — DI Reports
+- [x] Fix DI report generation — replaced raw fetch() with tRPC utils.fetch() for superjson compatibility (DomainIntelReports.tsx, DomainIntelResults.tsx, ScanHistory.tsx — 8 raw fetch calls fixed across 3 files)
+- [x] Fix reports section "failing to retrieve scan data" — root cause was superjson-encoded response parsed as plain JSON (result.result.data path was wrong, needed utils.*.fetch() for proper deserialization)
