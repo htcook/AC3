@@ -1765,9 +1765,13 @@
 - [x] Checkpoint and push to GitHub
 
 ### Scheduled Task + Dashboard Widget + DNS Monitoring Config (May 4)
-- [ ] Create daily scheduled task (06:00 EDT) to POST to /api/scheduled/threat-intel-daily
-- [ ] Build Threat Intel Dashboard widget (daily run summary, phase results, zero-day alerts, new articles count)
-- [ ] Add DNS monitoring domain configuration UI (register domains, set intervals, view status)
-- [ ] Write vitest tests for new features
-- [ ] Push to personal and company GitHub repos
-- [ ] Checkpoint and deliver
+- [x] Create dailyRunSummary tRPC procedure (aggregates last 7 runs, 24h events, critical/high counts)
+- [x] Build ThreatIntelDailyWidget component (status, metrics, 24h summary, critical items)
+- [x] Add widget to ThreatIntelHub right sidebar
+- [x] Add DNS Monitoring tab to DnsSecurityPage (enable/disable, interval, alert settings)
+- [x] Add DnsMonitoringConfig component with all monitored domains list
+- [x] Write 16 vitest tests for daily run summary, DNS monitoring config, and scheduled check logic
+- [x] Push to htcook/caldera-dashboard GitHub
+- [ ] Push to aceofcloud/ac3 (GITHUB_CLASSIC_TOKEN expired — user will push manually)
+- [ ] Create daily scheduled task (06:00 EDT) — requires deployment first
+- [x] Checkpoint and deliver
