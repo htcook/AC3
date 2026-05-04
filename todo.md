@@ -1618,3 +1618,21 @@
 - [x] Wire route in App.tsx (/monitoring-deploy) and sidebar nav in AppShell.tsx
 - [x] Write vitest tests (43/43 passing)
 - [x] Checkpoint and push to GitHub
+
+### Round 7: Deployment History + Incident Response Runbook (May 4)
+#### 1. Deployment History Tracker
+- [x] Add deployment_history table to Drizzle schema (environment, region, config JSON, stack version, status, timestamps)
+- [x] Create DB helpers for deployment CRUD (insert, list, get by ID, update status)
+- [x] Add tRPC procedures (record, list, get, updateStatus, stats, compareConfigs)
+- [x] Integrate deployment history into Monitoring Deploy wizard (History tab with Tabs wrapper)
+- [x] Show deployment timeline with status badges and config diffs
+#### 2. Incident Response Runbook
+- [x] Add ir_runbook_entries table to schema (alarm trigger, severity, response steps, escalation paths, owner)
+- [x] Create DB helpers for runbook CRUD (create, list, get, update, delete, search, incrementTrigger)
+- [x] Add tRPC procedures (create, list, get, update, delete, search, recordTrigger, seedDefaults, severitySummary)
+- [x] Build interactive IR Runbook page (alarm→response mapping, escalation chain, severity matrix)
+- [x] Pre-populate with CloudWatch alarm→response mappings via seedDefaults (8 entries)
+- [x] Wire route (/incident-response) and sidebar nav entry (IR RUNBOOK)
+#### Tests & Delivery
+- [x] Write vitest tests for both features (58/58 passing)
+- [x] Checkpoint and push to GitHub

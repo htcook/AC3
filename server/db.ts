@@ -12,7 +12,8 @@ import {
   trainingLabSessions, InsertTrainingLabSession, SelectTrainingLabSession,
   trainingLabFeedback, InsertTrainingLabFeedback, SelectTrainingLabFeedback,
   exploitLearningOutcomes, exploitLearningPatterns, exploitLearningChains,
-  customerIntegrations, integrationHealthChecks, integrationExecutionLog
+  customerIntegrations, integrationHealthChecks, integrationExecutionLog,
+  deploymentHistory, irRunbookEntries
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -4668,4 +4669,127 @@ export async function getExecutionLogsByEngagement(engagementId: number): Promis
   return db.select().from(integrationExecutionLog)
     .where(eq(integrationExecutionLog.engagementId, engagementId))
     .orderBy(desc(integrationExecutionLog.executedAt));
+}
+
+// ─── Deployment History ─────────────────────────────────────────────
+export type InsertDeploymentHistory = typeof deploymentHistory.$inferInsert;
+export type SelectDeploymentHistory = typeof deploymentHistory.$inferSelect;
+
+export async function createDeployment(data: InsertDeploymentHistory): Promise<number> {
+  const db = await getDbRequired();
+  const [result] = await db.insert(deploymentHistory).values(data);
+  return (result as any).insertId;
+}
+
+export async function listDeployments(opts?: { environment?: string; limit?: number }): Promise<SelectDeploymentHistory[]> {
+  const db = await getDbRequired();
+  const conditions = [];
+  if (opts?.environment) {
+    conditions.push(eq(deploymentHistory.environment, opts.environment as any));
+  }
+  return db.select().from(deploymentHistory)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .orderBy(desc(deploymentHistory.createdAt))
+    .limit(opts?.limit ?? 50);
+}
+
+export async function getDeploymentById(deploymentId: string): Promise<SelectDeploymentHistory | undefined> {
+  const db = await getDbRequired();
+  const [row] = await db.select().from(deploymentHistory)
+    .where(eq(deploymentHistory.deploymentId, deploymentId))
+    .limit(1);
+  return row;
+}
+
+export async function updateDeploymentStatus(deploymentId: string, status: string, errorMessage?: string): Promise<void> {
+  const db = await getDbRequired();
+  const updates: any = { status, updatedAt: new Date().toISOString() };
+  if (status === 'success' || status === 'failed' || status === 'rolled_back') {
+    updates.completedAt = new Date().toISOString();
+  }
+  if (errorMessage) updates.errorMessage = errorMessage;
+  await db.update(deploymentHistory)
+    .set(updates)
+    .where(eq(deploymentHistory.deploymentId, deploymentId));
+}
+
+export async function getDeploymentStats(): Promise<{ total: number; success: number; failed: number; pending: number }> {
+  const db = await getDbRequired();
+  const { sql: sqlTag } = await import("drizzle-orm");
+  const [stats] = await db.select({
+    total: sqlTag<number>`COUNT(*)`,
+    success: sqlTag<number>`SUM(CASE WHEN ${deploymentHistory.status} = 'success' THEN 1 ELSE 0 END)`,
+    failed: sqlTag<number>`SUM(CASE WHEN ${deploymentHistory.status} = 'failed' THEN 1 ELSE 0 END)`,
+    pending: sqlTag<number>`SUM(CASE WHEN ${deploymentHistory.status} IN ('pending', 'in_progress') THEN 1 ELSE 0 END)`,
+  }).from(deploymentHistory);
+  return {
+    total: Number(stats?.total ?? 0),
+    success: Number(stats?.success ?? 0),
+    failed: Number(stats?.failed ?? 0),
+    pending: Number(stats?.pending ?? 0),
+  };
+}
+
+// ─── Incident Response Runbook ──────────────────────────────────────
+export type InsertIrRunbookEntry = typeof irRunbookEntries.$inferInsert;
+export type SelectIrRunbookEntry = typeof irRunbookEntries.$inferSelect;
+
+export async function createIrRunbookEntry(data: InsertIrRunbookEntry): Promise<number> {
+  const db = await getDbRequired();
+  const [result] = await db.insert(irRunbookEntries).values(data);
+  return (result as any).insertId;
+}
+
+export async function listIrRunbookEntries(opts?: { severity?: string; category?: string; activeOnly?: boolean }): Promise<SelectIrRunbookEntry[]> {
+  const db = await getDbRequired();
+  const conditions = [];
+  if (opts?.severity) conditions.push(eq(irRunbookEntries.severity, opts.severity as any));
+  if (opts?.category) conditions.push(eq(irRunbookEntries.category, opts.category as any));
+  if (opts?.activeOnly) conditions.push(eq(irRunbookEntries.isActive, 1));
+  return db.select().from(irRunbookEntries)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .orderBy(desc(irRunbookEntries.createdAt));
+}
+
+export async function getIrRunbookEntry(entryId: string): Promise<SelectIrRunbookEntry | undefined> {
+  const db = await getDbRequired();
+  const [row] = await db.select().from(irRunbookEntries)
+    .where(eq(irRunbookEntries.entryId, entryId))
+    .limit(1);
+  return row;
+}
+
+export async function updateIrRunbookEntry(entryId: string, data: Partial<InsertIrRunbookEntry>): Promise<void> {
+  const db = await getDbRequired();
+  await db.update(irRunbookEntries)
+    .set({ ...data, updatedAt: new Date().toISOString() } as any)
+    .where(eq(irRunbookEntries.entryId, entryId));
+}
+
+export async function deleteIrRunbookEntry(entryId: string): Promise<void> {
+  const db = await getDbRequired();
+  await db.delete(irRunbookEntries)
+    .where(eq(irRunbookEntries.entryId, entryId));
+}
+
+export async function searchIrRunbook(query: string): Promise<SelectIrRunbookEntry[]> {
+  const db = await getDbRequired();
+  return db.select().from(irRunbookEntries)
+    .where(or(
+      like(irRunbookEntries.alarmName, `%${query}%`),
+      like(irRunbookEntries.triggerDescription, `%${query}%`),
+      like(irRunbookEntries.owner, `%${query}%`)
+    ))
+    .orderBy(desc(irRunbookEntries.createdAt));
+}
+
+export async function incrementIrRunbookTriggerCount(entryId: string): Promise<void> {
+  const db = await getDbRequired();
+  const { sql: sqlTag } = await import("drizzle-orm");
+  await db.update(irRunbookEntries)
+    .set({
+      triggerCount: sqlTag`${irRunbookEntries.triggerCount} + 1`,
+      lastTriggeredAt: new Date().toISOString(),
+    } as any)
+    .where(eq(irRunbookEntries.entryId, entryId));
 }

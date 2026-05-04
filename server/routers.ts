@@ -26,6 +26,8 @@ import { webhooksRouter } from "./routers/webhooks";
 import { bugBountyRouter } from "./routers/bug-bounty";
 import { bugBountyFeedsRouter } from "./routers/bug-bounty-feeds";
 import { monitoringDeployRouter } from "./routers/monitoring-deploy";
+import { deploymentHistoryRouter } from "./routers/deployment-history";
+import { irRunbookRouter } from "./routers/ir-runbook";
 import { bountySubmissionPrepRouter } from "./routers/bounty-submission-prep";
 import { submissionHistoryRouter } from "./routers/submission-history";
 import { scoringRouter } from "./routers/scoring";
@@ -331,6 +333,8 @@ export const appRouter = router({
   bugBounty: bugBountyRouter,
   bugBountyFeeds: bugBountyFeedsRouter,
   monitoringDeploy: monitoringDeployRouter,
+  deploymentHistory: deploymentHistoryRouter,
+  irRunbook: irRunbookRouter,
   bountySubmissionPrep: bountySubmissionPrepRouter,
   submissionHistory: submissionHistoryRouter,
   platformCredentials: platformCredentialsRouter,

@@ -33,8 +33,10 @@ import {
   Shield, Bell, Mail, MessageSquare, Gauge, Clock, Loader2,
   ChevronRight, ExternalLink, FileCode, Zap, Eye, Download,
   BarChart3, Cpu, HardDrive, Globe, ArrowRight, Info,
-  CircleDot, Rocket, CheckCheck, XCircle, TriangleAlert,
+  CircleDot, Rocket, CheckCheck, XCircle, TriangleAlert, History,
 } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import DeploymentHistory from "@/components/DeploymentHistory";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -287,6 +289,19 @@ export default function MonitoringDeploy() {
         </p>
       </div>
 
+      <Tabs defaultValue="wizard" className="w-full">
+        <TabsList>
+          <TabsTrigger value="wizard" className="gap-1.5">
+            <Rocket className="h-4 w-4" />
+            Deployment Wizard
+          </TabsTrigger>
+          <TabsTrigger value="history" className="gap-1.5">
+            <History className="h-4 w-4" />
+            Deployment History
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="wizard" className="space-y-6 mt-4">
       {/* Phase Stepper */}
       <div className="flex items-center gap-1 p-1 rounded-lg bg-muted/50 w-fit">
         {phases.map((p, i) => (
@@ -913,6 +928,12 @@ export default function MonitoringDeploy() {
           </div>
         </div>
       )}
+        </TabsContent>
+
+        <TabsContent value="history" className="mt-4">
+          <DeploymentHistory />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

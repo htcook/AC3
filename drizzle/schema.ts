@@ -8236,3 +8236,61 @@ export const submissionHistory = mysqlTable("submission_history", {
   index("sh_severity_idx").on(table.severity),
   index("sh_created_at_idx").on(table.createdAt),
 ]);
+
+// --- Deployment History ---
+export const deploymentHistory = mysqlTable("deployment_history", {
+  id: int("id").autoincrement().primaryKey(),
+  deploymentId: varchar("deployment_id", { length: 64 }).notNull(),
+  userId: int("user_id").notNull().references(() => users.id),
+  environment: mysqlEnum("environment", ['dev', 'staging', 'prod']).notNull(),
+  region: varchar("region", { length: 32 }).notNull(),
+  stackName: varchar("stack_name", { length: 255 }).notNull(),
+  stackVersion: varchar("stack_version", { length: 64 }),
+  status: mysqlEnum("status", ['pending', 'in_progress', 'success', 'failed', 'rolled_back']).default('pending').notNull(),
+  configSnapshot: json("config_snapshot").notNull(),
+  resourceCount: int("resource_count"),
+  alarmsCreated: int("alarms_created"),
+  cfnOutputs: json("cfn_outputs"),
+  errorMessage: text("error_message"),
+  notes: text("notes"),
+  startedAt: timestamp("started_at", { mode: 'string' }).defaultNow().notNull(),
+  completedAt: timestamp("completed_at", { mode: 'string' }),
+  createdAt: timestamp("created_at", { mode: 'string' }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("dh_deployment_id_idx").on(table.deploymentId),
+  index("dh_user_id_idx").on(table.userId),
+  index("dh_environment_idx").on(table.environment),
+  index("dh_status_idx").on(table.status),
+  index("dh_created_at_idx").on(table.createdAt),
+]);
+
+// --- Incident Response Runbook ---
+export const irRunbookEntries = mysqlTable("ir_runbook_entries", {
+  id: int("id").autoincrement().primaryKey(),
+  entryId: varchar("entry_id", { length: 64 }).notNull(),
+  alarmName: varchar("alarm_name", { length: 255 }).notNull(),
+  alarmPattern: varchar("alarm_pattern", { length: 255 }),
+  triggerDescription: text("trigger_description").notNull(),
+  severity: mysqlEnum("severity", ['critical', 'high', 'medium', 'low', 'informational']).notNull(),
+  category: mysqlEnum("category", ['infrastructure', 'application', 'security', 'performance', 'availability']).notNull(),
+  responseSteps: json("response_steps").notNull(),
+  escalationPath: json("escalation_path").notNull(),
+  relatedAlarms: json("related_alarms"),
+  mitigationActions: json("mitigation_actions"),
+  preventionMeasures: json("prevention_measures"),
+  owner: varchar("owner", { length: 255 }),
+  lastTestedAt: timestamp("last_tested_at", { mode: 'string' }),
+  lastTriggeredAt: timestamp("last_triggered_at", { mode: 'string' }),
+  triggerCount: int("trigger_count").default(0).notNull(),
+  isActive: tinyint("is_active").default(1).notNull(),
+  createdBy: int("created_by").references(() => users.id),
+  createdAt: timestamp("created_at", { mode: 'string' }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("irr_entry_id_idx").on(table.entryId),
+  index("irr_alarm_name_idx").on(table.alarmName),
+  index("irr_severity_idx").on(table.severity),
+  index("irr_category_idx").on(table.category),
+  index("irr_is_active_idx").on(table.isActive),
+]);
