@@ -1763,3 +1763,11 @@
 - [x] Endpoint now runs 10 phases autonomously: RSS → Ingest → Actor Crawl → Enrichment → Articles → Ransomware → CVE → Zero-Day → Notification
 - [x] Write vitest tests for daily intel workflow (17 tests)
 - [x] Checkpoint and push to GitHub
+
+### Scheduled Task + Dashboard Widget + DNS Monitoring Config (May 4)
+- [ ] Create daily scheduled task (06:00 EDT) to POST to /api/scheduled/threat-intel-daily
+- [ ] Build Threat Intel Dashboard widget (daily run summary, phase results, zero-day alerts, new articles count)
+- [ ] Add DNS monitoring domain configuration UI (register domains, set intervals, view status)
+- [ ] Write vitest tests for new features
+- [ ] Push to personal and company GitHub repos
+- [ ] Checkpoint and deliver

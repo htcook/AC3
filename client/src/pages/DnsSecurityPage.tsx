@@ -220,6 +220,7 @@ export default function DnsSecurityPage() {
                 <TabsTrigger value="dnssec">DNSSEC</TabsTrigger>
                 <TabsTrigger value="checks">Check Results</TabsTrigger>
                 <TabsTrigger value="mitre">MITRE ATT&CK</TabsTrigger>
+                <TabsTrigger value="monitoring">Monitoring</TabsTrigger>
               </TabsList>
 
               {/* Findings Tab */}
@@ -489,10 +490,161 @@ export default function DnsSecurityPage() {
                   </CardContent>
                 </Card>
               </TabsContent>
+
+              {/* Monitoring Tab */}
+              <TabsContent value="monitoring" className="mt-4">
+                <DnsMonitoringConfig domain={domain} />
+              </TabsContent>
             </Tabs>
           </>
         )}
       </div>
     </AppShell>
+  );
+}
+
+// ─── DNS Monitoring Configuration Component ────────────────────────────────────────
+function DnsMonitoringConfig({ domain }: { domain: string }) {
+  const { data: config, isLoading } = trpc.dnsSecurity.getMonitoringConfig.useQuery(
+    { domain },
+    { enabled: !!domain }
+  );
+  const { data: allDomains } = trpc.dnsSecurity.getMonitoredDomains.useQuery();
+  const updateConfig = trpc.dnsSecurity.updateMonitoringConfig.useMutation({
+    onSuccess: () => toast.success("Monitoring config updated"),
+    onError: (err: any) => toast.error(err.message),
+  });
+  const utils = trpc.useUtils();
+
+  const handleToggle = (field: string, value: boolean) => {
+    updateConfig.mutate(
+      { domain, [field]: value },
+      { onSuccess: () => utils.dnsSecurity.getMonitoringConfig.invalidate({ domain }) }
+    );
+  };
+
+  const handleIntervalChange = (hours: number) => {
+    updateConfig.mutate(
+      { domain, intervalHours: hours },
+      { onSuccess: () => utils.dnsSecurity.getMonitoringConfig.invalidate({ domain }) }
+    );
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Current Domain Config */}
+      <Card className="border-zinc-700/50 bg-zinc-900/50">
+        <CardHeader>
+          <CardTitle className="text-sm font-display tracking-wider flex items-center gap-2">
+            <Shield className="w-4 h-4 text-primary" />
+            MONITORING CONFIG: {domain.toUpperCase()}
+          </CardTitle>
+          <CardDescription className="text-xs">
+            Configure automated DNS security monitoring for this domain
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-6">
+              <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : config ? (
+            <>
+              {/* Enable/Disable */}
+              <div className="flex items-center justify-between p-3 bg-zinc-800/50 rounded border border-zinc-700/30">
+                <div>
+                  <p className="text-sm font-medium">Automated Monitoring</p>
+                  <p className="text-xs text-muted-foreground">Run DNS security checks on a schedule</p>
+                </div>
+                <button
+                  onClick={() => handleToggle('enabled', !config.enabled)}
+                  className={`relative w-11 h-6 rounded-full transition-colors ${
+                    config.enabled ? 'bg-emerald-500' : 'bg-zinc-600'
+                  }`}
+                >
+                  <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${
+                    config.enabled ? 'translate-x-5' : 'translate-x-0'
+                  }`} />
+                </button>
+              </div>
+
+              {/* Interval */}
+              <div className="flex items-center justify-between p-3 bg-zinc-800/50 rounded border border-zinc-700/30">
+                <div>
+                  <p className="text-sm font-medium">Check Interval</p>
+                  <p className="text-xs text-muted-foreground">How often to re-assess DNS security</p>
+                </div>
+                <select
+                  value={config.intervalHours || 24}
+                  onChange={(e) => handleIntervalChange(Number(e.target.value))}
+                  className="bg-zinc-700 border border-zinc-600 rounded px-3 py-1.5 text-xs"
+                >
+                  <option value={6}>Every 6 hours</option>
+                  <option value={12}>Every 12 hours</option>
+                  <option value={24}>Every 24 hours</option>
+                  <option value={48}>Every 48 hours</option>
+                  <option value={72}>Every 72 hours</option>
+                  <option value={168}>Weekly</option>
+                </select>
+              </div>
+
+              {/* Alert Settings */}
+              <div className="space-y-2">
+                <p className="text-xs font-display tracking-wider text-muted-foreground">ALERT SETTINGS</p>
+                {[
+                  { field: 'alertOnNewCritical', label: 'Alert on new critical findings', value: config.alertOnNewCritical },
+                  { field: 'alertOnNewHigh', label: 'Alert on new high findings', value: config.alertOnNewHigh },
+                  { field: 'alertOnDnsChange', label: 'Alert on DNS record changes', value: config.alertOnDnsChange },
+                ].map(({ field, label, value }) => (
+                  <div key={field} className="flex items-center justify-between p-2 bg-zinc-800/30 rounded">
+                    <span className="text-xs">{label}</span>
+                    <button
+                      onClick={() => handleToggle(field, !value)}
+                      className={`relative w-9 h-5 rounded-full transition-colors ${
+                        value ? 'bg-emerald-500' : 'bg-zinc-600'
+                      }`}
+                    >
+                      <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
+                        value ? 'translate-x-4' : 'translate-x-0'
+                      }`} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <p className="text-xs text-muted-foreground text-center py-4">No config available</p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* All Monitored Domains */}
+      {allDomains && allDomains.length > 0 && (
+        <Card className="border-zinc-700/50 bg-zinc-900/50">
+          <CardHeader>
+            <CardTitle className="text-sm font-display tracking-wider flex items-center gap-2">
+              <Globe className="w-4 h-4 text-cyan-400" />
+              ALL MONITORED DOMAINS ({allDomains.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {allDomains.map((d: any) => (
+                <div key={d.domain} className="flex items-center justify-between p-2 bg-zinc-800/30 rounded border border-zinc-700/20">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full ${d.enabled ? 'bg-emerald-400' : 'bg-zinc-500'}`} />
+                    <span className="text-xs font-mono">{d.domain}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                    <span>Every {d.intervalHours || 24}h</span>
+                    {d.lastCheckedAt && <span>• Last: {new Date(d.lastCheckedAt).toLocaleDateString()}</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
   );
 }

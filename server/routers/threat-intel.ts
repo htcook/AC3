@@ -14,7 +14,7 @@ import {
   threatActors, threatGroupEvents, threatIntelUpdates,
   ransomwareGroups, threatActorIocs, enrichmentHistory,
 } from "../../drizzle/schema";
-import { eq, sql, desc, and, like, inArray } from "drizzle-orm";
+import { eq, sql, desc, and, like, inArray, gte } from "drizzle-orm";
 
 async function requireDb() {
   const db = await getDb();
@@ -1238,6 +1238,53 @@ export const threatIntelRouter = router({
       totalActorsWithTechniques,
       totalActors: actors.length,
       maxCount,
+    };
+  }),
+
+  // ─── Daily Run Summary (for dashboard widget) ─────────────────────────────
+  dailyRunSummary: protectedProcedure.query(async () => {
+    const db = await requireDb();
+    const runs = await db.select().from(threatIntelUpdates)
+      .orderBy(desc(threatIntelUpdates.tiuStartedAt))
+      .limit(7);
+    const latest = runs[0] || null;
+    const last24h = runs.filter(r => {
+      const started = new Date(r.tiuStartedAt).getTime();
+      return Date.now() - started < 24 * 60 * 60 * 1000;
+    });
+    // Aggregate stats from recent events in last 24h
+    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const recentEvents = await db.select().from(threatGroupEvents)
+      .where(gte(threatGroupEvents.eventDate, cutoff))
+      .orderBy(desc(threatGroupEvents.eventDate))
+      .limit(100);
+    const criticalEvents = recentEvents.filter((e: any) => e.tgeSeverity === 'critical');
+    const highEvents = recentEvents.filter((e: any) => e.tgeSeverity === 'high');
+    return {
+      latestRun: latest ? {
+        status: latest.tiuStatus,
+        startedAt: latest.tiuStartedAt,
+        completedAt: latest.tiuCompletedAt,
+        durationMs: latest.durationMs,
+        groupsScanned: latest.groupsScanned,
+        updatesApplied: latest.updatesApplied,
+        newEventsFound: latest.newEventsFound,
+        newIocsFound: latest.newIocsFound,
+        newTtpsFound: latest.newTtpsFound,
+        summary: latest.tiuSummary,
+        details: latest.tiuDetails as any,
+      } : null,
+      runsLast7Days: runs.length,
+      runsLast24h: last24h.length,
+      eventsLast24h: recentEvents.length,
+      criticalAlerts: criticalEvents.length,
+      highAlerts: highEvents.length,
+      topCritical: criticalEvents.slice(0, 3).map((e: any) => ({
+        title: e.tgeTitle,
+        actorId: e.tgeActorId,
+        severity: e.tgeSeverity,
+        date: e.eventDate,
+      })),
     };
   }),
 

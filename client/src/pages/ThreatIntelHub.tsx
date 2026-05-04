@@ -8,6 +8,7 @@ import {
   BarChart3, Users, Lock, Megaphone, Key, Bug, FileText, Layers, FileJson
 } from "lucide-react";
 import { Link } from "wouter";
+import ThreatIntelDailyWidget from "@/components/ThreatIntelDailyWidget";
 
 const SEVERITY_COLORS: Record<string, string> = {
   critical: "text-red-400 border-red-500/30 bg-red-500/10",
@@ -434,7 +435,8 @@ export default function ThreatIntelHub() {
 
           {/* ─── Right Sidebar (1/3) ───────────────────────────────── */}
           <div className="space-y-6">
-
+            {/* Daily Intel Update Widget */}
+            <ThreatIntelDailyWidget />
             {/* Quick Navigation */}
             <div className="border border-border bg-card p-4">
               <h3 className="text-xs font-display tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
