@@ -130,6 +130,7 @@ Conditions:
   HasKmsKey: !Not [!Equals [!Ref KmsKeyArn, '']]
   HasSecretsPrefix: !Not [!Equals [!Ref SecretsArnPrefix, '']]
   IsProd: !Equals [!Ref Environment, prod]
+  NoCertificate: !Equals [!Ref CertificateArn, '']
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Resources
@@ -274,7 +275,7 @@ Resources:
   # HTTP Listener (dev — no certificate)
   HttpListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
-    Condition: !Not [Condition: HasCertificate]
+    Condition: NoCertificate
     Properties:
       LoadBalancerArn: !Ref ApplicationLoadBalancer
       Port: 80
