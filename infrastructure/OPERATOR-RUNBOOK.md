@@ -487,12 +487,86 @@ aws kms describe-key \
   --region us-east-1
 ```
 
+----
+
+## Step 4: Deploy Monitoring & Alerting Stack
+
+**Prerequisites:** ECS service running (Step 2 complete), ALB provisioned.
+
+### 4a. Review Configuration
+
+```bash
+# Copy and edit the monitoring config template
+cp infrastructure/scripts/.env.monitoring.template infrastructure/scripts/.env.monitoring
+vim infrastructure/scripts/.env.monitoring
+```
+
+### 4b. Deploy Monitoring Stack
+
+```bash
+# Source your config
+source infrastructure/scripts/.env.monitoring
+
+# Deploy (auto-discovers ALB and target group)
+./infrastructure/scripts/deploy-monitoring.sh \
+  --env dev \
+  --slack-webhook "$SLACK_WEBHOOK_URL" \
+  --email "$ALERT_EMAIL"
+```
+
+### 4c. Verify Deployment
+
+```bash
+# Check stack status
+aws cloudformation describe-stacks \
+  --stack-name ac3-dev-monitoring \
+  --region us-east-1 \
+  --query "Stacks[0].StackStatus"
+
+# List alarms
+aws cloudwatch describe-alarms \
+  --alarm-name-prefix "AC3-dev" \
+  --region us-east-1 \
+  --query "MetricAlarms[].[AlarmName,StateValue]" \
+  --output table
+
+# View dashboard URL
+echo "https://us-east-1.console.aws.amazon.com/cloudwatch/home?region=us-east-1#dashboards:name=AC3-dev-Dashboard"
+```
+
+### 4d. Test Alarm (Optional)
+
+```bash
+# Trigger a test alarm
+aws cloudwatch set-alarm-state \
+  --alarm-name "AC3-dev-ECS-CPU-High" \
+  --state-value ALARM \
+  --state-reason "Manual test" \
+  --region us-east-1
+
+# Verify Slack/email notification received, then reset
+aws cloudwatch set-alarm-state \
+  --alarm-name "AC3-dev-ECS-CPU-High" \
+  --state-value OK \
+  --state-reason "Test complete" \
+  --region us-east-1
+```
+
+### What Gets Deployed
+
+| Resource | Purpose |
+|----------|--------|
+| SNS Topic | Alarm notification routing |
+| 9 CloudWatch Alarms | CPU, memory, task count, 5xx, 4xx, unhealthy hosts, response time, app errors, fatal errors |
+| Metric Filters | Application error + fatal error log pattern detection |
+| Lambda Function | Slack webhook notifier (if webhook URL provided) |
+| CloudWatch Dashboard | Single-pane view of all ECS + ALB metrics |
+
 ---
 
 ## File Reference
-
 | File | Purpose |
-|------|---------|
+|------|---------||
 | `infrastructure/scripts/preflight-check.sh` | Validates AWS permissions before deployment |
 | `infrastructure/scripts/seed-secrets.sh` | Populates Secrets Manager with application secrets |
 | `infrastructure/scripts/.env.template` | Template for all secret values |
@@ -506,3 +580,6 @@ aws kms describe-key \
 | `infrastructure/terraform/environments/dev.tfvars` | Terraform variables for dev (with actual role ARNs) |
 | `infrastructure/terraform/environments/staging.tfvars` | Terraform variables for staging (update after Step 3) |
 | `infrastructure/terraform/environments/prod.tfvars` | Terraform variables for prod (update after Step 3f) |
+| `infrastructure/scripts/deploy-monitoring.sh` | Deploys monitoring/alerting CloudFormation stack |
+| `infrastructure/scripts/.env.monitoring.template` | Configuration template for monitoring deployment |
+| `infrastructure/cloudformation/ac3-monitoring.yaml` | CloudWatch monitoring + alerting CFN template |

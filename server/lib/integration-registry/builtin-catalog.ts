@@ -486,6 +486,47 @@ const SIEM_CONNECTORS: CatalogEntry[] = [
 // §10 — COMPLETE CATALOG
 // ═══════════════════════════════════════════════════════════════════════
 
+const BUG_BOUNTY_CONNECTORS: CatalogEntry[] = [
+  {
+    id: "hackerone", name: "hackerone", displayName: "HackerOne",
+    description: "Bug bounty platform — program listing, scope data, disclosed reports, payout tracking, and response SLA metrics",
+    category: "osint", licenseModel: "api_key",
+    pipelineStages: ["recon", "passive_discovery", "reporting"],
+    authMethod: "basic_auth",
+    envVarKeys: ["HACKERONE_API_USERNAME", "HACKERONE_API_KEY"],
+    dataTypes: ["programs", "scopes", "disclosed_reports", "bounties", "response_metrics"],
+    inputTypes: ["program_handle"],
+    outputTypes: ["bug_bounty_program", "disclosed_vulnerability", "scope_asset"],
+    enhancesModules: ["bug-bounty-workspace", "submission-prep", "hypothesis-generator"],
+    docsUrl: "https://api.hackerone.com/",
+    icon: "hackerone",
+    tags: ["bug_bounty", "vulnerability_disclosure", "crowdsourced_security"],
+    supportsPassiveOnly: true,
+    requiresActiveProbing: false,
+    rateLimit: 600,
+    isBuiltIn: true,
+  },
+  {
+    id: "bugcrowd", name: "bugcrowd", displayName: "Bugcrowd",
+    description: "Bug bounty platform — program discovery, target scope, submission tracking, reward ranges, and researcher metrics",
+    category: "osint", licenseModel: "api_key",
+    pipelineStages: ["recon", "passive_discovery", "reporting"],
+    authMethod: "bearer_token",
+    envVarKeys: ["BUGCROWD_API_TOKEN"],
+    dataTypes: ["programs", "targets", "submissions", "rewards", "taxonomy"],
+    inputTypes: ["program_code"],
+    outputTypes: ["bug_bounty_program", "disclosed_vulnerability", "scope_asset"],
+    enhancesModules: ["bug-bounty-workspace", "submission-prep", "duplicate-detector"],
+    docsUrl: "https://docs.bugcrowd.com/api/",
+    icon: "bugcrowd",
+    tags: ["bug_bounty", "vulnerability_disclosure", "crowdsourced_security"],
+    supportsPassiveOnly: true,
+    requiresActiveProbing: false,
+    rateLimit: 300,
+    isBuiltIn: true,
+  },
+];
+
 export const BUILTIN_CATALOG: CatalogEntry[] = [
   ...OSINT_CONNECTORS,
   ...THREAT_INTEL_CONNECTORS,
@@ -495,6 +536,7 @@ export const BUILTIN_CATALOG: CatalogEntry[] = [
   ...C2_CONNECTORS,
   ...PHISHING_CONNECTORS,
   ...SIEM_CONNECTORS,
+  ...BUG_BOUNTY_CONNECTORS,
 ];
 
 /** Quick lookup by ID */

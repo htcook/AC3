@@ -1588,3 +1588,22 @@
 - [x] Add SBOM generation to CI pipeline (FedRAMP compliance)
 - [x] Write vitest tests for all Round 5 features
 - [x] Checkpoint and push to GitHub
+
+### Round 6: Live Feeds + Deployment Automation (May 4)
+#### 1. HackerOne/Bugcrowd Live Feed Connectors
+- [x] Implement HackerOne API client (program listing, scope, bounty tables, disclosed reports)
+- [x] Implement Bugcrowd API client (program listing, scope, reward ranges, taxonomy)
+- [x] Create tRPC procedures for feed data retrieval and caching
+- [x] Build Live Feed UI panel on Bug Bounty Hub (real-time program updates, new scopes, payouts)
+- [x] Add feed health status to API Health Dashboard (catalog entries in integration registry)
+#### 2. Monitoring Stack Deployment Automation
+- [x] Create deploy-monitoring.sh script (CloudFormation deploy with parameter injection)
+- [x] Add monitoring deployment section to OPERATOR-RUNBOOK.md
+- [x] Create monitoring stack parameter template (.env.monitoring.template)
+#### 3. GitHub App Workflows Permission + deploy-aws.yml Push
+- [x] Create github-workflows-permission.md documenting required permission grant steps
+- [x] Create setup-github-workflows-permission.sh (automated permission checker)
+- [x] Create push-workflow-files.sh helper script for safe workflow file push
+#### Tests & Delivery
+- [x] Write vitest tests for all Round 6 features (64/64 passing)
+- [x] Checkpoint and push to GitHub

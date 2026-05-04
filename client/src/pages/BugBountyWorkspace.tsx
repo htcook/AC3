@@ -7,6 +7,7 @@
 
 import { useState, useMemo, useCallback } from "react";
 import { CalibrationDashboardWidget } from "@/components/CalibrationDashboardWidget";
+import { BugBountyLiveFeed } from "@/components/BugBountyLiveFeed";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -374,6 +375,9 @@ export default function BugBountyWorkspace() {
 
       {/* Calibration Dashboard Widget — real-time drift status */}
       <CalibrationDashboardWidget />
+
+      {/* Live Feed — HackerOne/Bugcrowd real-time activity */}
+      <BugBountyLiveFeed />
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="mb-6">
