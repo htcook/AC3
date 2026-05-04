@@ -6,6 +6,15 @@ import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";
 import { runDnsSecurityAssessment, TAKEOVER_FINGERPRINTS } from "../lib/dns-security-validator";
 import type { DnsSecurityReport, EngagementContext } from "../lib/dns-security-validator";
+import {
+  persistDnsSecurityAssessment,
+  getDnsAssessmentHistory,
+  getLatestDnsAssessment,
+  getOpenDnsFindings,
+  getOrCreateMonitoringConfig,
+  updateMonitoringConfig,
+  getMonitoredDomains,
+} from "../lib/dns-security-persistence";
 
 export const dnsSecurityRouter = router({
   /**
@@ -100,6 +109,93 @@ export const dnsSecurityRouter = router({
         { id: "T1114.002", name: "Email Collection: Remote Email Collection", tactic: "Collection", dnsRelevance: "MX record takeover for email interception" },
         { id: "T1566.002", name: "Phishing: Spearphishing Link", tactic: "Initial Access", dnsRelevance: "Subdomain takeover for credential harvesting" },
       ];
+    }),
+
+  /**
+   * Run assessment AND persist results to database
+   */
+  runAndPersist: protectedProcedure
+    .input(z.object({
+      domain: z.string().min(1).max(253),
+      context: z.enum(["di_scan", "vuln_pentest", "red_team"]).default("di_scan"),
+      engagementId: z.number().optional(),
+      scanId: z.number().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const cleanDomain = input.domain.replace(/^https?:\/\//, "").replace(/\/.*$/, "").trim();
+      const report = await runDnsSecurityAssessment(cleanDomain, input.context as EngagementContext);
+      const { assessmentId, changes } = await persistDnsSecurityAssessment({
+        domain: cleanDomain,
+        scanId: input.scanId,
+        engagementId: input.engagementId,
+        report,
+      });
+      return { report, assessmentId, changes };
+    }),
+
+  /**
+   * Get assessment history for a domain
+   */
+  getHistory: protectedProcedure
+    .input(z.object({
+      domain: z.string().min(1).max(253),
+      limit: z.number().min(1).max(100).default(20),
+    }))
+    .query(async ({ input }) => {
+      return getDnsAssessmentHistory(input.domain, input.limit);
+    }),
+
+  /**
+   * Get the latest assessment for a domain (full report)
+   */
+  getLatest: protectedProcedure
+    .input(z.object({ domain: z.string().min(1).max(253) }))
+    .query(async ({ input }) => {
+      return getLatestDnsAssessment(input.domain);
+    }),
+
+  /**
+   * Get all open findings for a domain
+   */
+  getOpenFindings: protectedProcedure
+    .input(z.object({ domain: z.string().min(1).max(253) }))
+    .query(async ({ input }) => {
+      return getOpenDnsFindings(input.domain);
+    }),
+
+  /**
+   * Get or create monitoring config for a domain
+   */
+  getMonitoringConfig: protectedProcedure
+    .input(z.object({ domain: z.string().min(1).max(253) }))
+    .query(async ({ input }) => {
+      return getOrCreateMonitoringConfig(input.domain);
+    }),
+
+  /**
+   * Update monitoring config for a domain
+   */
+  updateMonitoringConfig: protectedProcedure
+    .input(z.object({
+      domain: z.string().min(1).max(253),
+      enabled: z.boolean().optional(),
+      intervalHours: z.number().min(1).max(168).optional(),
+      alertOnNewCritical: z.boolean().optional(),
+      alertOnNewHigh: z.boolean().optional(),
+      alertOnDnsChange: z.boolean().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { domain, ...updates } = input;
+      await updateMonitoringConfig(domain, updates);
+      return { success: true };
+    }),
+
+  /**
+   * Get all monitored domains
+   */
+  getMonitoredDomains: protectedProcedure
+    .query(async () => {
+      return getMonitoredDomains();
     }),
 
   /**

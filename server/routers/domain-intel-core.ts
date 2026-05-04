@@ -763,6 +763,24 @@ export const domainIntelRouter = router({
                   console.warn(`[DomainIntel] Intelligence gap detection failed for scan ${scanId} (non-fatal):`, gapErr.message);
                 }
               });
+              // ═══ DNS SECURITY PERSISTENCE — Store assessment results in dedicated tables ═══
+              setImmediate(async () => {
+                try {
+                  const { persistDnsSecurityAssessment } = await import('../lib/dns-security-persistence');
+                  const dnsReport = (result as any).passiveDiscovery?.dnsSecurityReport || (outputWithDelta as any)?.passiveDiscovery?.dnsSecurityReport;
+                  if (dnsReport) {
+                    await persistDnsSecurityAssessment({
+                      domain: pipelineInput.primaryDomain,
+                      scanId,
+                      engagementId: pipelineInput.engagementId,
+                      report: dnsReport,
+                    });
+                    console.log(`[DomainIntel] \u{1F6E1}\uFE0F DNS security assessment persisted for scan ${scanId}`);
+                  }
+                } catch (dnsErr: any) {
+                  console.warn(`[DomainIntel] DNS security persistence failed for scan ${scanId} (non-fatal):`, dnsErr.message);
+                }
+              });
             } else {
               // Full engagement: run threat actor matching + campaign design
               let threatActorMatches = null;
@@ -963,6 +981,24 @@ export const domainIntelRouter = router({
                   }
                 } catch (gapErr: any) {
                   console.warn(`[DomainIntel] Intelligence gap detection failed for scan ${scanId} (non-fatal):`, gapErr.message);
+                }
+              });
+              // ═══ DNS SECURITY PERSISTENCE (full engagement) — Store assessment results ═══
+              setImmediate(async () => {
+                try {
+                  const { persistDnsSecurityAssessment } = await import('../lib/dns-security-persistence');
+                  const dnsReport = (result as any).passiveDiscovery?.dnsSecurityReport || (pipelineOutputWithMatches as any)?.passiveDiscovery?.dnsSecurityReport;
+                  if (dnsReport) {
+                    await persistDnsSecurityAssessment({
+                      domain: pipelineInput.primaryDomain,
+                      scanId,
+                      engagementId: pipelineInput.engagementId,
+                      report: dnsReport,
+                    });
+                    console.log(`[DomainIntel] \u{1F6E1}\uFE0F DNS security assessment persisted for scan ${scanId} (full engagement)`);
+                  }
+                } catch (dnsErr: any) {
+                  console.warn(`[DomainIntel] DNS security persistence failed for scan ${scanId} (non-fatal):`, dnsErr.message);
                 }
               });
             }

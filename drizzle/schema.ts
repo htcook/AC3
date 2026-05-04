@@ -8315,3 +8315,80 @@ export const demoRequests = mysqlTable("demo_requests", {
   index("dr_status_idx").on(table.status),
   index("dr_created_at_idx").on(table.createdAt),
 ]);
+
+
+// ─── DNS Security Persistence ────────────────────────────────────────────────
+export const dnsSecurityAssessments = mysqlTable("dns_security_assessments", {
+	id: int().autoincrement().primaryKey().notNull(),
+	domain: varchar({ length: 253 }).notNull(),
+	engagementId: int("engagement_id"),
+	scanId: int("scan_id"),
+	context: varchar({ length: 32 }).default('di_scan').notNull(),
+	overallRisk: varchar("overall_risk", { length: 16 }).notNull(),
+	totalFindings: int("total_findings").default(0).notNull(),
+	criticalCount: int("critical_count").default(0).notNull(),
+	highCount: int("high_count").default(0).notNull(),
+	mediumCount: int("medium_count").default(0).notNull(),
+	lowCount: int("low_count").default(0).notNull(),
+	infoCount: int("info_count").default(0).notNull(),
+	totalChecks: int("total_checks").default(15).notNull(),
+	passedChecks: int("passed_checks").default(0).notNull(),
+	failedChecks: int("failed_checks").default(0).notNull(),
+	dnssecEnabled: tinyint("dnssec_enabled").default(0).notNull(),
+	dnssecChainValid: tinyint("dnssec_chain_valid").default(0).notNull(),
+	responseTimeMs: int("response_time_ms"),
+	reportJson: json("report_json"),
+	previousAssessmentId: int("previous_assessment_id"),
+	changesSinceLastJson: json("changes_since_last_json"),
+	assessedAt: timestamp("assessed_at", { mode: 'string' }).defaultNow().notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow().notNull(),
+}, (table) => [
+	index("dns_assess_domain_idx").on(table.domain),
+	index("dns_assess_engagement_idx").on(table.engagementId),
+	index("dns_assess_scan_idx").on(table.scanId),
+	index("dns_assess_risk_idx").on(table.overallRisk),
+	index("dns_assess_assessed_at_idx").on(table.assessedAt),
+]);
+
+export const dnsSecurityFindings = mysqlTable("dns_security_findings", {
+	id: int().autoincrement().primaryKey().notNull(),
+	assessmentId: int("assessment_id").notNull(),
+	findingId: varchar("finding_id", { length: 64 }).notNull(),
+	severity: varchar({ length: 16 }).notNull(),
+	category: varchar({ length: 64 }).notNull(),
+	title: varchar({ length: 512 }).notNull(),
+	description: text(),
+	affectedRecord: varchar("affected_record", { length: 512 }),
+	evidence: text(),
+	remediation: text(),
+	mitreAttackId: varchar("mitre_attack_id", { length: 32 }),
+	cvssScore: decimal("cvss_score", { precision: 3, scale: 1 }),
+	cvssVector: varchar("cvss_vector", { length: 128 }),
+	cwe: varchar({ length: 32 }),
+	references: json(),
+	status: varchar({ length: 32 }).default('open').notNull(),
+	resolvedAt: timestamp("resolved_at", { mode: 'string' }),
+	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow().notNull(),
+}, (table) => [
+	index("dns_find_assessment_idx").on(table.assessmentId),
+	index("dns_find_severity_idx").on(table.severity),
+	index("dns_find_category_idx").on(table.category),
+	index("dns_find_status_idx").on(table.status),
+	index("dns_find_mitre_idx").on(table.mitreAttackId),
+]);
+
+export const dnsSecurityMonitoringConfig = mysqlTable("dns_security_monitoring_config", {
+	id: int().autoincrement().primaryKey().notNull(),
+	domain: varchar({ length: 253 }).notNull(),
+	enabled: tinyint().default(1).notNull(),
+	intervalHours: int("interval_hours").default(24).notNull(),
+	alertOnNewCritical: tinyint("alert_on_new_critical").default(1).notNull(),
+	alertOnNewHigh: tinyint("alert_on_new_high").default(1).notNull(),
+	alertOnDnsChange: tinyint("alert_on_dns_change").default(1).notNull(),
+	lastCheckedAt: timestamp("last_checked_at", { mode: 'string' }),
+	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+	index("dns_mon_domain_idx").on(table.domain),
+	index("dns_mon_enabled_idx").on(table.enabled),
+]);

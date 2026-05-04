@@ -1036,3 +1036,33 @@ export async function seedGroupsByType(
 }
 
 export { getAllSeedGroups };
+
+/**
+ * Lightweight helper: ensure an actor exists in the catalog.
+ * If not found, inserts a minimal stub. Does NOT overwrite existing records.
+ * Used by the scheduled daily intel ingest to auto-discover new actors.
+ */
+export async function ensureActorExists(actorId: string, meta?: {
+  name?: string;
+  actorType?: ActorType;
+  threatLevel?: ThreatLevel;
+  source?: string;
+}) {
+  const db = await getDb();
+  if (!db) return;
+  const existing = await db
+    .select({ id: threatActors.id })
+    .from(threatActors)
+    .where(eq(threatActors.actorId, actorId))
+    .limit(1);
+  if (existing.length > 0) return; // already exists
+  await db.insert(threatActors).values({
+    actorId,
+    name: meta?.name || actorId,
+    actorType: meta?.actorType || "unknown",
+    threatLevel: meta?.threatLevel || "medium",
+    dataSource: meta?.source || "auto_discovered",
+    confidence: 60,
+    lastActive: new Date().toISOString().slice(0, 10),
+  });
+}

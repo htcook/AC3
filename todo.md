@@ -1739,3 +1739,27 @@
 - [x] Add DNS Security sub-tab in DI scan results (DnsSecurityTab component)
 - [x] Add DNS Security Assessment section to DI report PDF (records, DNSSEC, findings, posture summary)
 - [x] Write vitest tests for DNS security validator (28 tests passing)
+
+### DNS Security Enhancements — Pipeline, Persistence, Monitoring (May 4)
+- [x] Add dns_security_assessments table to schema (domain, engagement FK, report JSON, risk level, timestamps)
+- [x] Add dns_security_findings table to schema (assessment FK, severity, category, title, affected record, remediation)
+- [x] Create DB helpers for persisting and querying DNS security data
+- [x] Integrate DNS security checks into DI scan pipeline (auto-run on every domain scan)
+- [x] Store assessment results in database after pipeline execution
+- [x] Add historical comparison (detect changes between assessments)
+- [x] Build scheduled monitoring endpoint (/api/scheduled/dns-security-check)
+- [x] Add owner notification when new critical/high DNS findings detected
+- [x] Track DNS record changes over time (diff previous vs current)
+- [x] Write vitest tests for persistence, pipeline integration, and monitoring (17 tests)
+- [x] Checkpoint and push to GitHub
+
+### Daily Intel Update Workflow — In-Platform (May 4)
+- [x] Enhanced /api/scheduled/threat-intel-daily to be fully self-sufficient (no external Manus calls needed)
+- [x] Added Phase 8: Automatic CVE refresh with tech watchlist (streamlit, jupyter, langchain, cpanel, etc.)
+- [x] Added Phase 9: Zero-day monitoring (flags critical items ingested in last 24h)
+- [x] Added Phase 10: Owner notification with daily summary (phase results, zero-day alerts)
+- [x] Fixed recordGroupEvent field mapping for external article ingestion (Phase 5)
+- [x] Added ensureActorExists helper for auto-discovering new threat actors
+- [x] Endpoint now runs 10 phases autonomously: RSS → Ingest → Actor Crawl → Enrichment → Articles → Ransomware → CVE → Zero-Day → Notification
+- [x] Write vitest tests for daily intel workflow (17 tests)
+- [x] Checkpoint and push to GitHub

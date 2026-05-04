@@ -860,11 +860,35 @@ async function startServer() {
       if (req.body.articles && Array.isArray(req.body.articles)) {
         try {
           const { recordGroupEvent, upsertGroupToCatalog } = await import("../lib/threat-intel-catalog");
-          const db = (await import("../db")).getDb();
           let ingested = 0;
           for (const article of req.body.articles) {
             if (article.actorId && article.event) {
-              await recordGroupEvent(article.actorId, article.event);
+              const ev = article.event;
+              // Map payload field names (tgeTitle, tgeDescription, etc.) to recordGroupEvent's expected fields
+              await recordGroupEvent({
+                actorId: article.actorId,
+                eventType: ev.eventType,
+                title: ev.tgeTitle || ev.title,
+                description: ev.tgeDescription || ev.description,
+                severity: ev.tgeSeverity || ev.severity,
+                victimSector: ev.tgeVictimSector || ev.victimSector,
+                victimCountry: ev.tgeVictimCountry || ev.victimCountry,
+                mitreTechniques: ev.tgeMitreTechniques || ev.mitreTechniques,
+                source: ev.tgeSource || ev.source,
+                sourceUrl: ev.tgeSourceUrl || ev.sourceUrl,
+                confidence: ev.tgeConfidence || ev.confidence || 75,
+                eventDate: ev.eventDate ? new Date(ev.eventDate) : new Date(),
+              });
+              // Auto-discover actor if not in catalog (lightweight check)
+              try {
+                const { ensureActorExists } = await import("../lib/threat-intel-catalog");
+                await ensureActorExists(article.actorId, {
+                  name: article.actorId.replace(/-/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()),
+                  actorType: 'apt',
+                  threatLevel: (ev.tgeSeverity || ev.severity || 'medium') as any,
+                  source: ev.tgeSource || ev.source || 'scheduled_task',
+                });
+              } catch { /* actor may already exist */ }
               ingested++;
             }
           }
@@ -892,12 +916,178 @@ async function startServer() {
           results.phases.push({ phase: 'external_ransomware_victims', success: false, error: err.message });
         }
       }
+      // Phase 8: Automatic CVE refresh (no longer requires external trigger)
+      try {
+        const { refreshCveDatabase, getCveRefreshStats } = await import("../lib/nvd-cve-refresh");
+        const techWatchlist = ['streamlit', 'jupyter', 'langchain', 'faiss', 'firebase', 'github_actions', 'wordpress', 'cpanel', 'cisco_asa', 'bitwarden'];
+        const cveResult = await refreshCveDatabase(techWatchlist);
+        results.phases.push({ phase: 'cve_refresh', success: true, ...cveResult, stats: getCveRefreshStats() });
+      } catch (err: any) {
+        results.phases.push({ phase: 'cve_refresh', success: false, error: err.message });
+      }
+
+      // Phase 9: Zero-day monitoring — flag any new critical CVEs with active exploitation
+      try {
+        const { getDb } = await import("../db");
+        const db = await getDb();
+        if (db) {
+          const { incidentReports } = await import("../../drizzle/schema");
+          const { desc: descOrder, and: andOp, gte, eq: eqOp } = await import("drizzle-orm");
+          const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+          // Check for critical items ingested in last 24h
+          const recentCritical = await db.select()
+            .from(incidentReports)
+            .where(andOp(
+              gte(incidentReports.irCreatedAt, oneDayAgo.toISOString()),
+              eqOp(incidentReports.irSeverity, 'critical')
+            ))
+            .orderBy(descOrder(incidentReports.irCreatedAt))
+            .limit(10);
+          results.phases.push({
+            phase: 'zero_day_monitor',
+            success: true,
+            criticalCount: recentCritical.length,
+            items: recentCritical.map(r => ({ title: r.title, source: r.source, severity: r.irSeverity })),
+          });
+        } else {
+          results.phases.push({ phase: 'zero_day_monitor', success: false, error: 'DB not available' });
+        }
+      } catch (err: any) {
+        results.phases.push({ phase: 'zero_day_monitor', success: false, error: err.message });
+      }
+
+      // Phase 10: Owner notification with daily summary
+      try {
+        const { notifyOwner } = await import("../_core/notification");
+        const notifSuccessCount = results.phases.filter((p: any) => p.success).length;
+        const totalPhases = results.phases.length;
+        const rssPhase = results.phases.find((p: any) => p.phase === 'rss_sync');
+        const ingestPhase = results.phases.find((p: any) => p.phase === 'full_ingest');
+        const crawlPhase = results.phases.find((p: any) => p.phase === 'actor_crawl');
+        const articlesPhase = results.phases.find((p: any) => p.phase === 'external_articles');
+        const cvePhase = results.phases.find((p: any) => p.phase === 'cve_refresh');
+        const zeroDayPhase = results.phases.find((p: any) => p.phase === 'zero_day_monitor');
+
+        const summaryLines: string[] = [
+          `Daily Threat Intel Update — ${new Date().toISOString().slice(0, 10)}`,
+          `Phases: ${notifSuccessCount}/${totalPhases} successful`,
+          '',
+        ];
+        if (rssPhase?.success) summaryLines.push(`RSS Feeds: ${rssPhase.newArticles || 0} new articles from ${rssPhase.feedsProcessed || 0} feeds`);
+        if (ingestPhase?.success) summaryLines.push(`Multi-source ingest: ${ingestPhase.totalNewRecords || 0} new records from ${ingestPhase.successfulSources || 0} sources`);
+        if (crawlPhase?.success) summaryLines.push(`Actor crawl: ${crawlPhase.newEvents || crawlPhase.eventsRecorded || 0} new events, ${crawlPhase.groupsEnriched || 0} groups enriched`);
+        if (articlesPhase?.success && articlesPhase.ingested > 0) summaryLines.push(`External articles: ${articlesPhase.ingested} ingested`);
+        if (cvePhase?.success) summaryLines.push(`CVE refresh: ${cvePhase.newCves || cvePhase.totalNew || 0} new CVEs`);
+        if (zeroDayPhase?.success && zeroDayPhase.criticalCount > 0) {
+          summaryLines.push(`\u26A0\uFE0F ZERO-DAY ALERT: ${zeroDayPhase.criticalCount} critical items in last 24h`);
+          for (const item of (zeroDayPhase.items || []).slice(0, 5)) {
+            summaryLines.push(`  • ${item.title}`);
+          }
+        }
+
+        await notifyOwner({
+          title: `\u{1F4E1} Daily Threat Intel Summary (${notifSuccessCount}/${totalPhases} OK)`,
+          content: summaryLines.join('\n'),
+        });
+        results.phases.push({ phase: 'owner_notification', success: true });
+      } catch (err: any) {
+        results.phases.push({ phase: 'owner_notification', success: false, error: err.message });
+      }
+
       const successCount = results.phases.filter((p: any) => p.success).length;
       results.summary = `${successCount}/${results.phases.length} phases completed successfully`;
       console.log(`[ThreatIntelDaily] ${results.summary}`);
       return res.json({ success: true, ...results });
     } catch (err: any) {
       console.error('[ThreatIntelDaily] Scheduled endpoint error:', err.message);
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ─── Scheduled DNS Security Monitoring ────────────────────────────────
+  app.post('/api/scheduled/dns-security-check', async (req, res) => {
+    try {
+      let user: any = null;
+      try {
+        user = await scheduledSdk.authenticateRequest(req);
+      } catch { /* unauthenticated */ }
+      if (!user) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const { getMonitoredDomains, persistDnsSecurityAssessment, markDomainChecked } = await import("../lib/dns-security-persistence");
+      const { runDnsSecurityAssessment } = await import("../lib/dns-security-validator");
+      const { notifyOwner } = await import("../_core/notification");
+
+      const results: any = { timestamp: new Date().toISOString(), domains: [] };
+      const monitored = await getMonitoredDomains();
+
+      if (monitored.length === 0) {
+        return res.json({ success: true, message: 'No domains configured for monitoring', results });
+      }
+
+      for (const config of monitored) {
+        const domainResult: any = { domain: config.domain, status: 'pending' };
+        try {
+          const report = await runDnsSecurityAssessment(config.domain, 'di_scan');
+          const { assessmentId, changes } = await persistDnsSecurityAssessment({
+            domain: config.domain,
+            report,
+          });
+          await markDomainChecked(config.domain);
+          domainResult.status = 'completed';
+          domainResult.assessmentId = assessmentId;
+          domainResult.risk = report.summary.overallRisk;
+          domainResult.findings = report.summary.totalFindings;
+
+          // Alert on new critical/high findings or DNS changes
+          if (changes) {
+            domainResult.changes = {
+              newFindings: changes.newFindings.length,
+              resolvedFindings: changes.resolvedFindings.length,
+              riskChanged: changes.riskChanged,
+              recordChanges: changes.recordChanges.added.length + changes.recordChanges.removed.length + changes.recordChanges.modified.length,
+            };
+
+            const criticalNew = changes.newFindings.filter(f => f.severity === 'critical');
+            const highNew = changes.newFindings.filter(f => f.severity === 'high');
+            const hasRecordChanges = changes.recordChanges.added.length > 0 || changes.recordChanges.removed.length > 0;
+
+            if ((config.alertOnNewCritical && criticalNew.length > 0) ||
+                (config.alertOnNewHigh && highNew.length > 0) ||
+                (config.alertOnDnsChange && hasRecordChanges) ||
+                changes.riskChanged) {
+              const alertParts: string[] = [];
+              if (changes.riskChanged) alertParts.push(`Risk level changed: ${changes.previousRisk} \u2192 ${changes.currentRisk}`);
+              if (criticalNew.length > 0) alertParts.push(`${criticalNew.length} new CRITICAL finding(s): ${criticalNew.map(f => f.title).join(', ')}`);
+              if (highNew.length > 0) alertParts.push(`${highNew.length} new HIGH finding(s): ${highNew.map(f => f.title).join(', ')}`);
+              if (hasRecordChanges) {
+                const added = changes.recordChanges.added.map(r => `+${r.type}:${r.name}`).join(', ');
+                const removed = changes.recordChanges.removed.map(r => `-${r.type}:${r.name}`).join(', ');
+                alertParts.push(`DNS record changes: ${[added, removed].filter(Boolean).join('; ')}`);
+              }
+              if (changes.resolvedFindings.length > 0) alertParts.push(`${changes.resolvedFindings.length} finding(s) resolved`);
+
+              await notifyOwner({
+                title: `\u{1F6A8} DNS Security Alert: ${config.domain}`,
+                content: alertParts.join('\n'),
+              });
+              domainResult.alertSent = true;
+            }
+          }
+        } catch (err: any) {
+          domainResult.status = 'error';
+          domainResult.error = err.message;
+        }
+        results.domains.push(domainResult);
+      }
+
+      const successCount = results.domains.filter((d: any) => d.status === 'completed').length;
+      results.summary = `${successCount}/${results.domains.length} domains checked successfully`;
+      console.log(`[DnsSecurityMonitor] ${results.summary}`);
+      return res.json({ success: true, ...results });
+    } catch (err: any) {
+      console.error('[DnsSecurityMonitor] Scheduled endpoint error:', err.message);
       return res.status(500).json({ error: err.message });
     }
   });
