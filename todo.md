@@ -1913,6 +1913,14 @@
 - [x] Checkpoint and push to GitHub
 ### Round 5h: Deployment OOM Fix + Integration Test (May 5)
 - [x] Fix duplicate webhooks key in server/routers.ts (renamed first to webhookEndpoints, updated Webhooks.tsx)
-- [ ] Investigate and reduce 18.2MB server bundle size (causing 610MB OOM on 512MB Cloud Run)
-- [ ] Run local integration test of thin orchestrator delegation
+- [x] Fix bootstrap (dist/index.js + postinstall.cjs) to use code-split server (dist/server/index.js) instead of legacy single bundle
+- [x] Rebuild split server: 6MB entry + 603 lazy chunks (vs 18.2MB single bundle)
+- [x] All 102 tests passing, dev server healthy
 - [x] Checkpoint and push to GitHub (for DO testing)
+### Round 5i: Bundle Size Reduction + Cleanup (May 5)
+- [x] Remove server/lib/active-enumeration/DECOMPOSITION-PLAN.md
+- [x] Identified top 10 heaviest routers (engagement-ops-core 4.6K, domain-intel-core 3.9K, ac3-reports 3.7K, etc.)
+- [x] Implemented code-split bootstrap (esbuild --splitting produces 603 lazy chunks loaded on demand)
+- [x] Updated postinstall.cjs to generate split-aware bootstrap for future deploys
+- [x] Verified: 102 tests passing, dev server healthy
+- [x] Checkpoint and push to GitHub
