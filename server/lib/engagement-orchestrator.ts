@@ -324,7 +324,7 @@ function fmtTarget(asset: { hostname: string; ip?: string } | null, fallbackTarg
  * For non-HTTP tools (raw TCP, nmap discovery), use `getEffectiveTarget(asset, 'discovery')`
  * which still prefers IP for direct connection.
  */
-const KNOWN_INFRA_IPS = new Set([
+export const KNOWN_INFRA_IPS = new Set([
   process.env.SCAN_SERVER_HOST || '',
   SCANFORGE_DEDICATED_IP,          // 137.184.71.192
   '137.184.211.238',               // New scan server (hosts BC, DVWA, etc.)
@@ -905,7 +905,7 @@ const persistTimers = new Map<number, NodeJS.Timeout>();
 // These ensure state is saved every 60s even if the debounced persist hasn't fired
 const periodicPersistTimers = new Map<number, NodeJS.Timeout>();
 
-function persistOpsStateDebounced(engagementId: number, delayMs = 2000) {
+export function persistOpsStateDebounced(engagementId: number, delayMs = 2000) {
   const existing = persistTimers.get(engagementId);
   if (existing) clearTimeout(existing);
   persistTimers.set(engagementId, setTimeout(async () => {
@@ -1420,7 +1420,7 @@ async function persistTimelineEvent(engagementId: number, logEntry: OpsLogEntry)
 
 // ─── Scan Result Persistence ───────────────────────────────────────────────
 
-async function persistScanResult(opts: {
+export async function persistScanResult(opts: {
   engagementId: number;
   tool: string;
   target: string;

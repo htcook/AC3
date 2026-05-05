@@ -13,6 +13,9 @@ import {
   getEffectiveTarget,
   getEngagementAbortSignal,
   pushVulnDeduped,
+  persistScanResult,
+  persistOpsStateDebounced,
+  KNOWN_INFRA_IPS,
 } from "../engagement-orchestrator";
 import { parseToolOutput } from "../tool-output-parsers";
 import { executeToolViaQueue, executeRawCommandViaQueue } from "../job-queue-bridge";
@@ -76,6 +79,9 @@ export function buildEnumerationHelpers(state: EngagementOpsState) {
     buildGobusterCommand,
     executeTool,
     executeRawCommand,
+    persistScanResult: (opts: any) => persistScanResult(opts),
+    persistOpsStateDebounced: (delayMs?: number) => persistOpsStateDebounced(state.engagementId, delayMs),
+    KNOWN_INFRA_IPS,
     engagementAbortSignal,
     genId: () => Math.random().toString(36).substring(2, 10),
   };
@@ -94,6 +100,9 @@ export {
   getEffectiveTarget,
   getEngagementAbortSignal,
   pushVulnDeduped,
+  persistScanResult,
+  persistOpsStateDebounced,
+  KNOWN_INFRA_IPS,
   parseToolOutput,
   executeToolViaQueue,
   executeRawCommandViaQueue,

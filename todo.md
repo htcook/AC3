@@ -1897,10 +1897,11 @@
 - [x] All 30 tests passing
 - [x] Checkpoint and push to GitHub
 ### Round 5f: Phase 5 (Active Enumeration) Extraction (May 5)
-- [ ] Analyze Phase 5 inline code boundaries in engagement-orchestrator.ts
-- [ ] Create server/lib/active-enumeration/ module directory with shared context interface
-- [ ] Extract sub-modules (port-scanner, service-fingerprinter, web-crawler, dns-enumerator, etc.)
-- [ ] Wire sub-modules into orchestrator via delegation calls
-- [ ] Write vitest tests for Phase 5 extraction
-- [ ] All tests passing (no regressions)
-- [ ] Checkpoint and push to GitHub
+- [x] Analyze Phase 5 inline code boundaries in engagement-orchestrator.ts
+- [x] Create server/lib/active-enumeration/ module directory with shared context interface
+- [x] Extract sub-modules: dns-resolver, port-discovery, service-fingerprinter-runner, httpx-prober, cloud-scanner-runner, target-profiler, targeted-tool-runner
+- [x] Wire sub-modules into orchestrator via enumeration-context helpers factory
+- [x] Export persistScanResult, persistOpsStateDebounced, KNOWN_INFRA_IPS from orchestrator
+- [x] Write vitest tests for Phase 5 extraction (21 tests passing)
+- [x] All 51 tests passing across phase5 + phase78 test files (no regressions)
+- [x] Checkpoint and push to GitHub
