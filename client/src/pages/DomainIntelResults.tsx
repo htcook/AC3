@@ -198,6 +198,7 @@ export default function DomainIntelResults() {
   const [exploitDeploying, setExploitDeploying] = useState(false);
   const [matchingRunning, setMatchingRunning] = useState(false);
   const [testPlanGenerating, setTestPlanGenerating] = useState(false);
+  const [reportGenerating, setReportGenerating] = useState(false);
   const [testPlanDialogOpen, setTestPlanDialogOpen] = useState(false);
   const [testPlanResult, setTestPlanResult] = useState<any>(null);
   const [showCreateStackProfile, setShowCreateStackProfile] = useState(false);
@@ -698,31 +699,41 @@ export default function DomainIntelResults() {
             <Button
               size="sm"
               className="text-xs bg-purple-600 hover:bg-purple-700 text-white"
+              disabled={reportGenerating}
               onClick={async () => {
-                let entityOverride = null;
+                setReportGenerating(true);
                 try {
-                  entityOverride = await utils.domainIntel.getEntityOverride.fetch({ scanId: scan.id });
-                } catch { /* optional */ }
-                const fullScanData = { ...scan, ...pipeline, assets, observations: pipeline?.observations || [], entityOverride };
-                toast.info('Generating Domain Intelligence report PDF — this may take a moment...');
-                let evidenceData;
-                try {
-                  evidenceData = await utils.domainIntel.getReportEvidence.fetch({ scanId: scan.id });
-                } catch { /* optional */ }
-                let infraMapData = null;
-                try {
-                  infraMapData = await utils.calderaProxy.inferInfrastructure.fetch({ scanId: scan.id });
-                } catch { /* optional — infra map enriches but isn't required */ }
-                let vrHistory = null;
-                try {
-                  const vrData = await utils.calderaProxy.getVendorRiskHistory.fetch({ scanId: scan.id });
-                  vrHistory = (vrData as any)?.history || null;
-                } catch { /* optional */ }
-                exportDiReport(scan.primaryDomain, fullScanData, undefined, evidenceData, infraMapData, vrHistory);
+                  let entityOverride = null;
+                  try {
+                    entityOverride = await utils.domainIntel.getEntityOverride.fetch({ scanId: scan.id });
+                  } catch { /* optional */ }
+                  const fullScanData = { ...scan, ...pipeline, assets, observations: pipeline?.observations || [], entityOverride };
+                  toast.info('Generating Domain Intelligence report PDF — this may take a moment...');
+                  let evidenceData;
+                  try {
+                    evidenceData = await utils.domainIntel.getReportEvidence.fetch({ scanId: scan.id });
+                  } catch { /* optional */ }
+                  let infraMapData = null;
+                  try {
+                    infraMapData = await utils.calderaProxy.inferInfrastructure.fetch({ scanId: scan.id });
+                  } catch { /* optional — infra map enriches but isn't required */ }
+                  let vrHistory = null;
+                  try {
+                    const vrData = await utils.calderaProxy.getVendorRiskHistory.fetch({ scanId: scan.id });
+                    vrHistory = (vrData as any)?.history || null;
+                  } catch { /* optional */ }
+                  await exportDiReport(scan.primaryDomain, fullScanData, undefined, evidenceData, infraMapData, vrHistory);
+                  toast.success('Domain Intelligence report PDF generated successfully');
+                } catch (err: any) {
+                  console.error('[DI Report] PDF generation failed:', err);
+                  toast.error('Report generation failed: ' + (err.message || 'Unknown error'));
+                } finally {
+                  setReportGenerating(false);
+                }
               }}
             >
-              <FileText className="h-3.5 w-3.5 mr-1.5" />
-              Report
+              {reportGenerating ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <FileText className="h-3.5 w-3.5 mr-1.5" />}
+              {reportGenerating ? 'Generating...' : 'Report'}
             </Button>
           )}
           <DropdownMenu>
@@ -736,29 +747,38 @@ export default function DomainIntelResults() {
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuLabel>Export Data</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={async () => {
-                let entityOverride2 = null;
+              <DropdownMenuItem disabled={reportGenerating} onClick={async () => {
+                setReportGenerating(true);
                 try {
-                  entityOverride2 = await utils.domainIntel.getEntityOverride.fetch({ scanId: scan.id });
-                } catch { /* optional */ }
-                const fullScanData = { ...scan, ...pipeline, assets, observations: pipeline?.observations || [], entityOverride: entityOverride2 };
-                toast.info('Domain Intelligence report export started — this may take a moment...');
-                let evidenceData;
-                try {
-                  evidenceData = await utils.domainIntel.getReportEvidence.fetch({ scanId: scan.id });
-                } catch { /* optional */ }
-                let infraMapData = null;
-                try {
-                  infraMapData = await utils.calderaProxy.inferInfrastructure.fetch({ scanId: scan.id });
-                } catch { /* optional */ }
-                let vrHistory2 = null;
-                try {
-                  const vrData2 = await utils.calderaProxy.getVendorRiskHistory.fetch({ scanId: scan.id });
-                  vrHistory2 = (vrData2 as any)?.history || null;
-                } catch { /* optional */ }
-                exportDiReport(scan.primaryDomain, fullScanData, undefined, evidenceData, infraMapData, vrHistory2);
+                  let entityOverride2 = null;
+                  try {
+                    entityOverride2 = await utils.domainIntel.getEntityOverride.fetch({ scanId: scan.id });
+                  } catch { /* optional */ }
+                  const fullScanData = { ...scan, ...pipeline, assets, observations: pipeline?.observations || [], entityOverride: entityOverride2 };
+                  toast.info('Domain Intelligence report export started — this may take a moment...');
+                  let evidenceData;
+                  try {
+                    evidenceData = await utils.domainIntel.getReportEvidence.fetch({ scanId: scan.id });
+                  } catch { /* optional */ }
+                  let infraMapData = null;
+                  try {
+                    infraMapData = await utils.calderaProxy.inferInfrastructure.fetch({ scanId: scan.id });
+                  } catch { /* optional */ }
+                  let vrHistory2 = null;
+                  try {
+                    const vrData2 = await utils.calderaProxy.getVendorRiskHistory.fetch({ scanId: scan.id });
+                    vrHistory2 = (vrData2 as any)?.history || null;
+                  } catch { /* optional */ }
+                  await exportDiReport(scan.primaryDomain, fullScanData, undefined, evidenceData, infraMapData, vrHistory2);
+                  toast.success('Domain Intelligence report PDF generated successfully');
+                } catch (err: any) {
+                  console.error('[DI Report] PDF generation failed:', err);
+                  toast.error('Report generation failed: ' + (err.message || 'Unknown error'));
+                } finally {
+                  setReportGenerating(false);
+                }
               }}>
-                <ShieldAlert className="h-4 w-4 mr-2" /> Full DI Report (PDF)
+                <ShieldAlert className="h-4 w-4 mr-2" /> {reportGenerating ? 'Generating...' : 'Full DI Report (PDF)'}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => {
                 // Check if validation data is available for enhanced export

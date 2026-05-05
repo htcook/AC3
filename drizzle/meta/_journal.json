@@ -407,6 +407,13 @@
       "when": 1777987055353,
       "tag": "0057_cool_marvel_zombies",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "5",
+      "when": 1778013625375,
+      "tag": "0058_fixed_maximus",
+      "breakpoints": true
     }
   ]
 }
