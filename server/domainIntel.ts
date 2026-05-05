@@ -2745,135 +2745,369 @@ export async function runDomainIntelPipeline(
     }
   }
 
-  // Stage 3.5: CISA KEV Enrichment
-  const preKevSnapshot = snapshotScores();
-  await onProgress?.('scoring');
+  // ─── Parallel Execution: Stage 3.5 (KEV) || Stage 3.6 (Vuln Feeds) ───────────
+  // Both stages add postureFindings to assets but operate on independent data:
+  // - Stage 3.5 matches technologies against CISA KEV catalog (global)
+  // - Stage 3.6 matches per-asset technologies against all vuln feeds
+  // Safe to parallelize: both push to postureFindings[] which is append-only,
+  // and Node.js single-threaded event loop prevents concurrent array corruption.
   let kevEnrichment: KevEnrichment | undefined;
-  try {
-    const allTechnologies = analyses.flatMap(a => a.asset.technologies || []);
-    const uniqueTechs = Array.from(new Set(allTechnologies.filter(Boolean)));
-    if (uniqueTechs.length > 0) {
-      const kevCatalog = await fetchKevCatalog();
-      const kevMatchesRaw = matchTechnologiesAgainstKev(uniqueTechs, kevCatalog);
+  const [kevResult, vulnFeedResult] = await Promise.allSettled([
+    // Stage 3.5: CISA KEV Enrichment
+    (async () => {
+      const preKevSnapshot = snapshotScores();
+      await onProgress?.('scoring');
+      try {
+        const allTechnologies = analyses.flatMap(a => a.asset.technologies || []);
+        const uniqueTechs = Array.from(new Set(allTechnologies.filter(Boolean)));
+        if (uniqueTechs.length > 0) {
+          const kevCatalog = await fetchKevCatalog();
+          const kevMatchesRaw = matchTechnologiesAgainstKev(uniqueTechs, kevCatalog);
 
-      // ── Global managed-provider filter ──
-      // Remove KEV matches for products managed by the detected mail provider
-      // BEFORE storing them in kevEnrichment. This prevents Exchange Server CVEs
-      // from appearing in the global summary when the client uses M365 SaaS.
-      const _globalMpName = emailSecurityReport?.managedProvider?.name
-        || emailSecurityReport?.mx?.provider || null;
-      const GLOBAL_MANAGED_PRODUCTS: Record<string, string[]> = {
-        'Microsoft 365': ['exchange server', 'exchange', 'outlook'],
-        'Google Workspace': ['gmail'],
-        'Proofpoint': ['proofpoint'],
-        'Mimecast': ['mimecast'],
-      };
-      const globalManagedProducts = _globalMpName ? (GLOBAL_MANAGED_PRODUCTS[_globalMpName] || []) : [];
-      const kevMatches = globalManagedProducts.length > 0
-        ? kevMatchesRaw.filter(m => {
-            const p = (m.product || '').toLowerCase();
-            const isManaged = globalManagedProducts.some(mp => p.includes(mp));
-            if (isManaged) {
-              console.log(`[KEV] Global filter: removing ${m.cveID} (${m.product}) — managed by ${_globalMpName}`);
+          // ── Global managed-provider filter ──
+          // Remove KEV matches for products managed by the detected mail provider
+          // BEFORE storing them in kevEnrichment. This prevents Exchange Server CVEs
+          // from appearing in the global summary when the client uses M365 SaaS.
+          const _globalMpName = emailSecurityReport?.managedProvider?.name
+            || emailSecurityReport?.mx?.provider || null;
+          const GLOBAL_MANAGED_PRODUCTS: Record<string, string[]> = {
+            'Microsoft 365': ['exchange server', 'exchange', 'outlook'],
+            'Google Workspace': ['gmail'],
+            'Proofpoint': ['proofpoint'],
+            'Mimecast': ['mimecast'],
+          };
+          const globalManagedProducts = _globalMpName ? (GLOBAL_MANAGED_PRODUCTS[_globalMpName] || []) : [];
+          const kevMatches = globalManagedProducts.length > 0
+            ? kevMatchesRaw.filter(m => {
+                const p = (m.product || '').toLowerCase();
+                const isManaged = globalManagedProducts.some(mp => p.includes(mp));
+                if (isManaged) {
+                  console.log(`[KEV] Global filter: removing ${m.cveID} (${m.product}) — managed by ${_globalMpName}`);
+                }
+                return !isManaged;
+              })
+            : kevMatchesRaw;
+
+          if (kevMatches.length > 0) {
+            const boost = calculateKevRiskBoost(kevMatches);
+            const chainSteps = getKevChainSteps(kevMatches);
+            kevEnrichment = {
+              matches: kevMatches,
+              riskBoost: boost.riskBoost,
+              ransomwareExposure: boost.ransomwareExposure,
+              criticalKevCount: boost.criticalKevCount,
+              summary: boost.summary,
+              chainSteps,
+            };
+            // KEV findings are added to postureFindings below. The hybridRiskScore boost is
+            // ONLY applied for version-confirmed KEV matches. Without version confirmation,
+            // the KEV finding is "probable" and contributes to vulnRiskScore (which drives
+            // Likelihood in the post-enrichment recalculation) but does NOT get an extra boost.
+            //
+            // FIX: Per-asset KEV matching. We run matchTechnologiesAgainstKev per-asset
+            // using only THAT asset's technologies, so findings are never cross-contaminated.
+            // We also build a per-asset seen set to avoid duplicate CVEs on the same asset.
+            // ── Managed-provider product exclusion ──
+            // When a managed mail provider is detected (e.g. Microsoft 365, Google Workspace),
+            // KEV matches for products that belong to the provider's infrastructure should NOT
+            // be attributed to the client. For example, if M365 is the mail provider, Exchange
+            // Server CVEs are the provider's responsibility — the client doesn't run Exchange.
+            const _mpName = emailSecurityReport?.managedProvider?.name
+              || emailSecurityReport?.mx?.provider || null;
+            const MANAGED_PROVIDER_PRODUCTS: Record<string, string[]> = {
+              'Microsoft 365': ['exchange server', 'exchange', 'outlook', 'sharepoint'],
+              'Google Workspace': ['gmail'],
+              'Proofpoint': ['proofpoint'],
+              'Mimecast': ['mimecast'],
+            };
+            const managedProducts = _mpName ? (MANAGED_PROVIDER_PRODUCTS[_mpName] || []) : [];
+            const isManagedProviderProduct = (kevProduct: string): boolean => {
+              if (managedProducts.length === 0) return false;
+              const p = kevProduct.toLowerCase();
+              return managedProducts.some(mp => p.includes(mp));
+            };
+
+            let kevIdx = 0;
+            for (const a of analyses) {
+              kevIdx++;
+              if (kevIdx % 10 === 0) await yieldEventLoop();
+              const assetTechs = (a.asset.technologies || []).filter(Boolean);
+              if (assetTechs.length === 0) continue;
+              // Run KEV matching using ONLY this asset's own technologies
+              const assetKevMatches = matchTechnologiesAgainstKev(assetTechs, kevCatalog, a.asset.technologyVersions as Record<string, string> | undefined);
+              // Deduplicate: skip CVEs already present as posture findings on this asset
+              const existingCves = new Set(a.postureFindings.flatMap(f => f.cveIds || []));
+              const uniqueAssetKevMatches = assetKevMatches.filter(m => !existingCves.has(m.cveID));
+              if (assetKevMatches.length > 0) {
+                // Only boost for version-confirmed KEV matches
+                const versions = a.asset.technologyVersions || {};
+                // FIX: Require the KEV product name to match the detected technology name,
+                // not just the matchedOn field (which could be a generic vendor name like "Microsoft").
+                // This prevents "Microsoft IIS v10.0" from confirming a SharePoint KEV entry.
+                const confirmedKevMatches = assetKevMatches.filter(m => {
+                  // Skip managed provider products — these CVEs belong to the provider, not the client
+                  if (isManagedProviderProduct(m.product || '')) return false;
+                  const kevProductLower = (m.product || '').toLowerCase();
+                  return Object.entries(versions).some(([tech]) => {
+                    const techLower = tech.toLowerCase();
+                    // Check if the detected technology name matches the KEV product name
+                    // (not just the matchedOn field which could be a broad pattern like "iis")
+                    return techLower.includes(kevProductLower) || kevProductLower.includes(techLower);
+                  });
+                });
+                if (confirmedKevMatches.length > 0) {
+                  // Cap per-asset KEV boost at 15 — only for version-confirmed matches
+                  const assetBoost = Math.min(confirmedKevMatches.reduce((s, m) => s + Math.min(m.severityBoost, 8), 0), 15);
+                  a.hybridRiskScore = Math.min(100, a.hybridRiskScore + assetBoost);
+                  a.riskBand = riskBand(a.hybridRiskScore);
+                  a.suggestedTier = riskTier(a.hybridRiskScore);
+                }
+                // Add KEV posture findings with full evidence and corroboration
+                // Use uniqueAssetKevMatches to skip CVEs already present on this asset
+                // Pre-import isVersionAffected so we don't need await inside forEach
+                let _isVersionAffected: ((v: string, r: string) => boolean) | null = null;
+                try {
+                  const cpeMod = await import("./lib/dynamic-cpe-matcher");
+                  _isVersionAffected = cpeMod.isVersionAffected;
+                } catch { /* fallback: skip version range checks */ }
+                uniqueAssetKevMatches.forEach(m => {
+                  // Skip managed provider products entirely — these CVEs are the provider's responsibility
+                  if (isManagedProviderProduct(m.product || '')) {
+                    console.log(`[DomainIntel] KEV skip: ${m.cveID} (${m.product}) on ${a.asset.hostname} — product managed by ${_mpName}`);
+                    return;
+                  }
+                  // Check if we have a detected version for this technology
+                  // FIX: Match against the KEV PRODUCT name with product specificity.
+                  // Previously, matchedOn="Microsoft" would match "Microsoft IIS" version,
+                  // falsely confirming a SharePoint or Windows CLFS KEV entry.
+                  // PRODUCT_ALIASES: Map common tech names to their specific product names
+                  const PRODUCT_ALIASES: Record<string, string[]> = {
+                    'apache': ['http server', 'httpd', 'apache2'],
+                    'nginx': ['nginx'],
+                    'iis': ['internet information services', 'iis'],
+                    'openssl': ['openssl'],
+                    'jquery': ['jquery'],
+                  };
+                  const versions = a.asset.technologyVersions || {};
+                  const kevProductLower = (m.product || '').toLowerCase();
+                  const kevVendorLower = (m.vendorProject || '').toLowerCase();
+                  const matchedOnLower = (m.matchedOn || '').toLowerCase();
+
+                  // Product-specific version lookup: find a version ONLY if the detected
+                  // tech actually IS the specific product the CVE is about
+                  let detectedVersion: string | undefined;
+                  let productSpecificMatch = false;
+                  for (const [tech, ver] of Object.entries(versions)) {
+                    const techLower = tech.toLowerCase();
+                    // Direct product match: tech name contains product or vice versa
+                    const directMatch = techLower.includes(kevProductLower) || kevProductLower.includes(techLower);
+                    // Alias match: e.g., tech "Apache" → aliases ["http server", "httpd"]
+                    const aliases = PRODUCT_ALIASES[techLower] || [];
+                    const aliasMatch = aliases.some(alias => kevProductLower.includes(alias) || alias.includes(kevProductLower));
+
+                    if (directMatch || aliasMatch) {
+                      detectedVersion = ver;
+                      productSpecificMatch = true;
+                      break;
+                    }
+                  }
+                  // If no product-specific match, check if we have a vendor-only match
+                  // (e.g., tech "Apache" detected, CVE is for "Apache OFBiz")
+                  // In this case, do NOT use the version — it belongs to a different product
+                  if (!productSpecificMatch) {
+                    // Fallback: check if matchedOn is just a vendor name
+                    for (const [tech, ver] of Object.entries(versions)) {
+                      const techLower = tech.toLowerCase();
+                      if (techLower.includes(matchedOnLower) || matchedOnLower.includes(techLower)) {
+                        // Found a version via vendor match — but this is NOT product-specific
+                        // Do NOT set detectedVersion — it would be wrong product's version
+                        break;
+                      }
+                    }
+                  }
+
+                  // KEV entries require product-specific version match for "confirmed"
+                  // Vendor-only matches (e.g., "Apache" tech → "Apache OFBiz" CVE) stay "probable"
+                  // FIX: Without ANY version evidence, downgrade to "potential" — we only know the
+                  // product family is present, not that a vulnerable version is running.
+                  //
+                  // VERSION RANGE CHECK: If the KEV entry has version range data from NVD,
+                  // verify the detected version is actually within the affected range.
+                  // This prevents listing CVEs for versions that have been patched.
+                  let versionInRange = true;
+                  if (productSpecificMatch && detectedVersion && (m as any).affectedVersionRange) {
+                    try {
+                      if (_isVersionAffected) {
+                        versionInRange = _isVersionAffected(detectedVersion, (m as any).affectedVersionRange);
+                        if (!versionInRange) {
+                          console.log(`[DomainIntel] KEV version filter: ${m.cveID} skipped — ${m.product} v${detectedVersion} is NOT in affected range (${(m as any).affectedVersionRange})`);
+                        }
+                      }
+                    } catch { /* fallback: assume affected */ }
+                  }
+                  // If version is confirmed but NOT in affected range, skip entirely
+                  if (productSpecificMatch && detectedVersion && !versionInRange) return;
+
+                  let tier: CorroborationTier;
+                  if (productSpecificMatch && detectedVersion) {
+                    tier = "confirmed";
+                  } else if (detectedVersion || productSpecificMatch) {
+                    // Has version (wrong product) or product match (no version) — probable
+                    tier = "probable";
+                  } else {
+                    // No version AND no product-specific match — potential only
+                    tier = "potential";
+                  }
+                  const severityCap = tier === "confirmed" ? 10 : tier === "probable" ? 6 : 4;
+                  const rawSeverity = m.knownRansomware ? 10 : 9;
+                  const cappedSeverity = Math.min(rawSeverity, severityCap);
+                  const evidenceChain: string[] = [
+                    `Technology "${m.matchedOn}" detected on asset "${a.asset.hostname}"`,
+                    `Matched against CISA KEV entry ${m.cveID} (${m.vendorProject} ${m.product})`,
+                  ];
+                  if (productSpecificMatch && detectedVersion) {
+                    evidenceChain.push(`Detected version: ${detectedVersion} of ${m.product} — product-specific match CONFIRMED`);
+                  } else if (detectedVersion && !productSpecificMatch) {
+                    evidenceChain.push(`Technology "${m.matchedOn}" detected but version belongs to a different ${kevVendorLower} product — not ${m.product}. Severity capped.`);
+                  } else {
+                    evidenceChain.push(`No specific version detected for ${m.product} — product-family match only (severity capped at ${severityCap}/10)`);
+                  }
+                  evidenceChain.push(`KEV status: actively exploited in the wild. Due date: ${m.dueDate}`);
+                  if (m.knownRansomware) evidenceChain.push(`Ransomware association confirmed`);
+
+                  a.postureFindings.push({
+                    id: `kev-${m.cveID}-${a.asset.assetId}`,
+                    assetRef: a.asset.assetId,
+                    assetHostname: a.asset.hostname,
+                    category: "CISA KEV",
+                    title: `${m.cveID}: ${m.vulnerabilityName} (${m.vendorProject} ${m.product})${m.knownRansomware ? " [RANSOMWARE]" : ""}`,
+                    severity: cappedSeverity,
+                    likelihood: detectedVersion ? 9 : (productSpecificMatch ? 5 : 3), // Scale with evidence quality
+                    confidence: detectedVersion ? 0.95 : (productSpecificMatch ? 0.6 : 0.35),
+                    recommendedControls: [m.requiredAction, `Patch ${m.product} immediately`, "Monitor for exploitation indicators"],
+                    cveIds: [m.cveID],
+                    kevListed: true,
+                    exploitAvailable: true,
+                    cvssScore: m.knownRansomware ? 9.8 : 9.0,
+                    affectedAssets: [a.asset.hostname],
+                    evidenceBasis: "kev_match" as const,
+                    evidenceDetail: (productSpecificMatch && detectedVersion)
+                      ? `CONFIRMED: ${m.product} v${detectedVersion} on ${a.asset.hostname} matches CISA KEV entry ${m.cveID}. Due date: ${m.dueDate}. Note: Version-based match \u2014 backported patches may apply on managed hosting.`
+                      : `${tier === 'probable' ? 'PROBABLE' : 'POTENTIAL'}: Technology "${m.matchedOn}" on ${a.asset.hostname} matches ${m.vendorProject} product family but specific product ${m.product} not individually confirmed. ${detectedVersion ? `Detected version ${detectedVersion} belongs to a different product.` : 'Version not detected \u2014 product family match only.'} Severity capped at ${severityCap}/10. Due date: ${m.dueDate}.`,
+                    corroborationTier: tier,
+                    detectedVersion,
+                    versionMatchConfirmed: !!(detectedVersion && versionInRange),
+                    evidenceChain,
+                  });
+                });
+              }
             }
-            return !isManaged;
-          })
-        : kevMatchesRaw;
+            // ── Per-asset KEV finding cap ──
+            // For large scans (e.g., 500+ assets sharing Apache/nginx/jQuery), the same KEV
+            // entries get duplicated across every asset. Cap per-asset KEV findings to prevent
+            // combinatorial explosion (e.g., 25 KEV entries × 500 assets = 12,500 findings).
+            // Keep the highest-severity KEV findings per asset; summarize the rest.
+            const MAX_KEV_PER_ASSET = 15;
+            let kevCapped = 0;
+            for (const a of analyses) {
+              const kevFindings = a.postureFindings.filter(f => f.category === 'CISA KEV');
+              if (kevFindings.length > MAX_KEV_PER_ASSET) {
+                // Sort by severity desc, then by confidence desc
+                kevFindings.sort((x, y) => (y.severity - x.severity) || ((y.confidence || 0) - (x.confidence || 0)));
+                const keep = new Set(kevFindings.slice(0, MAX_KEV_PER_ASSET).map(f => f.id));
+                const removed = kevFindings.filter(f => !keep.has(f.id));
+                // Remove excess findings from postureFindings
+                a.postureFindings = a.postureFindings.filter(f => f.category !== 'CISA KEV' || keep.has(f.id));
+                // Add a summary finding for the capped entries
+                const removedCves = removed.map(f => f.cveIds?.[0]).filter(Boolean);
+                a.postureFindings.push({
+                  id: `kev-summary-${a.asset.assetId}`,
+                  assetRef: a.asset.assetId,
+                  assetHostname: a.asset.hostname,
+                  category: 'CISA KEV',
+                  title: `${removed.length} additional KEV entries affect this asset's technology stack`,
+                  severity: Math.max(...removed.map(f => f.severity), 1),
+                  likelihood: 3,
+                  confidence: 0.3,
+                  recommendedControls: ['Review full CISA KEV catalog for this technology stack', 'Prioritize patching based on CVSS score and exploit availability'],
+                  cveIds: removedCves as string[],
+                  kevListed: true,
+                  exploitAvailable: false,
+                  affectedAssets: [a.asset.hostname],
+                  evidenceBasis: 'kev_match' as const,
+                  evidenceDetail: `SUMMARY: ${removed.length} additional CISA KEV entries match technologies on ${a.asset.hostname}. Top ${MAX_KEV_PER_ASSET} shown individually above. Full list: ${removedCves.slice(0, 10).join(', ')}${removedCves.length > 10 ? ` and ${removedCves.length - 10} more` : ''}.`,
+                  corroborationTier: 'potential',
+                  evidenceChain: [`${removed.length} additional KEV entries consolidated into summary to prevent report inflation`],
+                });
+                kevCapped += removed.length;
+              }
+            }
+            if (kevCapped > 0) {
+              console.log(`[DomainIntel] KEV cap: consolidated ${kevCapped} excess KEV findings across assets (max ${MAX_KEV_PER_ASSET} per asset)`);
+            }
+            console.log(`[DomainIntel] KEV enrichment: ${kevMatches.length} matches, ${chainSteps.length} chain steps, boost=${boost.riskBoost}`);
+          }
+        }
+        // Record KEV enrichment deltas
+        recordPhaseDeltas('kev_enrichment', 'kev_match', preKevSnapshot, 'CISA KEV catalog match');
+      } catch (err: any) {
+        console.error(`[DomainIntel] KEV enrichment failed (non-fatal): ${err.message}`);
+      }
 
-      if (kevMatches.length > 0) {
-        const boost = calculateKevRiskBoost(kevMatches);
-        const chainSteps = getKevChainSteps(kevMatches);
-        kevEnrichment = {
-          matches: kevMatches,
-          riskBoost: boost.riskBoost,
-          ransomwareExposure: boost.ransomwareExposure,
-          criticalKevCount: boost.criticalKevCount,
-          summary: boost.summary,
-          chainSteps,
-        };
-        // KEV findings are added to postureFindings below. The hybridRiskScore boost is
-        // ONLY applied for version-confirmed KEV matches. Without version confirmation,
-        // the KEV finding is "probable" and contributes to vulnRiskScore (which drives
-        // Likelihood in the post-enrichment recalculation) but does NOT get an extra boost.
-        //
-        // FIX: Per-asset KEV matching. We run matchTechnologiesAgainstKev per-asset
-        // using only THAT asset's technologies, so findings are never cross-contaminated.
-        // We also build a per-asset seen set to avoid duplicate CVEs on the same asset.
-        // ── Managed-provider product exclusion ──
-        // When a managed mail provider is detected (e.g. Microsoft 365, Google Workspace),
-        // KEV matches for products that belong to the provider's infrastructure should NOT
-        // be attributed to the client. For example, if M365 is the mail provider, Exchange
-        // Server CVEs are the provider's responsibility — the client doesn't run Exchange.
-        const _mpName = emailSecurityReport?.managedProvider?.name
-          || emailSecurityReport?.mx?.provider || null;
-        const MANAGED_PROVIDER_PRODUCTS: Record<string, string[]> = {
-          'Microsoft 365': ['exchange server', 'exchange', 'outlook', 'sharepoint'],
-          'Google Workspace': ['gmail'],
-          'Proofpoint': ['proofpoint'],
-          'Mimecast': ['mimecast'],
-        };
-        const managedProducts = _mpName ? (MANAGED_PROVIDER_PRODUCTS[_mpName] || []) : [];
-        const isManagedProviderProduct = (kevProduct: string): boolean => {
-          if (managedProducts.length === 0) return false;
-          const p = kevProduct.toLowerCase();
-          return managedProducts.some(mp => p.includes(mp));
-        };
+    })(),
+    // Stage 3.6: Vuln Feed Enrichment
+    (async () => {
+      // FIX: Per-asset vuln feed matching. We run matchTechnologiesAgainstAllFeeds per-asset
+      // using only THAT asset's technologies, so findings are never cross-contaminated.
+      // Previously, a global tech pool caused the same CVEs to appear on every asset.
+      try {
+        const { matchTechnologiesAgainstAllFeeds } = await import("./lib/vuln-feeds");
+        // Cache vuln feed results per technology to avoid redundant API calls
+        const vulnFeedCache = new Map<string, Awaited<ReturnType<typeof matchTechnologiesAgainstAllFeeds>>>();
+        let totalVulnsFound = 0;
+        let totalTechsMatched = 0;
 
-        let kevIdx = 0;
+        // Enrich each asset's posture findings with real CVE data — PER ASSET
+        let vfIdx = 0;
         for (const a of analyses) {
-          kevIdx++;
-          if (kevIdx % 10 === 0) await yieldEventLoop();
+          vfIdx++;
+          if (vfIdx % 10 === 0) await yieldEventLoop();
           const assetTechs = (a.asset.technologies || []).filter(Boolean);
           if (assetTechs.length === 0) continue;
-          // Run KEV matching using ONLY this asset's own technologies
-          const assetKevMatches = matchTechnologiesAgainstKev(assetTechs, kevCatalog, a.asset.technologyVersions as Record<string, string> | undefined);
-          // Deduplicate: skip CVEs already present as posture findings on this asset
-          const existingCves = new Set(a.postureFindings.flatMap(f => f.cveIds || []));
-          const uniqueAssetKevMatches = assetKevMatches.filter(m => !existingCves.has(m.cveID));
-          if (assetKevMatches.length > 0) {
-            // Only boost for version-confirmed KEV matches
-            const versions = a.asset.technologyVersions || {};
-            // FIX: Require the KEV product name to match the detected technology name,
-            // not just the matchedOn field (which could be a generic vendor name like "Microsoft").
-            // This prevents "Microsoft IIS v10.0" from confirming a SharePoint KEV entry.
-            const confirmedKevMatches = assetKevMatches.filter(m => {
-              // Skip managed provider products — these CVEs belong to the provider, not the client
-              if (isManagedProviderProduct(m.product || '')) return false;
-              const kevProductLower = (m.product || '').toLowerCase();
-              return Object.entries(versions).some(([tech]) => {
-                const techLower = tech.toLowerCase();
-                // Check if the detected technology name matches the KEV product name
-                // (not just the matchedOn field which could be a broad pattern like "iis")
-                return techLower.includes(kevProductLower) || kevProductLower.includes(techLower);
-              });
-            });
-            if (confirmedKevMatches.length > 0) {
-              // Cap per-asset KEV boost at 15 — only for version-confirmed matches
-              const assetBoost = Math.min(confirmedKevMatches.reduce((s, m) => s + Math.min(m.severityBoost, 8), 0), 15);
-              a.hybridRiskScore = Math.min(100, a.hybridRiskScore + assetBoost);
-              a.riskBand = riskBand(a.hybridRiskScore);
-              a.suggestedTier = riskTier(a.hybridRiskScore);
-            }
-            // Add KEV posture findings with full evidence and corroboration
-            // Use uniqueAssetKevMatches to skip CVEs already present on this asset
-            // Pre-import isVersionAffected so we don't need await inside forEach
-            let _isVersionAffected: ((v: string, r: string) => boolean) | null = null;
-            try {
-              const cpeMod = await import("./lib/dynamic-cpe-matcher");
-              _isVersionAffected = cpeMod.isVersionAffected;
-            } catch { /* fallback: skip version range checks */ }
-            uniqueAssetKevMatches.forEach(m => {
-              // Skip managed provider products entirely — these CVEs are the provider's responsibility
-              if (isManagedProviderProduct(m.product || '')) {
-                console.log(`[DomainIntel] KEV skip: ${m.cveID} (${m.product}) on ${a.asset.hostname} — product managed by ${_mpName}`);
-                return;
-              }
-              // Check if we have a detected version for this technology
-              // FIX: Match against the KEV PRODUCT name with product specificity.
-              // Previously, matchedOn="Microsoft" would match "Microsoft IIS" version,
-              // falsely confirming a SharePoint or Windows CLFS KEV entry.
-              // PRODUCT_ALIASES: Map common tech names to their specific product names
-              const PRODUCT_ALIASES: Record<string, string[]> = {
+
+          // Get unique techs for this asset only
+          const uniqueAssetTechs = Array.from(new Set(assetTechs));
+          // Include version info in cache key since version-aware filtering produces different results
+          const versionSuffix = Object.entries(a.asset.technologyVersions || {}).sort(([a],[b]) => a.localeCompare(b)).map(([k,v]) => `${k}=${v}`).join('&');
+          const cacheKey = uniqueAssetTechs.sort().join('|').toLowerCase() + (versionSuffix ? `#${versionSuffix}` : '');
+
+          // Check cache first — if another asset has the exact same tech set, reuse results
+          let vulnResult = vulnFeedCache.get(cacheKey);
+          if (!vulnResult) {
+            vulnResult = await matchTechnologiesAgainstAllFeeds(uniqueAssetTechs, a.asset.technologyVersions || {});
+            vulnFeedCache.set(cacheKey, vulnResult);
+          }
+
+          // Build a tech->vuln map for THIS asset's results
+          const techVulnMap = new Map<string, typeof vulnResult.matches[0]>();
+          for (const match of vulnResult.matches) {
+            techVulnMap.set(match.technology.toLowerCase(), match);
+          }
+
+          const assetTechsLower = assetTechs.map(t => t.toLowerCase());
+          for (const techLower of assetTechsLower) {
+            const vulnMatch = techVulnMap.get(techLower);
+            if (!vulnMatch) continue;
+
+            // Add vuln-feed-backed findings for the top CVEs
+            const topVulns = vulnMatch.vulns.slice(0, 5); // Top 5 by CVSS
+            for (const vuln of topVulns) {
+              // Skip if we already have a KEV finding for this CVE
+              if (a.postureFindings.some(f => f.cveIds?.includes(vuln.cveId))) continue;
+
+              // Determine corroboration tier based on version evidence
+              // FIX: Product-specific version lookup — don't use Apache httpd version for OFBiz CVEs
+              const VULN_PRODUCT_ALIASES: Record<string, string[]> = {
                 'apache': ['http server', 'httpd', 'apache2'],
                 'nginx': ['nginx'],
                 'iis': ['internet information services', 'iis'],
@@ -2881,409 +3115,188 @@ export async function runDomainIntelPipeline(
                 'jquery': ['jquery'],
               };
               const versions = a.asset.technologyVersions || {};
-              const kevProductLower = (m.product || '').toLowerCase();
-              const kevVendorLower = (m.vendorProject || '').toLowerCase();
-              const matchedOnLower = (m.matchedOn || '').toLowerCase();
-
-              // Product-specific version lookup: find a version ONLY if the detected
-              // tech actually IS the specific product the CVE is about
+              const vulnProductLower = (vuln.product || '').toLowerCase();
+              const vulnVendorLower = (vuln.vendor || '').toLowerCase();
               let detectedVersion: string | undefined;
-              let productSpecificMatch = false;
-              for (const [tech, ver] of Object.entries(versions)) {
-                const techLower = tech.toLowerCase();
-                // Direct product match: tech name contains product or vice versa
-                const directMatch = techLower.includes(kevProductLower) || kevProductLower.includes(techLower);
-                // Alias match: e.g., tech "Apache" → aliases ["http server", "httpd"]
-                const aliases = PRODUCT_ALIASES[techLower] || [];
-                const aliasMatch = aliases.some(alias => kevProductLower.includes(alias) || alias.includes(kevProductLower));
+              let isProductSpecificVuln = false;
 
-                if (directMatch || aliasMatch) {
-                  detectedVersion = ver;
-                  productSpecificMatch = true;
-                  break;
-                }
-              }
-              // If no product-specific match, check if we have a vendor-only match
-              // (e.g., tech "Apache" detected, CVE is for "Apache OFBiz")
-              // In this case, do NOT use the version — it belongs to a different product
-              if (!productSpecificMatch) {
-                // Fallback: check if matchedOn is just a vendor name
+              // Check match specificity from vuln-feeds if available
+              const matchSpec = (vulnMatch as any)._matchSpecificity;
+              if (matchSpec === 'vendor_only') {
+                // Vendor-only match: tech "Apache" matched vendor "Apache" but NOT product "OFBiz"
+                // Do NOT use any version — it belongs to a different product
+                isProductSpecificVuln = false;
+              } else {
+                // Try product-specific version lookup
                 for (const [tech, ver] of Object.entries(versions)) {
-                  const techLower = tech.toLowerCase();
-                  if (techLower.includes(matchedOnLower) || matchedOnLower.includes(techLower)) {
-                    // Found a version via vendor match — but this is NOT product-specific
-                    // Do NOT set detectedVersion — it would be wrong product's version
+                  // Skip protocol versions that leaked through earlier stages
+                  if (isProtocolVersion(tech, ver)) continue;
+                  const tl = tech.toLowerCase();
+                  const directMatch = tl.includes(vulnProductLower) || vulnProductLower.includes(tl);
+                  const aliases = VULN_PRODUCT_ALIASES[tl] || [];
+                  const aliasMatch = aliases.some(a => vulnProductLower.includes(a) || a.includes(vulnProductLower));
+                  if (directMatch || aliasMatch) {
+                    detectedVersion = ver;
+                    isProductSpecificVuln = true;
                     break;
                   }
                 }
-              }
-
-              // KEV entries require product-specific version match for "confirmed"
-              // Vendor-only matches (e.g., "Apache" tech → "Apache OFBiz" CVE) stay "probable"
-              // FIX: Without ANY version evidence, downgrade to "potential" — we only know the
-              // product family is present, not that a vulnerable version is running.
-              //
-              // VERSION RANGE CHECK: If the KEV entry has version range data from NVD,
-              // verify the detected version is actually within the affected range.
-              // This prevents listing CVEs for versions that have been patched.
-              let versionInRange = true;
-              if (productSpecificMatch && detectedVersion && (m as any).affectedVersionRange) {
-                try {
-                  if (_isVersionAffected) {
-                    versionInRange = _isVersionAffected(detectedVersion, (m as any).affectedVersionRange);
-                    if (!versionInRange) {
-                      console.log(`[DomainIntel] KEV version filter: ${m.cveID} skipped — ${m.product} v${detectedVersion} is NOT in affected range (${(m as any).affectedVersionRange})`);
+                // If no product-specific match found, fall back to tech name match
+                // but only if the tech name IS the product (not just the vendor)
+                if (!isProductSpecificVuln) {
+                  const techEntry = Object.entries(versions).find(
+                    ([tech]) => tech.toLowerCase().includes(techLower) || techLower.includes(tech.toLowerCase())
+                  );
+                  if (techEntry) {
+                    // Check if this is actually a product match or just vendor
+                    const techName = techEntry[0].toLowerCase();
+                    const isVendorOnly = (techName === vulnVendorLower || vulnVendorLower.includes(techName))
+                      && !techName.includes(vulnProductLower) && !vulnProductLower.includes(techName);
+                    if (!isVendorOnly) {
+                      detectedVersion = techEntry[1];
+                      isProductSpecificVuln = true;
                     }
                   }
-                } catch { /* fallback: assume affected */ }
+                }
               }
-              // If version is confirmed but NOT in affected range, skip entirely
-              if (productSpecificMatch && detectedVersion && !versionInRange) return;
 
+              // VERSION-AWARE FILTERING: If we have a detected version AND the CVE has
+              // version range data, verify the detected version is actually affected.
+              // This prevents listing all CVEs for a product when only specific versions are vulnerable.
+              if (detectedVersion && vuln.affectedVersionRange) {
+                const { isVersionAffected } = await import("./lib/dynamic-cpe-matcher");
+                if (!isVersionAffected(detectedVersion, vuln.affectedVersionRange)) {
+                  continue; // Detected version is NOT in the affected range — skip this CVE
+                }
+              }
+
+              // Product-specific version match required for "confirmed"
+              // Vendor-only matches stay "probable" even if a version was detected
+              // FIX: Without ANY version evidence, downgrade to "potential"
               let tier: CorroborationTier;
-              if (productSpecificMatch && detectedVersion) {
+              if (isProductSpecificVuln && detectedVersion) {
                 tier = "confirmed";
-              } else if (detectedVersion || productSpecificMatch) {
-                // Has version (wrong product) or product match (no version) — probable
+              } else if (detectedVersion || isProductSpecificVuln) {
                 tier = "probable";
               } else {
-                // No version AND no product-specific match — potential only
                 tier = "potential";
               }
               const severityCap = tier === "confirmed" ? 10 : tier === "probable" ? 6 : 4;
-              const rawSeverity = m.knownRansomware ? 10 : 9;
+              const rawSeverity = vuln.cvssScore ? Math.round(vuln.cvssScore) : 5;
               const cappedSeverity = Math.min(rawSeverity, severityCap);
               const evidenceChain: string[] = [
-                `Technology "${m.matchedOn}" detected on asset "${a.asset.hostname}"`,
-                `Matched against CISA KEV entry ${m.cveID} (${m.vendorProject} ${m.product})`,
+                `Technology "${vulnMatch.technology}" detected on asset "${a.asset.hostname}"`,
+                `${vuln.cveId} affects ${[vuln.vendor, vuln.product].filter(Boolean).join(' ') || vulnMatch.technology} (CVSS: ${vuln.cvssScore || "N/A"})`,
+                `Sources: ${vuln.sources.join(", ")}`,
               ];
-              if (productSpecificMatch && detectedVersion) {
-                evidenceChain.push(`Detected version: ${detectedVersion} of ${m.product} — product-specific match CONFIRMED`);
-              } else if (detectedVersion && !productSpecificMatch) {
-                evidenceChain.push(`Technology "${m.matchedOn}" detected but version belongs to a different ${kevVendorLower} product — not ${m.product}. Severity capped.`);
+              if (isProductSpecificVuln && detectedVersion) {
+                if (vuln.affectedVersionRange) {
+                  evidenceChain.push(`Detected version: ${detectedVersion} of ${vuln.product || vulnMatch.technology} — CONFIRMED within affected range (${vuln.affectedVersionRange})`);
+                } else {
+                  evidenceChain.push(`Detected version: ${detectedVersion} of ${vuln.product || vulnMatch.technology} — product-specific match CONFIRMED`);
+                }
+              } else if (!isProductSpecificVuln) {
+                evidenceChain.push(`Technology "${vulnMatch.technology}" matches ${vulnVendorLower} vendor but specific product ${vuln.product || 'unknown'} not individually confirmed — severity capped at ${severityCap}/10`);
               } else {
-                evidenceChain.push(`No specific version detected for ${m.product} — product-family match only (severity capped at ${severityCap}/10)`);
+                evidenceChain.push(`No specific version detected for ${vuln.product || vulnMatch.technology} — product-family match only (severity capped at ${severityCap}/10)`);
               }
-              evidenceChain.push(`KEV status: actively exploited in the wild. Due date: ${m.dueDate}`);
-              if (m.knownRansomware) evidenceChain.push(`Ransomware association confirmed`);
+              if (vuln.kevListed) evidenceChain.push(`Listed on CISA KEV — actively exploited in the wild`);
+              if (vuln.exploitAvailable) evidenceChain.push(`Public exploit available`);
+              if (vuln.inTheWild) evidenceChain.push(`Confirmed 0-day exploitation in the wild`);
 
               a.postureFindings.push({
-                id: `kev-${m.cveID}-${a.asset.assetId}`,
+                id: `vf-${vuln.cveId}-${a.asset.assetId}`,
                 assetRef: a.asset.assetId,
                 assetHostname: a.asset.hostname,
-                category: "CISA KEV",
-                title: `${m.cveID}: ${m.vulnerabilityName} (${m.vendorProject} ${m.product})${m.knownRansomware ? " [RANSOMWARE]" : ""}`,
+                category: vuln.kevListed ? "CISA KEV" : vuln.inTheWild ? "0-Day" : vuln.exploitAvailable ? "Exploitable CVE" : "Known CVE",
+                title: `${vuln.cveId}: ${vuln.title || vuln.description?.substring(0, 100) || "Vulnerability"}${vuln.vendor || vuln.product ? ` (${[vuln.vendor, vuln.product].filter(Boolean).join(' ')})` : ''}`,
                 severity: cappedSeverity,
-                likelihood: detectedVersion ? 9 : (productSpecificMatch ? 5 : 3), // Scale with evidence quality
-                confidence: detectedVersion ? 0.95 : (productSpecificMatch ? 0.6 : 0.35),
-                recommendedControls: [m.requiredAction, `Patch ${m.product} immediately`, "Monitor for exploitation indicators"],
-                cveIds: [m.cveID],
-                kevListed: true,
-                exploitAvailable: true,
-                cvssScore: m.knownRansomware ? 9.8 : 9.0,
+                likelihood: detectedVersion
+                  ? (vuln.kevListed ? 9 : vuln.inTheWild ? 8 : vuln.exploitAvailable ? 7 : 5)
+                  : isProductSpecificVuln
+                    ? Math.min(vuln.kevListed ? 5 : vuln.exploitAvailable ? 4 : 3, 5)
+                    : Math.min(vuln.kevListed ? 3 : vuln.exploitAvailable ? 2 : 2, 3),
+                confidence: detectedVersion ? (vuln.cvssScore ? 0.9 : 0.75) : isProductSpecificVuln ? (vuln.cvssScore ? 0.55 : 0.4) : 0.3,
+                recommendedControls: [
+                  vuln.patchAvailable ? `Apply patch for ${vuln.cveId}` : `Mitigate ${vuln.cveId} — no patch available`,
+                  `Monitor for exploitation of ${vuln.cveId}`,
+                  ...(!detectedVersion ? [`Verify ${[vuln.vendor, vuln.product].filter(Boolean).join(' ') || vulnMatch.technology} version on ${a.asset.hostname} to confirm vulnerability`] : []),
+                ],
+                cveIds: [vuln.cveId],
+                kevListed: vuln.kevListed,
+                exploitAvailable: vuln.exploitAvailable,
+                cvssScore: vuln.cvssScore || undefined,
                 affectedAssets: [a.asset.hostname],
-                evidenceBasis: "kev_match" as const,
-                evidenceDetail: (productSpecificMatch && detectedVersion)
-                  ? `CONFIRMED: ${m.product} v${detectedVersion} on ${a.asset.hostname} matches CISA KEV entry ${m.cveID}. Due date: ${m.dueDate}. Note: Version-based match \u2014 backported patches may apply on managed hosting.`
-                  : `${tier === 'probable' ? 'PROBABLE' : 'POTENTIAL'}: Technology "${m.matchedOn}" on ${a.asset.hostname} matches ${m.vendorProject} product family but specific product ${m.product} not individually confirmed. ${detectedVersion ? `Detected version ${detectedVersion} belongs to a different product.` : 'Version not detected \u2014 product family match only.'} Severity capped at ${severityCap}/10. Due date: ${m.dueDate}.`,
+                evidenceBasis: vuln.kevListed ? "kev_match" as const : vuln.exploitAvailable ? "confirmed_cve" as const : "vuln_feed" as const,
+                    evidenceDetail: (isProductSpecificVuln && detectedVersion)
+                      ? `CONFIRMED: ${vuln.cveId} affects ${vuln.product || vulnMatch.technology} v${detectedVersion}${vuln.affectedVersionRange ? ` (affected range: ${vuln.affectedVersionRange})` : ''}. Detected on ${a.asset.hostname}. CVSS: ${vuln.cvssScore || "N/A"}. Sources: ${vuln.sources.join(", ")}.`
+                      : `${tier === 'probable' ? 'PROBABLE' : 'POTENTIAL'}: ${vuln.cveId} affects ${[vuln.vendor, vuln.product].filter(Boolean).join(' ') || vulnMatch.technology} product family. Technology "${vulnMatch.technology}" detected on ${a.asset.hostname} but ${!isProductSpecificVuln ? `specific product ${vuln.product || 'unknown'} not individually confirmed` : 'version not detected — product family match only'}. Severity capped at ${severityCap}/10. CVSS: ${vuln.cvssScore || "N/A"}. Sources: ${vuln.sources.join(", ")}.`,
                 corroborationTier: tier,
                 detectedVersion,
-                versionMatchConfirmed: !!(detectedVersion && versionInRange),
+                versionMatchConfirmed: !!detectedVersion,
                 evidenceChain,
               });
-            });
+            }
           }
+          totalVulnsFound += vulnResult.totalVulns;
+          totalTechsMatched += vulnResult.matches.length;
         }
-        // ── Per-asset KEV finding cap ──
-        // For large scans (e.g., 500+ assets sharing Apache/nginx/jQuery), the same KEV
-        // entries get duplicated across every asset. Cap per-asset KEV findings to prevent
-        // combinatorial explosion (e.g., 25 KEV entries × 500 assets = 12,500 findings).
-        // Keep the highest-severity KEV findings per asset; summarize the rest.
-        const MAX_KEV_PER_ASSET = 15;
-        let kevCapped = 0;
+        // ── Per-asset vuln feed finding cap ──
+        // Same multiplication problem as KEV: if 500 assets share Apache, each gets 5 CVEs = 2,500 findings.
+        // Cap per-asset vuln feed findings to keep reports actionable.
+        const MAX_VULN_PER_ASSET = 15;
+        let vulnCapped = 0;
         for (const a of analyses) {
-          const kevFindings = a.postureFindings.filter(f => f.category === 'CISA KEV');
-          if (kevFindings.length > MAX_KEV_PER_ASSET) {
-            // Sort by severity desc, then by confidence desc
-            kevFindings.sort((x, y) => (y.severity - x.severity) || ((y.confidence || 0) - (x.confidence || 0)));
-            const keep = new Set(kevFindings.slice(0, MAX_KEV_PER_ASSET).map(f => f.id));
-            const removed = kevFindings.filter(f => !keep.has(f.id));
-            // Remove excess findings from postureFindings
-            a.postureFindings = a.postureFindings.filter(f => f.category !== 'CISA KEV' || keep.has(f.id));
-            // Add a summary finding for the capped entries
+          const vulnFindings = a.postureFindings.filter(f => 
+            f.evidenceBasis === 'vuln_feed' || f.evidenceBasis === 'confirmed_cve'
+          );
+          if (vulnFindings.length > MAX_VULN_PER_ASSET) {
+            // Sort by CVSS desc, then severity desc
+            vulnFindings.sort((x, y) => ((y.cvssScore || 0) - (x.cvssScore || 0)) || (y.severity - x.severity));
+            const keep = new Set(vulnFindings.slice(0, MAX_VULN_PER_ASSET).map(f => f.id));
+            const removed = vulnFindings.filter(f => !keep.has(f.id));
+            // Remove excess findings
+            a.postureFindings = a.postureFindings.filter(f => 
+              (f.evidenceBasis !== 'vuln_feed' && f.evidenceBasis !== 'confirmed_cve') || keep.has(f.id)
+            );
+            // Add summary finding
             const removedCves = removed.map(f => f.cveIds?.[0]).filter(Boolean);
             a.postureFindings.push({
-              id: `kev-summary-${a.asset.assetId}`,
+              id: `vf-summary-${a.asset.assetId}`,
               assetRef: a.asset.assetId,
               assetHostname: a.asset.hostname,
-              category: 'CISA KEV',
-              title: `${removed.length} additional KEV entries affect this asset's technology stack`,
+              category: 'Known CVE',
+              title: `${removed.length} additional CVEs affect this asset's technology stack`,
               severity: Math.max(...removed.map(f => f.severity), 1),
               likelihood: 3,
               confidence: 0.3,
-              recommendedControls: ['Review full CISA KEV catalog for this technology stack', 'Prioritize patching based on CVSS score and exploit availability'],
+              recommendedControls: ['Review full CVE list for this technology stack', 'Prioritize patching by CVSS score'],
               cveIds: removedCves as string[],
-              kevListed: true,
+              kevListed: false,
               exploitAvailable: false,
               affectedAssets: [a.asset.hostname],
-              evidenceBasis: 'kev_match' as const,
-              evidenceDetail: `SUMMARY: ${removed.length} additional CISA KEV entries match technologies on ${a.asset.hostname}. Top ${MAX_KEV_PER_ASSET} shown individually above. Full list: ${removedCves.slice(0, 10).join(', ')}${removedCves.length > 10 ? ` and ${removedCves.length - 10} more` : ''}.`,
+              evidenceBasis: 'vuln_feed' as const,
+              evidenceDetail: `SUMMARY: ${removed.length} additional CVEs match technologies on ${a.asset.hostname}. Top ${MAX_VULN_PER_ASSET} shown individually above. Full list: ${removedCves.slice(0, 10).join(', ')}${removedCves.length > 10 ? ` and ${removedCves.length - 10} more` : ''}.`,
               corroborationTier: 'potential',
-              evidenceChain: [`${removed.length} additional KEV entries consolidated into summary to prevent report inflation`],
+              evidenceChain: [`${removed.length} additional CVE findings consolidated into summary to prevent report inflation`],
             });
-            kevCapped += removed.length;
+            vulnCapped += removed.length;
           }
         }
-        if (kevCapped > 0) {
-          console.log(`[DomainIntel] KEV cap: consolidated ${kevCapped} excess KEV findings across assets (max ${MAX_KEV_PER_ASSET} per asset)`);
+        if (vulnCapped > 0) {
+          console.log(`[DomainIntel] Vuln feed cap: consolidated ${vulnCapped} excess vuln findings across assets (max ${MAX_VULN_PER_ASSET} per asset)`);
         }
-        console.log(`[DomainIntel] KEV enrichment: ${kevMatches.length} matches, ${chainSteps.length} chain steps, boost=${boost.riskBoost}`);
+        console.log(`[DomainIntel] Vuln feed enrichment: ${totalVulnsFound} vulns across ${totalTechsMatched} technologies (per-asset matching)`);
+      } catch (err: any) {
+        console.error(`[DomainIntel] Vuln feed enrichment failed (non-fatal): ${err.message}`);
       }
-    }
-    // Record KEV enrichment deltas
-    recordPhaseDeltas('kev_enrichment', 'kev_match', preKevSnapshot, 'CISA KEV catalog match');
-  } catch (err: any) {
-    console.error(`[DomainIntel] KEV enrichment failed (non-fatal): ${err.message}`);
-  }
+      // that are picked up in the post-enrichment recalculation below.
 
-  await yieldEventLoop();
-  // Stage 3.6: Vuln Feed Enrichment — add real CVE IDs from all feeds
-  // FIX: Per-asset vuln feed matching. We run matchTechnologiesAgainstAllFeeds per-asset
-  // using only THAT asset's technologies, so findings are never cross-contaminated.
-  // Previously, a global tech pool caused the same CVEs to appear on every asset.
-  try {
-    const { matchTechnologiesAgainstAllFeeds } = await import("./lib/vuln-feeds");
-    // Cache vuln feed results per technology to avoid redundant API calls
-    const vulnFeedCache = new Map<string, Awaited<ReturnType<typeof matchTechnologiesAgainstAllFeeds>>>();
-    let totalVulnsFound = 0;
-    let totalTechsMatched = 0;
-
-    // Enrich each asset's posture findings with real CVE data — PER ASSET
-    let vfIdx = 0;
-    for (const a of analyses) {
-      vfIdx++;
-      if (vfIdx % 10 === 0) await yieldEventLoop();
-      const assetTechs = (a.asset.technologies || []).filter(Boolean);
-      if (assetTechs.length === 0) continue;
-
-      // Get unique techs for this asset only
-      const uniqueAssetTechs = Array.from(new Set(assetTechs));
-      // Include version info in cache key since version-aware filtering produces different results
-      const versionSuffix = Object.entries(a.asset.technologyVersions || {}).sort(([a],[b]) => a.localeCompare(b)).map(([k,v]) => `${k}=${v}`).join('&');
-      const cacheKey = uniqueAssetTechs.sort().join('|').toLowerCase() + (versionSuffix ? `#${versionSuffix}` : '');
-
-      // Check cache first — if another asset has the exact same tech set, reuse results
-      let vulnResult = vulnFeedCache.get(cacheKey);
-      if (!vulnResult) {
-        vulnResult = await matchTechnologiesAgainstAllFeeds(uniqueAssetTechs, a.asset.technologyVersions || {});
-        vulnFeedCache.set(cacheKey, vulnResult);
-      }
-
-      // Build a tech->vuln map for THIS asset's results
-      const techVulnMap = new Map<string, typeof vulnResult.matches[0]>();
-      for (const match of vulnResult.matches) {
-        techVulnMap.set(match.technology.toLowerCase(), match);
-      }
-
-      const assetTechsLower = assetTechs.map(t => t.toLowerCase());
-      for (const techLower of assetTechsLower) {
-        const vulnMatch = techVulnMap.get(techLower);
-        if (!vulnMatch) continue;
-
-        // Add vuln-feed-backed findings for the top CVEs
-        const topVulns = vulnMatch.vulns.slice(0, 5); // Top 5 by CVSS
-        for (const vuln of topVulns) {
-          // Skip if we already have a KEV finding for this CVE
-          if (a.postureFindings.some(f => f.cveIds?.includes(vuln.cveId))) continue;
-
-          // Determine corroboration tier based on version evidence
-          // FIX: Product-specific version lookup — don't use Apache httpd version for OFBiz CVEs
-          const VULN_PRODUCT_ALIASES: Record<string, string[]> = {
-            'apache': ['http server', 'httpd', 'apache2'],
-            'nginx': ['nginx'],
-            'iis': ['internet information services', 'iis'],
-            'openssl': ['openssl'],
-            'jquery': ['jquery'],
-          };
-          const versions = a.asset.technologyVersions || {};
-          const vulnProductLower = (vuln.product || '').toLowerCase();
-          const vulnVendorLower = (vuln.vendor || '').toLowerCase();
-          let detectedVersion: string | undefined;
-          let isProductSpecificVuln = false;
-
-          // Check match specificity from vuln-feeds if available
-          const matchSpec = (vulnMatch as any)._matchSpecificity;
-          if (matchSpec === 'vendor_only') {
-            // Vendor-only match: tech "Apache" matched vendor "Apache" but NOT product "OFBiz"
-            // Do NOT use any version — it belongs to a different product
-            isProductSpecificVuln = false;
-          } else {
-            // Try product-specific version lookup
-            for (const [tech, ver] of Object.entries(versions)) {
-              // Skip protocol versions that leaked through earlier stages
-              if (isProtocolVersion(tech, ver)) continue;
-              const tl = tech.toLowerCase();
-              const directMatch = tl.includes(vulnProductLower) || vulnProductLower.includes(tl);
-              const aliases = VULN_PRODUCT_ALIASES[tl] || [];
-              const aliasMatch = aliases.some(a => vulnProductLower.includes(a) || a.includes(vulnProductLower));
-              if (directMatch || aliasMatch) {
-                detectedVersion = ver;
-                isProductSpecificVuln = true;
-                break;
-              }
-            }
-            // If no product-specific match found, fall back to tech name match
-            // but only if the tech name IS the product (not just the vendor)
-            if (!isProductSpecificVuln) {
-              const techEntry = Object.entries(versions).find(
-                ([tech]) => tech.toLowerCase().includes(techLower) || techLower.includes(tech.toLowerCase())
-              );
-              if (techEntry) {
-                // Check if this is actually a product match or just vendor
-                const techName = techEntry[0].toLowerCase();
-                const isVendorOnly = (techName === vulnVendorLower || vulnVendorLower.includes(techName))
-                  && !techName.includes(vulnProductLower) && !vulnProductLower.includes(techName);
-                if (!isVendorOnly) {
-                  detectedVersion = techEntry[1];
-                  isProductSpecificVuln = true;
-                }
-              }
-            }
-          }
-
-          // VERSION-AWARE FILTERING: If we have a detected version AND the CVE has
-          // version range data, verify the detected version is actually affected.
-          // This prevents listing all CVEs for a product when only specific versions are vulnerable.
-          if (detectedVersion && vuln.affectedVersionRange) {
-            const { isVersionAffected } = await import("./lib/dynamic-cpe-matcher");
-            if (!isVersionAffected(detectedVersion, vuln.affectedVersionRange)) {
-              continue; // Detected version is NOT in the affected range — skip this CVE
-            }
-          }
-
-          // Product-specific version match required for "confirmed"
-          // Vendor-only matches stay "probable" even if a version was detected
-          // FIX: Without ANY version evidence, downgrade to "potential"
-          let tier: CorroborationTier;
-          if (isProductSpecificVuln && detectedVersion) {
-            tier = "confirmed";
-          } else if (detectedVersion || isProductSpecificVuln) {
-            tier = "probable";
-          } else {
-            tier = "potential";
-          }
-          const severityCap = tier === "confirmed" ? 10 : tier === "probable" ? 6 : 4;
-          const rawSeverity = vuln.cvssScore ? Math.round(vuln.cvssScore) : 5;
-          const cappedSeverity = Math.min(rawSeverity, severityCap);
-          const evidenceChain: string[] = [
-            `Technology "${vulnMatch.technology}" detected on asset "${a.asset.hostname}"`,
-            `${vuln.cveId} affects ${[vuln.vendor, vuln.product].filter(Boolean).join(' ') || vulnMatch.technology} (CVSS: ${vuln.cvssScore || "N/A"})`,
-            `Sources: ${vuln.sources.join(", ")}`,
-          ];
-          if (isProductSpecificVuln && detectedVersion) {
-            if (vuln.affectedVersionRange) {
-              evidenceChain.push(`Detected version: ${detectedVersion} of ${vuln.product || vulnMatch.technology} — CONFIRMED within affected range (${vuln.affectedVersionRange})`);
-            } else {
-              evidenceChain.push(`Detected version: ${detectedVersion} of ${vuln.product || vulnMatch.technology} — product-specific match CONFIRMED`);
-            }
-          } else if (!isProductSpecificVuln) {
-            evidenceChain.push(`Technology "${vulnMatch.technology}" matches ${vulnVendorLower} vendor but specific product ${vuln.product || 'unknown'} not individually confirmed — severity capped at ${severityCap}/10`);
-          } else {
-            evidenceChain.push(`No specific version detected for ${vuln.product || vulnMatch.technology} — product-family match only (severity capped at ${severityCap}/10)`);
-          }
-          if (vuln.kevListed) evidenceChain.push(`Listed on CISA KEV — actively exploited in the wild`);
-          if (vuln.exploitAvailable) evidenceChain.push(`Public exploit available`);
-          if (vuln.inTheWild) evidenceChain.push(`Confirmed 0-day exploitation in the wild`);
-
-          a.postureFindings.push({
-            id: `vf-${vuln.cveId}-${a.asset.assetId}`,
-            assetRef: a.asset.assetId,
-            assetHostname: a.asset.hostname,
-            category: vuln.kevListed ? "CISA KEV" : vuln.inTheWild ? "0-Day" : vuln.exploitAvailable ? "Exploitable CVE" : "Known CVE",
-            title: `${vuln.cveId}: ${vuln.title || vuln.description?.substring(0, 100) || "Vulnerability"}${vuln.vendor || vuln.product ? ` (${[vuln.vendor, vuln.product].filter(Boolean).join(' ')})` : ''}`,
-            severity: cappedSeverity,
-            likelihood: detectedVersion
-              ? (vuln.kevListed ? 9 : vuln.inTheWild ? 8 : vuln.exploitAvailable ? 7 : 5)
-              : isProductSpecificVuln
-                ? Math.min(vuln.kevListed ? 5 : vuln.exploitAvailable ? 4 : 3, 5)
-                : Math.min(vuln.kevListed ? 3 : vuln.exploitAvailable ? 2 : 2, 3),
-            confidence: detectedVersion ? (vuln.cvssScore ? 0.9 : 0.75) : isProductSpecificVuln ? (vuln.cvssScore ? 0.55 : 0.4) : 0.3,
-            recommendedControls: [
-              vuln.patchAvailable ? `Apply patch for ${vuln.cveId}` : `Mitigate ${vuln.cveId} — no patch available`,
-              `Monitor for exploitation of ${vuln.cveId}`,
-              ...(!detectedVersion ? [`Verify ${[vuln.vendor, vuln.product].filter(Boolean).join(' ') || vulnMatch.technology} version on ${a.asset.hostname} to confirm vulnerability`] : []),
-            ],
-            cveIds: [vuln.cveId],
-            kevListed: vuln.kevListed,
-            exploitAvailable: vuln.exploitAvailable,
-            cvssScore: vuln.cvssScore || undefined,
-            affectedAssets: [a.asset.hostname],
-            evidenceBasis: vuln.kevListed ? "kev_match" as const : vuln.exploitAvailable ? "confirmed_cve" as const : "vuln_feed" as const,
-                evidenceDetail: (isProductSpecificVuln && detectedVersion)
-                  ? `CONFIRMED: ${vuln.cveId} affects ${vuln.product || vulnMatch.technology} v${detectedVersion}${vuln.affectedVersionRange ? ` (affected range: ${vuln.affectedVersionRange})` : ''}. Detected on ${a.asset.hostname}. CVSS: ${vuln.cvssScore || "N/A"}. Sources: ${vuln.sources.join(", ")}.`
-                  : `${tier === 'probable' ? 'PROBABLE' : 'POTENTIAL'}: ${vuln.cveId} affects ${[vuln.vendor, vuln.product].filter(Boolean).join(' ') || vulnMatch.technology} product family. Technology "${vulnMatch.technology}" detected on ${a.asset.hostname} but ${!isProductSpecificVuln ? `specific product ${vuln.product || 'unknown'} not individually confirmed` : 'version not detected — product family match only'}. Severity capped at ${severityCap}/10. CVSS: ${vuln.cvssScore || "N/A"}. Sources: ${vuln.sources.join(", ")}.`,
-            corroborationTier: tier,
-            detectedVersion,
-            versionMatchConfirmed: !!detectedVersion,
-            evidenceChain,
-          });
-        }
-      }
-      totalVulnsFound += vulnResult.totalVulns;
-      totalTechsMatched += vulnResult.matches.length;
-    }
-    // ── Per-asset vuln feed finding cap ──
-    // Same multiplication problem as KEV: if 500 assets share Apache, each gets 5 CVEs = 2,500 findings.
-    // Cap per-asset vuln feed findings to keep reports actionable.
-    const MAX_VULN_PER_ASSET = 15;
-    let vulnCapped = 0;
-    for (const a of analyses) {
-      const vulnFindings = a.postureFindings.filter(f => 
-        f.evidenceBasis === 'vuln_feed' || f.evidenceBasis === 'confirmed_cve'
-      );
-      if (vulnFindings.length > MAX_VULN_PER_ASSET) {
-        // Sort by CVSS desc, then severity desc
-        vulnFindings.sort((x, y) => ((y.cvssScore || 0) - (x.cvssScore || 0)) || (y.severity - x.severity));
-        const keep = new Set(vulnFindings.slice(0, MAX_VULN_PER_ASSET).map(f => f.id));
-        const removed = vulnFindings.filter(f => !keep.has(f.id));
-        // Remove excess findings
-        a.postureFindings = a.postureFindings.filter(f => 
-          (f.evidenceBasis !== 'vuln_feed' && f.evidenceBasis !== 'confirmed_cve') || keep.has(f.id)
-        );
-        // Add summary finding
-        const removedCves = removed.map(f => f.cveIds?.[0]).filter(Boolean);
-        a.postureFindings.push({
-          id: `vf-summary-${a.asset.assetId}`,
-          assetRef: a.asset.assetId,
-          assetHostname: a.asset.hostname,
-          category: 'Known CVE',
-          title: `${removed.length} additional CVEs affect this asset's technology stack`,
-          severity: Math.max(...removed.map(f => f.severity), 1),
-          likelihood: 3,
-          confidence: 0.3,
-          recommendedControls: ['Review full CVE list for this technology stack', 'Prioritize patching by CVSS score'],
-          cveIds: removedCves as string[],
-          kevListed: false,
-          exploitAvailable: false,
-          affectedAssets: [a.asset.hostname],
-          evidenceBasis: 'vuln_feed' as const,
-          evidenceDetail: `SUMMARY: ${removed.length} additional CVEs match technologies on ${a.asset.hostname}. Top ${MAX_VULN_PER_ASSET} shown individually above. Full list: ${removedCves.slice(0, 10).join(', ')}${removedCves.length > 10 ? ` and ${removedCves.length - 10} more` : ''}.`,
-          corroborationTier: 'potential',
-          evidenceChain: [`${removed.length} additional CVE findings consolidated into summary to prevent report inflation`],
-        });
-        vulnCapped += removed.length;
-      }
-    }
-    if (vulnCapped > 0) {
-      console.log(`[DomainIntel] Vuln feed cap: consolidated ${vulnCapped} excess vuln findings across assets (max ${MAX_VULN_PER_ASSET} per asset)`);
-    }
-    console.log(`[DomainIntel] Vuln feed enrichment: ${totalVulnsFound} vulns across ${totalTechsMatched} technologies (per-asset matching)`);
-  } catch (err: any) {
-    console.error(`[DomainIntel] Vuln feed enrichment failed (non-fatal): ${err.message}`);
-  }
-  // Note: vuln feed findings don't change hybridRiskScore directly — they add postureFindings
-  // that are picked up in the post-enrichment recalculation below.
-
+    })(),
+  ]);
+  // Log any failures from parallel execution
+  if (kevResult.status === "rejected") console.error(`[DomainIntel] KEV enrichment failed (parallel, non-fatal): ${kevResult.reason?.message || kevResult.reason}`);
+  if (vulnFeedResult.status === "rejected") console.error(`[DomainIntel] Vuln feed enrichment failed (parallel, non-fatal): ${vulnFeedResult.reason?.message || vulnFeedResult.reason}`);
   await yieldEventLoop();
   // Stage 3.7: Shodan CVE Verification — upgrade probable findings to confirmed using Shodan banner data
   if (passiveRecon) {
@@ -3371,136 +3384,146 @@ export async function runDomainIntelPipeline(
   }
 
   await yieldEventLoop();
-  // Stage 3.8: Exploit Matching — match confirmed CVEs against Metasploit/ExploitDB
+  // ─── Parallel Execution: Stage 3.8+3.81 (Exploit Matching) || Stage 3.85 (Port Scoring) ───
+  // Stage 3.8 reads postureFindings (read-only) and produces exploitMatchResult.
+  // Stage 3.81 annotates findings with exploit links (writes to different fields).
+  // Stage 3.85 reads passiveRecon observations and writes CARVER accessibility + port findings.
+  // No data dependency between these branches — safe to parallelize.
   let exploitMatchResult: PipelineResult['exploitMatches'] | undefined;
-  try {
-    // Collect all confirmed/probable posture findings with CVE IDs
-    const allFindings = analyses.flatMap(a => a.postureFindings.map(f => ({
-      title: f.title,
-      cveIds: f.cveIds,
-      corroborationTier: f.corroborationTier,
-      severity: f.severity,
-      description: f.evidenceDetail,
-    })));
-    const findingsWithCves = allFindings.filter(f => f.cveIds && f.cveIds.length > 0);
-    if (findingsWithCves.length > 0) {
-      exploitMatchResult = await matchExploitsToFindings(findingsWithCves);
-      console.log(`[DomainIntel] Exploit matching: ${exploitMatchResult.matches.length} CVEs matched → ${exploitMatchResult.totalMetasploit} MSF modules, ${exploitMatchResult.totalExploitDb} EDB entries, ${exploitMatchResult.totalCalderaAbilities} emulation abilities, ${exploitMatchResult.remoteAccessCount} remote access`);
-    }
-  } catch (err: any) {
-    console.error(`[DomainIntel] Exploit matching failed (non-fatal): ${err.message}`);
-  }
-
-  await yieldEventLoop();
-  // Stage 3.81: Cross-link exploit matches back to KEV posture findings
-  // The exploit matcher finds Metasploit/ExploitDB/Caldera matches for CVEs, but stores
-  // them in a separate exploitMatches object. This stage annotates each KEV posture finding
-  // with its matched exploits so the UI can show exploit details directly on KEV findings
-  // and validation testing can use the linked exploits for PoC verification.
-  if (exploitMatchResult && exploitMatchResult.matches.length > 0) {
-    // Build a CVE → exploit match lookup
-    const cveToExploit = new Map<string, typeof exploitMatchResult.matches[0]>();
-    for (const match of exploitMatchResult.matches) {
-      cveToExploit.set(match.cveId, match);
-    }
-    let linkedCount = 0;
-    let linkIdx = 0;
-    for (const a of analyses) {
-      linkIdx++;
-      if (linkIdx % 10 === 0) await yieldEventLoop();
-      for (const finding of a.postureFindings) {
-        if (!finding.cveIds || finding.cveIds.length === 0) continue;
-        const matchedExploits: Array<{
-          cveId: string;
-          metasploitCount: number;
-          exploitDbCount: number;
-          bestExploit: any;
-          calderaAbility: any;
-          isRemoteAccess: boolean;
-        }> = [];
-        for (const cveId of finding.cveIds) {
-          const exploit = cveToExploit.get(cveId);
-          if (exploit) {
-            matchedExploits.push({
-              cveId: exploit.cveId,
-              metasploitCount: exploit.metasploitModules.length,
-              exploitDbCount: exploit.exploitDbEntries.length,
-              bestExploit: exploit.bestExploit,
-              calderaAbility: exploit.calderaAbility,
-              isRemoteAccess: exploit.isRemoteAccess,
-            });
-          }
-        }
-        if (matchedExploits.length > 0) {
-          // Annotate the finding with linked exploits for validation testing
-          (finding as any).linkedExploits = matchedExploits;
-          (finding as any).exploitCount = matchedExploits.reduce(
-            (sum, e) => sum + e.metasploitCount + e.exploitDbCount, 0
-          );
-          (finding as any).hasRemoteExploit = matchedExploits.some(e => e.isRemoteAccess);
-          (finding as any).hasCalderaAbility = matchedExploits.some(e => e.calderaAbility != null);
-          // If this is a KEV finding, upgrade evidence to include exploit availability
-          if (finding.kevListed) {
-            finding.evidenceChain = [
-              ...(finding.evidenceChain || []),
-              `Exploit validation: ${matchedExploits.reduce((s, e) => s + e.metasploitCount, 0)} Metasploit modules, ${matchedExploits.reduce((s, e) => s + e.exploitDbCount, 0)} ExploitDB entries available`,
-              matchedExploits.some(e => e.isRemoteAccess) ? 'Remote access exploit available — HIGH PRIORITY for validation testing' : 'Local/DoS exploits only',
-              matchedExploits.some(e => e.calderaAbility) ? 'Caldera ability auto-generated for automated validation' : '',
-            ].filter(Boolean);
-          }
-          linkedCount++;
-        }
-      }
-    }
-    if (linkedCount > 0) {
-      console.log(`[DomainIntel] Cross-linked exploits to ${linkedCount} posture findings (${exploitMatchResult.matches.length} CVEs with exploits)`);
-    }
-  }
-
-  await yieldEventLoop();
-  // Stage 3.85: Port-Based Risk Scoring — analyze exposed ports and generate findings
   const prePortSnapshot = snapshotScores();
   let portRiskStats = { totalAssetsWithPorts: 0, totalHighRiskPorts: 0, totalPortFindings: 0 };
-  if (passiveRecon) {
-    try {
-      const allObs = passiveRecon.allObservations;
-      let portIdx = 0;
-      for (const a of analyses) {
-        portIdx++;
-        if (portIdx % 10 === 0) await yieldEventLoop();
-        const portRisk = computePortRisk(a.asset, allObs);
-        if (portRisk.totalOpenPorts > 0) {
-          portRiskStats.totalAssetsWithPorts++;
-          portRiskStats.totalHighRiskPorts += portRisk.highRiskPortCount;
-          
-          // Boost CARVER accessibility score based on exposed ports
-          if (portRisk.accessibilityBoost > 0) {
-            a.carverScores = {
-              ...a.carverScores,
-              accessibility: clamp(a.carverScores.accessibility + portRisk.accessibilityBoost, 0, 10),
-            };
+  await Promise.allSettled([
+    // Branch A: Stage 3.8 (Exploit Matching) + Stage 3.81 (Cross-link)
+    (async () => {
+      try {
+        // Collect all confirmed/probable posture findings with CVE IDs
+        const allFindings = analyses.flatMap(a => a.postureFindings.map(f => ({
+          title: f.title,
+          cveIds: f.cveIds,
+          corroborationTier: f.corroborationTier,
+          severity: f.severity,
+          description: f.evidenceDetail,
+        })));
+        const findingsWithCves = allFindings.filter(f => f.cveIds && f.cveIds.length > 0);
+        if (findingsWithCves.length > 0) {
+          exploitMatchResult = await matchExploitsToFindings(findingsWithCves);
+          console.log(`[DomainIntel] Exploit matching: ${exploitMatchResult.matches.length} CVEs matched → ${exploitMatchResult.totalMetasploit} MSF modules, ${exploitMatchResult.totalExploitDb} EDB entries, ${exploitMatchResult.totalCalderaAbilities} emulation abilities, ${exploitMatchResult.remoteAccessCount} remote access`);
+        }
+      } catch (err: any) {
+        console.error(`[DomainIntel] Exploit matching failed (non-fatal): ${err.message}`);
+      }
+
+      await yieldEventLoop();
+      // Stage 3.81: Cross-link exploit matches back to KEV posture findings
+      // The exploit matcher finds Metasploit/ExploitDB/Caldera matches for CVEs, but stores
+      // them in a separate exploitMatches object. This stage annotates each KEV posture finding
+      // with its matched exploits so the UI can show exploit details directly on KEV findings
+      // and validation testing can use the linked exploits for PoC verification.
+      if (exploitMatchResult && exploitMatchResult.matches.length > 0) {
+        // Build a CVE → exploit match lookup
+        const cveToExploit = new Map<string, typeof exploitMatchResult.matches[0]>();
+        for (const match of exploitMatchResult.matches) {
+          cveToExploit.set(match.cveId, match);
+        }
+        let linkedCount = 0;
+        let linkIdx = 0;
+        for (const a of analyses) {
+          linkIdx++;
+          if (linkIdx % 10 === 0) await yieldEventLoop();
+          for (const finding of a.postureFindings) {
+            if (!finding.cveIds || finding.cveIds.length === 0) continue;
+            const matchedExploits: Array<{
+              cveId: string;
+              metasploitCount: number;
+              exploitDbCount: number;
+              bestExploit: any;
+              calderaAbility: any;
+              isRemoteAccess: boolean;
+            }> = [];
+            for (const cveId of finding.cveIds) {
+              const exploit = cveToExploit.get(cveId);
+              if (exploit) {
+                matchedExploits.push({
+                  cveId: exploit.cveId,
+                  metasploitCount: exploit.metasploitModules.length,
+                  exploitDbCount: exploit.exploitDbEntries.length,
+                  bestExploit: exploit.bestExploit,
+                  calderaAbility: exploit.calderaAbility,
+                  isRemoteAccess: exploit.isRemoteAccess,
+                });
+              }
+            }
+            if (matchedExploits.length > 0) {
+              // Annotate the finding with linked exploits for validation testing
+              (finding as any).linkedExploits = matchedExploits;
+              (finding as any).exploitCount = matchedExploits.reduce(
+                (sum, e) => sum + e.metasploitCount + e.exploitDbCount, 0
+              );
+              (finding as any).hasRemoteExploit = matchedExploits.some(e => e.isRemoteAccess);
+              (finding as any).hasCalderaAbility = matchedExploits.some(e => e.calderaAbility != null);
+              // If this is a KEV finding, upgrade evidence to include exploit availability
+              if (finding.kevListed) {
+                finding.evidenceChain = [
+                  ...(finding.evidenceChain || []),
+                  `Exploit validation: ${matchedExploits.reduce((s, e) => s + e.metasploitCount, 0)} Metasploit modules, ${matchedExploits.reduce((s, e) => s + e.exploitDbCount, 0)} ExploitDB entries available`,
+                  matchedExploits.some(e => e.isRemoteAccess) ? 'Remote access exploit available — HIGH PRIORITY for validation testing' : 'Local/DoS exploits only',
+                  matchedExploits.some(e => e.calderaAbility) ? 'Caldera ability auto-generated for automated validation' : '',
+                ].filter(Boolean);
+              }
+              linkedCount++;
+            }
           }
-          
-          // Generate confirmed posture findings for high-risk ports
-          const portFindings = generatePortPostureFindings(a.asset, portRisk);
-          if (portFindings.length > 0) {
-            a.postureFindings.push(...portFindings);
-            portRiskStats.totalPortFindings += portFindings.length;
-          }
-          
-          // Store port risk data on the analysis for use in hybrid risk recalculation
-          (a as any)._portLikelihoodBoost = portRisk.likelihoodBoost;
-          (a as any)._portExposureScore = portRisk.portExposureScore;
+        }
+        if (linkedCount > 0) {
+          console.log(`[DomainIntel] Cross-linked exploits to ${linkedCount} posture findings (${exploitMatchResult.matches.length} CVEs with exploits)`);
         }
       }
-      console.log(`[DomainIntel] Port risk scoring: ${portRiskStats.totalAssetsWithPorts} assets with open ports, ${portRiskStats.totalHighRiskPorts} high-risk ports, ${portRiskStats.totalPortFindings} port findings generated`);
-      // Record port risk deltas (CARVER accessibility boosts)
-      recordPhaseDeltas('port_risk', 'new_port_service', prePortSnapshot, 'Port-based risk scoring');
-    } catch (err: any) {
-      console.error(`[DomainIntel] Port risk scoring failed (non-fatal): ${err.message}`);
-    }
-  }
 
+    })(),
+    // Branch B: Stage 3.85 (Port-Based Risk Scoring)
+    (async () => {
+      if (passiveRecon) {
+        try {
+          const allObs = passiveRecon.allObservations;
+          let portIdx = 0;
+          for (const a of analyses) {
+            portIdx++;
+            if (portIdx % 10 === 0) await yieldEventLoop();
+            const portRisk = computePortRisk(a.asset, allObs);
+            if (portRisk.totalOpenPorts > 0) {
+              portRiskStats.totalAssetsWithPorts++;
+              portRiskStats.totalHighRiskPorts += portRisk.highRiskPortCount;
+
+              // Boost CARVER accessibility score based on exposed ports
+              if (portRisk.accessibilityBoost > 0) {
+                a.carverScores = {
+                  ...a.carverScores,
+                  accessibility: clamp(a.carverScores.accessibility + portRisk.accessibilityBoost, 0, 10),
+                };
+              }
+
+              // Generate confirmed posture findings for high-risk ports
+              const portFindings = generatePortPostureFindings(a.asset, portRisk);
+              if (portFindings.length > 0) {
+                a.postureFindings.push(...portFindings);
+                portRiskStats.totalPortFindings += portFindings.length;
+              }
+
+              // Store port risk data on the analysis for use in hybrid risk recalculation
+              (a as any)._portLikelihoodBoost = portRisk.likelihoodBoost;
+              (a as any)._portExposureScore = portRisk.portExposureScore;
+            }
+          }
+          console.log(`[DomainIntel] Port risk scoring: ${portRiskStats.totalAssetsWithPorts} assets with open ports, ${portRiskStats.totalHighRiskPorts} high-risk ports, ${portRiskStats.totalPortFindings} port findings generated`);
+          // Record port risk deltas (CARVER accessibility boosts)
+          recordPhaseDeltas('port_risk', 'new_port_service', prePortSnapshot, 'Port-based risk scoring');
+        } catch (err: any) {
+          console.error(`[DomainIntel] Port risk scoring failed (non-fatal): ${err.message}`);
+        }
+      }
+
+    })(),
+  ]);
   await yieldEventLoop();
   // Stage 3.9: Email Security Analysis — check SPF/DKIM/DMARC for phishing weaknesses
   try {

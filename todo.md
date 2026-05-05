@@ -1802,3 +1802,12 @@
 - [x] Orchestrator decomposition: Extracted auto-report generation (400 lines) into engagement-auto-report.ts
 - [x] Orchestrator decomposition: Extracted Phase 6b (130 lines inline → 200 line module) into engagement-phase-social-engineering.ts
 - [x] Orchestrator decomposition: Created EngagementContext typed interface with phase output types, requirePhaseOutput helper, and createEngagementContext factory
+
+### Architecture Remediation Round 2 (May 4)
+- [x] Parallelize Stages 3.5+3.6 (KEV + Vuln Feeds) with Promise.allSettled and post-merge
+- [x] Parallelize Stages 3.8+3.81||3.85 (exploit matching+cross-link || port scoring) with Promise.allSettled
+- [x] Extract Phase 7 (exploitation, 1370 lines) into engagement-phase-exploitation.ts with proper imports
+- [x] Export requestApproval, auditLog, llmDecide, isInRoeScope from orchestrator for extracted modules
+- [x] Add RoE scope enforcement to Phase 7 exploitation (matching Phase 5 isInRoeScope pattern)
+- [x] Write vitest tests for Phase 2 changes (27 tests, 60 total passing)
+- [x] Checkpoint and push to GitHub
