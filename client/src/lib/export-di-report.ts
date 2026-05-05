@@ -22,7 +22,7 @@
  *  10. Appendix — data sources, scan metadata, methodology
  */
 
-import { createAssetOwnershipFilter } from '../../../shared/managed-provider-filter';
+import { createAssetOwnershipFilter } from '@shared/managed-provider-filter';
 
 // Dynamic imports to reduce bundle size
 let _jsPDF: typeof import('jspdf').default | null = null;

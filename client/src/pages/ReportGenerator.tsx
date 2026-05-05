@@ -130,19 +130,22 @@ export default function ReportGenerator() {
     try {
       // Client-side PDF generation — no server Chromium/Puppeteer needed
       const { exportEngagementReportPdf } = await import('@/lib/export-engagement-report');
-      const res = await fetch(`/api/trpc/reports.getReportMarkdown?input=${encodeURIComponent(JSON.stringify({ reportId }))}`, { credentials: 'include' });
+      const superjson = (await import('superjson')).default;
+      const res = await fetch(`/api/trpc/reports.getReportMarkdown?input=${encodeURIComponent(JSON.stringify({ json: { reportId } }))}`, { credentials: 'include' });
       const json = await res.json();
       if (!res.ok || json?.error) {
-        throw new Error(json?.error?.message || 'Failed to fetch report content');
+        throw new Error(json?.error?.json?.message || json?.error?.message || 'Failed to fetch report content');
       }
-      const data = json?.result?.data;
-      if (!data?.markdown) throw new Error('Report content not available');
+      // tRPC with superjson wraps response in { result: { data: { json: ..., meta: ... } } }
+      const rawData = json?.result?.data;
+      const data = rawData?.json ? superjson.deserialize({ json: rawData.json, meta: rawData.meta }) as any : rawData;
+      if (!data?.markdown) throw new Error('Report content not available. Please regenerate the report.');
       await exportEngagementReportPdf(data.markdown, {
-        title: data.title,
-        preparedFor: data.preparedFor,
-        preparedBy: data.preparedBy,
-        reportType: data.reportType,
-        generatedAt: data.generatedAt,
+        title: data.title || 'Security Assessment Report',
+        preparedFor: data.preparedFor || 'Client',
+        preparedBy: data.preparedBy || 'Ace of Cloud LLC',
+        reportType: data.reportType || 'pentest_assessment',
+        generatedAt: data.generatedAt || new Date().toISOString(),
       });
       toast.success('PDF report downloaded');
     } catch (err: any) {

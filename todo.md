@@ -1948,4 +1948,12 @@
 - [x] Fix architecture-phase4.test.ts — update enumeration module assertions for sub-module tree
 - [x] Fix zap-tuning-tools.test.ts — update TRAINING_LAB_CREDS tests to look in vuln-prep.ts
 - [x] All 261 architecture/pipeline tests passing
-- [x] Checkpoint and push to GitHub
+- [ ] Checkpoint and push to GitHub
+
+### Report Generation Fixes (May 5)
+- [x] Fix DI report PDF: add await, try/catch error handling, loading state (reportGenerating)
+- [x] Fix DI report PDF: change import path to @shared/managed-provider-filter alias
+- [x] Fix engagement report PDF: handle superjson response format in handleExportPdf
+- [x] Add loading spinner + disabled state to Report button in DomainIntelResults
+- [x] Add loading state to Full DI Report dropdown menu item
+- [x] Checkpoint and push to GitHub for DO deployment
