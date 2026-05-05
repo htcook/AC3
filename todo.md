@@ -1911,3 +1911,8 @@
 - [x] Fix TS errors in sub-modules (Set iteration → Array.from, CloudDetectionResult property names, type casts)
 - [x] All 102 tests passing across 4 test files (no regressions)
 - [x] Checkpoint and push to GitHub
+### Round 5h: Deployment OOM Fix + Integration Test (May 5)
+- [x] Fix duplicate webhooks key in server/routers.ts (renamed first to webhookEndpoints, updated Webhooks.tsx)
+- [ ] Investigate and reduce 18.2MB server bundle size (causing 610MB OOM on 512MB Cloud Run)
+- [ ] Run local integration test of thin orchestrator delegation
+- [x] Checkpoint and push to GitHub (for DO testing)

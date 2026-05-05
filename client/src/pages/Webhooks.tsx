@@ -29,15 +29,15 @@ export default function Webhooks() {
   const [selectedEvents, setSelectedEvents] = useState<string[]>([]);
 
   const searchInput = useMemo(() => ({ search: search || undefined }), [search]);
-  const { data: webhooks, isLoading, refetch } = trpc.webhooks.list.useQuery(searchInput);
-  const { data: stats } = trpc.webhooks.stats.useQuery();
-  const { data: selectedWh } = trpc.webhooks.get.useQuery(
+  const { data: webhooks, isLoading, refetch } = trpc.webhookEndpoints.list.useQuery(searchInput);
+  const { data: stats } = trpc.webhookEndpoints.stats.useQuery();
+  const { data: selectedWh } = trpc.webhookEndpoints.get.useQuery(
     { webhookId: selectedWebhook! },
     { enabled: !!selectedWebhook }
   );
-  const { data: availableEvents } = trpc.webhooks.availableEvents.useQuery(undefined, { enabled: showCreateDialog });
+  const { data: availableEvents } = trpc.webhookEndpoints.availableEvents.useQuery(undefined, { enabled: showCreateDialog });
 
-  const createMutation = trpc.webhooks.create.useMutation({
+  const createMutation = trpc.webhookEndpoints.create.useMutation({
     onSuccess: (data) => {
       toast.success("Webhook created");
       setShowCreateDialog(false);
@@ -50,14 +50,14 @@ export default function Webhooks() {
     onError: (err) => toast.error(sanitizeErrorForToast(err)),
   });
 
-  const updateMutation = trpc.webhooks.update.useMutation({
+  const updateMutation = trpc.webhookEndpoints.update.useMutation({
     onSuccess: () => {
       toast.success("Webhook updated");
       refetch();
     },
   });
 
-  const testMutation = trpc.webhooks.test.useMutation({
+  const testMutation = trpc.webhookEndpoints.test.useMutation({
     onSuccess: (data) => {
       if (data.success) {
         toast.success(`Test delivery successful (HTTP ${data.status})`);
@@ -68,7 +68,7 @@ export default function Webhooks() {
     onError: (err) => toast.error(sanitizeErrorForToast(err)),
   });
 
-  const deleteMutation = trpc.webhooks.delete.useMutation({
+  const deleteMutation = trpc.webhookEndpoints.delete.useMutation({
     onSuccess: () => {
       toast.success("Webhook deleted");
       setSelectedWebhook(null);

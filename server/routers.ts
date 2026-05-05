@@ -331,7 +331,7 @@ export const appRouter = router({
   evidenceGallery: evidenceGalleryRouter,
   attackPaths: attackPathsRouter,
   purpleTeam: purpleTeamRouter,
-  webhooks: webhooksRouter,
+  webhookEndpoints: webhooksRouter,
   bugBounty: bugBountyRouter,
   bugBountyFeeds: bugBountyFeedsRouter,
   monitoringDeploy: monitoringDeployRouter,
