@@ -20,6 +20,7 @@ import type {
 import { validateGenericSpecialistOutput, applyBoundedDelta } from "../validation";
 import { renderEvidencePackage, hashPackage } from "../evidence-package";
 import { createHash } from "crypto";
+import { parseLLMJson } from "../../../../shared/llm-json-parser";
 
 export const SPECIALIST_VERSION = "1.0.0";
 export const PROMPT_VERSION = "1.0.0";
@@ -241,7 +242,7 @@ export async function invokeLifecycleSpecialist(
       ]);
 
       const content = rawResponse?.choices?.[0]?.message?.content || "";
-      const parsed = JSON.parse(content.replace(/^```json?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim());
+      const parsed = parseLLMJson(content, { fallback: {} }).data;
 
       confidenceScore = applyBoundedDelta(baseline.confidenceScore, (parsed.confidenceScore || 0) - baseline.confidenceScore);
       stage = parsed.stage || baseline.stage;

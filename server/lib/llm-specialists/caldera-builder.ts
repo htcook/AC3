@@ -8,6 +8,7 @@
 import { invokeLLM } from "../../_core/llm";
 import { throttledLLMCall } from "../llm-throttle";
 import { assembleSystemPrompt, buildCustomerContext } from "./core-policy";
+import { parseLLMJson } from "../../../shared/llm-json-parser";
 
 const ROLE_PROMPT = `## Role: Cyber C2 Operation Builder
 
@@ -167,5 +168,5 @@ export async function buildCalderaOp(input: CalderaBuilderInput): Promise<Calder
 
   const content = result.choices?.[0]?.message?.content;
   if (!content) throw new Error("Cyber C2 builder returned empty response");
-  return JSON.parse(content) as CalderaBuilderOutput;
+  return parseLLMJson<CalderaBuilderOutput>(content, { fallback: {} as CalderaBuilderOutput }).data;
 }

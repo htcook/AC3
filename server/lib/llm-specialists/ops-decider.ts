@@ -8,6 +8,7 @@
 import { invokeLLM } from "../../_core/llm";
 import { throttledLLMCall } from "../llm-throttle";
 import { assembleSystemPrompt, buildCustomerContext } from "./core-policy";
+import { parseLLMJson } from "../../../shared/llm-json-parser";
 
 const ROLE_PROMPT = `## Role: Operations Decision Engine
 
@@ -146,5 +147,5 @@ export async function decideNextOp(input: OpsDeciderInput): Promise<OpsDeciderOu
 
   const content = result.choices?.[0]?.message?.content;
   if (!content) throw new Error("Ops decider returned empty response");
-  return JSON.parse(content) as OpsDeciderOutput;
+  return parseLLMJson<OpsDeciderOutput>(content, { fallback: {} as OpsDeciderOutput }).data;
 }

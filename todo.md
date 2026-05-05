@@ -1788,3 +1788,17 @@
 - [x] Verified GitHub Actions deploy workflows for both DO and AWS
 - [x] All 16 vitest tests passing
 - [x] Checkpoint and push to GitHub
+
+### Claude Architecture Review Remediation (May 4)
+- [x] CARVER feedback loop reordering: Two-pass architecture (early: threat intel + discovery before 3.99, late: attack chains + blind spots after 3.99)
+- [x] Stage parallelization: Parallelized 4.5+4.55+4.6 with Promise.allSettled
+- [x] Centralized LLM JSON parsing: Created shared/llm-json-parser.ts with sanitizeJsonResponse + safeParseLLMJson, migrated specialists
+- [x] Credential testing ROE-gate: Stage 3.97-3.98 gated behind scanMode === 'active' check
+- [x] Threat actor attribution hedging: Added hedgingPrefix/hedgingSuffix with confidence-based qualifiers to matchRationale generation
+- [ ] Scope enforcement parity: Verify Stage 5 enumeration enforces scope at exploitation-level rigor
+- [x] Write vitest tests for all changes (33 tests passing in architecture-remediation.test.ts)
+- [x] Checkpoint and push to GitHub
+- [x] Orchestrator decomposition: Extracted parseToolOutput (730 lines) into tool-output-parsers.ts
+- [x] Orchestrator decomposition: Extracted auto-report generation (400 lines) into engagement-auto-report.ts
+- [x] Orchestrator decomposition: Extracted Phase 6b (130 lines inline → 200 line module) into engagement-phase-social-engineering.ts
+- [x] Orchestrator decomposition: Created EngagementContext typed interface with phase output types, requirePhaseOutput helper, and createEngagementContext factory

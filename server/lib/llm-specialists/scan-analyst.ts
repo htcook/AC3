@@ -8,6 +8,7 @@
 import { invokeLLM } from "../../_core/llm";
 import { throttledLLMCall } from "../llm-throttle";
 import { assembleSystemPrompt, buildAssetContext, buildCustomerContext } from "./core-policy";
+import { parseLLMJson } from "../../../shared/llm-json-parser";
 
 const ROLE_PROMPT = `## Role: Scan Analyst
 
@@ -176,5 +177,5 @@ export async function analyzeScan(input: ScanAnalystInput): Promise<ScanAnalystO
 
   const content = result.choices?.[0]?.message?.content;
   if (!content) throw new Error("Scan analyst returned empty response");
-  return JSON.parse(content) as ScanAnalystOutput;
+  return parseLLMJson<ScanAnalystOutput>(content, { fallback: {} as ScanAnalystOutput }).data;
 }

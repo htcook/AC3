@@ -8,6 +8,7 @@
 import { invokeLLM } from "../../_core/llm";
 import { throttledLLMCall } from "../llm-throttle";
 import { assembleSystemPrompt, buildCustomerContext } from "./core-policy";
+import { parseLLMJson } from "../../../shared/llm-json-parser";
 
 const ROLE_PROMPT = `## Role: Penetration Test Report Writer
 
@@ -168,5 +169,5 @@ export async function writeReportFinding(input: ReportWriterInput): Promise<Repo
 
   const content = result.choices?.[0]?.message?.content;
   if (!content) throw new Error("Report writer returned empty response");
-  return JSON.parse(content) as ReportWriterOutput;
+  return parseLLMJson<ReportWriterOutput>(content, { fallback: {} as ReportWriterOutput }).data;
 }

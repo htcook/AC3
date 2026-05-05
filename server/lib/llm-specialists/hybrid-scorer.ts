@@ -27,6 +27,7 @@ import {
   AUTO_BIA_ASSET_PRIORITY,
   THREAT_ACTOR_LIKELIHOOD,
 } from "../auto-industry-carver";
+import { parseLLMJson } from "../../../shared/llm-json-parser";
 
 // ═══════════════════════════════════════════════════════════════════════
 // CONTEXT ENGINE — Builds rich engagement context for all specialist calls
@@ -288,7 +289,7 @@ Provide your CARVER+SHOCK adjustments and risk narrative in the specified JSON f
     const content = response.choices?.[0]?.message?.content;
     if (!content) throw new Error("Empty LLM response");
 
-    const parsed = JSON.parse(content);
+    const parsed = parseLLMJson(content, { fallback: {} }).data;
 
     // Apply adjustments to compute new hybrid score
     const basePreset = getAdjustedCarverPreset(

@@ -108,7 +108,155 @@ const DIFFICULTY_ACCESSIBILITY_MAP: Record<string, number> = {
   expert: 0.0,
 };
 
-// ─── Main Function ──────────────────────────────────────────────────────────
+// ─── Internal Helpers ────────────────────────────────────────────────────────
+
+interface CarverFeedbackState {
+  adjustments: CarverAdjustment[];
+  attackChainAssets: Map<string, AttackChainContext>;
+  discoverySignals: DiscoverySignal[];
+  threatIntelFactorBoosts: ThreatIntelFactorBoost[];
+  cumulativeBoosts: Map<string, Map<string, number>>;
+}
+
+function createState(): CarverFeedbackState {
+  return {
+    adjustments: [],
+    attackChainAssets: new Map(),
+    discoverySignals: [],
+    threatIntelFactorBoosts: [],
+    cumulativeBoosts: new Map(),
+  };
+}
+
+function getCumulative(state: CarverFeedbackState, assetId: string, factor: string): number {
+  return state.cumulativeBoosts.get(assetId)?.get(factor) || 0;
+}
+
+function addCumulative(state: CarverFeedbackState, assetId: string, factor: string, boost: number): number {
+  if (!state.cumulativeBoosts.has(assetId)) state.cumulativeBoosts.set(assetId, new Map());
+  const current = getCumulative(state, assetId, factor);
+  const capped = Math.min(boost, MAX_CUMULATIVE_BOOST - current);
+  if (capped <= 0) return 0;
+  state.cumulativeBoosts.get(assetId)!.set(factor, current + capped);
+  return capped;
+}
+
+function applyFactorBoostInternal(
+  state: CarverFeedbackState,
+  analysis: AssetAnalysis,
+  factor: keyof CarverScores,
+  rawBoost: number,
+  source: CarverAdjustment["source"],
+  reason: string,
+  confidence: number,
+): CarverAdjustment | null {
+  const cappedBoost = Math.min(rawBoost, MAX_FACTOR_BOOST);
+  const effectiveBoost = addCumulative(state, analysis.asset.assetId, factor, cappedBoost);
+  if (effectiveBoost <= 0) return null;
+
+  const prev = analysis.carverScores[factor];
+  const newVal = Math.min(10, prev + effectiveBoost);
+  analysis.carverScores[factor] = newVal;
+
+  const adj: CarverAdjustment = {
+    assetId: analysis.asset.assetId,
+    hostname: analysis.asset.hostname,
+    source,
+    factor,
+    previousValue: prev,
+    newValue: newVal,
+    delta: newVal - prev,
+    reason,
+    confidence,
+  };
+  state.adjustments.push(adj);
+  return adj;
+}
+
+function buildResult(state: CarverFeedbackState): CarverFeedbackResult {
+  const affectedAssets = new Set(state.adjustments.map(a => a.assetId));
+  const avgDelta = state.adjustments.length > 0
+    ? state.adjustments.reduce((sum, a) => sum + a.delta, 0) / state.adjustments.length
+    : 0;
+  return {
+    adjustments: state.adjustments,
+    attackChainAssets: state.attackChainAssets,
+    discoverySignals: state.discoverySignals,
+    threatIntelFactorBoosts: state.threatIntelFactorBoosts,
+    summary: {
+      totalAdjustments: state.adjustments.length,
+      assetsAffected: affectedAssets.size,
+      avgScoreChange: Math.round(avgDelta * 100) / 100,
+      attackChainAssetsCount: state.attackChainAssets.size,
+      discoverySignalsCount: state.discoverySignals.length,
+      threatIntelBoostsCount: state.threatIntelFactorBoosts.length,
+    },
+  };
+}
+
+// ─── Two-Pass Architecture ──────────────────────────────────────────────────
+// Early pass: threat intel + discovery context (runs BEFORE Stage 3.99)
+// Late pass: attack chains + blind spots (runs AFTER Stage 3.99)
+// This ensures the LLM post-enrichment analysis sees threat-intel-adjusted
+// CARVER scores, and attack chain boosts still get applied afterward.
+
+/**
+ * Early pass: Apply threat intel boosts (Section 2) and discovery context signals (Section 3).
+ * These do NOT depend on postEnrichmentAnalysis and should run BEFORE Stage 3.99
+ * so the LLM sees accurate CARVER scores.
+ */
+export function applyCarverFeedbackEarly(
+  analyses: AssetAnalysis[],
+  crossModuleData: CrossModuleEnrichmentResult | undefined,
+  passiveRecon: PassiveReconResult | undefined,
+): CarverFeedbackResult {
+  const state = createState();
+  applyThreatIntelBoosts(state, analyses, crossModuleData);
+  applyDiscoveryContext(state, analyses, passiveRecon);
+  const result = buildResult(state);
+  if (result.summary.totalAdjustments > 0) {
+    console.log(
+      `[CarverFeedback/Early] ${result.summary.totalAdjustments} adjustments across ${result.summary.assetsAffected} assets ` +
+      `(avg delta: ${result.summary.avgScoreChange}). ` +
+      `Discovery signals: ${result.summary.discoverySignalsCount}, Threat intel boosts: ${result.summary.threatIntelBoostsCount}`
+    );
+  }
+  return result;
+}
+
+/**
+ * Late pass: Apply attack chain boosts (Section 1) and blind spot adjustments (Section 4).
+ * These REQUIRE postEnrichmentAnalysis and should run AFTER Stage 3.99.
+ * Accepts an optional prior state to maintain cumulative boost caps across passes.
+ */
+export function applyCarverFeedbackLate(
+  analyses: AssetAnalysis[],
+  postEnrichment: PostEnrichmentAnalysis | undefined,
+  priorState?: CarverFeedbackResult,
+): CarverFeedbackResult {
+  const state = createState();
+  // Restore cumulative boosts from early pass to maintain caps
+  if (priorState) {
+    for (const adj of priorState.adjustments) {
+      if (!state.cumulativeBoosts.has(adj.assetId)) state.cumulativeBoosts.set(adj.assetId, new Map());
+      const factorMap = state.cumulativeBoosts.get(adj.assetId)!;
+      factorMap.set(String(adj.factor), (factorMap.get(String(adj.factor)) || 0) + adj.delta);
+    }
+  }
+  applyAttackChainBoosts(state, analyses, postEnrichment);
+  applyBlindSpotBoosts(state, analyses, postEnrichment);
+  const result = buildResult(state);
+  if (result.summary.totalAdjustments > 0) {
+    console.log(
+      `[CarverFeedback/Late] ${result.summary.totalAdjustments} adjustments across ${result.summary.assetsAffected} assets ` +
+      `(avg delta: ${result.summary.avgScoreChange}). ` +
+      `Attack chains: ${result.summary.attackChainAssetsCount}`
+    );
+  }
+  return result;
+}
+
+// ─── Legacy API (backward compatible) ───────────────────────────────────────
 
 export function applyCarverFeedbackLoop(
   analyses: AssetAnalysis[],
@@ -116,58 +264,28 @@ export function applyCarverFeedbackLoop(
   crossModuleData: CrossModuleEnrichmentResult | undefined,
   passiveRecon: PassiveReconResult | undefined,
 ): CarverFeedbackResult {
-  const adjustments: CarverAdjustment[] = [];
-  const attackChainAssets = new Map<string, AttackChainContext>();
-  const discoverySignals: DiscoverySignal[] = [];
-  const threatIntelFactorBoosts: ThreatIntelFactorBoost[] = [];
+  const state = createState();
+  applyThreatIntelBoosts(state, analyses, crossModuleData);
+  applyDiscoveryContext(state, analyses, passiveRecon);
+  applyAttackChainBoosts(state, analyses, postEnrichment);
+  applyBlindSpotBoosts(state, analyses, postEnrichment);
+  const result = buildResult(state);
+  console.log(
+    `[CarverFeedback] Complete: ${result.summary.totalAdjustments} adjustments across ${result.summary.assetsAffected} assets ` +
+    `(avg delta: ${result.summary.avgScoreChange}). ` +
+    `Attack chains: ${result.summary.attackChainAssetsCount}, Discovery signals: ${result.summary.discoverySignalsCount}, ` +
+    `Threat intel boosts: ${result.summary.threatIntelBoostsCount}`
+  );
+  return result;
+}
 
-  // Track cumulative boosts per asset per factor to enforce caps
-  const cumulativeBoosts = new Map<string, Map<string, number>>();
+// ─── Section Functions ──────────────────────────────────────────────────────
 
-  function getCumulative(assetId: string, factor: string): number {
-    return cumulativeBoosts.get(assetId)?.get(factor) || 0;
-  }
-
-  function addCumulative(assetId: string, factor: string, boost: number): number {
-    if (!cumulativeBoosts.has(assetId)) cumulativeBoosts.set(assetId, new Map());
-    const current = getCumulative(assetId, factor);
-    const capped = Math.min(boost, MAX_CUMULATIVE_BOOST - current);
-    if (capped <= 0) return 0;
-    cumulativeBoosts.get(assetId)!.set(factor, current + capped);
-    return capped;
-  }
-
-  function applyFactorBoost(
-    analysis: AssetAnalysis,
-    factor: keyof CarverScores,
-    rawBoost: number,
-    source: CarverAdjustment["source"],
-    reason: string,
-    confidence: number,
-  ): CarverAdjustment | null {
-    const cappedBoost = Math.min(rawBoost, MAX_FACTOR_BOOST);
-    const effectiveBoost = addCumulative(analysis.asset.assetId, factor, cappedBoost);
-    if (effectiveBoost <= 0) return null;
-
-    const prev = analysis.carverScores[factor];
-    const newVal = Math.min(10, prev + effectiveBoost);
-    analysis.carverScores[factor] = newVal;
-
-    const adj: CarverAdjustment = {
-      assetId: analysis.asset.assetId,
-      hostname: analysis.asset.hostname,
-      source,
-      factor,
-      previousValue: prev,
-      newValue: newVal,
-      delta: newVal - prev,
-      reason,
-      confidence,
-    };
-    adjustments.push(adj);
-    return adj;
-  }
-
+function applyAttackChainBoosts(
+  state: CarverFeedbackState,
+  analyses: AssetAnalysis[],
+  postEnrichment: PostEnrichmentAnalysis | undefined,
+): void {
   // ═══════════════════════════════════════════════════════════════════════
   // 1. ATTACK CHAIN → CARVER ADJUSTMENTS
   // ═══════════════════════════════════════════════════════════════════════
@@ -177,7 +295,6 @@ export function applyCarverFeedbackLoop(
       if (!chain.steps?.length) continue;
 
       for (const step of chain.steps) {
-        // Find the asset referenced in this attack step
         const targetAsset = step.targetAsset?.toLowerCase() || "";
         const matchedAnalysis = analyses.find(a =>
           a.asset.hostname.toLowerCase().includes(targetAsset) ||
@@ -187,16 +304,13 @@ export function applyCarverFeedbackLoop(
         if (!matchedAnalysis) continue;
 
         const assetId = matchedAnalysis.asset.assetId;
-
-        // Determine position role in the chain
         const isFirst = step.order === 1 || step.order === Math.min(...chain.steps.map(s => s.order));
         const isLast = step.order === Math.max(...chain.steps.map(s => s.order));
         const role: "entry_point" | "pivot" | "objective" = isFirst ? "entry_point" : isLast ? "objective" : "pivot";
         const positionWeight = CHAIN_POSITION_WEIGHTS[role] || 0.5;
 
-        // Build attack chain context
-        if (!attackChainAssets.has(assetId)) {
-          attackChainAssets.set(assetId, {
+        if (!state.attackChainAssets.has(assetId)) {
+          state.attackChainAssets.set(assetId, {
             chainIds: [],
             chainNames: [],
             positionInChains: [],
@@ -204,7 +318,7 @@ export function applyCarverFeedbackLoop(
             techniques: [],
           });
         }
-        const ctx = attackChainAssets.get(assetId)!;
+        const ctx = state.attackChainAssets.get(assetId)!;
         if (!ctx.chainIds.includes(chain.id)) {
           ctx.chainIds.push(chain.id);
           ctx.chainNames.push(chain.name);
@@ -215,25 +329,20 @@ export function applyCarverFeedbackLoop(
           ctx.techniques.push(step.technique);
         }
 
-        // Apply CARVER boosts based on chain position and difficulty
         const chainRiskFactor = Math.min(chain.overallRisk / 100, 1);
         const difficultyBoost = DIFFICULTY_ACCESSIBILITY_MAP[step.difficulty] || 0;
 
-        // Entry points: boost accessibility (attacker can reach them)
         if (role === "entry_point") {
-          applyFactorBoost(
-            matchedAnalysis,
-            "accessibility",
+          applyFactorBoostInternal(
+            state, matchedAnalysis, "accessibility",
             (1.0 + difficultyBoost * 0.5) * positionWeight * chainRiskFactor,
             "attack_chain",
             `Entry point in attack chain "${chain.name}" (difficulty: ${step.difficulty}, chain risk: ${chain.overallRisk}/100)`,
             0.8,
           );
-          // Entry points also get vulnerability boost if difficulty is low
           if (difficultyBoost >= 1.0) {
-            applyFactorBoost(
-              matchedAnalysis,
-              "vulnerability",
+            applyFactorBoostInternal(
+              state, matchedAnalysis, "vulnerability",
               difficultyBoost * 0.5 * chainRiskFactor,
               "attack_chain",
               `Low-difficulty entry point in chain "${chain.name}" — ${step.technique}`,
@@ -242,11 +351,9 @@ export function applyCarverFeedbackLoop(
           }
         }
 
-        // Pivot points: boost vulnerability (they enable lateral movement)
         if (role === "pivot") {
-          applyFactorBoost(
-            matchedAnalysis,
-            "vulnerability",
+          applyFactorBoostInternal(
+            state, matchedAnalysis, "vulnerability",
             (0.8 + difficultyBoost * 0.3) * positionWeight * chainRiskFactor,
             "attack_chain",
             `Pivot point in attack chain "${chain.name}" — enables lateral movement via ${step.technique}`,
@@ -254,11 +361,9 @@ export function applyCarverFeedbackLoop(
           );
         }
 
-        // Objectives: boost effect (compromising them has high impact)
         if (role === "objective") {
-          applyFactorBoost(
-            matchedAnalysis,
-            "effect",
+          applyFactorBoostInternal(
+            state, matchedAnalysis, "effect",
             1.5 * positionWeight * chainRiskFactor,
             "attack_chain",
             `Objective of attack chain "${chain.name}" — compromise would achieve attacker goal`,
@@ -266,10 +371,8 @@ export function applyCarverFeedbackLoop(
           );
         }
 
-        // All chain assets: boost recognizability (attacker knows about them)
-        applyFactorBoost(
-          matchedAnalysis,
-          "recognizability",
+        applyFactorBoostInternal(
+          state, matchedAnalysis, "recognizability",
           0.5 * chainRiskFactor,
           "attack_chain",
           `Asset appears in ${ctx.chainIds.length} attack chain(s) — increased attacker awareness`,
@@ -279,11 +382,17 @@ export function applyCarverFeedbackLoop(
     }
 
     console.log(
-      `[CarverFeedback] Attack chain analysis: ${attackChainAssets.size} assets in ` +
-      `${postEnrichment.attackPaths.length} chains, ${adjustments.length} CARVER adjustments`
+      `[CarverFeedback] Attack chain analysis: ${state.attackChainAssets.size} assets in ` +
+      `${postEnrichment.attackPaths.length} chains, ${state.adjustments.length} CARVER adjustments`
     );
   }
+}
 
+function applyThreatIntelBoosts(
+  state: CarverFeedbackState,
+  analyses: AssetAnalysis[],
+  crossModuleData: CrossModuleEnrichmentResult | undefined,
+): void {
   // ═══════════════════════════════════════════════════════════════════════
   // 2. CARVER-AWARE THREAT INTEL BOOSTS (replaces flat +3)
   // ═══════════════════════════════════════════════════════════════════════
@@ -298,12 +407,9 @@ export function applyCarverFeedbackLoop(
       const factorBoosts: ThreatIntelFactorBoost["factorBoosts"] = [];
       const reason = adj.reason.toLowerCase();
 
-      // Parse the reason to determine which CARVER factors to boost
       if (reason.includes("exploit") || reason.includes("vulnerability") || reason.includes("cve")) {
-        // Trending exploit → boost vulnerability
-        const boost = applyFactorBoost(
-          targetAnalysis,
-          "vulnerability",
+        const boost = applyFactorBoostInternal(
+          state, targetAnalysis, "vulnerability",
           Math.min(adj.adjustment * 0.6, MAX_FACTOR_BOOST),
           "threat_intel",
           `Trending exploit targeting this asset's technology stack: ${adj.reason}`,
@@ -313,10 +419,8 @@ export function applyCarverFeedbackLoop(
       }
 
       if (reason.includes("threat actor") || reason.includes("apt") || reason.includes("campaign")) {
-        // Active threat actor targeting → boost recognizability
-        const boost = applyFactorBoost(
-          targetAnalysis,
-          "recognizability",
+        const boost = applyFactorBoostInternal(
+          state, targetAnalysis, "recognizability",
           Math.min(adj.adjustment * 0.5, MAX_FACTOR_BOOST),
           "threat_intel",
           `Active threat actor campaign targeting this technology: ${adj.reason}`,
@@ -326,10 +430,8 @@ export function applyCarverFeedbackLoop(
       }
 
       if (reason.includes("exposed") || reason.includes("internet-facing") || reason.includes("public")) {
-        // Exposed service in threat context → boost accessibility
-        const boost = applyFactorBoost(
-          targetAnalysis,
-          "accessibility",
+        const boost = applyFactorBoostInternal(
+          state, targetAnalysis, "accessibility",
           Math.min(adj.adjustment * 0.4, MAX_FACTOR_BOOST),
           "threat_intel",
           `Internet-exposed service in active threat landscape: ${adj.reason}`,
@@ -338,11 +440,9 @@ export function applyCarverFeedbackLoop(
         if (boost) factorBoosts.push({ factor: "accessibility", boost: boost.delta, reason: adj.reason });
       }
 
-      // If no specific factor matched, distribute across vulnerability + recognizability
       if (factorBoosts.length === 0) {
-        const vulnBoost = applyFactorBoost(
-          targetAnalysis,
-          "vulnerability",
+        const vulnBoost = applyFactorBoostInternal(
+          state, targetAnalysis, "vulnerability",
           Math.min(adj.adjustment * 0.4, MAX_FACTOR_BOOST),
           "threat_intel",
           `Threat intel risk adjustment: ${adj.reason}`,
@@ -350,9 +450,8 @@ export function applyCarverFeedbackLoop(
         );
         if (vulnBoost) factorBoosts.push({ factor: "vulnerability", boost: vulnBoost.delta, reason: adj.reason });
 
-        const recogBoost = applyFactorBoost(
-          targetAnalysis,
-          "recognizability",
+        const recogBoost = applyFactorBoostInternal(
+          state, targetAnalysis, "recognizability",
           Math.min(adj.adjustment * 0.3, MAX_FACTOR_BOOST),
           "threat_intel",
           `Threat intel risk adjustment: ${adj.reason}`,
@@ -362,7 +461,7 @@ export function applyCarverFeedbackLoop(
       }
 
       if (factorBoosts.length > 0) {
-        threatIntelFactorBoosts.push({
+        state.threatIntelFactorBoosts.push({
           assetId: adj.assetId,
           hostname: targetAnalysis.asset.hostname,
           originalAdjustment: adj.adjustment,
@@ -371,7 +470,6 @@ export function applyCarverFeedbackLoop(
       }
     }
 
-    // Matching threat actors → boost recognizability for all assets with matching tech
     if (ti.matchingThreatActors?.length > 0) {
       const highRelevanceActors = ti.matchingThreatActors.filter(a => a.relevance === "high");
       if (highRelevanceActors.length > 0) {
@@ -379,16 +477,13 @@ export function applyCarverFeedbackLoop(
           const techs = (analysis.asset.technologies || []).map(t => t.toLowerCase());
           for (const actor of highRelevanceActors) {
             const actorTechniques = actor.techniques.map(t => t.toLowerCase());
-            // Check if any asset technology matches actor techniques
             const hasMatch = techs.some(tech =>
               actorTechniques.some(at => at.includes(tech) || tech.includes(at))
             );
             if (hasMatch) {
-              applyFactorBoost(
-                analysis,
-                "recognizability",
-                0.5,
-                "threat_intel",
+              applyFactorBoostInternal(
+                state, analysis, "recognizability",
+                0.5, "threat_intel",
                 `High-relevance threat actor "${actor.name}" actively targets technology on this asset`,
                 0.7,
               );
@@ -399,17 +494,21 @@ export function applyCarverFeedbackLoop(
     }
 
     console.log(
-      `[CarverFeedback] Threat intel factor boosts: ${threatIntelFactorBoosts.length} assets received ` +
+      `[CarverFeedback] Threat intel factor boosts: ${state.threatIntelFactorBoosts.length} assets received ` +
       `CARVER-specific adjustments (replacing flat +3 boosts)`
     );
   }
+}
 
+function applyDiscoveryContext(
+  state: CarverFeedbackState,
+  analyses: AssetAnalysis[],
+  passiveRecon: PassiveReconResult | undefined,
+): void {
   // ═══════════════════════════════════════════════════════════════════════
   // 3. DISCOVERY CONTEXT SIGNALS → CARVER REASONING
   // ═══════════════════════════════════════════════════════════════════════
-
   if (passiveRecon) {
-    // Extract discovery signals from passive recon observations
     for (const cr of passiveRecon.connectorResults) {
       for (const obs of cr.observations) {
         const tags = obs.tags || [];
@@ -430,19 +529,15 @@ export function applyCarverFeedbackLoop(
               boost: 1.0,
               evidence: { registrationDate: evidence.registration_date, domainAge: evidence.domain_age },
             };
-            discoverySignals.push(signal);
-            applyFactorBoost(
-              matchedAnalysis,
-              "recognizability",
-              1.0,
-              "discovery_context",
-              signal.description,
-              0.8,
+            state.discoverySignals.push(signal);
+            applyFactorBoostInternal(
+              state, matchedAnalysis, "recognizability",
+              1.0, "discovery_context", signal.description, 0.8,
             );
           }
         }
 
-        // DNS changes / new subdomains → effect boost (infrastructure instability)
+        // DNS changes / new subdomains → effect boost
         if (tags.includes("dns_change") || tags.includes("new_subdomain") || evidence.dns_changed) {
           const matchedAnalysis = analyses.find(a =>
             a.asset.hostname.includes(obs.domain || "") ||
@@ -457,19 +552,15 @@ export function applyCarverFeedbackLoop(
               boost: 0.5,
               evidence: { changeType: evidence.change_type, previousValue: evidence.previous_value },
             };
-            discoverySignals.push(signal);
-            applyFactorBoost(
-              matchedAnalysis,
-              "effect",
-              0.5,
-              "discovery_context",
-              signal.description,
-              0.6,
+            state.discoverySignals.push(signal);
+            applyFactorBoostInternal(
+              state, matchedAnalysis, "effect",
+              0.5, "discovery_context", signal.description, 0.6,
             );
           }
         }
 
-        // Shadow IT / unmanaged assets → criticality boost
+        // Shadow IT / unmanaged assets → vulnerability + accessibility boost
         if (tags.includes("shadow_it") || tags.includes("unmanaged") || evidence.shadow_it) {
           const matchedAnalysis = analyses.find(a =>
             a.asset.hostname.includes(obs.domain || "") ||
@@ -484,23 +575,14 @@ export function applyCarverFeedbackLoop(
               boost: 1.5,
               evidence: { indicators: evidence.shadow_it_indicators },
             };
-            discoverySignals.push(signal);
-            applyFactorBoost(
-              matchedAnalysis,
-              "vulnerability",
-              1.5,
-              "discovery_context",
-              signal.description,
-              0.7,
+            state.discoverySignals.push(signal);
+            applyFactorBoostInternal(
+              state, matchedAnalysis, "vulnerability",
+              1.5, "discovery_context", signal.description, 0.7,
             );
-            // Shadow IT also gets accessibility boost (likely less protected)
-            applyFactorBoost(
-              matchedAnalysis,
-              "accessibility",
-              1.0,
-              "discovery_context",
-              `Unmanaged asset likely has weaker access controls`,
-              0.6,
+            applyFactorBoostInternal(
+              state, matchedAnalysis, "accessibility",
+              1.0, "discovery_context", `Unmanaged asset likely has weaker access controls`, 0.6,
             );
           }
         }
@@ -520,20 +602,15 @@ export function applyCarverFeedbackLoop(
               boost: 0.3,
               evidence: { registrar: evidence.registrar },
             };
-            discoverySignals.push(signal);
-            // Small recognizability boost — privacy protection slightly increases suspicion
-            applyFactorBoost(
-              matchedAnalysis,
-              "recognizability",
-              0.3,
-              "discovery_context",
-              signal.description,
-              0.4,
+            state.discoverySignals.push(signal);
+            applyFactorBoostInternal(
+              state, matchedAnalysis, "recognizability",
+              0.3, "discovery_context", signal.description, 0.4,
             );
           }
         }
 
-        // Certificate changes → effect boost
+        // Certificate changes → vulnerability boost
         if (tags.includes("certificate_change") || tags.includes("cert_expiring") || evidence.cert_expiring_soon) {
           const matchedAnalysis = analyses.find(a =>
             a.asset.hostname.includes(obs.domain || "") ||
@@ -548,14 +625,10 @@ export function applyCarverFeedbackLoop(
               boost: 0.5,
               evidence: { certExpiry: evidence.cert_expiry, certIssuer: evidence.cert_issuer },
             };
-            discoverySignals.push(signal);
-            applyFactorBoost(
-              matchedAnalysis,
-              "vulnerability",
-              0.5,
-              "discovery_context",
-              signal.description,
-              0.5,
+            state.discoverySignals.push(signal);
+            applyFactorBoostInternal(
+              state, matchedAnalysis, "vulnerability",
+              0.5, "discovery_context", signal.description, 0.5,
             );
           }
         }
@@ -563,38 +636,36 @@ export function applyCarverFeedbackLoop(
     }
 
     console.log(
-      `[CarverFeedback] Discovery context: ${discoverySignals.length} signals from passive recon ` +
+      `[CarverFeedback] Discovery context: ${state.discoverySignals.length} signals from passive recon ` +
       `applied to CARVER factors`
     );
   }
+}
 
+function applyBlindSpotBoosts(
+  state: CarverFeedbackState,
+  analyses: AssetAnalysis[],
+  postEnrichment: PostEnrichmentAnalysis | undefined,
+): void {
   // ═══════════════════════════════════════════════════════════════════════
   // 4. BLIND SPOT → CARVER ADJUSTMENTS
   // ═══════════════════════════════════════════════════════════════════════
-
   if (postEnrichment?.blindSpots?.length) {
     for (const blindSpot of postEnrichment.blindSpots) {
       if (blindSpot.severity !== "critical" && blindSpot.severity !== "high") continue;
-
-      // Blind spots affect all assets in the relevant area
       const areaLower = blindSpot.area.toLowerCase();
       for (const analysis of analyses) {
         const hostname = analysis.asset.hostname.toLowerCase();
         const techs = (analysis.asset.technologies || []).map(t => t.toLowerCase());
         const tags = (analysis.asset.tags || []).map(t => t.toLowerCase());
-
-        // Check if this asset is in the blind spot's area
         const isRelevant =
           areaLower.includes(hostname) ||
           hostname.includes(areaLower) ||
           techs.some(t => areaLower.includes(t)) ||
           tags.some(t => areaLower.includes(t));
-
         if (isRelevant) {
-          // Blind spots indicate we may be underestimating risk
-          applyFactorBoost(
-            analysis,
-            "vulnerability",
+          applyFactorBoostInternal(
+            state, analysis, "vulnerability",
             blindSpot.severity === "critical" ? 1.0 : 0.5,
             "blind_spot",
             `Blind spot in "${blindSpot.area}": ${blindSpot.description}`,
@@ -603,43 +674,9 @@ export function applyCarverFeedbackLoop(
         }
       }
     }
-
     console.log(
       `[CarverFeedback] Blind spot adjustments: ${postEnrichment.blindSpots.filter(b => b.severity === "critical" || b.severity === "high").length} ` +
       `critical/high blind spots processed`
     );
   }
-
-  // ═══════════════════════════════════════════════════════════════════════
-  // SUMMARY
-  // ═══════════════════════════════════════════════════════════════════════
-
-  const affectedAssets = new Set(adjustments.map(a => a.assetId));
-  const avgDelta = adjustments.length > 0
-    ? adjustments.reduce((sum, a) => sum + a.delta, 0) / adjustments.length
-    : 0;
-
-  const result: CarverFeedbackResult = {
-    adjustments,
-    attackChainAssets,
-    discoverySignals,
-    threatIntelFactorBoosts,
-    summary: {
-      totalAdjustments: adjustments.length,
-      assetsAffected: affectedAssets.size,
-      avgScoreChange: Math.round(avgDelta * 100) / 100,
-      attackChainAssetsCount: attackChainAssets.size,
-      discoverySignalsCount: discoverySignals.length,
-      threatIntelBoostsCount: threatIntelFactorBoosts.length,
-    },
-  };
-
-  console.log(
-    `[CarverFeedback] Complete: ${adjustments.length} adjustments across ${affectedAssets.size} assets ` +
-    `(avg delta: ${result.summary.avgScoreChange}). ` +
-    `Attack chains: ${attackChainAssets.size}, Discovery signals: ${discoverySignals.length}, ` +
-    `Threat intel boosts: ${threatIntelFactorBoosts.length}`
-  );
-
-  return result;
 }

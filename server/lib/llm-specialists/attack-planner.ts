@@ -8,6 +8,7 @@
 import { invokeLLM } from "../../_core/llm";
 import { throttledLLMCall } from "../llm-throttle";
 import { assembleSystemPrompt, buildAssetContext, buildCustomerContext } from "./core-policy";
+import { parseLLMJson } from "../../../shared/llm-json-parser";
 
 const ROLE_PROMPT = `## Role: Attack Path Planner
 
@@ -230,5 +231,5 @@ export async function planAttack(input: AttackPlannerInput): Promise<AttackPlann
 
   const content = result.choices?.[0]?.message?.content;
   if (!content) throw new Error("Attack planner returned empty response");
-  return JSON.parse(content) as AttackPlannerOutput;
+  return parseLLMJson<AttackPlannerOutput>(content, { fallback: {} as AttackPlannerOutput }).data;
 }

@@ -8,6 +8,7 @@
 import { invokeLLM } from "../../_core/llm";
 import { throttledLLMCall } from "../llm-throttle";
 import { assembleSystemPrompt, buildAssetContext, buildCustomerContext } from "./core-policy";
+import { parseLLMJson } from "../../../shared/llm-json-parser";
 
 const ROLE_PROMPT = `## Role: Threat Actor Correlation Engine
 
@@ -156,5 +157,5 @@ export async function mapThreats(input: ThreatMapperInput): Promise<ThreatMapper
 
   const content = result.choices?.[0]?.message?.content;
   if (!content) throw new Error("Threat mapper returned empty response");
-  return JSON.parse(content) as ThreatMapperOutput;
+  return parseLLMJson<ThreatMapperOutput>(content, { fallback: {} as ThreatMapperOutput }).data;
 }

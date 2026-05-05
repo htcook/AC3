@@ -32,11 +32,12 @@ import { runCrossModuleEnrichment, type CrossModuleEnrichmentResult } from "./li
 import { discoverOrgDomains, type OrgDiscoveryResult } from "./lib/org-domain-discovery";
 import { runPostEnrichmentAnalysis, type PostEnrichmentAnalysis } from "./lib/llm-post-enrichment-analysis";
 import { runWafNgfwAssessment, buildScanForgeDiscoveryCommand, buildNucleiCommand, type WafNgfwAssessment } from "./lib/waf-ngfw-detection";
-import { applyCarverFeedbackLoop, type CarverFeedbackResult } from "./lib/carver-feedback-loop";
+import { applyCarverFeedbackLoop, applyCarverFeedbackEarly, applyCarverFeedbackLate, type CarverFeedbackResult } from "./lib/carver-feedback-loop";
 import { createAssetOwnershipFilter, partitionByOwnership } from "../shared/managed-provider-filter";
 import { runDIThreatMatching, type DIThreatMatchResult } from "./lib/di-threat-matching";
 import type { TechStackGroupingResult } from "./lib/tech-stack-grouping";
 import { computeTechStackGrouping } from "./lib/tech-stack-grouping";
+import { safeParseLLMJson, sanitizeJsonResponse } from "../shared/llm-json-parser";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -505,38 +506,7 @@ function clamp(x: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, x));
 }
 
-/** Sanitize LLM output: strip markdown fences, fix common JSON issues */
-function sanitizeJsonResponse(raw: string): string {
-  let s = raw.trim();
-  // Strip markdown code fences
-  if (s.startsWith('```')) {
-    s = s.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
-  }
-  // Strip leading/trailing whitespace
-  s = s.trim();
-  // If it doesn't start with { or [, try to find the first { or [
-  if (!s.startsWith('{') && !s.startsWith('[')) {
-    const objIdx = s.indexOf('{');
-    const arrIdx = s.indexOf('[');
-    if (objIdx >= 0 && (arrIdx < 0 || objIdx < arrIdx)) {
-      s = s.substring(objIdx);
-    } else if (arrIdx >= 0) {
-      s = s.substring(arrIdx);
-    }
-  }
-  return s;
-}
-
-/** Safely parse JSON from LLM response with fallback */
-function safeParseLLMJson(content: unknown, fallback: any = {}): any {
-  const raw = String(content || '{}');
-  try {
-    return JSON.parse(sanitizeJsonResponse(raw));
-  } catch {
-    console.error('[DomainIntel] JSON parse failed, raw content:', raw.substring(0, 500));
-    return fallback;
-  }
-}
+// JSON parsing uses the centralized shared/llm-json-parser utility (imported above)
 
 // ─── Stage 1: LLM-Powered Passive Discovery ─────────────────────────
 
@@ -3827,6 +3797,33 @@ export async function runDomainIntelPipeline(
     }
   }
 
+  // ─── Stage 3.996: CARVER Early Pass (Threat Intel + Discovery Context) ────
+  // Run BEFORE Stage 3.99 so the LLM post-enrichment analysis sees
+  // threat-intel-adjusted and discovery-context-adjusted CARVER scores.
+  let carverEarlyResult: CarverFeedbackResult | undefined;
+  try {
+    carverEarlyResult = applyCarverFeedbackEarly(analyses, crossModuleEnrichment, passiveRecon);
+    if (carverEarlyResult.summary.totalAdjustments > 0) {
+      // Recalculate hybrid risk scores after early CARVER adjustments
+      for (const a of analyses) {
+        const missionImpact = computeMissionImpact(a.carverScores, a.shockScores);
+        const portBoost = (a as any)._portLikelihoodBoost || 0;
+        const hybrid = computeHybridRisk(
+          a.cvssEstimate, missionImpact, a.contextIndicators, a.vulnRiskScore, portBoost
+        );
+        a.missionImpactScore = Math.round(missionImpact * 10) / 10;
+        a.hybridRiskScore = hybrid.score;
+        a.riskBand = hybrid.band;
+      }
+      console.log(
+        `[DomainIntel] Stage 3.996: CARVER early pass applied ${carverEarlyResult.summary.totalAdjustments} adjustments ` +
+        `(threat intel + discovery context) BEFORE LLM post-enrichment`
+      );
+    }
+  } catch (earlyErr: any) {
+    console.error(`[DomainIntel] Stage 3.996 CARVER early pass failed (non-fatal): ${earlyErr.message}`);
+  }
+
   // ─── Tier 1 Optimization #3.2: Parallelize independent LLM stages ───────
   // Stage 3.99 (post-enrichment analysis) and Stage 4 (campaign recommendations)
   // both consume `analyses` but produce independent outputs. Running them in
@@ -3900,18 +3897,15 @@ export async function runDomainIntelPipeline(
     });
   }
 
-  // ─── Stage 3.995: CARVER Feedback Loop ─────────────────────────────────────
-  // Closes the gap between LLM intelligence and CARVER scoring:
-  // 1. Attack chain assets get CARVER factor boosts
-  // 2. Threat intel boosts target specific CARVER factors (replaces flat +3)
-  // 3. Discovery context signals feed into CARVER reasoning
+  // ─── Stage 3.995: CARVER Late Pass (Attack Chains + Blind Spots) ─────────
+  // Runs AFTER Stage 3.99 — applies attack chain boosts and blind spot
+  // adjustments that require postEnrichmentAnalysis results.
   let carverFeedback: CarverFeedbackResult | undefined;
   try {
-    carverFeedback = applyCarverFeedbackLoop(
+    carverFeedback = applyCarverFeedbackLate(
       analyses,
       postEnrichmentAnalysis,
-      crossModuleEnrichment,
-      passiveRecon,
+      carverEarlyResult, // Pass early results to maintain cumulative boost caps
     );
     if (carverFeedback.summary.totalAdjustments > 0) {
       // Recalculate hybrid risk scores after CARVER adjustments
@@ -3935,7 +3929,7 @@ export async function runDomainIntelPipeline(
         a.assetCriticalityBand = computeAssetCriticality(missionImpact).band;
       }
       console.log(
-        `[DomainIntel] Stage 3.995: CARVER feedback loop applied ${carverFeedback.summary.totalAdjustments} adjustments ` +
+        `[DomainIntel] Stage 3.995: CARVER late pass (attack chains + blind spots) applied ${carverFeedback.summary.totalAdjustments} adjustments ` +
         `across ${carverFeedback.summary.assetsAffected} assets (avg delta: ${carverFeedback.summary.avgScoreChange})`
       );
     }
@@ -4126,9 +4120,12 @@ export async function runDomainIntelPipeline(
 
   await yieldEventLoop();
   // Stage 3.98: Automated Credential Testing
-  // Test matched OEM credentials against discovered services with open ports
+  // ROE GATE: Credential testing is an ACTIVE operation that attempts real logins.
+  // Only permitted when scanMode === 'active' (explicit operator authorization).
+  // In 'standard' or 'strict_passive' mode, we collect OEM credentials above
+  // for reference but do NOT attempt authentication.
   let credentialTestSummary: PipelineResult['credentialTestSummary'];
-  if (oemCredentials.length > 0) {
+  if (oemCredentials.length > 0 && scanMode === 'active') {
     try {
       const { runCredentialTests, getCredentialsForService } = await import('./lib/credential-tester');
       // Build targets from assets that have open ports and matched credentials
@@ -4187,10 +4184,11 @@ export async function runDomainIntelPipeline(
     } catch (credTestErr: any) {
       console.error(`[DomainIntel] Stage 3.98 credential testing failed (non-fatal): ${credTestErr.message}`);
     }
+  } else if (oemCredentials.length > 0 && scanMode !== 'active') {
+    console.log(`[DomainIntel] Stage 3.98: Credential testing SKIPPED (ROE gate: scanMode='${scanMode}', requires 'active'). ${oemCredentials.length} credentials collected for reference only.`);
   }
-
   await yieldEventLoop();
-  // Stage 3.991: External SCAP/STIG Compliance Scan
+  // Stage 3.991: External SCAP/STIG Compliance Scann
   let complianceScan: PipelineResult['complianceScan'];
   try {
     const { runExternalComplianceScan } = await import('./lib/scap-compliance-scanner');
@@ -4320,23 +4318,70 @@ export async function runDomainIntelPipeline(
     console.error(`[DomainIntel] CARVER risk card generation failed (non-fatal): ${carverErr.message}`);
   }
 
-  // ─── Stage 4.5: Threat Actor Matching & Attack Path Analysis ────────
+  // ─── Stages 4.5 + 4.55 + 4.6: Parallel Enrichment (independent outputs) ───
+  // These three stages produce independent result objects and don't share mutable state.
+  // Running them in parallel saves 5-15s (incident search + affiliated domains are I/O-bound).
   let threatMatchingResult: DIThreatMatchResult | undefined;
-  try {
-    threatMatchingResult = runDIThreatMatching(analyses, org, kevEnrichment, crossModuleEnrichment);
-    console.log(`[DomainIntel] Threat Matching: ${threatMatchingResult.summary.totalMatched} groups matched (top: ${threatMatchingResult.summary.topGroupName || 'none'}, score: ${threatMatchingResult.summary.topGroupScore}), ${threatMatchingResult.summary.totalAttackPaths} attack paths, ${threatMatchingResult.summary.uniqueTechniques} techniques`);
-  } catch (err: any) {
-    console.error(`[DomainIntel] Threat matching failed (non-fatal): ${err.message}`);
+  let incidentSearchResult: PipelineResult['incidentSearch'] | undefined;
+  let affiliatedDomainsResult: PipelineResult['affiliatedDomains'] | undefined;
+
+  const [threatMatchSettled, incidentSearchSettled, affiliatedDomainsSettled] = await Promise.allSettled([
+    // Stage 4.5: Threat Actor Matching
+    (async () => {
+      const result = runDIThreatMatching(analyses, org, kevEnrichment, crossModuleEnrichment);
+      console.log(`[DomainIntel] Threat Matching: ${result.summary.totalMatched} groups matched (top: ${result.summary.topGroupName || 'none'}, score: ${result.summary.topGroupScore}), ${result.summary.totalAttackPaths} attack paths, ${result.summary.uniqueTechniques} techniques`);
+      return result;
+    })(),
+    // Stage 4.55: Incident Search Enrichment
+    (async () => {
+      const { runIncidentSearchEnrichment } = await import('./lib/incident-search-enrichment');
+      console.log(`[DomainIntel] Stage 4.55: Running incident search enrichment for ${org.primaryDomain}`);
+      const isResult = await runIncidentSearchEnrichment(org.primaryDomain);
+      console.log(
+        `[DomainIntel] Incident search: ${isResult.totalMatches} matches ` +
+        `(${isResult.catalogMatches.length} catalog, ${isResult.webSearchMatches.length} web), ` +
+        `ransomware=${isResult.hasRansomwareEvent}, breach=${isResult.hasRecentBreach}, ` +
+        `risk floor contribution=${isResult.riskFloorContribution}`
+      );
+      // Stage 4.56: Auto-ingest new actors/TTPs/IOCs back into threat catalog
+      let ingestResult: any;
+      try {
+        const { ingestIncidentSearchResults } = await import('./lib/incident-search-ingest');
+        ingestResult = await ingestIncidentSearchResults(
+          isResult.catalogMatches,
+          isResult.webSearchMatches,
+          org.primaryDomain
+        );
+      } catch (ingestErr: any) {
+        console.error(`[DomainIntel] Stage 4.56 auto-ingest failed (non-fatal): ${ingestErr.message}`);
+      }
+      return { isResult, ingestResult };
+    })(),
+    // Stage 4.6: Affiliated Domain Discovery
+    (async () => {
+      const { runAffiliatedDomainDiscovery } = await import('./lib/affiliated-domain-discovery');
+      console.log(`[DomainIntel] Stage 4.6: Running affiliated domain discovery for ${org.primaryDomain}`);
+      const adResult = await runAffiliatedDomainDiscovery(
+        org.primaryDomain,
+        org.companyName || null
+      );
+      console.log(
+        `[DomainIntel] Affiliated domains: ${adResult.totalDiscovered} discovered ` +
+        `(registrant: ${adResult.registrantOrg || 'unknown'})`
+      );
+      return adResult;
+    })(),
+  ]);
+
+  // Unpack results
+  if (threatMatchSettled.status === 'fulfilled') {
+    threatMatchingResult = threatMatchSettled.value;
+  } else {
+    console.error(`[DomainIntel] Threat matching failed (non-fatal): ${threatMatchSettled.reason?.message}`);
   }
 
-  // ─── Stage 4.55: Incident Search Enrichment ─────────────────────────
-  // Cross-references domain against internal threat catalog and LLM web search
-  // to find known incidents, ransomware events, and breach details.
-  let incidentSearchResult: PipelineResult['incidentSearch'] | undefined;
-  try {
-    const { runIncidentSearchEnrichment } = await import('./lib/incident-search-enrichment');
-    console.log(`[DomainIntel] Stage 4.55: Running incident search enrichment for ${org.primaryDomain}`);
-    const isResult = await runIncidentSearchEnrichment(org.primaryDomain);
+  if (incidentSearchSettled.status === 'fulfilled') {
+    const { isResult, ingestResult } = incidentSearchSettled.value;
     incidentSearchResult = {
       domain: isResult.domain,
       searchedAt: isResult.searchedAt,
@@ -4351,52 +4396,27 @@ export async function runDomainIntelPipeline(
       newActorsDiscovered: isResult.newActorsDiscovered,
       newTTPsDiscovered: isResult.newTTPsDiscovered,
     };
-    console.log(
-      `[DomainIntel] Incident search: ${isResult.totalMatches} matches ` +
-      `(${isResult.catalogMatches.length} catalog, ${isResult.webSearchMatches.length} web), ` +
-      `ransomware=${isResult.hasRansomwareEvent}, breach=${isResult.hasRecentBreach}, ` +
-      `risk floor contribution=${isResult.riskFloorContribution}`
-    );
-
-    // Stage 4.56: Auto-ingest new actors/TTPs/IOCs back into threat catalog
-    try {
-      const { ingestIncidentSearchResults } = await import('./lib/incident-search-ingest');
-      const ingestResult = await ingestIncidentSearchResults(
-        isResult.catalogMatches,
-        isResult.webSearchMatches,
-        org.primaryDomain
-      );
-      if (incidentSearchResult) {
-        (incidentSearchResult as any).ingestResult = {
-          actorsCreated: ingestResult.actorsCreated,
-          actorsUpdated: ingestResult.actorsUpdated,
-          abilitiesCreated: ingestResult.abilitiesCreated,
-          iocsCreated: ingestResult.iocsCreated,
-          ttpKnowledgeCreated: ingestResult.ttpKnowledgeCreated,
-        };
-      }
-    } catch (ingestErr: any) {
-      console.error(`[DomainIntel] Stage 4.56 auto-ingest failed (non-fatal): ${ingestErr.message}`);
+    if (ingestResult) {
+      (incidentSearchResult as any).ingestResult = {
+        actorsCreated: ingestResult.actorsCreated,
+        actorsUpdated: ingestResult.actorsUpdated,
+        abilitiesCreated: ingestResult.abilitiesCreated,
+        iocsCreated: ingestResult.iocsCreated,
+        ttpKnowledgeCreated: ingestResult.ttpKnowledgeCreated,
+      };
     }
-  } catch (err: any) {
-    console.error(`[DomainIntel] Stage 4.55 incident search failed (non-fatal): ${err.message}`);
+  } else {
+    console.error(`[DomainIntel] Stage 4.55 incident search failed (non-fatal): ${incidentSearchSettled.reason?.message}`);
   }
 
-  // ─── Stage 4.6: Affiliated Domain Discovery ────────────────────────
-  let affiliatedDomainsResult: PipelineResult['affiliatedDomains'] | undefined;
-  try {
-    const { runAffiliatedDomainDiscovery } = await import('./lib/affiliated-domain-discovery');
-    console.log(`[DomainIntel] Stage 4.6: Running affiliated domain discovery for ${org.primaryDomain}`);
-    const adResult = await runAffiliatedDomainDiscovery(
-      org.primaryDomain,
-      org.companyName || null
-    );
+  if (affiliatedDomainsSettled.status === 'fulfilled') {
+    const adResult = affiliatedDomainsSettled.value;
     affiliatedDomainsResult = {
       targetDomain: adResult.targetDomain,
       searchedAt: adResult.searchedAt,
       registrantOrg: adResult.registrantOrg,
       registrantEmail: adResult.registrantEmail,
-      affiliatedDomains: adResult.affiliatedDomains.map(d => ({
+      affiliatedDomains: adResult.affiliatedDomains.map((d: any) => ({
         domain: d.domain,
         relationship: d.relationship,
         confidence: d.confidence,
@@ -4409,13 +4429,11 @@ export async function runDomainIntelPipeline(
       sourceBreakdown: adResult.sourceBreakdown,
       summary: adResult.summary,
     };
-    console.log(
-      `[DomainIntel] Affiliated domains: ${adResult.totalDiscovered} discovered ` +
-      `(registrant: ${adResult.registrantOrg || 'unknown'}) in ${Date.now() - adResult.searchedAt}ms`
-    );
-  } catch (err: any) {
-    console.error(`[DomainIntel] Stage 4.6 affiliated domain discovery failed (non-fatal): ${err.message}`);
+  } else {
+    console.error(`[DomainIntel] Stage 4.6 affiliated domain discovery failed (non-fatal): ${affiliatedDomainsSettled.reason?.message}`);
   }
+
+  // (Stages 4.55 + 4.6 are now parallelized above with Stage 4.5)
 
   // ─── Stage 4.8: Training Data Collection ──────────────────────────
   try {

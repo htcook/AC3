@@ -439,9 +439,17 @@ function scoreGroup(
     rationaleParts.push(`The group's initial access methods (${matchedInitialAccess.join(', ')}) are viable against the discovered attack surface.`);
   }
 
+  // Attribution hedging: prefix with confidence qualifier to avoid definitive attribution
+  // Reports should say "patterns consistent with" not "targeted by"
+  const hedgingPrefix = matchScore >= 80
+    ? `The observed attack surface exhibits patterns strongly consistent with ${group.name}'s known operational profile. `
+    : matchScore >= 60
+    ? `The target's infrastructure shows characteristics moderately consistent with ${group.name}'s documented TTPs. `
+    : `Some indicators suggest possible — but unconfirmed — alignment with ${group.name}'s operational patterns. `;
+  const hedgingSuffix = ` Note: This is a behavioral pattern match, not a definitive attribution. Multiple threat actors may exhibit similar TTPs.`;
   const matchRationale = rationaleParts.length > 0
-    ? rationaleParts.join(' ')
-    : `${group.name} shows general profile overlap based on sector targeting and technique applicability.`;
+    ? hedgingPrefix + rationaleParts.join(' ') + hedgingSuffix
+    : `${group.name} shows general profile overlap based on sector targeting and technique applicability. This represents pattern similarity, not confirmed attribution.`;
 
   return {
     groupId: group.id,

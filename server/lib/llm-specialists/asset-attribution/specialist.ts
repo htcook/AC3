@@ -22,6 +22,7 @@ import { ATTRIBUTION_SPECIALIST_SYSTEM_PROMPT, SPECIALIST_VERSION, PROMPT_VERSIO
 import { validateAttributionOutput, applyBoundedDelta, scoreToBand } from "../validation";
 import { renderEvidencePackage, hashPackage } from "../evidence-package";
 import { createHash } from "crypto";
+import { parseLLMJson } from "../../../../shared/llm-json-parser";
 
 // ─── Invocation ID Generator ──────────────────────────────────────
 
@@ -90,9 +91,9 @@ function parseAndStructure(rawResponse: any, input: AttributionSpecialistInput):
   }
 
   // Strip markdown code fences if present
-  content = content.replace(/^```json?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
+  // Code fence stripping now handled by parseLLMJson
 
-  const parsed = JSON.parse(content);
+  const parsed = parseLLMJson(content, { fallback: {} }).data;
 
   // Normalize the output structure
   const output: AttributionSpecialistOutput = {

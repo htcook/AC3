@@ -8,6 +8,7 @@
 import { invokeLLM } from "../../_core/llm";
 import { throttledLLMCall } from "../llm-throttle";
 import { assembleSystemPrompt, buildCustomerContext } from "./core-policy";
+import { parseLLMJson } from "../../../shared/llm-json-parser";
 
 const ROLE_PROMPT = `## Role: Vulnerability Verification Analyst
 
@@ -207,5 +208,5 @@ export async function verifyVulnerability(input: VulnVerifierInput): Promise<Vul
 
   const content = result.choices?.[0]?.message?.content;
   if (!content) throw new Error("Vuln verifier returned empty response");
-  return JSON.parse(content) as VulnVerifierOutput;
+  return parseLLMJson<VulnVerifierOutput>(content, { fallback: {} as VulnVerifierOutput }).data;
 }

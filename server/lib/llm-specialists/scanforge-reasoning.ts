@@ -27,6 +27,7 @@ import {
   type AttackPathCategory,
   type ExposureLevel,
 } from "../../scanforge/engine/hybrid-scoring";
+import { parseLLMJson } from "../../../shared/llm-json-parser";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -462,7 +463,7 @@ export async function generateExecutiveSummary(
   if (!content) return null;
 
   try {
-    const parsed = JSON.parse(content);
+    const parsed = parseLLMJson(content, { fallback: {} }).data;
     return {
       summary: parsed.summary,
       topRisks: parsed.top_risks ?? [],

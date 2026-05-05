@@ -14,6 +14,7 @@
 import { invokeLLM } from "../../_core/llm";
 import { throttledLLMCall } from "../llm-throttle";
 import { assembleSystemPrompt, buildAssetContext } from "./core-policy";
+import { parseLLMJson } from "../../../shared/llm-json-parser";
 
 // ═══════════════════════════════════════════════════════════════════
 // ROLE PROMPT — Interception & Evasion Specialist
@@ -360,7 +361,7 @@ Consider the operation phase when prioritizing recommendations.`;
     throw new Error("Empty response from interception-evasion specialist");
   }
 
-  return JSON.parse(content) as InterceptionEvasionOutput;
+  return parseLLMJson<InterceptionEvasionOutput>(content, { fallback: {} as InterceptionEvasionOutput }).data;
 }
 
 /**
