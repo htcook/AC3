@@ -115,35 +115,36 @@ describe("active-handoff isInScope — IP:port handling", () => {
 });
 
 describe("Burp integration across engagement types", () => {
+  // These blocks were extracted from the orchestrator into vuln-detection/vuln-prep.ts
   it("Burp auto-scan has no engagement type guard", async () => {
     const fs = await import("fs");
-    const orchSrc = fs.readFileSync("server/lib/engagement-orchestrator.ts", "utf-8");
+    const vulnPrepSrc = fs.readFileSync("server/lib/vuln-detection/vuln-prep.ts", "utf-8");
     // Find the Burp auto-scan block
-    const burpBlock = orchSrc.indexOf("Burp Suite Auto-Scan");
+    const burpBlock = vulnPrepSrc.indexOf("Burp Suite Auto-Scan");
     expect(burpBlock).toBeGreaterThan(-1);
     // Verify there's no engagementType check between the Burp comment and the import
-    const blockSlice = orchSrc.slice(burpBlock, burpBlock + 300);
+    const blockSlice = vulnPrepSrc.slice(burpBlock, burpBlock + 300);
     expect(blockSlice).not.toContain("engagementType ===");
     expect(blockSlice).not.toContain("engagementType !==");
     expect(blockSlice).toContain("onEngagementVulnDetectionPhase");
   });
 
-  it("ZAP→Burp pipeline has no engagement type guard", async () => {
+  it("ZAP\u2192Burp pipeline has no engagement type guard", async () => {
     const fs = await import("fs");
-    const orchSrc = fs.readFileSync("server/lib/engagement-orchestrator.ts", "utf-8");
-    const pipelineBlock = orchSrc.indexOf("ZAP → Burp Cross-Tool Pipeline");
+    const vulnPrepSrc = fs.readFileSync("server/lib/vuln-detection/vuln-prep.ts", "utf-8");
+    const pipelineBlock = vulnPrepSrc.indexOf("ZAP \u2192 Burp Cross-Tool Pipeline");
     expect(pipelineBlock).toBeGreaterThan(-1);
-    const blockSlice = orchSrc.slice(pipelineBlock, pipelineBlock + 300);
+    const blockSlice = vulnPrepSrc.slice(pipelineBlock, pipelineBlock + 300);
     expect(blockSlice).not.toContain("engagementType ===");
     expect(blockSlice).toContain("runZapToBurpPipeline");
   });
 
   it("Severity escalation has no engagement type guard", async () => {
     const fs = await import("fs");
-    const orchSrc = fs.readFileSync("server/lib/engagement-orchestrator.ts", "utf-8");
-    const escBlock = orchSrc.indexOf("Severity Escalation: auto-promote");
+    const vulnPrepSrc = fs.readFileSync("server/lib/vuln-detection/vuln-prep.ts", "utf-8");
+    const escBlock = vulnPrepSrc.indexOf("Severity Escalation");
     expect(escBlock).toBeGreaterThan(-1);
-    const blockSlice = orchSrc.slice(escBlock, escBlock + 300);
+    const blockSlice = vulnPrepSrc.slice(escBlock, escBlock + 300);
     expect(blockSlice).not.toContain("engagementType ===");
     expect(blockSlice).toContain("runSeverityEscalation");
   });

@@ -46,6 +46,8 @@ export interface VulnDetectionContext {
   addLog: (state: any, entry: Omit<OpsLogEntry, "id" | "timestamp"> & { [key: string]: any }) => void;
   /** Broadcast real-time update to connected clients */
   broadcastOpsUpdate: (engagementId: number, data: Record<string, any>) => void;
+  /** Broadcast a recon finding to connected clients */
+  broadcastReconFinding: (engagementId: number, finding: any) => void;
   /** Push a vulnerability finding with dedup check */
   pushVulnDeduped: (asset: any, vuln: any) => boolean;
   /** Debounced persistence of engagement state */
@@ -82,6 +84,33 @@ export interface VulnDetectionContext {
   captureDecision: (opts: any) => Promise<void>;
   /** Score engagement threat attribution */
   scoreEngagementThreatAttribution: (opts: any) => Promise<any>;
+  /** Get abort signal for an engagement (cancellation support) */
+  getEngagementAbortSignal: (engagementId: number) => AbortSignal;
+  /** Execute ScanForge phase (optional — only available when ScanForge is enabled) */
+  executeScanForgePhase?: (...args: any[]) => Promise<any>;
+  /** Burp Suite app login credentials (from vuln-prep) */
+  burpAppLogin?: { username: string; password: string; loginUrl?: string };
+  /** Initial ZAP→Burp pipeline result (from vuln-prep) */
+  initialPipelineResult?: any;
+
+  // ─── Legacy helpers pattern (used by vuln-prep.ts) ───────────────────────
+  helpers?: {
+    addLog: (state: any, entry: any) => void;
+    broadcastOpsUpdate: (engagementId: number, data: any) => void;
+    pushVulnDeduped: (asset: any, vuln: any) => boolean;
+    persistOpsStateDebounced: (engagementId: number, delayMs?: number) => void;
+    persistScanResult: (opts: any) => Promise<void>;
+    executeToolViaQueue: (config: any, opts?: any) => Promise<any>;
+    acquireScanSlot: (opts?: any) => Promise<any>;
+    getScanConcurrencyMetrics: () => any;
+    genId: () => string;
+    breathe: () => Promise<void>;
+    invokeLLM: (opts: any) => Promise<any>;
+    throttledLLMCall: (opts: any) => Promise<any>;
+  };
+
+  /** Allow additional properties for forward compatibility */
+  [key: string]: any;
 }
 
 // ─── Sub-Module Exports ──────────────────────────────────────────────────────

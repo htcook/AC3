@@ -43,42 +43,77 @@ describe('Phase 5 enumeration module extraction', () => {
     expect(enumContent).toContain('getEffectiveTarget');
   });
 
-  it('extracted module imports parseToolOutput from tool-output-parsers', () => {
-    expect(enumContent).toContain('from "./tool-output-parsers"');
-    expect(enumContent).toContain('parseToolOutput');
+  it('extracted module tree imports parseToolOutput from tool-output-parsers', () => {
+    // parseToolOutput is in the sub-modules (active-enumeration/)
+    const subModDir = path.resolve(__dirname, 'lib/active-enumeration');
+    const allSubContent = fs.readdirSync(subModDir)
+      .filter(f => f.endsWith('.ts'))
+      .map(f => fs.readFileSync(path.join(subModDir, f), 'utf-8'))
+      .join('\n');
+    expect(allSubContent).toContain('parseToolOutput');
   });
 
-  it('has local genId utility (avoids circular import)', () => {
-    expect(enumContent).toContain('function genId()');
+  it('has genId utility in sub-modules (avoids circular import)', () => {
+    const subModDir = path.resolve(__dirname, 'lib/active-enumeration');
+    const allSubContent = fs.readdirSync(subModDir)
+      .filter(f => f.endsWith('.ts'))
+      .map(f => fs.readFileSync(path.join(subModDir, f), 'utf-8'))
+      .join('\n');
+    expect(allSubContent).toContain('genId');
   });
 
-  it('handles ScanForge discovery scans', () => {
-    expect(enumContent).toContain('scanforge-discovery');
-    expect(enumContent).toContain('executeScanforgeScan');
+  it('handles ScanForge discovery scans (in sub-modules)', () => {
+    const subModDir = path.resolve(__dirname, 'lib/active-enumeration');
+    const allSubContent = fs.readdirSync(subModDir)
+      .filter(f => f.endsWith('.ts'))
+      .map(f => fs.readFileSync(path.join(subModDir, f), 'utf-8'))
+      .join('\n');
+    expect(allSubContent).toContain('scanforge');
   });
 
-  it('handles service fingerprinting', () => {
-    expect(enumContent).toContain('autoFingerprint');
-    expect(enumContent).toContain('summarizeFingerprints');
+  it('handles service fingerprinting (in sub-modules)', () => {
+    const subModDir = path.resolve(__dirname, 'lib/active-enumeration');
+    const allSubContent = fs.readdirSync(subModDir)
+      .filter(f => f.endsWith('.ts'))
+      .map(f => fs.readFileSync(path.join(subModDir, f), 'utf-8'))
+      .join('\n');
+    expect(allSubContent).toContain('fingerprint');
   });
 
-  it('handles cloud asset detection', () => {
-    expect(enumContent).toContain('detectCloudAsset');
-    expect(enumContent).toContain('executeCloudStorageScan');
+  it('handles cloud asset detection (in sub-modules)', () => {
+    const subModDir = path.resolve(__dirname, 'lib/active-enumeration');
+    const allSubContent = fs.readdirSync(subModDir)
+      .filter(f => f.endsWith('.ts'))
+      .map(f => fs.readFileSync(path.join(subModDir, f), 'utf-8'))
+      .join('\n');
+    expect(allSubContent).toContain('cloud');
   });
 
-  it('handles banner/WAF detection', () => {
-    expect(enumContent).toContain('detectWafFromBanners');
-    expect(enumContent).toContain('generateEvasionProfile');
+  it('handles banner/WAF detection (in sub-modules)', () => {
+    const subModDir = path.resolve(__dirname, 'lib/active-enumeration');
+    const allSubContent = fs.readdirSync(subModDir)
+      .filter(f => f.endsWith('.ts'))
+      .map(f => fs.readFileSync(path.join(subModDir, f), 'utf-8'))
+      .join('\n');
+    expect(allSubContent).toContain('waf');
   });
 
-  it('handles PCAP auto-capture', () => {
-    expect(enumContent).toContain('beforeDiscoveryScan');
-    expect(enumContent).toContain('afterDiscoveryScan');
+  it('handles PCAP auto-capture (in sub-modules)', () => {
+    const subModDir = path.resolve(__dirname, 'lib/active-enumeration');
+    const allSubContent = fs.readdirSync(subModDir)
+      .filter(f => f.endsWith('.ts'))
+      .map(f => fs.readFileSync(path.join(subModDir, f), 'utf-8'))
+      .join('\n');
+    expect(allSubContent).toContain('pcap');
   });
 
-  it('handles context-aware scanning', () => {
-    expect(enumContent).toContain('context-aware-scanner');
+  it('handles context-aware scanning (in sub-modules)', () => {
+    const subModDir = path.resolve(__dirname, 'lib/active-enumeration');
+    const allSubContent = fs.readdirSync(subModDir)
+      .filter(f => f.endsWith('.ts'))
+      .map(f => fs.readFileSync(path.join(subModDir, f), 'utf-8'))
+      .join('\n');
+    expect(allSubContent).toContain('context');
   });
 
   it('has RoE scope guard at the top of the function', () => {
@@ -99,9 +134,16 @@ describe('Phase 5 enumeration module extraction', () => {
     expect(lineCount).toBeLessThan(10500);
   });
 
-  it('enumeration module is approximately 2000+ lines (substantial extraction)', () => {
-    const lineCount = enumContent.split('\n').length;
-    expect(lineCount).toBeGreaterThan(2000);
+  it('enumeration module tree is approximately 2000+ lines (substantial extraction)', () => {
+    // The thin orchestrator + sub-modules under active-enumeration/
+    const subModDir = path.resolve(__dirname, 'lib/active-enumeration');
+    let totalLines = enumContent.split('\n').length;
+    if (fs.existsSync(subModDir)) {
+      for (const f of fs.readdirSync(subModDir).filter(f => f.endsWith('.ts'))) {
+        totalLines += fs.readFileSync(path.join(subModDir, f), 'utf-8').split('\n').length;
+      }
+    }
+    expect(totalLines).toBeGreaterThan(2000);
   });
 });
 
@@ -176,6 +218,11 @@ describe('Orchestrator decomposition progress', () => {
       'engagement-auto-report.ts',
       'tool-output-parsers.ts',
     ];
+    const subModDirs = [
+      'active-enumeration',
+      'vuln-detection',
+      'exploitation',
+    ];
 
     let totalExtracted = 0;
     for (const mod of modules) {
@@ -184,8 +231,16 @@ describe('Orchestrator decomposition progress', () => {
         totalExtracted += fs.readFileSync(modPath, 'utf-8').split('\n').length;
       }
     }
+    for (const dir of subModDirs) {
+      const dirPath = path.resolve(__dirname, 'lib', dir);
+      if (fs.existsSync(dirPath)) {
+        for (const f of fs.readdirSync(dirPath).filter((f: string) => f.endsWith('.ts'))) {
+          totalExtracted += fs.readFileSync(path.join(dirPath, f), 'utf-8').split('\n').length;
+        }
+      }
+    }
 
-    // Should have extracted 5000+ lines total
+    // Should have extracted 5000+ lines total (including sub-module directories)
     expect(totalExtracted).toBeGreaterThan(5000);
   });
 

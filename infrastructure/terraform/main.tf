@@ -55,6 +55,18 @@ module "networking" {
   enable_waf          = var.enable_waf
 }
 
+# ─── DNS (Route53 + ACM Certificate) ───────────────────────────────────────
+module "dns" {
+  source = "./modules/dns"
+  count  = var.domain_name != "" ? 1 : 0
+
+  environment  = var.environment
+  project_name = var.project_name
+  domain_name  = var.domain_name
+  alb_dns_name = module.networking.alb_dns_name
+  alb_zone_id  = module.networking.alb_zone_id
+}
+
 # ─── ECR (Container Registry) ───────────────────────────────────────────────
 module "ecr" {
   source = "./modules/ecr"

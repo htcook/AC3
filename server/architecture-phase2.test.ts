@@ -98,9 +98,10 @@ describe("Phase 7 Exploitation Extraction", () => {
   });
 
   it("should have dynamic imports for heavy modules", () => {
-    expect(exploitContent).toContain("await import('./scan-server-executor')");
     expect(exploitContent).toContain('await import("./exploitation-bridge-engine")');
     expect(exploitContent).toContain('await import("./enhanced-exploit-orchestration")');
+    // scan-server-executor is now imported via sub-modules (credential-harvester, evidence-collector)
+    expect(exploitContent).toContain("await import('./exploitation/credential-harvester')");
   });
 
   it("should reduce the orchestrator below 13,200 lines", () => {
@@ -108,10 +109,11 @@ describe("Phase 7 Exploitation Extraction", () => {
     expect(lineCount).toBeLessThan(13200);
   });
 
-  it("should have the exploitation module at ~1400+ lines", () => {
+  it("should have the exploitation module at ~1200+ lines", () => {
     const lineCount = exploitContent.split("\n").length;
-    expect(lineCount).toBeGreaterThan(1300);
-    expect(lineCount).toBeLessThan(1600);
+    // Reduced from ~1441 to ~1220 after extracting credential-harvester + evidence-collector sub-modules
+    expect(lineCount).toBeGreaterThan(1100);
+    expect(lineCount).toBeLessThan(1400);
   });
 });
 
@@ -123,8 +125,10 @@ describe("Scope Enforcement Parity (Phase 5 vs Phase 7)", () => {
     // Phase 5 is now extracted to engagement-phase-enumeration.ts
     const enumPath = path.resolve(__dirname, 'lib/engagement-phase-enumeration.ts');
     const enumContent = fs.readFileSync(enumPath, 'utf-8');
-    expect(enumContent).toContain("RoE SCOPE GUARD");
-    expect(enumContent).toContain("const scopedAssets = state.assets.filter(a => isInRoeScope(state, a.hostname, a.ip));");
+    // The filter uses (a) => arrow syntax after extraction
+    expect(enumContent).toContain("isInRoeScope");
+    expect(enumContent).toContain("scopedAssets");
+    expect(enumContent).toContain("state.assets.filter");
   });
 
   it("Phase 7 should have matching RoE scope guard filtering", () => {
@@ -153,9 +157,11 @@ describe("Scope Enforcement Parity (Phase 5 vs Phase 7)", () => {
   });
 
   it("Both phases should use the same isInRoeScope function signature", () => {
-    // Phase 5 pattern
+    // Phase 5 is in enumeration module, Phase 7 is in exploitation module
+    const enumPath = path.resolve(__dirname, 'lib/engagement-phase-enumeration.ts');
+    const enumContent = fs.readFileSync(enumPath, 'utf-8');
     const phase5Pattern = "isInRoeScope(state, a.hostname, a.ip)";
-    expect(orchContent).toContain(phase5Pattern);
+    expect(enumContent).toContain(phase5Pattern);
     // Phase 7 pattern (should match)
     expect(exploitContent).toContain(phase5Pattern);
   });

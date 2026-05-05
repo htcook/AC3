@@ -23,9 +23,9 @@ private_subnet_cidrs  = ["10.30.11.0/24", "10.30.12.0/24", "10.30.13.0/24"]
 database_subnet_cidrs = ["10.30.21.0/24", "10.30.22.0/24", "10.30.23.0/24"]
 enable_waf            = true
 
-# Domain (update with your production domain)
-# domain_name     = "ac3.aceofcloud.com"
-# certificate_arn = "arn:aws:acm:us-east-1:808038814732:certificate/CERT_ID"
+# Domain — production uses aceofcloud.io
+domain_name     = "aceofcloud.io"
+certificate_arn = ""  # Will be populated after ACM cert is created (see DNS module)
 
 # ── Database (production — HA, encryption, long retention) ───────────────────
 db_min_capacity        = 1

@@ -59,3 +59,19 @@ output "kms_key_arn" {
   description = "KMS key ARN used for encryption"
   value       = module.security.kms_key_arn
 }
+
+# ─── DNS Outputs ────────────────────────────────────────────────────────────
+output "route53_zone_id" {
+  description = "Route53 hosted zone ID (empty if no domain configured)"
+  value       = var.domain_name != "" ? module.dns[0].zone_id : ""
+}
+
+output "route53_name_servers" {
+  description = "Name servers to configure at your registrar"
+  value       = var.domain_name != "" ? module.dns[0].zone_name_servers : []
+}
+
+output "acm_certificate_arn" {
+  description = "ACM certificate ARN for HTTPS"
+  value       = var.domain_name != "" ? module.dns[0].certificate_arn : ""
+}

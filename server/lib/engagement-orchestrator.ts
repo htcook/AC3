@@ -3362,8 +3362,45 @@ export async function executeVulnDetection(state: EngagementOpsState, engagement
   addLog(state, { phase: "vuln_detection", type: "info", title: "🛡️ Phase 6: Vulnerability Scanning", detail: "Running nuclei scans and ZAP web app scans" });
   broadcastOpsUpdate(state.engagementId, { type: "phase_change", phase: "vuln_detection" });
 
+  // ── Shared context for all Phase 6 sub-modules ──
+  const phase6Ctx: any = {
+    state,
+    engagement,
+    operatorCtx,
+    scanServerHost,
+    // Core helpers
+    addLog,
+    broadcastOpsUpdate,
+    broadcastReconFinding,
+    pushVulnDeduped,
+    persistOpsStateDebounced,
+    persistScanResult,
+    executeToolViaQueue,
+    acquireScanSlot,
+    getScanConcurrencyMetrics,
+    genId,
+    breathe,
+    invokeLLM,
+    throttledLLMCall,
+    // Scope & targeting
+    isInRoeScope,
+    getEffectiveTarget,
+    fmtTarget,
+    // Approval & decisions
+    requestApproval,
+    llmDecide,
+    captureDecision,
+    scoreEngagementThreatAttribution,
+    // Tool output parsing
+    parseToolOutput,
+    // Abort & ScanForge
+    getEngagementAbortSignal,
+    executeScanForgePhase,
+  };
+
   // ── Phase 6a: Vulnerability Preparation (delegated to vuln-detection/vuln-prep.ts) ──
   const { executeVulnPrep } = await import('./vuln-detection/vuln-prep');
+  // vuln-prep uses ctx.helpers.* pattern (legacy interface)
   const vulnPrepCtx = {
     state,
     engagement,
@@ -3388,53 +3425,37 @@ export async function executeVulnDetection(state: EngagementOpsState, engagement
   const burpAppLogin = vulnPrepResult.burpAppLogin;
   const initialPipelineResult = vulnPrepResult.initialPipelineResult;
 
+  // Attach prep results to shared context for sub-modules that need them
+  phase6Ctx.burpAppLogin = burpAppLogin;
+  phase6Ctx.initialPipelineResult = initialPipelineResult;
+
   // ── Phase 6b: Nuclei Scanning (delegated to vuln-detection/nuclei-scanner.ts) ──
   const { executeNucleiScanning } = await import('./vuln-detection/nuclei-scanner');
-  const nucleiResult = await executeNucleiScanning({
-    state, engagement, operatorCtx, addLog, broadcastOpsUpdate,
-    persistScanResult, executeToolViaQueue, acquireScanSlot, genId, breathe,
-    persistOpsStateDebounced, invokeLLM, burpAppLogin, initialPipelineResult,
-  });
-  addLog(state, "nuclei_complete", `Nuclei scanning complete: ${nucleiResult.findingsCount} findings, ${nucleiResult.errorsCount} errors`);
+  const nucleiResult = await executeNucleiScanning(phase6Ctx);
+  addLog(state, { phase: "vuln_detection", type: "phase_complete", title: "Nuclei Complete", detail: `${nucleiResult.findingsCount} findings, ${nucleiResult.errorsCount} errors` });
 
   // ── Phase 6c: ZAP Web Application Scanning (delegated to vuln-detection/zap-scanner.ts) ──
   const { executeZapScanning } = await import('./vuln-detection/zap-scanner');
-  const zapResult = await executeZapScanning({
-    state, engagement, operatorCtx, addLog, broadcastOpsUpdate,
-    persistScanResult, executeToolViaQueue, acquireScanSlot, genId, breathe,
-    persistOpsStateDebounced, invokeLLM, burpAppLogin, initialPipelineResult,
-  });
-  addLog(state, "zap_complete", `ZAP scanning complete: ${zapResult.findingsCount} findings across ${zapResult.scansCompleted} targets`);
+  const zapResult = await executeZapScanning(phase6Ctx);
+  addLog(state, { phase: "vuln_detection", type: "phase_complete", title: "ZAP Complete", detail: `${zapResult.findingsCount} findings across ${zapResult.webAppsScanned} targets` });
 
   // ── Phase 6d: Injection Scanning — SQLMap, XSStrike, Commix, tplmap (delegated to vuln-detection/injection-scanner.ts) ──
   const { executeInjectionScanning } = await import('./vuln-detection/injection-scanner');
-  const injectionResult = await executeInjectionScanning({
-    state, engagement, operatorCtx, addLog, broadcastOpsUpdate,
-    persistScanResult, executeToolViaQueue, acquireScanSlot, genId, breathe,
-    persistOpsStateDebounced, invokeLLM, burpAppLogin, initialPipelineResult,
-  });
-  addLog(state, "injection_complete", `Injection scanning complete: ${injectionResult.findingsCount} findings`);
+  const injectionResult = await executeInjectionScanning(phase6Ctx);
+  addLog(state, { phase: "vuln_detection", type: "phase_complete", title: "Injection Scanning Complete", detail: `${injectionResult.totalFindings} findings` });
 
   // ── Phase 6e: Credential Testing — Hydra (delegated to vuln-detection/credential-tester.ts) ──
   const { executeCredentialTesting } = await import('./vuln-detection/credential-tester');
-  const credResult = await executeCredentialTesting({
-    state, engagement, operatorCtx, addLog, broadcastOpsUpdate,
-    persistScanResult, executeToolViaQueue, acquireScanSlot, genId, breathe,
-    persistOpsStateDebounced, invokeLLM, burpAppLogin, initialPipelineResult,
-  });
-  addLog(state, "credential_complete", `Credential testing complete: ${credResult.credentialsFound} credentials confirmed`);
+  const credResult = await executeCredentialTesting(phase6Ctx);
+  addLog(state, { phase: "vuln_detection", type: "phase_complete", title: "Credential Testing Complete", detail: `${credResult.credentialsConfirmed} credentials confirmed` });
 
   // ── Phase 6f: Vuln Correlation — LLM analysis, specialists, dedup, coverage gaps (delegated to vuln-detection/vuln-correlation.ts) ──
   const { executeVulnCorrelation } = await import('./vuln-detection/vuln-correlation');
-  const correlationResult = await executeVulnCorrelation({
-    state, engagement, operatorCtx, addLog, broadcastOpsUpdate,
-    persistScanResult, executeToolViaQueue, acquireScanSlot, genId, breathe,
-    persistOpsStateDebounced, invokeLLM, burpAppLogin, initialPipelineResult,
-  });
-  addLog(state, "correlation_complete", `Vuln correlation complete: ${correlationResult.dedupedCount} unique findings after dedup`);
+  const correlationResult = await executeVulnCorrelation(phase6Ctx);
+  addLog(state, { phase: "vuln_detection", type: "phase_complete", title: "Vuln Correlation Complete", detail: `${correlationResult.deduplicatedCount} unique findings after dedup` });
 
   // ── Phase 6 Summary ──
-  addLog(state, "phase_complete", `Phase 6 complete: ${state.stats.vulnsFound} vulns found (post-dedup), ${state.stats.zapScansRun} ZAP scans, ${state.stats.wafDetections} WAFs detected`);
+  addLog(state, { phase: "vuln_detection", type: "phase_complete", title: "✅ Phase 6 Complete", detail: `${state.stats.vulnsFound} vulns found (post-dedup), ${state.stats.zapScansRun} ZAP scans, ${state.stats.wafDetections} WAFs detected` });
   broadcastOpsUpdate(state.engagementId, {
     type: "phase_complete",
     title: "✅ Phase 6 Complete",

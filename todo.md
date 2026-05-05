@@ -1929,3 +1929,23 @@
 - [x] Rebuild split server with fix
 - [x] Tests passing
 - [x] Checkpoint and push to GitHub
+### Round 6: AWS Production Deployment (May 5)
+- [ ] Audit current AWS infrastructure (ECR, ECS/EKS, ALB, Route53, etc.)
+- [ ] Configure AWS deployment workflow (GitHub Actions) with domain names
+- [ ] Set up SSL/TLS certificates for aceofcloud.io domains on AWS
+- [ ] Ensure DO deployment stays on IP/DO-provided domains only
+- [ ] Deploy to AWS and verify production readiness
+- [ ] Checkpoint and push to GitHub
+
+### Phase 6 Scan Pipeline Fix (May 5)
+- [x] Fix "isInRoeScope is not a function" runtime error in vuln-detection sub-modules
+- [x] Build shared phase6Ctx object in orchestrator with ALL required helpers (isInRoeScope, parseToolOutput, broadcastReconFinding, getEffectiveTarget, fmtTarget, requestApproval, llmDecide, captureDecision, scoreEngagementThreatAttribution, getEngagementAbortSignal, executeScanForgePhase)
+- [x] Fix addLog calls after sub-modules to use proper OpsLogEntry format (not string args)
+- [x] Fix result property references (webAppsScanned, totalFindings, credentialsConfirmed, deduplicatedCount)
+- [x] Update VulnDetectionContext interface to include all properties sub-modules actually use
+- [x] Fix roe-scope-fix.test.ts — update Burp integration tests to look in vuln-prep.ts (extracted)
+- [x] Fix architecture-phase2.test.ts — update exploitation module assertions for current state
+- [x] Fix architecture-phase4.test.ts — update enumeration module assertions for sub-module tree
+- [x] Fix zap-tuning-tools.test.ts — update TRAINING_LAB_CREDS tests to look in vuln-prep.ts
+- [x] All 261 architecture/pipeline tests passing
+- [ ] Checkpoint and push to GitHub
