@@ -1896,3 +1896,11 @@
 - [x] Write phase78-wiring.test.ts (30 tests: credential-harvester, exploit-planner, target-selector, exploit-executor, evidence-collector, c2-deployer, operation-launcher, c2-poller, evidence-capture, wiring integrity)
 - [x] All 30 tests passing
 - [x] Checkpoint and push to GitHub
+### Round 5f: Phase 5 (Active Enumeration) Extraction (May 5)
+- [ ] Analyze Phase 5 inline code boundaries in engagement-orchestrator.ts
+- [ ] Create server/lib/active-enumeration/ module directory with shared context interface
+- [ ] Extract sub-modules (port-scanner, service-fingerprinter, web-crawler, dns-enumerator, etc.)
+- [ ] Wire sub-modules into orchestrator via delegation calls
+- [ ] Write vitest tests for Phase 5 extraction
+- [ ] All tests passing (no regressions)
+- [ ] Checkpoint and push to GitHub
