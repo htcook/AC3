@@ -1837,4 +1837,33 @@
 ### ScanForge Analysis for Claude (May 4)
 - [x] Gather architecture data from all ScanForge modules (23,663 lines across 38 modules)
 - [x] Write comprehensive SCANFORGE-ANALYSIS.md (15 sections, architecture observations, 8 questions for Claude)
-- [ ] Checkpoint and push to GitHub
+- [x] Checkpoint and push to GitHub
+
+### Claude ScanForge Review — Blocker Fixes (May 4)
+- [x] Fix YAML parser: replace custom parser with js-yaml package in template-engine.ts
+- [x] Fix FAST_TRACK_RULES: raise minTotalScans to 15, add "production_flagged" intermediate stage with 0.7x confidence multiplier, graduation at 25 scans
+- [x] Fix OOB architecture: documented dedicated OOB service deployment (wildcard DNS, CoreDNS, separate container, env vars)
+- [x] Fix proof engine safety: added DEFAULT_SAFETY_PROFILE + RED_TEAM_SAFETY_PROFILE (allowed methods, forbiddenPayloadPatterns, rate limits, sensitiveEndpointPatterns, ROE tier gate)
+
+### Claude ScanForge Review — Second Priority (May 4)
+- [x] Dedup fingerprint: added endpoint/path for web findings via extractEndpoint(), classifyFindingType() for type-specific algorithms
+- [x] Scoring formula: added ScoringProfile interface, SCORING_PROFILES map (pentest/compliance/red_team/vuln_assessment), computeHybridScoreWithProfile()
+- [x] Adaptive threshold bounds: added MAX_ADJUSTMENT_PER_CYCLE (0.12), FULL_STEP_SAMPLE_SIZE (20), scaleStepBySampleSize(), clampAdjustment()
+- [x] KB memory limits: added KB_LIMITS (MAX_HOSTS=500, MAX_ENTRIES_PER_HOST=1000, MAX_GLOBAL_ENTRIES=50000, MAX_VALUE_SIZE_BYTES=64KB), enforceMemoryLimits(), truncateValue(), getEvictionStats()
+
+### Claude ScanForge Review — Third Priority (May 4)
+- [ ] Per-engagement scoring profiles (compliance vs red team vs pentest)
+- [ ] Classification cache TTLs (24h default, invalidate on infra change)
+- [ ] Feed circuit breakers for deep research agent's 30+ adapters
+- [ ] Use ScanForge as reference pattern for orchestrator decomposition
+
+### Phase 6 Extraction (May 4)
+- [x] Create vuln-detection/ module directory with shared VulnDetectionContext interface
+- [x] Extract vuln-prep.ts (full implementation: 12 responsibilities including passive promotion, taxonomy, tech detection, training lab creds, Burp callback, credential harvesting, ZAP→Burp pipeline)
+- [x] Create nuclei-scanner.ts delegation stub with NucleiScanResult interface
+- [x] Create zap-scanner.ts delegation stub with ZapScanResult interface
+- [x] Create injection-scanner.ts delegation stub with InjectionScanResult interface
+- [x] Create credential-tester.ts delegation stub with CredentialTestResult interface
+- [x] Create vuln-correlation.ts delegation stub with VulnCorrelationResult interface
+- [ ] Wire extracted modules back into orchestrator (replace inline code with delegation calls)
+- [x] Write vitest tests for all review fixes + module structure (23 tests passing)

@@ -61,17 +61,43 @@ export const DEFAULT_PROMOTION_RULES: PromotionRules = {
   minTotalScans: 5,
 };
 
-/** Aggressive rules for fast-tracking high-confidence templates */
+/**
+ * Fast-track rules for rapid response to emerging threats.
+ *
+ * IMPORTANT: Fast-tracked templates are promoted to "production_flagged" status
+ * (not full "promoted") and run with reduced confidence weighting (0.7x) until
+ * they accumulate enough samples to pass DEFAULT_PROMOTION_RULES. This prevents
+ * small-sample false confidence from affecting customer findings at scale.
+ *
+ * Rationale for minTotalScans=15: statistical significance requires sufficient
+ * samples. At n=3, even 100% precision is meaningless — three coin flips that
+ * came up heads. At n=15, precision ≥ 0.95 provides reasonable confidence
+ * (binomial CI lower bound ~0.75 at 95% confidence).
+ */
 export const FAST_TRACK_RULES: PromotionRules = {
-  minEngagements: 1,
+  minEngagements: 3,
   minPrecision: 0.95,
   minRecall: 0.80,
   minF1Score: 0.85,
   maxFalsePositiveRate: 0.05,
   minEffectivenessScore: 80,
   minGenerationConfidence: 0.85,
-  minTotalScans: 3,
+  minTotalScans: 15,
 };
+
+/**
+ * Confidence multiplier for production-flagged templates.
+ * Fast-tracked templates that pass FAST_TRACK_RULES are promoted to
+ * "production_flagged" status and their confidence scores are multiplied
+ * by this factor until they accumulate enough data to pass full promotion.
+ */
+export const PRODUCTION_FLAGGED_CONFIDENCE_MULTIPLIER = 0.7;
+
+/**
+ * Minimum scans required before a production-flagged template can be
+ * fully promoted to "promoted" status (requires passing DEFAULT_PROMOTION_RULES).
+ */
+export const PRODUCTION_FLAGGED_GRADUATION_SCANS = 25;
 
 // ─── Evaluation Result Types ────────────────────────────────────────────────
 
@@ -181,12 +207,37 @@ export function evaluateTemplate(
 
   if (failed === 0) {
     // All rules passed → promote
-    decision = "promoted";
-    newStatus = "promoted";
-    reason = `All ${passed} promotion rules passed. Template meets production quality thresholds: ` +
-      `precision=${(precision * 100).toFixed(1)}%, recall=${(recall * 100).toFixed(1)}%, ` +
-      `F1=${(f1Score * 100).toFixed(1)}%, effectiveness=${effectivenessScore.toFixed(0)}/100 ` +
-      `across ${engagementCount} engagements (${totalScans} scans)`;
+    // If using FAST_TRACK_RULES, promote to "production_flagged" (intermediate stage)
+    // rather than full "promoted" to allow confidence accumulation.
+    const isFastTrack = rules === FAST_TRACK_RULES;
+    const isAlreadyFlagged = template.status === 'production_flagged';
+    
+    if (isFastTrack && !isAlreadyFlagged) {
+      // Fast-track: promote to intermediate "production_flagged" status
+      decision = "promoted";
+      newStatus = "production_flagged";
+      reason = `Fast-track promotion to production_flagged (reduced confidence ${PRODUCTION_FLAGGED_CONFIDENCE_MULTIPLIER}x). ` +
+        `All ${passed} rules passed: precision=${(precision * 100).toFixed(1)}%, recall=${(recall * 100).toFixed(1)}%, ` +
+        `F1=${(f1Score * 100).toFixed(1)}% across ${totalScans} scans. ` +
+        `Template will run with reduced confidence weighting until ${PRODUCTION_FLAGGED_GRADUATION_SCANS} scans accumulated for full promotion.`;
+    } else if (isAlreadyFlagged && totalScans >= PRODUCTION_FLAGGED_GRADUATION_SCANS) {
+      // Already flagged and has enough scans → graduate to full promoted
+      decision = "promoted";
+      newStatus = "promoted";
+      reason = `Graduated from production_flagged to full promoted status. ` +
+        `Template accumulated ${totalScans} scans (threshold: ${PRODUCTION_FLAGGED_GRADUATION_SCANS}) with sustained quality: ` +
+        `precision=${(precision * 100).toFixed(1)}%, recall=${(recall * 100).toFixed(1)}%, ` +
+        `F1=${(f1Score * 100).toFixed(1)}%, effectiveness=${effectivenessScore.toFixed(0)}/100 ` +
+        `across ${engagementCount} engagements`;
+    } else {
+      // Standard promotion (DEFAULT_PROMOTION_RULES) or flagged template re-evaluation
+      decision = "promoted";
+      newStatus = "promoted";
+      reason = `All ${passed} promotion rules passed. Template meets production quality thresholds: ` +
+        `precision=${(precision * 100).toFixed(1)}%, recall=${(recall * 100).toFixed(1)}%, ` +
+        `F1=${(f1Score * 100).toFixed(1)}%, effectiveness=${effectivenessScore.toFixed(0)}/100 ` +
+        `across ${engagementCount} engagements (${totalScans} scans)`;
+    }
   } else if (fpRate > rules.maxFalsePositiveRate * 2) {
     // Excessive false positives → reject
     decision = "rejected";
@@ -240,7 +291,7 @@ export async function runAutoPromotion(
     .select()
     .from(scanforgeGeneratedTemplates)
     .where(
-      inArray(scanforgeGeneratedTemplates.status, ["draft", "review", "approved"])
+      inArray(scanforgeGeneratedTemplates.status, ["draft", "review", "approved", "production_flagged"])
     );
 
   if (eligibleTemplates.length === 0) {
@@ -479,7 +530,7 @@ export async function getPromotionStats(): Promise<{
   const [pendingResult] = await db
     .select({ count: sql<number>`COUNT(*)` })
     .from(scanforgeGeneratedTemplates)
-    .where(inArray(scanforgeGeneratedTemplates.status, ["draft", "review", "approved"]));
+    .where(inArray(scanforgeGeneratedTemplates.status, ["draft", "review", "approved", "production_flagged"]));
 
   // Get average metrics at promotion time
   const promotedHistory = await db

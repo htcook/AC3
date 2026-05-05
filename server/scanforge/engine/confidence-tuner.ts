@@ -58,6 +58,9 @@ const CONFIG = {
   MIN_FINDINGS_FOR_TUNING: 5,
   
   // Confidence bounds — never go below or above these
+  // These are HARD bounds that prevent runaway drift in either direction.
+  // Even if a template has 100% FP rate, it never drops below MIN_CONFIDENCE
+  // (so it remains in the system for monitoring rather than silently disappearing).
   MIN_CONFIDENCE: 0.15,
   MAX_CONFIDENCE: 0.98,
   DEFAULT_CONFIDENCE: 0.5,
@@ -66,6 +69,32 @@ const CONFIG = {
   BOOST_STEP: 0.05,     // Reward for high precision
   PENALTY_STEP: 0.08,   // Penalty for high FP rate
   DECAY_STEP: 0.02,     // Slow decay for templates with no recent activity
+  
+  // ─── Drift Prevention ─────────────────────────────────────────────────────
+  //
+  // Without bounds, repeated tuning cycles can cause monotonic drift:
+  //   - A template with borderline precision (0.79) gets penalized every cycle
+  //   - After 10 cycles: confidence drops from 0.5 to 0.15 (floor)
+  //   - This is correct behavior IF the template is truly bad
+  //   - But if the sample size is small (5-10 findings), this is premature
+  //
+  // Solution: per-cycle max adjustment cap + minimum sample size scaling.
+  // The cap limits how much a single tuning cycle can move confidence,
+  // and the sample scaling requires more data before larger adjustments.
+  
+  /** Maximum total confidence change per tuning cycle (prevents sudden jumps) */
+  MAX_ADJUSTMENT_PER_CYCLE: 0.12,
+  
+  /** Minimum sample size to apply full step size (below this, step is scaled down) */
+  FULL_STEP_SAMPLE_SIZE: 20,
+  
+  /** Number of consecutive penalty cycles before triggering deprecation review */
+  CONSECUTIVE_PENALTY_THRESHOLD: 5,
+  
+  /** Minimum precision improvement required to reverse a penalty streak */
+  RECOVERY_PRECISION_THRESHOLD: 0.65,
+  
+  // ─── End Drift Prevention ─────────────────────────────────────────────────
   
   // Thresholds for actions
   FP_RATE_DEPRECATE: 0.7,    // Deprecate if >70% false positive rate
@@ -79,6 +108,32 @@ const CONFIG = {
   // Time window for recent activity (ms)
   RECENT_WINDOW_MS: 30 * 24 * 60 * 60 * 1000, // 30 days
 };
+
+/**
+ * Scale adjustment step based on sample size.
+ * With fewer than FULL_STEP_SAMPLE_SIZE findings, the step is proportionally reduced.
+ * This prevents large confidence swings from small sample sizes.
+ *
+ * Examples:
+ *   - 5 findings (minimum): step scaled to 25% → 0.05 becomes 0.0125
+ *   - 10 findings: step scaled to 50% → 0.05 becomes 0.025
+ *   - 20+ findings: full step → 0.05 stays 0.05
+ */
+function scaleStepBySampleSize(baseStep: number, sampleSize: number): number {
+  const scale = Math.min(1.0, sampleSize / CONFIG.FULL_STEP_SAMPLE_SIZE);
+  return baseStep * scale;
+}
+
+/**
+ * Clamp an adjustment to the per-cycle maximum.
+ * Ensures no single tuning cycle can move confidence more than MAX_ADJUSTMENT_PER_CYCLE.
+ */
+function clampAdjustment(currentConfidence: number, targetConfidence: number): number {
+  const delta = targetConfidence - currentConfidence;
+  const clampedDelta = Math.max(-CONFIG.MAX_ADJUSTMENT_PER_CYCLE, Math.min(CONFIG.MAX_ADJUSTMENT_PER_CYCLE, delta));
+  const result = currentConfidence + clampedDelta;
+  return Math.max(CONFIG.MIN_CONFIDENCE, Math.min(CONFIG.MAX_CONFIDENCE, result));
+}
 
 // ─── Main Tuning Engine ─────────────────────────────────────────────────────
 
@@ -126,21 +181,28 @@ export async function runConfidenceTuning(): Promise<TuningReport> {
     let newConfidence = currentConfidence;
     let reason = "";
 
-    // Decision logic
+    // Scale step sizes based on sample size (prevents premature drift from small samples)
+    const scaledPenaltyStep = scaleStepBySampleSize(CONFIG.PENALTY_STEP, totalFindings);
+    const scaledBoostStep = scaleStepBySampleSize(CONFIG.BOOST_STEP, totalFindings);
+
+    // Decision logic with drift-bounded adjustments
     if (fpRate >= CONFIG.FP_RATE_DEPRECATE && totalFindings >= 10) {
-      // Extremely high FP rate — deprecate
-      newConfidence = CONFIG.MIN_CONFIDENCE;
-      reason = `Deprecated: ${(fpRate * 100).toFixed(0)}% false positive rate (${fp}/${totalFindings})`;
+      // Extremely high FP rate — deprecate (but still clamp to per-cycle max)
+      const targetConfidence = CONFIG.MIN_CONFIDENCE;
+      newConfidence = clampAdjustment(currentConfidence, targetConfidence);
+      reason = `Deprecated: ${(fpRate * 100).toFixed(0)}% false positive rate (${fp}/${totalFindings}) [clamped from ${currentConfidence.toFixed(3)} toward ${targetConfidence}]`;
       report.templatesDeprecated++;
     } else if (fpRate >= CONFIG.FP_RATE_PENALIZE) {
-      // High FP rate — penalize
-      newConfidence = Math.max(CONFIG.MIN_CONFIDENCE, currentConfidence - CONFIG.PENALTY_STEP);
-      reason = `Penalized: ${(fpRate * 100).toFixed(0)}% false positive rate`;
+      // High FP rate — penalize (sample-scaled step)
+      const targetConfidence = Math.max(CONFIG.MIN_CONFIDENCE, currentConfidence - scaledPenaltyStep);
+      newConfidence = clampAdjustment(currentConfidence, targetConfidence);
+      reason = `Penalized: ${(fpRate * 100).toFixed(0)}% FP rate, step=${scaledPenaltyStep.toFixed(4)} (sample=${totalFindings})`;
       report.templatesPenalized++;
     } else if (precision >= CONFIG.TP_RATE_BOOST && totalFindings >= 5) {
-      // High precision — boost
-      newConfidence = Math.min(CONFIG.MAX_CONFIDENCE, currentConfidence + CONFIG.BOOST_STEP);
-      reason = `Boosted: ${(precision * 100).toFixed(0)}% precision (${tp} TP out of ${totalFindings})`;
+      // High precision — boost (sample-scaled step)
+      const targetConfidence = Math.min(CONFIG.MAX_CONFIDENCE, currentConfidence + scaledBoostStep);
+      newConfidence = clampAdjustment(currentConfidence, targetConfidence);
+      reason = `Boosted: ${(precision * 100).toFixed(0)}% precision (${tp} TP out of ${totalFindings}), step=${scaledBoostStep.toFixed(4)}`;
       report.templatesBoosted++;
     }
 

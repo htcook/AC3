@@ -48,6 +48,10 @@ export interface FindingFingerprint {
     cwes: string[];
     titleNormalized: string;
     templateId?: string;
+    /** Endpoint/path for web findings (prevents over-merging same CVE on different endpoints) */
+    endpoint?: string;
+    /** Finding type that determined fingerprint strategy */
+    findingType?: 'web' | 'network' | 'credential';
   };
 }
 
@@ -181,14 +185,52 @@ export class DeduplicationEngine {
     const cves = [...(finding.cves || [])].sort();
     const cwes = [...(finding.cwes || [])].sort();
 
-    // Build composite key
-    const parts = [
-      finding.target.toLowerCase(),
-      finding.port?.toString() || "*",
-      finding.protocol || "*",
-      cves.join(",") || titleNormalized,
-      cwes.join(","),
-    ];
+    // Determine finding type for type-specific fingerprinting.
+    // Web findings include endpoint/path to prevent over-merging:
+    //   Same CVE on /api/users vs /api/orders = different operational vulns.
+    // Network findings use target+port (one MySQL instance = one finding).
+    // Credential findings use target+service+username.
+    const findingType = this.classifyFindingType(finding);
+    const endpoint = this.extractEndpoint(finding);
+
+    let parts: string[];
+
+    switch (findingType) {
+      case 'web':
+        // Web findings: include endpoint/path to distinguish per-endpoint vulns
+        parts = [
+          finding.target.toLowerCase(),
+          finding.port?.toString() || "*",
+          endpoint || "*",  // Critical: prevents over-merging web vulns
+          cves.join(",") || titleNormalized,
+          cwes.join(","),
+        ];
+        break;
+
+      case 'credential':
+        // Credential findings: target + service + username
+        const username = finding.evidence?.data?.username || finding.evidence?.data?.credential || "*";
+        parts = [
+          finding.target.toLowerCase(),
+          finding.port?.toString() || "*",
+          finding.protocol || "*",
+          username,
+          titleNormalized,
+        ];
+        break;
+
+      case 'network':
+      default:
+        // Network findings: target + port is sufficient (one service = one finding)
+        parts = [
+          finding.target.toLowerCase(),
+          finding.port?.toString() || "*",
+          finding.protocol || "*",
+          cves.join(",") || titleNormalized,
+          cwes.join(","),
+        ];
+        break;
+    }
 
     const hash = this.hashString(parts.join("|"));
 
@@ -202,8 +244,89 @@ export class DeduplicationEngine {
         cwes,
         titleNormalized,
         templateId: finding.source,
+        endpoint,
+        findingType,
       },
     };
+  }
+
+  /**
+   * Classify a finding as web, network, or credential for fingerprint strategy selection.
+   */
+  private classifyFindingType(finding: ScanFinding): 'web' | 'network' | 'credential' {
+    const text = `${finding.title} ${finding.source} ${(finding.cwes || []).join(' ')}`.toLowerCase();
+
+    // Credential findings
+    if (text.includes('credential') || text.includes('default password') ||
+        text.includes('weak password') || text.includes('brute force') ||
+        finding.evidence?.data?.username || finding.evidence?.data?.credential) {
+      return 'credential';
+    }
+
+    // Web findings: HTTP-based, have endpoints/URLs, or are web vuln classes
+    const webIndicators = [
+      'xss', 'sqli', 'sql injection', 'csrf', 'ssrf', 'xxe', 'ssti',
+      'path traversal', 'lfi', 'rfi', 'open redirect', 'idor',
+      'broken access', 'injection', 'deserialization',
+      'cwe-79', 'cwe-89', 'cwe-352', 'cwe-918', 'cwe-611', 'cwe-22',
+    ];
+    if (webIndicators.some(w => text.includes(w))) return 'web';
+
+    // Check if finding has URL/endpoint evidence
+    if (finding.evidence?.data?.url || finding.evidence?.data?.endpoint ||
+        finding.evidence?.data?.path || finding.evidence?.data?.matched_at) {
+      return 'web';
+    }
+
+    // Check if target looks like a URL
+    if (finding.target.startsWith('http://') || finding.target.startsWith('https://')) {
+      return 'web';
+    }
+
+    // Port-based heuristic: common web ports
+    if (finding.port && [80, 443, 8080, 8443, 3000, 8000, 8888].includes(finding.port)) {
+      return 'web';
+    }
+
+    return 'network';
+  }
+
+  /**
+   * Extract the endpoint/path from a finding for web fingerprinting.
+   * Returns normalized path without query parameters.
+   */
+  private extractEndpoint(finding: ScanFinding): string | undefined {
+    // Try evidence fields first
+    const endpoint = finding.evidence?.data?.endpoint ||
+                     finding.evidence?.data?.path ||
+                     finding.evidence?.data?.url ||
+                     finding.evidence?.data?.matched_at;
+
+    if (endpoint) {
+      try {
+        // If it's a full URL, extract just the pathname
+        const url = new URL(endpoint, 'http://placeholder');
+        return url.pathname;
+      } catch {
+        // If not a valid URL, use as-is (probably already a path)
+        return endpoint.split('?')[0];
+      }
+    }
+
+    // Try to extract from the request in evidence
+    if (finding.evidence?.request) {
+      const match = finding.evidence.request.match(/^(GET|POST|PUT|DELETE|PATCH)\s+([^\s]+)/i);
+      if (match) {
+        try {
+          const url = new URL(match[2], 'http://placeholder');
+          return url.pathname;
+        } catch {
+          return match[2].split('?')[0];
+        }
+      }
+    }
+
+    return undefined;
   }
 
   /**

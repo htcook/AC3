@@ -28,93 +28,20 @@ import type {
   FindingSeverity,
 } from "../types";
 
-// ─── YAML Parser (lightweight, no external dependency) ─────────────────────
-// We use a simple YAML subset parser to avoid adding js-yaml as a dependency.
-// For production, swap this with the `yaml` npm package.
+// ─── YAML Parser (production-grade via js-yaml) ────────────────────────────
+// Previously used a custom subset parser that could silently fail on complex
+// templates (multiline strings, anchors, merge keys, flow sequences).
+// Now uses js-yaml which handles the full YAML 1.2 spec correctly.
+import yaml from 'js-yaml';
 
 function parseYAML(content: string): any {
-  // Use JSON-based YAML subset: templates can also be written as JSON
-  // For full YAML support, install `yaml` package
+  // Try JSON first (templates can be written as JSON for programmatic generation)
   try {
     return JSON.parse(content);
   } catch {
-    // Simple YAML parser for key: value pairs and arrays
-    return parseSimpleYAML(content);
+    // Full YAML parsing via js-yaml
+    return yaml.load(content, { schema: yaml.DEFAULT_SCHEMA });
   }
-}
-
-function parseSimpleYAML(content: string): any {
-  const lines = content.split("\n");
-  const result: any = {};
-  let currentKey = "";
-  let currentArray: any[] | null = null;
-  let currentObj: any = result;
-  const stack: { obj: any; indent: number }[] = [{ obj: result, indent: -1 }];
-
-  for (const rawLine of lines) {
-    const line = rawLine.replace(/\r$/, "");
-    if (line.trim() === "" || line.trim().startsWith("#")) continue;
-
-    const indent = line.search(/\S/);
-    const trimmed = line.trim();
-
-    // Array item
-    if (trimmed.startsWith("- ")) {
-      const value = trimmed.slice(2).trim();
-      if (currentArray) {
-        if (value.includes(": ")) {
-          const obj: any = {};
-          const [k, ...rest] = value.split(": ");
-          obj[k.trim()] = rest.join(": ").trim().replace(/^["']|["']$/g, "");
-          currentArray.push(obj);
-        } else {
-          currentArray.push(value.replace(/^["']|["']$/g, ""));
-        }
-      }
-      continue;
-    }
-
-    // Key: value pair
-    const colonIdx = trimmed.indexOf(":");
-    if (colonIdx > 0) {
-      const key = trimmed.slice(0, colonIdx).trim();
-      const value = trimmed.slice(colonIdx + 1).trim();
-
-      // Pop stack to correct level
-      while (stack.length > 1 && stack[stack.length - 1].indent >= indent) {
-        stack.pop();
-      }
-      currentObj = stack[stack.length - 1].obj;
-
-      if (value === "" || value === "|" || value === ">") {
-        // Nested object or multiline string
-        if (value === "" || value === "|" || value === ">") {
-          currentObj[key] = {};
-          stack.push({ obj: currentObj[key], indent });
-          currentArray = null;
-        }
-      } else if (value === "[]") {
-        currentObj[key] = [];
-        currentArray = currentObj[key];
-      } else {
-        // Parse value
-        let parsed: any = value.replace(/^["']|["']$/g, "");
-        if (parsed === "true") parsed = true;
-        else if (parsed === "false") parsed = false;
-        else if (/^\d+$/.test(parsed)) parsed = parseInt(parsed, 10);
-        else if (/^\d+\.\d+$/.test(parsed)) parsed = parseFloat(parsed);
-        currentObj[key] = parsed;
-        currentArray = null;
-      }
-
-      if (Array.isArray(currentObj[key])) {
-        currentArray = currentObj[key];
-      }
-      currentKey = key;
-    }
-  }
-
-  return result;
 }
 
 // ─── Template Store ────────────────────────────────────────────────────────

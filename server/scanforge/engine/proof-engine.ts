@@ -73,6 +73,280 @@ export interface ProofConfig {
   maxRetries?: number;
   /** Skip proof for info-level findings */
   skipInfoLevel?: boolean;
+  /** Safety profile override (defaults to DEFAULT_SAFETY_PROFILE) */
+  safetyProfile?: ProofSafetyProfile;
+}
+
+// ─── Proof Engine Safety Profile ─────────────────────────────────────────────
+//
+// The proof engine performs lightweight active testing to verify findings.
+// This is NOT passive scanning — it sends crafted payloads to targets.
+// The safety profile defines hard constraints on what proof attempts may do.
+//
+// This profile MUST be respected regardless of ROE scope. Even with full
+// authorization, proof attempts should never cause data loss or persistent
+// state changes. The proof engine's purpose is verification, not exploitation.
+//
+// ROE integration: proof attempts require at minimum "yellow" tier authorization.
+// If the engagement's ROE status is unsigned, proof attempts are skipped entirely.
+
+/**
+ * Safety profile that constrains proof engine behavior.
+ * Defines what the proof engine is allowed to do during verification.
+ */
+export interface ProofSafetyProfile {
+  /**
+   * Allowed HTTP methods for proof requests.
+   * GET is always safe (idempotent). POST is needed for body injection.
+   * PUT/DELETE/PATCH are excluded by default as they imply state changes.
+   */
+  allowedMethods: ("GET" | "POST" | "PUT" | "DELETE" | "PATCH" | "OPTIONS" | "HEAD")[];
+
+  /**
+   * Forbidden payload patterns (regex strings).
+   * If any pattern matches the constructed payload, the proof attempt is blocked.
+   * These prevent accidental destructive operations even in authorized scopes.
+   */
+  forbiddenPayloadPatterns: string[];
+
+  /**
+   * Maximum proof attempts per minute against a single target endpoint.
+   * Prevents overloading target applications during verification.
+   */
+  maxProofAttemptsPerMinutePerEndpoint: number;
+
+  /**
+   * Maximum total proof attempts per minute across all targets.
+   * Global rate limit to prevent resource exhaustion.
+   */
+  maxProofAttemptsPerMinuteGlobal: number;
+
+  /**
+   * Maximum response body size to read (bytes).
+   * Prevents memory exhaustion from large responses.
+   */
+  maxResponseBodyBytes: number;
+
+  /**
+   * Whether state-changing proof attempts are allowed.
+   * When false, only read-only verification (reflection, computation, time-based) is used.
+   * When true, behavioral proofs that may trigger writes are permitted.
+   */
+  allowStateChangingProofs: boolean;
+
+  /**
+   * Minimum ROE authorization tier required for proof attempts.
+   * 'yellow' = enumeration-level (default for proof)
+   * 'orange' = exploitation-level (needed for behavioral proofs on state-changing endpoints)
+   */
+  minimumRoeTier: 'yellow' | 'orange' | 'red';
+
+  /**
+   * Whether to skip proof for findings on endpoints that appear to be:
+   * - Payment/billing endpoints (risk of triggering charges)
+   * - Account deletion endpoints (risk of data loss)
+   * - Admin/management endpoints (risk of configuration changes)
+   */
+  skipSensitiveEndpoints: boolean;
+
+  /**
+   * Regex patterns for sensitive endpoints to skip.
+   * Applied when skipSensitiveEndpoints is true.
+   */
+  sensitiveEndpointPatterns: string[];
+
+  /**
+   * Maximum time-delay payload duration in seconds.
+   * Limits SLEEP/WAITFOR/pg_sleep values to prevent long-running queries.
+   */
+  maxTimeDelaySeconds: number;
+
+  /**
+   * Acceptable failure modes during proof.
+   * - 'errors_ok': Application errors (4xx/5xx) are acceptable
+   * - 'no_5xx': Only 4xx errors acceptable, 5xx indicates potential damage
+   */
+  acceptableFailureMode: 'errors_ok' | 'no_5xx';
+}
+
+/**
+ * Default safety profile for proof attempts.
+ * Conservative by default — engagement-specific overrides can relax constraints
+ * for authorized red team assessments.
+ */
+export const DEFAULT_SAFETY_PROFILE: ProofSafetyProfile = {
+  // Only GET and POST — no state-modifying methods
+  allowedMethods: ['GET', 'POST', 'HEAD', 'OPTIONS'],
+
+  // Forbidden patterns that could cause data loss or persistent changes
+  forbiddenPayloadPatterns: [
+    // SQL destructive operations
+    'DROP\\s+(TABLE|DATABASE|INDEX|VIEW|SCHEMA)',
+    'TRUNCATE\\s+TABLE',
+    'DELETE\\s+FROM',
+    'ALTER\\s+TABLE.*DROP',
+    'UPDATE\\s+.*SET',  // Blind UPDATE could modify data
+    'INSERT\\s+INTO',  // Could create records
+    // OS command destructive operations
+    'rm\\s+-[rf]',
+    'rmdir',
+    'mkfs',
+    'dd\\s+if=',
+    'chmod\\s+777',
+    'shutdown',
+    'reboot',
+    'kill\\s+-9',
+    'pkill',
+    // Windows destructive
+    'del\\s+/[fqs]',
+    'format\\s+[a-z]:',
+    'reg\\s+delete',
+    // Network exfiltration (beyond OOB canary)
+    'curl.*-d.*@',     // File upload via curl
+    'wget.*--post-file',
+    'nc\\s+-e',        // Netcat reverse shell
+    'bash\\s+-i.*>/dev/tcp',  // Bash reverse shell
+    // PHP/code execution beyond detection
+    'exec\\s*\\(',
+    'system\\s*\\(',
+    'passthru\\s*\\(',
+    'eval\\s*\\(',
+  ],
+
+  // Rate limits: 10 proofs/min per endpoint, 60 global
+  maxProofAttemptsPerMinutePerEndpoint: 10,
+  maxProofAttemptsPerMinuteGlobal: 60,
+
+  // Cap response reading at 1MB
+  maxResponseBodyBytes: 1_048_576,
+
+  // No state-changing proofs by default
+  allowStateChangingProofs: false,
+
+  // Yellow tier (enumeration-level) authorization required
+  minimumRoeTier: 'yellow',
+
+  // Skip sensitive endpoints
+  skipSensitiveEndpoints: true,
+  sensitiveEndpointPatterns: [
+    '/api/(payment|billing|checkout|purchase|subscribe)',
+    '/api/(delete|remove|destroy|cancel)',
+    '/admin/(config|settings|users|roles)',
+    '/(unsubscribe|deactivate|close-account)',
+    '/api/v\\d+/(orders|transactions)/.*/(refund|cancel|void)',
+  ],
+
+  // Max 5-second delay for time-based proofs (prevents long-running DB queries)
+  maxTimeDelaySeconds: 5,
+
+  // Errors are acceptable (expected during proof), but 5xx may indicate damage
+  acceptableFailureMode: 'errors_ok',
+};
+
+/**
+ * Relaxed safety profile for authorized red team engagements with signed ROE.
+ * Allows more aggressive proof strategies while still preventing destructive ops.
+ */
+export const RED_TEAM_SAFETY_PROFILE: ProofSafetyProfile = {
+  ...DEFAULT_SAFETY_PROFILE,
+  allowedMethods: ['GET', 'POST', 'PUT', 'PATCH', 'HEAD', 'OPTIONS'],
+  allowStateChangingProofs: true,
+  minimumRoeTier: 'orange',
+  skipSensitiveEndpoints: false,
+  maxProofAttemptsPerMinutePerEndpoint: 30,
+  maxProofAttemptsPerMinuteGlobal: 200,
+  maxTimeDelaySeconds: 10,
+  acceptableFailureMode: 'errors_ok',
+};
+
+// ─── Safety Profile Enforcement ─────────────────────────────────────────────
+
+/** Rate limiter state for proof attempts */
+const proofRateLimiter = {
+  perEndpoint: new Map<string, { count: number; windowStart: number }>(),
+  global: { count: 0, windowStart: Date.now() },
+};
+
+/**
+ * Check if a proof attempt is allowed by the safety profile.
+ * Returns { allowed: true } or { allowed: false, reason: string }.
+ */
+export function checkProofSafety(
+  payload: string,
+  method: string,
+  targetUrl: string,
+  profile: ProofSafetyProfile = DEFAULT_SAFETY_PROFILE
+): { allowed: boolean; reason?: string } {
+  // 1. Check HTTP method
+  if (!profile.allowedMethods.includes(method as any)) {
+    return { allowed: false, reason: `HTTP method ${method} not in allowed list: [${profile.allowedMethods.join(', ')}]` };
+  }
+
+  // 2. Check forbidden payload patterns
+  for (const pattern of profile.forbiddenPayloadPatterns) {
+    const regex = new RegExp(pattern, 'i');
+    if (regex.test(payload)) {
+      return { allowed: false, reason: `Payload matches forbidden pattern: ${pattern}` };
+    }
+  }
+
+  // 3. Check sensitive endpoint patterns
+  if (profile.skipSensitiveEndpoints) {
+    for (const pattern of profile.sensitiveEndpointPatterns) {
+      const regex = new RegExp(pattern, 'i');
+      if (regex.test(targetUrl)) {
+        return { allowed: false, reason: `Target endpoint matches sensitive pattern: ${pattern}` };
+      }
+    }
+  }
+
+  // 4. Check rate limits
+  const now = Date.now();
+  const oneMinuteAgo = now - 60_000;
+
+  // Global rate limit
+  if (proofRateLimiter.global.windowStart < oneMinuteAgo) {
+    proofRateLimiter.global = { count: 0, windowStart: now };
+  }
+  if (proofRateLimiter.global.count >= profile.maxProofAttemptsPerMinuteGlobal) {
+    return { allowed: false, reason: `Global rate limit exceeded: ${profile.maxProofAttemptsPerMinuteGlobal}/min` };
+  }
+
+  // Per-endpoint rate limit
+  const endpointKey = new URL(targetUrl).pathname;
+  const endpointState = proofRateLimiter.perEndpoint.get(endpointKey);
+  if (endpointState) {
+    if (endpointState.windowStart < oneMinuteAgo) {
+      proofRateLimiter.perEndpoint.set(endpointKey, { count: 0, windowStart: now });
+    } else if (endpointState.count >= profile.maxProofAttemptsPerMinutePerEndpoint) {
+      return { allowed: false, reason: `Per-endpoint rate limit exceeded for ${endpointKey}: ${profile.maxProofAttemptsPerMinutePerEndpoint}/min` };
+    }
+  }
+
+  return { allowed: true };
+}
+
+/**
+ * Record a proof attempt for rate limiting.
+ */
+export function recordProofAttempt(targetUrl: string): void {
+  const now = Date.now();
+  proofRateLimiter.global.count++;
+
+  const endpointKey = new URL(targetUrl).pathname;
+  const state = proofRateLimiter.perEndpoint.get(endpointKey);
+  if (state) {
+    state.count++;
+  } else {
+    proofRateLimiter.perEndpoint.set(endpointKey, { count: 1, windowStart: now });
+  }
+}
+
+/**
+ * Validate time-delay value against safety profile maximum.
+ */
+export function clampTimeDelay(delaySeconds: number, profile: ProofSafetyProfile = DEFAULT_SAFETY_PROFILE): number {
+  return Math.min(delaySeconds, profile.maxTimeDelaySeconds);
 }
 
 // ─── Canary Generation ──────────────────────────────────────────────────────
@@ -305,8 +579,11 @@ function classifyFinding(finding: ScanFinding): string {
 // ─── Proof Engine ───────────────────────────────────────────────────────────
 
 export class ProofEngine {
-  private config: Required<ProofConfig>;
+  private config: Required<Omit<ProofConfig, 'safetyProfile'>>;
+  private safetyProfile: ProofSafetyProfile;
   private oobCallbacks: Map<string, { findingId: string; receivedAt?: number }> = new Map();
+  /** Tracks blocked proof attempts for reporting */
+  private blockedAttempts: { payload: string; reason: string; targetUrl: string; timestamp: number }[] = [];
 
   constructor(config: ProofConfig = {}) {
     this.config = {
@@ -317,7 +594,14 @@ export class ProofEngine {
       maxRetries: config.maxRetries ?? 2,
       skipInfoLevel: config.skipInfoLevel ?? true,
     };
+    this.safetyProfile = config.safetyProfile ?? DEFAULT_SAFETY_PROFILE;
   }
+
+  /** Get blocked proof attempts (for audit/reporting) */
+  getBlockedAttempts() { return [...this.blockedAttempts]; }
+
+  /** Get the active safety profile */
+  getSafetyProfile() { return this.safetyProfile; }
 
   /**
    * Verify a batch of findings with proof-based re-exploitation.
@@ -464,6 +748,23 @@ export class ProofEngine {
       // Build the request URL from the original finding
       const baseUrl = this.buildTargetUrl(finding, target);
       if (!baseUrl) return null;
+
+      // ── Safety Profile Enforcement ──────────────────────────────────────
+      const method = payloadDef.injection === 'body' ? 'POST' : 'GET';
+      const safetyCheck = checkProofSafety(payload, method, baseUrl, this.safetyProfile);
+      if (!safetyCheck.allowed) {
+        this.blockedAttempts.push({
+          payload: payload.slice(0, 200),
+          reason: safetyCheck.reason!,
+          targetUrl: baseUrl,
+          timestamp: Date.now(),
+        });
+        console.debug(`[ProofEngine] BLOCKED: ${safetyCheck.reason} | target=${baseUrl}`);
+        return null;
+      }
+      // Record the attempt for rate limiting
+      recordProofAttempt(baseUrl);
+      // ────────────────────────────────────────────────────────────────────
 
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), this.config.timeoutMs);

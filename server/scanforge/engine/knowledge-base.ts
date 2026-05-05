@@ -102,6 +102,29 @@ export const KB_KEYS = {
   WEB_WAF: (port: number) => `web/${port}/waf`,
 } as const;
 
+// ─── Memory Limits ───────────────────────────────────────────────────────────
+//
+// The KB is in-memory and grows unbounded during large scans.
+// Without limits, scanning 500+ hosts with 65535 ports each can exhaust heap.
+//
+// Limits:
+//   MAX_HOSTS: 2000 (beyond this, oldest hosts are evicted)
+//   MAX_ENTRIES_PER_HOST: 5000 (beyond this, lowest-confidence entries evicted)
+//   MAX_GLOBAL_ENTRIES: 50000 (beyond this, oldest entries evicted)
+//   MAX_VALUE_SIZE_BYTES: 10240 (10KB per value, prevents banner/response bloat)
+//
+// Eviction strategy: LRU by timestamp, with confidence as tiebreaker.
+// Evicted entries are logged (not silently dropped) for debugging.
+
+const KB_LIMITS = {
+  MAX_HOSTS: 2000,
+  MAX_ENTRIES_PER_HOST: 5000,
+  MAX_GLOBAL_ENTRIES: 50000,
+  MAX_VALUE_SIZE_BYTES: 10240,
+  /** Warn when total entries exceed this threshold */
+  WARN_TOTAL_ENTRIES: 100000,
+};
+
 /**
  * ScanForge Knowledge Base — in-process, per-scan session
  */
@@ -110,8 +133,108 @@ export class ScanForgeKB {
   private globalEntries: Map<string, KBEntry> = new Map();
   private templateDeps: Map<string, KBDependency> = new Map();
   private changeListeners: Array<(key: string, entry: KBEntry, host?: string) => void> = [];
+  private evictionCount = 0;
+  private warningIssued = false;
   
   constructor(private scanId: string) {}
+
+  /** Get eviction statistics for monitoring */
+  getEvictionStats(): { evictionCount: number; totalEntries: number; hostCount: number } {
+    let totalEntries = this.globalEntries.size;
+    for (const ctx of this.hosts.values()) totalEntries += ctx.entries.size;
+    return { evictionCount: this.evictionCount, totalEntries, hostCount: this.hosts.size };
+  }
+
+  /**
+   * Enforce memory limits by evicting oldest/lowest-confidence entries.
+   * Called automatically on set() when limits are approached.
+   */
+  private enforceMemoryLimits(targetHost?: string): void {
+    // Check global entries limit
+    if (this.globalEntries.size > KB_LIMITS.MAX_GLOBAL_ENTRIES) {
+      const toEvict = this.globalEntries.size - KB_LIMITS.MAX_GLOBAL_ENTRIES + 100; // evict 100 extra to avoid thrashing
+      const sorted = Array.from(this.globalEntries.entries())
+        .sort((a, b) => a[1].timestamp - b[1].timestamp); // oldest first
+      for (let i = 0; i < toEvict && i < sorted.length; i++) {
+        this.globalEntries.delete(sorted[i][0]);
+        this.evictionCount++;
+      }
+      console.debug(`[KB] Evicted ${toEvict} global entries (limit: ${KB_LIMITS.MAX_GLOBAL_ENTRIES})`);
+    }
+
+    // Check per-host entries limit
+    if (targetHost) {
+      const hostCtx = this.hosts.get(targetHost);
+      if (hostCtx && hostCtx.entries.size > KB_LIMITS.MAX_ENTRIES_PER_HOST) {
+        const toEvict = hostCtx.entries.size - KB_LIMITS.MAX_ENTRIES_PER_HOST + 50;
+        const sorted = Array.from(hostCtx.entries.entries())
+          .sort((a, b) => {
+            // Evict lowest confidence first, then oldest
+            if (a[1].confidence !== b[1].confidence) return a[1].confidence - b[1].confidence;
+            return a[1].timestamp - b[1].timestamp;
+          });
+        for (let i = 0; i < toEvict && i < sorted.length; i++) {
+          hostCtx.entries.delete(sorted[i][0]);
+          this.evictionCount++;
+        }
+        console.debug(`[KB] Evicted ${toEvict} entries from host ${targetHost} (limit: ${KB_LIMITS.MAX_ENTRIES_PER_HOST})`);
+      }
+    }
+
+    // Check host count limit (evict oldest hosts)
+    if (this.hosts.size > KB_LIMITS.MAX_HOSTS) {
+      const toEvict = this.hosts.size - KB_LIMITS.MAX_HOSTS;
+      const hostsByAge = Array.from(this.hosts.entries())
+        .map(([ip, ctx]) => {
+          const newestEntry = Math.max(...Array.from(ctx.entries.values()).map(e => e.timestamp), 0);
+          return { ip, newestEntry };
+        })
+        .sort((a, b) => a.newestEntry - b.newestEntry); // oldest activity first
+
+      for (let i = 0; i < toEvict && i < hostsByAge.length; i++) {
+        const evicted = this.hosts.get(hostsByAge[i].ip);
+        this.evictionCount += evicted?.entries.size || 0;
+        this.hosts.delete(hostsByAge[i].ip);
+      }
+      console.debug(`[KB] Evicted ${toEvict} hosts (limit: ${KB_LIMITS.MAX_HOSTS})`);
+    }
+
+    // Memory warning
+    if (!this.warningIssued) {
+      let total = this.globalEntries.size;
+      for (const ctx of this.hosts.values()) total += ctx.entries.size;
+      if (total > KB_LIMITS.WARN_TOTAL_ENTRIES) {
+        console.warn(`[KB] WARNING: Total entries (${total}) exceeds warning threshold (${KB_LIMITS.WARN_TOTAL_ENTRIES}). Consider reducing scan scope.`);
+        this.warningIssued = true;
+      }
+    }
+  }
+
+  /**
+   * Truncate a value to the max size limit.
+   * Prevents individual entries from consuming excessive memory (e.g., large banners).
+   */
+  private truncateValue(value: KBEntry["value"]): KBEntry["value"] {
+    if (typeof value === 'string' && value.length > KB_LIMITS.MAX_VALUE_SIZE_BYTES) {
+      return value.slice(0, KB_LIMITS.MAX_VALUE_SIZE_BYTES) + '...[truncated]';
+    }
+    if (Array.isArray(value)) {
+      const serialized = JSON.stringify(value);
+      if (serialized.length > KB_LIMITS.MAX_VALUE_SIZE_BYTES) {
+        // Keep as many items as fit within the limit
+        let kept = 0;
+        let size = 2; // []
+        for (const item of value) {
+          const itemSize = JSON.stringify(item).length + 1; // +1 for comma
+          if (size + itemSize > KB_LIMITS.MAX_VALUE_SIZE_BYTES) break;
+          size += itemSize;
+          kept++;
+        }
+        return value.slice(0, kept);
+      }
+    }
+    return value;
+  }
   
   // ─── Host Management ───────────────────────────────────────────
   
@@ -135,9 +258,12 @@ export class ScanForgeKB {
     confidence?: number;
     ttl?: number;
   }): void {
+    // Truncate oversized values to prevent memory bloat
+    const truncatedValue = this.truncateValue(value);
+
     const entry: KBEntry = {
       key,
-      value,
+      value: truncatedValue,
       source,
       timestamp: Date.now(),
       confidence: opts?.confidence ?? 0.8,
@@ -147,8 +273,12 @@ export class ScanForgeKB {
     if (opts?.host) {
       const hostCtx = this.getOrCreateHost(opts.host);
       hostCtx.entries.set(key, entry);
+      // Enforce per-host memory limit
+      this.enforceMemoryLimits(opts.host);
     } else {
       this.globalEntries.set(key, entry);
+      // Enforce global memory limit
+      this.enforceMemoryLimits();
     }
     
     // Notify listeners

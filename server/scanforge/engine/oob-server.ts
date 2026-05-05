@@ -14,8 +14,47 @@
  *   - Correlates callbacks to findings via canary token
  *   - Supports DNS-based OOB via subdomain canary matching
  *
- * In production, this would run on a dedicated domain (e.g., oob.scanforge.io)
- * with wildcard DNS. For now, it integrates into the Express app.
+ * ─── Production Deployment Architecture ─────────────────────────────────────
+ *
+ * REQUIRED for reliable blind vulnerability detection:
+ *
+ * 1. DEDICATED DOMAIN: oob.aceofcloud.io (or similar)
+ *    - Wildcard DNS: *.oob.aceofcloud.io → OOB server IP
+ *    - Separate from main application domain to avoid WAF/proxy interference
+ *    - TLS certificate via Let's Encrypt wildcard (DNS-01 challenge)
+ *
+ * 2. NETWORK ROUTING:
+ *    - OOB server runs as a separate service (Docker container or Cloud Run instance)
+ *    - Dedicated public IP with ports 80, 443, 53 (DNS) open
+ *    - No CDN/reverse proxy in front (would interfere with raw callback capture)
+ *    - Firewall allows inbound from any source (callbacks come from target systems)
+ *
+ * 3. DNS LISTENER (for DNS-based OOB):
+ *    - Custom DNS server (e.g., CoreDNS) authoritative for oob.aceofcloud.io
+ *    - Captures DNS queries as OOB interactions
+ *    - NS delegation: oob.aceofcloud.io NS ns1.oob.aceofcloud.io
+ *
+ * 4. COMMUNICATION WITH MAIN APP:
+ *    - OOB server exposes internal API for token registration/checking
+ *    - Main app communicates via internal network (VPC peering or service mesh)
+ *    - Shared Redis/DB for token state (replaces in-memory Map for HA)
+ *
+ * 5. CURRENT STATE (integrated mode):
+ *    - OOB runs as Express router on main app (sufficient for single-instance dev)
+ *    - HTTP callbacks work if target can reach the main app URL
+ *    - DNS-based OOB does NOT work without dedicated DNS infrastructure
+ *    - Payloads using .oob.scanforge.local will silently fail in production
+ *
+ * Environment variables for production OOB:
+ *   OOB_DOMAIN        - e.g., "oob.aceofcloud.io"
+ *   OOB_EXTERNAL_URL  - e.g., "https://oob.aceofcloud.io"
+ *   OOB_DNS_ENABLED   - "true" to enable DNS listener
+ *   OOB_REDIS_URL     - Redis URL for distributed token state
+ *
+ * Migration path:
+ *   Phase 1 (current): Integrated mode, HTTP-only OOB via main app URL
+ *   Phase 2: Dedicated domain + HTTP OOB on separate service
+ *   Phase 3: Add DNS listener for full DNS-based OOB detection
  */
 
 import { Router, type Request, type Response } from "express";
@@ -192,19 +231,36 @@ export class OOBServer {
 
   /**
    * Generate OOB payload URLs for different vulnerability classes.
+   *
+   * Uses OOB_EXTERNAL_URL env var for production (dedicated OOB domain),
+   * falls back to baseUrl (main app) for integrated mode.
+   *
+   * DNS-based payloads require OOB_DOMAIN to be set and DNS infrastructure
+   * deployed. If not configured, DNS payloads use a placeholder that will
+   * not resolve (and the proof engine should skip DNS-based proof strategies).
    */
   generatePayloads(token: string, baseUrl: string): Record<string, string> {
+    const oobExternalUrl = process.env.OOB_EXTERNAL_URL || baseUrl;
+    const oobDomain = process.env.OOB_DOMAIN || null;
+    const dnsEnabled = process.env.OOB_DNS_ENABLED === 'true' && oobDomain;
+
+    const httpCallbackUrl = oobDomain
+      ? `https://${token}.${oobDomain}`
+      : `${oobExternalUrl}/api/scanforge/oob/${token}`;
+
     return {
-      // HTTP callback URL
-      http: `${baseUrl}/api/scanforge/oob/${token}`,
-      // DNS subdomain callback
-      dns: `${token}.oob.scanforge.local`,
+      // HTTP callback URL (works in both integrated and dedicated modes)
+      http: httpCallbackUrl,
+      // DNS subdomain callback (requires dedicated DNS infrastructure)
+      dns: dnsEnabled ? `${token}.${oobDomain}` : `${token}.oob.noresolve.invalid`,
+      // Whether DNS-based OOB is available
+      dns_available: dnsEnabled ? 'true' : 'false',
       // XXE entity payload
-      xxe_entity: `<!ENTITY xxe SYSTEM "${baseUrl}/api/scanforge/oob/${token}">`,
+      xxe_entity: `<!ENTITY xxe SYSTEM "${httpCallbackUrl}">`,
       // SSRF target URL
-      ssrf: `${baseUrl}/api/scanforge/oob/${token}?type=ssrf`,
+      ssrf: `${httpCallbackUrl}?type=ssrf`,
       // Blind SQLi via LOAD_FILE/INTO OUTFILE
-      sqli_oob: `' UNION SELECT LOAD_FILE('${baseUrl}/api/scanforge/oob/${token}') -- `,
+      sqli_oob: `' UNION SELECT LOAD_FILE('${httpCallbackUrl}') -- `,
     };
   }
 
