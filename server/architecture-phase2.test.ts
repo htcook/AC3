@@ -17,21 +17,21 @@ const EXPLOIT_PATH = path.resolve(__dirname, "lib/engagement-phase-exploitation.
 describe("Stage Parallelization (domainIntel.ts)", () => {
   const diContent = fs.readFileSync(DI_PATH, "utf-8");
 
-  it("should parallelize Stage 3.5 and 3.6 with Promise.allSettled", () => {
+  it("should parallelize Stage 3.5 and 3.6 with parallelWithRetry", () => {
     expect(diContent).toContain("Parallel Execution: Stage 3.5 (KEV) || Stage 3.6 (Vuln Feeds)");
-    expect(diContent).toContain("const [kevResult, vulnFeedResult] = await Promise.allSettled([");
+    expect(diContent).toContain("const [kevRetry, vulnFeedRetry] = await parallelWithRetry([");
   });
 
-  it("should have kevEnrichment hoisted above the Promise.allSettled", () => {
+  it("should have kevEnrichment hoisted above the parallelWithRetry", () => {
     const kevDeclIndex = diContent.indexOf("let kevEnrichment: KevEnrichment | undefined;");
-    const promiseIndex = diContent.indexOf("const [kevResult, vulnFeedResult] = await Promise.allSettled([");
-    expect(kevDeclIndex).toBeLessThan(promiseIndex);
+    const retryIndex = diContent.indexOf("const [kevRetry, vulnFeedRetry] = await parallelWithRetry([");
+    expect(kevDeclIndex).toBeLessThan(retryIndex);
     expect(kevDeclIndex).toBeGreaterThan(0);
   });
 
-  it("should log failures from parallel KEV/VulnFeed execution", () => {
-    expect(diContent).toContain('kevResult.status === "rejected"');
-    expect(diContent).toContain('vulnFeedResult.status === "rejected"');
+  it("should log retry statistics for KEV/VulnFeed execution", () => {
+    expect(diContent).toContain('for (const r of [kevRetry, vulnFeedRetry])');
+    expect(diContent).toContain('r.stageName');
   });
 
   it("should parallelize Stage 3.8+3.81 and 3.85 with Promise.allSettled", () => {
@@ -49,9 +49,9 @@ describe("Stage Parallelization (domainIntel.ts)", () => {
   });
 
   it("should maintain Stage 3.7 after the 3.5||3.6 parallel block", () => {
-    const parallelEndIndex = diContent.indexOf('vulnFeedResult.status === "rejected"');
+    const retryStatsIndex = diContent.indexOf('for (const r of [kevRetry, vulnFeedRetry])');
     const stage37Index = diContent.indexOf("// Stage 3.7: Shodan CVE Verification");
-    expect(stage37Index).toBeGreaterThan(parallelEndIndex);
+    expect(stage37Index).toBeGreaterThan(retryStatsIndex);
   });
 
   it("should maintain Stage 3.9 after the 3.8||3.85 parallel block", () => {
@@ -74,9 +74,9 @@ describe("Phase 7 Exploitation Extraction", () => {
     expect(exploitContent).toContain("export async function executeExploitation(state: EngagementOpsState");
   });
 
-  it("should import EngagementOpsState from the orchestrator", () => {
-    expect(exploitContent).toContain('type EngagementOpsState,');
-    expect(exploitContent).toContain('from "./engagement-orchestrator"');
+  it("should import EngagementOpsState from shared types", () => {
+    expect(exploitContent).toContain('EngagementOpsState');
+    expect(exploitContent).toContain('from "../../shared/orchestrator-types"');
   });
 
   it("should import addLog, broadcastOpsUpdate, requestApproval from orchestrator", () => {
@@ -119,9 +119,12 @@ describe("Scope Enforcement Parity (Phase 5 vs Phase 7)", () => {
   const orchContent = fs.readFileSync(ORCH_PATH, "utf-8");
   const exploitContent = fs.readFileSync(EXPLOIT_PATH, "utf-8");
 
-  it("Phase 5 should have RoE scope guard filtering", () => {
-    expect(orchContent).toContain("RoE SCOPE GUARD: Filter active scan targets to only authorized assets");
-    expect(orchContent).toContain("const scopedAssets = state.assets.filter(a => isInRoeScope(state, a.hostname, a.ip));");
+  it("Phase 5 should have RoE scope guard filtering (now in extracted enumeration module)", () => {
+    // Phase 5 is now extracted to engagement-phase-enumeration.ts
+    const enumPath = path.resolve(__dirname, 'lib/engagement-phase-enumeration.ts');
+    const enumContent = fs.readFileSync(enumPath, 'utf-8');
+    expect(enumContent).toContain("RoE SCOPE GUARD");
+    expect(enumContent).toContain("const scopedAssets = state.assets.filter(a => isInRoeScope(state, a.hostname, a.ip));");
   });
 
   it("Phase 7 should have matching RoE scope guard filtering", () => {

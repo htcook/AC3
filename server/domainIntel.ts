@@ -2752,9 +2752,12 @@ export async function runDomainIntelPipeline(
   // Safe to parallelize: both push to postureFindings[] which is append-only,
   // and Node.js single-threaded event loop prevents concurrent array corruption.
   let kevEnrichment: KevEnrichment | undefined;
-  const [kevResult, vulnFeedResult] = await Promise.allSettled([
-    // Stage 3.5: CISA KEV Enrichment
-    (async () => {
+  // Import retry utility for external API resilience
+  const { parallelWithRetry } = await import('../shared/retry-with-backoff');
+  const [kevRetry, vulnFeedRetry] = await parallelWithRetry([
+    {
+      name: 'Stage 3.5 KEV Enrichment',
+      fn: async () => {
       const preKevSnapshot = snapshotScores();
       await onProgress?.('scoring');
       try {
@@ -3054,9 +3057,12 @@ export async function runDomainIntelPipeline(
         console.error(`[DomainIntel] KEV enrichment failed (non-fatal): ${err.message}`);
       }
 
-    })(),
-    // Stage 3.6: Vuln Feed Enrichment
-    (async () => {
+      },
+      options: { maxRetries: 2, initialDelayMs: 2000 }, // CISA KEV API can be slow
+    },
+    {
+      name: 'Stage 3.6 Vuln Feed Enrichment',
+      fn: async () => {
       // FIX: Per-asset vuln feed matching. We run matchTechnologiesAgainstAllFeeds per-asset
       // using only THAT asset's technologies, so findings are never cross-contaminated.
       // Previously, a global tech pool caused the same CVEs to appear on every asset.
@@ -3292,11 +3298,18 @@ export async function runDomainIntelPipeline(
       }
       // that are picked up in the post-enrichment recalculation below.
 
-    })(),
-  ]);
-  // Log any failures from parallel execution
-  if (kevResult.status === "rejected") console.error(`[DomainIntel] KEV enrichment failed (parallel, non-fatal): ${kevResult.reason?.message || kevResult.reason}`);
-  if (vulnFeedResult.status === "rejected") console.error(`[DomainIntel] Vuln feed enrichment failed (parallel, non-fatal): ${vulnFeedResult.reason?.message || vulnFeedResult.reason}`);
+      },
+      options: { maxRetries: 2, initialDelayMs: 3000 }, // NVD/vuln feeds rate-limit aggressively
+    },
+  ], { maxRetries: 2, initialDelayMs: 2000 });
+  // Log retry statistics and failures
+  for (const r of [kevRetry, vulnFeedRetry]) {
+    if (!r.success) {
+      console.error(`[DomainIntel] ${r.stageName} failed after ${r.attempts} attempt(s): ${r.error?.message || 'unknown'}`);
+    } else if (r.retried) {
+      console.log(`[DomainIntel] ${r.stageName} succeeded after ${r.attempts} attempts (${r.totalDurationMs}ms total)`);
+    }
+  }
   await yieldEventLoop();
   // Stage 3.7: Shodan CVE Verification — upgrade probable findings to confirmed using Shodan banner data
   if (passiveRecon) {

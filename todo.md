@@ -1820,3 +1820,9 @@
 - [x] Add structured retry with exponential backoff (shared/retry-with-backoff.ts) for Stage 4.5+4.55+4.6
 - [x] Write vitest tests for all changes (86 tests total passing across 3 test files)
 - [x] Checkpoint and push to GitHub
+
+### Architecture Remediation Round 4 (May 4)
+- [x] Extract Phase 5 (active enumeration, 2056 lines) into engagement-phase-enumeration.ts
+- [x] Add retry with backoff to Stage 3.5+3.6 KEV+VulnFeed parallel block (parallelWithRetry)
+- [x] Write vitest tests for all changes (114 tests total passing across 4 test files)
+- [x] Checkpoint and push to GitHub
