@@ -1924,3 +1924,8 @@
 - [x] Updated postinstall.cjs to generate split-aware bootstrap for future deploys
 - [x] Verified: 102 tests passing, dev server healthy
 - [x] Checkpoint and push to GitHub
+### Round 5j: Fix split-mode static file serving (May 5)
+- [x] Fix distPath resolution in vite.ts for split-mode (dist/server/ -> ../public instead of ./public)
+- [x] Rebuild split server with fix
+- [x] Tests passing
+- [x] Checkpoint and push to GitHub

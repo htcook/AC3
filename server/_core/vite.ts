@@ -51,10 +51,19 @@ export async function setupVite(app: Express, server: Server) {
 }
 
 export function serveStatic(app: Express) {
-  const distPath =
-    process.env.NODE_ENV === "development"
-      ? path.resolve(import.meta.dirname, "../..", "dist", "public")
-      : path.resolve(import.meta.dirname, "public");
+  // In development: resolve from server/_core/ up to project root
+  // In production split-mode: server runs from dist/server/, public is at dist/public/ (sibling)
+  // In production legacy: server runs from dist/, public is at dist/public/ (child)
+  let distPath: string;
+  if (process.env.NODE_ENV === "development") {
+    distPath = path.resolve(import.meta.dirname, "../..", "dist", "public");
+  } else {
+    // Try sibling "public" first (split-mode: dist/server/ -> dist/public/)
+    const siblingPublic = path.resolve(import.meta.dirname, "..", "public");
+    // Then try child "public" (legacy: dist/ -> dist/public/)
+    const childPublic = path.resolve(import.meta.dirname, "public");
+    distPath = fs.existsSync(siblingPublic) ? siblingPublic : childPublic;
+  }
   if (!fs.existsSync(distPath)) {
     console.error(
       `Could not find the build directory: ${distPath}, make sure to build the client first`
