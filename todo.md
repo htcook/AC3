@@ -1826,3 +1826,15 @@
 - [x] Add retry with backoff to Stage 3.5+3.6 KEV+VulnFeed parallel block (parallelWithRetry)
 - [x] Write vitest tests for all changes (114 tests total passing across 4 test files)
 - [x] Checkpoint and push to GitHub
+
+### Architecture Remediation Round 5 (May 4)
+- [x] Fix deployment OOM crash: esbuild code splitting (18MB → 6.4MB main + 594 lazy chunks), Dockerfile heap 4096MB → 768MB
+- [x] Fix duplicate parallelWithRetry import in domainIntel.ts
+- [ ] Extract Phase 6 (vulnerability scanning) from orchestrator into own module
+- [ ] Write vitest tests for Phase 6 extraction
+- [ ] Checkpoint and push to GitHub
+
+### ScanForge Analysis for Claude (May 4)
+- [x] Gather architecture data from all ScanForge modules (23,663 lines across 38 modules)
+- [x] Write comprehensive SCANFORGE-ANALYSIS.md (15 sections, architecture observations, 8 questions for Claude)
+- [ ] Checkpoint and push to GitHub

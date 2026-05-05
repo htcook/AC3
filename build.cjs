@@ -4,13 +4,20 @@
  *
  * ARCHITECTURE:
  * - dist/index.js = bootstrap (committed to git, always present)
- * - dist/_server.js = real server bundle (built by esbuild)
+ * - dist/server/index.js = main server entry (code-split with chunks)
+ * - dist/server/*.js = lazy-loaded chunks (only parsed when first imported)
+ * - dist/_server.js = LEGACY single-bundle fallback (kept for backward compat)
  * - dist/public/ = client assets (copied from .client-assets/)
  * - .client-assets/ = pre-built Vite output (committed to git)
  *
- * The bootstrap dist/index.js imports dist/_server.js and can also
- * self-build if _server.js is missing. This build.cjs is the primary
- * build path called during Docker image creation.
+ * CODE SPLITTING:
+ * The server is built with esbuild's --splitting flag, producing a main
+ * entry point (~6MB) plus ~590 lazy chunks. This reduces startup memory
+ * from ~700MB to ~250MB because heavy modules (domainIntel, orchestrator,
+ * scanforge) only load when first accessed via dynamic import().
+ *
+ * The bootstrap dist/index.js tries dist/server/index.js first (split mode),
+ * then falls back to dist/_server.js (legacy single bundle).
  */
 const fs = require("fs");
 const path = require("path");
@@ -20,7 +27,9 @@ const { execSync } = require("child_process");
 const ROOT = __dirname;
 const DIST = path.join(ROOT, "dist");
 const DIST_PUBLIC = path.join(DIST, "public");
-const SERVER_BUNDLE = path.join(DIST, "_server.js");
+const SERVER_DIR = path.join(DIST, "server");
+const SERVER_ENTRY = path.join(SERVER_DIR, "index.js");
+const LEGACY_BUNDLE = path.join(DIST, "_server.js");
 const CLIENT_ASSETS = path.join(ROOT, ".client-assets");
 
 function log(msg) {
@@ -32,7 +41,6 @@ try {
   log(`NODE_ENV: ${process.env.NODE_ENV || "not set"}`);
   log(`Memory: ${Math.round(os.freemem() / 1024 / 1024)}MB free / ${Math.round(os.totalmem() / 1024 / 1024)}MB total`);
   log(`dist/ exists? ${fs.existsSync(DIST)}`);
-  log(`dist/_server.js exists? ${fs.existsSync(SERVER_BUNDLE)}`);
   log(`.client-assets/ exists? ${fs.existsSync(CLIENT_ASSETS)}`);
 
   // Create dist/
@@ -64,26 +72,42 @@ try {
     );
   }
 
-  // Build server bundle → dist/_server.js
-  log("Building server bundle...");
+  // ═══ PRIMARY BUILD: Code-split server ═══
+  log("Building server (code-split mode)...");
   const t = Date.now();
   try {
+    // Clean previous split output
+    if (fs.existsSync(SERVER_DIR)) {
+      execSync(`rm -rf ${JSON.stringify(SERVER_DIR)}`, { cwd: ROOT, timeout: 30000 });
+    }
     execSync(
-      `npx esbuild server/_core/index.ts --bundle --platform=node --target=node20 --outfile=${JSON.stringify(SERVER_BUNDLE)} --format=esm --packages=external`,
-      { cwd: ROOT, stdio: "inherit", timeout: 120000 }
+      `npx esbuild server/_core/index.ts --bundle --splitting --platform=node --target=node20 --outdir=${JSON.stringify(SERVER_DIR)} --format=esm --packages=external`,
+      { cwd: ROOT, stdio: "inherit", timeout: 180000 }
     );
-    log(`Server built in ${((Date.now() - t) / 1000).toFixed(1)}s.`);
+    const entrySize = fs.existsSync(SERVER_ENTRY) ? fs.statSync(SERVER_ENTRY).size : 0;
+    const chunkCount = fs.readdirSync(SERVER_DIR).filter(f => f.endsWith('.js')).length;
+    log(`Server built (split) in ${((Date.now() - t) / 1000).toFixed(1)}s: entry=${Math.round(entrySize/1024/1024)}MB, ${chunkCount} chunks.`);
   } catch (err) {
-    log(`CRITICAL: esbuild failed: ${err.message}`);
-    // Don't exit non-zero — let the bootstrap handle it at runtime
+    log(`WARNING: Split build failed: ${err.message}. Falling back to single bundle.`);
+    // Fallback: single bundle (legacy mode)
+    try {
+      execSync(
+        `npx esbuild server/_core/index.ts --bundle --platform=node --target=node20 --outfile=${JSON.stringify(LEGACY_BUNDLE)} --format=esm --packages=external`,
+        { cwd: ROOT, stdio: "inherit", timeout: 120000 }
+      );
+      log(`Fallback single-bundle built in ${((Date.now() - t) / 1000).toFixed(1)}s.`);
+    } catch (err2) {
+      log(`CRITICAL: Both build modes failed: ${err2.message}`);
+    }
   }
 
   // Verify
-  const ok = fs.existsSync(SERVER_BUNDLE);
+  const splitOk = fs.existsSync(SERVER_ENTRY);
+  const legacyOk = fs.existsSync(LEGACY_BUNDLE);
   const html = fs.existsSync(path.join(DIST_PUBLIC, "index.html"));
   const bootstrap = fs.existsSync(path.join(DIST, "index.js"));
-  log(`Final: bootstrap=${bootstrap}, server=${ok}${ok ? ` (${Math.round(fs.statSync(SERVER_BUNDLE).size/1024/1024)}MB)` : ""}, html=${html}`);
-  log(ok ? "Build successful!" : "WARNING: _server.js missing. Bootstrap will try to build at startup.");
+  log(`Final: bootstrap=${bootstrap}, split=${splitOk}, legacy=${legacyOk}, html=${html}`);
+  log((splitOk || legacyOk) ? "Build successful!" : "WARNING: No server bundle. Bootstrap will try to build at startup.");
 
   process.exit(0);
 } catch (err) {

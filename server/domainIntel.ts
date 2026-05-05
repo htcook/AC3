@@ -4361,8 +4361,8 @@ export async function runDomainIntelPipeline(
   let incidentSearchResult: PipelineResult['incidentSearch'] | undefined;
   let affiliatedDomainsResult: PipelineResult['affiliatedDomains'] | undefined;
 
-  const { parallelWithRetry } = await import('../shared/retry-with-backoff');
-  const [threatMatchRetry, incidentSearchRetry, affiliatedDomainsRetry] = await parallelWithRetry([
+  const retryMod = await import('../shared/retry-with-backoff');
+  const [threatMatchRetry, incidentSearchRetry, affiliatedDomainsRetry] = await retryMod.parallelWithRetry([
     {
       name: 'Stage 4.5 Threat Matching',
       fn: async () => {

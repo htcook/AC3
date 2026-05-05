@@ -70,11 +70,13 @@ EXPOSE 8080
 ENV NODE_ENV=production
 
 # Set V8 heap ceiling for predictable OOM behavior in containers
-# Default 4096MB (4GB) is tuned for DO App Platform professional-l (8GB RAM)
-# Override via DO App Platform env vars for larger instances:
-#   s-8vcpu-32gb (32GB):   NODE_OPTIONS="--max-old-space-size=8192 --expose-gc"
+# With code splitting, startup memory is ~250MB instead of ~700MB.
+# Default 768MB works for 1GB containers (Manus webdev / Cloud Run).
+# Override via env vars for larger instances:
+#   2GB container:  NODE_OPTIONS="--max-old-space-size=1536 --expose-gc"
+#   8GB container:  NODE_OPTIONS="--max-old-space-size=6144 --expose-gc"
 # --expose-gc allows the memory watchdog to trigger manual garbage collection under pressure
-ENV NODE_OPTIONS="--max-old-space-size=4096 --expose-gc"
+ENV NODE_OPTIONS="--max-old-space-size=768 --expose-gc"
 
 # Start the server
 CMD ["node", "dist/index.js"]
