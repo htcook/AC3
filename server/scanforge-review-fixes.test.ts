@@ -283,7 +283,8 @@ describe("Phase 6 Extraction — Module Structure", () => {
       "utf-8"
     );
     expect(content).toContain("VulnDetectionContext");
-    expect(content).toContain("VulnDetectionHelpers");
+    expect(content).toContain("addLog");
+    expect(content).toContain("broadcastOpsUpdate");
     expect(content).toContain("executeVulnPrep");
     expect(content).toContain("executeNucleiScanning");
     expect(content).toContain("executeZapScanning");
@@ -326,8 +327,9 @@ describe("Phase 6 Extraction — Module Structure", () => {
       const path = `/home/ubuntu/caldera-dashboard/server/lib/vuln-detection/${stub}`;
       expect(fs.existsSync(path)).toBe(true);
       const content = fs.readFileSync(path, "utf-8");
-      // Each stub should have a clear "not yet extracted" error
-      expect(content).toContain("stub should not be called directly");
+      // Each module should export its main execution function (full implementations now)
+      expect(content).toContain("export");
+      expect(content.length).toBeGreaterThan(500);
     }
   });
 });

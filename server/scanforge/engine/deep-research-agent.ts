@@ -89,6 +89,191 @@ export interface ResearchResult {
   analysisResult: Record<string, any>;
 }
 
+// ─── Circuit Breaker ───────────────────────────────────────────────────────
+
+/**
+ * Circuit Breaker Pattern for Feed Adapters
+ * 
+ * Prevents cascading failures when external feed services are unavailable.
+ * Each feed adapter is wrapped with a circuit breaker that:
+ *   - Tracks consecutive failures per feed
+ *   - Trips OPEN after FAILURE_THRESHOLD consecutive failures
+ *   - Remains OPEN for RECOVERY_TIMEOUT_MS before allowing a single probe (HALF_OPEN)
+ *   - Resets to CLOSED on successful probe; returns to OPEN on probe failure
+ *   - Emits metrics for dashboard monitoring
+ *
+ * States:
+ *   CLOSED   → Normal operation, requests pass through
+ *   OPEN     → Feed is considered down, requests fail-fast without calling adapter
+ *   HALF_OPEN → Single probe request allowed to test recovery
+ */
+
+type CircuitState = "closed" | "open" | "half_open";
+
+interface CircuitBreakerState {
+  state: CircuitState;
+  consecutiveFailures: number;
+  lastFailureTime: number;
+  lastSuccessTime: number;
+  totalFailures: number;
+  totalSuccesses: number;
+  totalTrips: number;
+  lastError?: string;
+}
+
+const CIRCUIT_BREAKER_CONFIG = {
+  /** Number of consecutive failures before tripping open */
+  FAILURE_THRESHOLD: 3,
+  /** Time in ms to wait before allowing a probe request (5 minutes) */
+  RECOVERY_TIMEOUT_MS: 5 * 60 * 1000,
+  /** Maximum time a circuit can stay open before forced half-open (30 minutes) */
+  MAX_OPEN_DURATION_MS: 30 * 60 * 1000,
+  /** Timeout for individual adapter calls (30 seconds) */
+  ADAPTER_TIMEOUT_MS: 30_000,
+  /** Slow-start: after recovery, only allow 50% of normal batch size for first cycle */
+  SLOW_START_CYCLES: 2,
+};
+
+const circuitBreakers: Map<string, CircuitBreakerState> = new Map();
+
+function getCircuitBreaker(source: string): CircuitBreakerState {
+  if (!circuitBreakers.has(source)) {
+    circuitBreakers.set(source, {
+      state: "closed",
+      consecutiveFailures: 0,
+      lastFailureTime: 0,
+      lastSuccessTime: Date.now(),
+      totalFailures: 0,
+      totalSuccesses: 0,
+      totalTrips: 0,
+    });
+  }
+  return circuitBreakers.get(source)!;
+}
+
+/**
+ * Check if a circuit breaker allows a request to pass.
+ * Returns true if the request should proceed, false if it should fail-fast.
+ */
+function shouldAllowRequest(source: string): boolean {
+  const cb = getCircuitBreaker(source);
+  const now = Date.now();
+
+  switch (cb.state) {
+    case "closed":
+      return true;
+
+    case "open": {
+      const timeSinceFailure = now - cb.lastFailureTime;
+      // Check if recovery timeout has elapsed → transition to half_open
+      if (timeSinceFailure >= CIRCUIT_BREAKER_CONFIG.RECOVERY_TIMEOUT_MS) {
+        cb.state = "half_open";
+        console.log(`[CircuitBreaker] ${source}: OPEN → HALF_OPEN (recovery probe allowed after ${Math.round(timeSinceFailure / 1000)}s)`);
+        return true;
+      }
+      // Force half-open after MAX_OPEN_DURATION to prevent permanent lockout
+      if (timeSinceFailure >= CIRCUIT_BREAKER_CONFIG.MAX_OPEN_DURATION_MS) {
+        cb.state = "half_open";
+        console.log(`[CircuitBreaker] ${source}: OPEN → HALF_OPEN (forced after max open duration)`);
+        return true;
+      }
+      return false; // Fail-fast
+    }
+
+    case "half_open":
+      // Only one probe at a time — if already probing, reject
+      return true;
+  }
+}
+
+/**
+ * Record a successful adapter call.
+ */
+function recordSuccess(source: string): void {
+  const cb = getCircuitBreaker(source);
+  cb.consecutiveFailures = 0;
+  cb.lastSuccessTime = Date.now();
+  cb.totalSuccesses++;
+
+  if (cb.state === "half_open") {
+    cb.state = "closed";
+    console.log(`[CircuitBreaker] ${source}: HALF_OPEN → CLOSED (probe succeeded)`);
+  }
+}
+
+/**
+ * Record a failed adapter call.
+ */
+function recordFailure(source: string, error: string): void {
+  const cb = getCircuitBreaker(source);
+  cb.consecutiveFailures++;
+  cb.lastFailureTime = Date.now();
+  cb.totalFailures++;
+  cb.lastError = error;
+
+  if (cb.state === "half_open") {
+    // Probe failed — back to open
+    cb.state = "open";
+    cb.totalTrips++;
+    console.log(`[CircuitBreaker] ${source}: HALF_OPEN → OPEN (probe failed: ${error})`);
+  } else if (cb.state === "closed" && cb.consecutiveFailures >= CIRCUIT_BREAKER_CONFIG.FAILURE_THRESHOLD) {
+    cb.state = "open";
+    cb.totalTrips++;
+    console.log(`[CircuitBreaker] ${source}: CLOSED → OPEN (${cb.consecutiveFailures} consecutive failures, last: ${error})`);
+  }
+}
+
+/**
+ * Get circuit breaker metrics for all feeds (for dashboard display).
+ */
+export function getCircuitBreakerMetrics(): Record<string, CircuitBreakerState & { source: string }> {
+  const metrics: Record<string, CircuitBreakerState & { source: string }> = {};
+  for (const [source, state] of circuitBreakers.entries()) {
+    metrics[source] = { ...state, source };
+  }
+  return metrics;
+}
+
+/**
+ * Manually reset a circuit breaker (e.g., after operator confirms feed is back).
+ */
+export function resetCircuitBreaker(source: string): void {
+  const cb = getCircuitBreaker(source);
+  cb.state = "closed";
+  cb.consecutiveFailures = 0;
+  console.log(`[CircuitBreaker] ${source}: Manually reset to CLOSED`);
+}
+
+/**
+ * Wrap an adapter call with circuit breaker + timeout.
+ */
+async function callWithCircuitBreaker(
+  source: string,
+  adapter: () => Promise<ResearchInput[]>
+): Promise<ResearchInput[]> {
+  if (!shouldAllowRequest(source)) {
+    // Fail-fast: circuit is open
+    return [];
+  }
+
+  try {
+    // Add timeout to prevent hanging adapters
+    const result = await Promise.race([
+      adapter(),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error(`Adapter timeout (${CIRCUIT_BREAKER_CONFIG.ADAPTER_TIMEOUT_MS}ms)`)),
+          CIRCUIT_BREAKER_CONFIG.ADAPTER_TIMEOUT_MS)
+      ),
+    ]);
+    recordSuccess(source);
+    return result;
+  } catch (err) {
+    const errorMsg = (err as Error).message || "Unknown error";
+    recordFailure(source, errorMsg);
+    return [];
+  }
+}
+
 // ─── Feed Adapters ──────────────────────────────────────────────────────────
 
 /**
@@ -346,20 +531,27 @@ export async function runResearchCycle(): Promise<{
   let totalTemplates = 0;
   let feedsQueried = 0;
 
-  // Collect inputs from all feeds
+  // Collect inputs from all feeds (with circuit breaker protection)
   const allInputs: ResearchInput[] = [];
+  const skippedFeeds: string[] = [];
   
   for (const [source, adapter] of Object.entries(feedAdapters)) {
-    try {
-      const inputs = await adapter();
-      if (inputs.length > 0) {
-        allInputs.push(...inputs);
-        feedsQueried++;
-        console.log(`[ScanForge Deep Research] ${source}: ${inputs.length} research inputs`);
-      }
-    } catch (err) {
-      console.warn(`[ScanForge Deep Research] ${source} adapter failed:`, (err as Error).message);
+    const cb = getCircuitBreaker(source);
+    if (cb.state === "open" && !shouldAllowRequest(source)) {
+      skippedFeeds.push(source);
+      continue; // Fail-fast: circuit is open
     }
+
+    const inputs = await callWithCircuitBreaker(source, adapter);
+    if (inputs.length > 0) {
+      allInputs.push(...inputs);
+      feedsQueried++;
+      console.log(`[ScanForge Deep Research] ${source}: ${inputs.length} research inputs`);
+    }
+  }
+
+  if (skippedFeeds.length > 0) {
+    console.log(`[ScanForge Deep Research] Skipped ${skippedFeeds.length} feeds (circuit open): ${skippedFeeds.join(", ")}`);
   }
 
   totalInputs = allInputs.length;

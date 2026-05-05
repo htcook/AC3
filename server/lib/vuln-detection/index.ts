@@ -13,7 +13,7 @@
  *
  * Each sub-module receives a VulnDetectionContext that provides access to:
  *   - EngagementOpsState (the mutable state object)
- *   - Shared helpers (addLog, broadcastOpsUpdate, persistOpsStateDebounced, etc.)
+ *   - Shared helpers (addLog, broadcastOpsUpdate, persistScanResult, etc.)
  *   - Engagement metadata
  *   - Operator context
  *
@@ -32,41 +32,56 @@ import type { EngagementOpsState, OpsLogEntry } from "../../../shared/orchestrat
  */
 export interface VulnDetectionContext {
   /** Mutable engagement operations state */
-  state: EngagementOpsState;
+  state: EngagementOpsState & { [key: string]: any };
   /** Engagement record from DB */
   engagement: any;
   /** Operator who triggered the engagement */
   operatorCtx: { id: string; name?: string };
   /** Scan server hostname */
   scanServerHost: string;
-  /** Helper functions from the orchestrator */
-  helpers: VulnDetectionHelpers;
-}
 
-/**
- * Helper functions injected from the orchestrator.
- * These are defined in the orchestrator but needed by sub-modules.
- */
-export interface VulnDetectionHelpers {
-  addLog: (state: EngagementOpsState, entry: Omit<OpsLogEntry, "id" | "timestamp">) => void;
+  // ─── Helper Functions (injected from orchestrator) ───────────────────────
+
+  /** Add a log entry to the engagement state */
+  addLog: (state: any, entry: Omit<OpsLogEntry, "id" | "timestamp"> & { [key: string]: any }) => void;
+  /** Broadcast real-time update to connected clients */
   broadcastOpsUpdate: (engagementId: number, data: Record<string, any>) => void;
+  /** Push a vulnerability finding with dedup check */
   pushVulnDeduped: (asset: any, vuln: any) => boolean;
+  /** Debounced persistence of engagement state */
   persistOpsStateDebounced: (engagementId: number, delayMs?: number) => void;
-  persistScanResult: (opts: {
-    engagementId: number;
-    tool: string;
-    target: string;
-    rawOutput: string;
-    parsedFindings?: any[];
-    scanType?: string;
-  }) => Promise<void>;
-  executeToolViaQueue: typeof import("../job-queue-bridge").executeToolViaQueue;
-  acquireScanSlot: typeof import("../scan-concurrency").acquireScanSlot;
-  getScanConcurrencyMetrics: typeof import("../scan-concurrency").getScanConcurrencyMetrics;
+  /** Persist scan result to database */
+  persistScanResult: (opts: any) => Promise<void>;
+  /** Execute a tool via the job queue bridge */
+  executeToolViaQueue: (config: any, opts?: any) => Promise<any>;
+  /** Acquire a concurrency slot for scanning */
+  acquireScanSlot: (opts?: any) => Promise<any>;
+  /** Get scan concurrency metrics */
+  getScanConcurrencyMetrics: () => any;
+  /** Generate a unique ID */
   genId: () => string;
+  /** Yield to event loop (memory backpressure) */
   breathe: () => Promise<void>;
-  invokeLLM: typeof import("../../_core/llm").invokeLLM;
-  throttledLLMCall: typeof import("../llm-throttle").throttledLLMCall;
+  /** Invoke LLM for decisions */
+  invokeLLM: (opts: any) => Promise<any>;
+  /** Throttled LLM call */
+  throttledLLMCall: (opts: any) => Promise<any>;
+  /** Parse tool output into findings */
+  parseToolOutput: (tool: string, stdout: string, asset: any) => any[];
+  /** Check if target is in RoE scope */
+  isInRoeScope: (state: any, hostname: string, ip?: string) => boolean;
+  /** Request operator approval for risky actions */
+  requestApproval: (state: any, opts: any) => Promise<boolean>;
+  /** Get effective target (IP or hostname based on context) */
+  getEffectiveTarget: (asset: any, context: string) => string;
+  /** Format target for display */
+  fmtTarget: (asset: any) => string;
+  /** LLM decision helper */
+  llmDecide: (opts: any) => Promise<any>;
+  /** Capture training decision */
+  captureDecision: (opts: any) => Promise<void>;
+  /** Score engagement threat attribution */
+  scoreEngagementThreatAttribution: (opts: any) => Promise<any>;
 }
 
 // ─── Sub-Module Exports ──────────────────────────────────────────────────────

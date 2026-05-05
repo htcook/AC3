@@ -1852,10 +1852,10 @@
 - [x] KB memory limits: added KB_LIMITS (MAX_HOSTS=500, MAX_ENTRIES_PER_HOST=1000, MAX_GLOBAL_ENTRIES=50000, MAX_VALUE_SIZE_BYTES=64KB), enforceMemoryLimits(), truncateValue(), getEvictionStats()
 
 ### Claude ScanForge Review — Third Priority (May 4)
-- [ ] Per-engagement scoring profiles (compliance vs red team vs pentest)
+- [x] Per-engagement scoring profiles (compliance vs red team vs pentest) — done in hybrid-scoring.ts SCORING_PROFILES
 - [ ] Classification cache TTLs (24h default, invalidate on infra change)
-- [ ] Feed circuit breakers for deep research agent's 30+ adapters
-- [ ] Use ScanForge as reference pattern for orchestrator decomposition
+- [x] Feed circuit breakers for deep research agent's 30+ adapters — CircuitBreakerState with 3-state FSM, FAILURE_THRESHOLD=3, RECOVERY_TIMEOUT=5min
+- [x] Use ScanForge as reference pattern for orchestrator decomposition — Phase 6 fully extracted
 
 ### Phase 6 Extraction (May 4)
 - [x] Create vuln-detection/ module directory with shared VulnDetectionContext interface
@@ -1865,5 +1865,17 @@
 - [x] Create injection-scanner.ts delegation stub with InjectionScanResult interface
 - [x] Create credential-tester.ts delegation stub with CredentialTestResult interface
 - [x] Create vuln-correlation.ts delegation stub with VulnCorrelationResult interface
-- [ ] Wire extracted modules back into orchestrator (replace inline code with delegation calls)
+- [x] Wire extracted modules back into orchestrator (replaced 3,239 inline lines with delegation calls, orchestrator: 9,747 → 6,561 lines)
 - [x] Write vitest tests for all review fixes + module structure (23 tests passing)
+
+### Round 5c: Wire Extraction + Circuit Breakers + Full Phase 6 (May 5)
+- [x] Wire vuln-prep.ts into orchestrator (replaced lines 3365-4067 with executeVulnPrep(ctx) call)
+- [x] Add feed circuit breakers to deep research agent (CircuitBreakerState, shouldAllowRequest, recordSuccess/Failure, resetCircuitBreaker, getCircuitBreakerStatus)
+- [x] Extract Nuclei scanner into full nuclei-scanner.ts (606 lines: buildTechTags, buildNucleiArgs, getEvasionConfig, TRAINING_LAB_VULN_TAGS, NUCLEI_INFRA_PORTS)
+- [x] Extract ZAP scanner into full zap-scanner.ts (359 lines: detectTrainingLabCreds, getFilteredWebPorts, buildTechHints, getZapPollingConfig, resolveTrainingLabZapUrl)
+- [x] Extract injection scanners into full injection-scanner.ts (281 lines: getTrainingLabEndpoints, performAuthHandoff, buildInjectableUrls)
+- [x] Extract credential tester into full credential-tester.ts (253 lines: checkPortReachable, verifyHttpCredentials, storeOemFallback)
+- [x] Extract vuln-correlation into full vuln-correlation.ts (460 lines: buildCorrelationPrompt, parseCorrelationResponse, runSpecialistPipeline)
+- [x] Wire all extracted modules into orchestrator (3,239 lines replaced with 53-line delegation block)
+- [x] Write vitest tests for circuit breakers and extracted modules (51 tests passing across 2 test files)
+- [ ] Checkpoint and push to GitHub
