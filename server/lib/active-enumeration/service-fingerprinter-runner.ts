@@ -48,13 +48,13 @@ export async function runServiceFingerprinting(
     if (cacheLookup.uncachedPorts.length > 0) {
       const freshResults = await autoFingerprint(target, cacheLookup.uncachedPorts, {
         engagementId: state.engagementId,
-        operatorId: state.operatorId,
+        operatorId: (state as any).operatorId,
         timeoutMs: 10000,
         tryDefaultCreds: (state.scanProfile || "standard") !== "stealth",
       });
       fpResults = [...cacheLookup.cached, ...freshResults];
       if (freshResults.length > 0) {
-        const cacheResult = await cacheFingerprints(target, freshResults, state.engagementId);
+        const cacheResult = await cacheFingerprints(target, freshResults, String(state.engagementId));
         if (cacheResult.cached > 0) {
           console.log(`[FingerprintCache] Cached ${cacheResult.cached} new results for ${target}`);
         }

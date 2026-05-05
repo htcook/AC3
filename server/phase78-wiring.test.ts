@@ -1,7 +1,12 @@
 /**
  * Phase 7 (Exploitation) Wiring + Phase 8 (Post-Exploit) Extraction Tests
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+// Reset module registry between tests to prevent stale cached imports
+beforeEach(() => {
+  vi.resetModules();
+});
 
 describe('Phase 7: Exploitation Sub-Modules', () => {
   describe('credential-harvester', () => {

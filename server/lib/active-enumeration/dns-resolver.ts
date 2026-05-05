@@ -53,7 +53,7 @@ export async function resolveAssetDns(
       ];
       const hostnameBase = hostname.split(".")[0]?.toLowerCase() || "";
       const isLabOnScanServer =
-        state.engagementType === "training_lab" ||
+        (state.engagementType as string) === "training_lab" ||
         (asset.passiveRecon as any)?.liveInstanceUrl?.includes(SCAN_SERVER_DOMAIN) ||
         (asset.passiveRecon as any)?.liveInstanceUrl?.includes(scanServerHost) ||
         (hostname.endsWith(".aceofcloud.io") && knownLabSubdomains.includes(hostnameBase)) ||

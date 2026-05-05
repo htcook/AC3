@@ -258,7 +258,7 @@ async function buildToolCommandList(
       purpose: c.purpose,
       priority: c.priority,
     }));
-    const toolNames = [...new Set(cmdsToRun.map((c) => c.tool))];
+    const toolNames = Array.from(new Set(cmdsToRun.map((c) => c.tool)));
     addLog(state, {
       phase: "enumeration",
       type: "tool_match",

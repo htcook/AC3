@@ -167,9 +167,9 @@ export async function runHttpxProbing(
     // Enrich asset passiveRecon with httpx data
     if (asset.passiveRecon) {
       if (techDetected.length > 0) {
-        asset.passiveRecon.technologies = [
-          ...new Set([...(asset.passiveRecon.technologies || []), ...techDetected]),
-        ];
+        asset.passiveRecon.technologies = Array.from(
+          new Set([...(asset.passiveRecon.technologies || []), ...techDetected])
+        );
       }
       if (cdnDetected.length > 0) {
         asset.passiveRecon.riskSignals = [
@@ -178,9 +178,9 @@ export async function runHttpxProbing(
         ];
       }
       if (webServer) {
-        asset.passiveRecon.technologies = [
-          ...new Set([...(asset.passiveRecon.technologies || []), webServer]),
-        ];
+        asset.passiveRecon.technologies = Array.from(
+          new Set([...(asset.passiveRecon.technologies || []), webServer])
+        );
       }
       if (Object.keys(responseHeaders).length > 0) {
         (asset as any).httpxResponseHeaders = { ...(asset as any).httpxResponseHeaders, ...responseHeaders };

@@ -51,7 +51,8 @@ export async function runCloudAssetDetection(
 
       if (detection.isCloudHosted) {
         cloudAssetsFound++;
-        (asset as any).cloudProviders = detection.providers;
+        const providers = Array.from(new Set(detection.signatures.map((s: any) => s.provider)));
+        (asset as any).cloudProviders = providers;
         (asset as any).cloudServices = detection.signatures.map(
           (s: any) => `${s.provider}:${s.service}`
         );
@@ -60,24 +61,24 @@ export async function runCloudAssetDetection(
           phase: "enumeration",
           type: "finding",
           title: `☁️ Cloud Asset: ${asset.hostname}`,
-          detail: `Providers: ${detection.providers.join(", ")}\nServices: ${detection.signatures.map((s: any) => `${s.provider} ${s.service} (${s.confidence})`).join(", ")}\nStorage endpoints: ${detection.storageEndpoints.length}`,
+          detail: `Providers: ${providers.join(", ")}\nServices: ${detection.signatures.map((s: any) => `${s.provider} ${s.service} (${s.confidence})`).join(", ")}\nStorage endpoints: ${detection.storageEndpoints.length}`,
           data: { cloudDetection: detection },
         });
 
         // Run cloud storage scans if endpoints found
-        if (detection.storageEndpoints.length > 0 || detection.scanSuggestions.length > 0) {
+        if (detection.storageEndpoints.length > 0 || detection.suggestedScans.length > 0) {
           cloudStorageEndpoints += detection.storageEndpoints.length;
           helpers.addLog({
             phase: "enumeration",
             type: "scan_start",
             title: `☁️ Cloud Storage Scan: ${asset.hostname}`,
-            detail: `Running ${detection.scanSuggestions.length} cloud-specific scans (${detection.storageEndpoints.join(", ")})`,
+            detail: `Running ${detection.suggestedScans.length} cloud-specific scans (${detection.storageEndpoints.join(", ")})`,
           });
 
           try {
             const scanResult = await executeCloudStorageScan(
               asset.hostname,
-              detection.scanSuggestions,
+              detection.suggestedScans,
               { maxScans: 5, timeoutSeconds: 120, engagementId: state.engagementId }
             );
 
@@ -94,7 +95,7 @@ export async function runCloudAssetDetection(
                   id: `cloud-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
                   severity: finding.severity,
                   title: `[Cloud] ${finding.title}`,
-                  cve: finding.cve,
+                  cve: (finding as any).cve,
                   description: finding.description,
                   corroborationTier: "confirmed",
                   evidenceDetail: `Confirmed by cloud security scan`,
@@ -145,7 +146,7 @@ export async function runCloudAssetDetection(
         ? `☁️ Cloud Detection Complete — ${cloudAssetsFound} cloud assets, ${cloudFindings.length} findings`
         : "☁️ Cloud Detection — No cloud assets detected",
       detail: cloudAssetsFound > 0
-        ? `Providers: ${[...new Set(cloudFindings.map((f) => f.provider))].join(", ")}\nFindings: ${JSON.stringify(severity_counts)}\nStorage endpoints scanned: ${cloudStorageEndpoints}`
+        ? `Providers: ${Array.from(new Set(cloudFindings.map((f) => f.provider))).join(", ")}\nFindings: ${JSON.stringify(severity_counts)}\nStorage endpoints scanned: ${cloudStorageEndpoints}`
         : "No cloud-hosted infrastructure identified in discovery results. Proceeding to Phase B.",
     });
   } catch (cloudDetectErr: any) {

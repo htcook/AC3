@@ -1905,3 +1905,9 @@
 - [x] Write vitest tests for Phase 5 extraction (21 tests passing)
 - [x] All 51 tests passing across phase5 + phase78 test files (no regressions)
 - [x] Checkpoint and push to GitHub
+### Round 5g: Thin Orchestrator Wiring + Test Isolation Fix (May 5)
+- [x] Rewrite engagement-phase-enumeration.ts as thin orchestrator (~110 lines) delegating to sub-modules
+- [x] Fix flaky buildExploitContextBlocks test with vi.resetModules() isolation
+- [x] Fix TS errors in sub-modules (Set iteration → Array.from, CloudDetectionResult property names, type casts)
+- [x] All 102 tests passing across 4 test files (no regressions)
+- [x] Checkpoint and push to GitHub
