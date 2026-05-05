@@ -1879,3 +1879,11 @@
 - [x] Wire all extracted modules into orchestrator (3,239 lines replaced with 53-line delegation block)
 - [x] Write vitest tests for circuit breakers and extracted modules (51 tests passing across 2 test files)
 - [ ] Checkpoint and push to GitHub
+
+### Round 5d: Cache TTLs + Phase 7 Extraction + Integration Tests (May 5)
+- [x] Implement classification cache with 24h default TTL (ClassificationCache<T> with TTL-aware get/set, LRU eviction at 2000 entries)
+- [x] Add cache invalidation on infrastructure change detection (onInfrastructureChange: dns_change, provider_change, jarm_change, cloud_migration, cdn_change, certificate_change)
+- [x] Add cache stats/monitoring helpers (getStats(), invalidateTarget(), invalidateByPattern(), invalidateAll())
+- [x] Extract Phase 7 (Exploitation) into sub-modules: credential-harvester.ts, exploit-planner.ts, target-selector.ts, exploit-executor.ts, evidence-collector.ts
+- [x] Write integration tests for Phase 6 delegation chain (39 tests: module structure, vuln-prep execution, nuclei/zap/injection/credential/correlation interfaces, delegation state flow, exploitation sub-modules, circuit breaker, cache TTL)
+- [ ] Checkpoint and push to GitHub

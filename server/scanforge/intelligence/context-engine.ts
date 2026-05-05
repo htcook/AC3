@@ -44,10 +44,140 @@ async function getLLM() {
   return invokeLLM;
 }
 
+// ─── Classification Cache with TTL ───────────────────────────────────────
+
+interface CacheEntry<T> {
+  value: T;
+  cachedAt: number;
+  ttlMs: number;
+  infraVersion: number; // Tracks infrastructure changes for invalidation
+}
+
+const CACHE_CONFIG = {
+  /** Default TTL for classification results: 24 hours */
+  DEFAULT_TTL_MS: 24 * 60 * 60 * 1000,
+  /** Reduced TTL for low-confidence classifications: 4 hours */
+  LOW_CONFIDENCE_TTL_MS: 4 * 60 * 60 * 1000,
+  /** TTL for heuristic (non-LLM) classifications: 1 hour */
+  HEURISTIC_TTL_MS: 1 * 60 * 60 * 1000,
+  /** Confidence threshold below which reduced TTL applies */
+  LOW_CONFIDENCE_THRESHOLD: 50,
+  /** Maximum cache entries before LRU eviction */
+  MAX_ENTRIES: 2000,
+} as const;
+
+class ClassificationCache<T> {
+  private entries: Map<string, CacheEntry<T>> = new Map();
+  private infraVersion = 0;
+  private stats = { hits: 0, misses: 0, evictions: 0, invalidations: 0 };
+
+  get(key: string): T | undefined {
+    const entry = this.entries.get(key);
+    if (!entry) {
+      this.stats.misses++;
+      return undefined;
+    }
+    // Check TTL expiry
+    if (Date.now() - entry.cachedAt > entry.ttlMs) {
+      this.entries.delete(key);
+      this.stats.misses++;
+      return undefined;
+    }
+    // Check infrastructure version (invalidate if infra changed since caching)
+    if (entry.infraVersion < this.infraVersion) {
+      this.entries.delete(key);
+      this.stats.invalidations++;
+      return undefined;
+    }
+    this.stats.hits++;
+    return entry.value;
+  }
+
+  set(key: string, value: T, ttlMs: number = CACHE_CONFIG.DEFAULT_TTL_MS): void {
+    // LRU eviction if at capacity
+    if (this.entries.size >= CACHE_CONFIG.MAX_ENTRIES) {
+      const oldestKey = this.entries.keys().next().value;
+      if (oldestKey) {
+        this.entries.delete(oldestKey);
+        this.stats.evictions++;
+      }
+    }
+    this.entries.set(key, {
+      value,
+      cachedAt: Date.now(),
+      ttlMs,
+      infraVersion: this.infraVersion,
+    });
+  }
+
+  /**
+   * Invalidate all entries for a specific target (e.g., when infrastructure change detected).
+   * Use when a specific host's infrastructure is known to have changed.
+   */
+  invalidateTarget(targetKey: string): void {
+    const deleted = this.entries.delete(targetKey);
+    if (deleted) this.stats.invalidations++;
+  }
+
+  /**
+   * Invalidate ALL cached classifications globally.
+   * Use when a broad infrastructure change is detected (e.g., cloud migration,
+   * new CDN deployment, DNS changes affecting multiple targets).
+   */
+  invalidateAll(): void {
+    this.infraVersion++;
+    this.stats.invalidations += this.entries.size;
+    // Don't delete entries — they'll be lazily invalidated on next access
+    // This avoids thundering herd on re-classification
+  }
+
+  /**
+   * Signal that infrastructure has changed for a subset of targets matching a pattern.
+   * Useful for invalidating all targets in a specific domain or subnet.
+   */
+  invalidateByPattern(pattern: RegExp): number {
+    let count = 0;
+    for (const key of this.entries.keys()) {
+      if (pattern.test(key)) {
+        this.entries.delete(key);
+        count++;
+      }
+    }
+    this.stats.invalidations += count;
+    return count;
+  }
+
+  /** Get cache statistics for monitoring */
+  getStats() {
+    const now = Date.now();
+    let expired = 0;
+    for (const entry of this.entries.values()) {
+      if (now - entry.cachedAt > entry.ttlMs) expired++;
+    }
+    return {
+      ...this.stats,
+      size: this.entries.size,
+      expired,
+      hitRate: this.stats.hits + this.stats.misses > 0
+        ? (this.stats.hits / (this.stats.hits + this.stats.misses) * 100).toFixed(1) + "%"
+        : "N/A",
+      infraVersion: this.infraVersion,
+    };
+  }
+
+  /** Clear all entries and reset stats */
+  clear(): void {
+    this.entries.clear();
+    this.stats = { hits: 0, misses: 0, evictions: 0, invalidations: 0 };
+  }
+}
+
 // ─── Context Engine ───────────────────────────────────────────────────────
 
+export { CACHE_CONFIG, ClassificationCache };
+
 export class ContextEngine {
-  private classificationCache: Map<string, AssetClassification> = new Map();
+  private classificationCache = new ClassificationCache<AssetClassification>();
   private initialized = false;
 
   async initialize(): Promise<void> {
@@ -77,21 +207,24 @@ export class ContextEngine {
       banners?: string[];
     }
   ): Promise<AssetClassification> {
-    // Check cache first
+    // Check cache first (TTL-aware with infrastructure version tracking)
     const cacheKey = `${target.value}:${target.type}`;
     const cached = this.classificationCache.get(cacheKey);
     if (cached) return cached;
-
     // Try LLM classification first
     try {
       const llm = await getLLM();
       const classification = await this.llmClassify(llm, target, reconData);
-      this.classificationCache.set(cacheKey, classification);
+      // Use reduced TTL for low-confidence results
+      const ttl = classification.confidence < CACHE_CONFIG.LOW_CONFIDENCE_THRESHOLD
+        ? CACHE_CONFIG.LOW_CONFIDENCE_TTL_MS
+        : CACHE_CONFIG.DEFAULT_TTL_MS;
+      this.classificationCache.set(cacheKey, classification, ttl);
       return classification;
     } catch {
-      // Fall back to heuristic classification
+      // Fall back to heuristic classification (shorter TTL since less reliable)
       const classification = this.heuristicClassify(target, reconData);
-      this.classificationCache.set(cacheKey, classification);
+      this.classificationCache.set(cacheKey, classification, CACHE_CONFIG.HEURISTIC_TTL_MS);
       return classification;
     }
   }
@@ -1103,15 +1236,80 @@ export class ContextEngine {
     const baseScore = finding.riskScore?.composite || 50;
     return Math.min(100, Math.round(baseScore * modifier));
   }
+
+  // ─── Cache Management (public API for external invalidation triggers) ────
+
+  /**
+   * Invalidate classification cache for a specific target.
+   * Call when infrastructure change is detected for a single host.
+   */
+  invalidateClassification(targetValue: string, targetType: string): void {
+    this.classificationCache.invalidateTarget(`${targetValue}:${targetType}`);
+  }
+
+  /**
+   * Invalidate all classifications matching a domain/subnet pattern.
+   * Call when DNS changes, CDN migration, or cloud provider changes affect multiple targets.
+   */
+  invalidateByDomain(domainPattern: string): number {
+    return this.classificationCache.invalidateByPattern(new RegExp(domainPattern.replace(/\./g, "\\.").replace(/\*/g, ".*")));
+  }
+
+  /**
+   * Invalidate ALL cached classifications (global infrastructure change).
+   * Uses version bumping to avoid thundering herd.
+   */
+  invalidateAllClassifications(): void {
+    this.classificationCache.invalidateAll();
+  }
+
+  /** Get cache statistics for monitoring and dashboards */
+  getCacheStats() {
+    return this.classificationCache.getStats();
+  }
 }
 
-// ─── Singleton ─────────────────────────────────────────────────────────────
-
+// ─── Singleton ─────────────────────────────────────────────────────────────────
 let _contextEngine: ContextEngine | null = null;
-
 export function getContextEngine(): ContextEngine {
   if (!_contextEngine) {
     _contextEngine = new ContextEngine();
   }
   return _contextEngine;
+}
+
+// ─── Infrastructure Change Hooks ───────────────────────────────────────────
+
+/**
+ * Call this when infrastructure changes are detected (DNS, JARM, provider changes).
+ * Automatically invalidates relevant cached classifications so the next scan
+ * re-classifies the target with fresh data.
+ *
+ * Integration points:
+ *   - JARM history change detection (jarm-history.ts: provider_change, c2_appearance)
+ *   - DNS change signals (carver-feedback-loop.ts: dns_change)
+ *   - Domain intelligence re-scan (domainIntel.ts: new infrastructure data)
+ */
+export function onInfrastructureChange(event: {
+  type: "dns_change" | "provider_change" | "jarm_change" | "cloud_migration" | "cdn_change" | "certificate_change";
+  targets?: string[];  // Specific affected targets
+  domain?: string;     // Domain pattern for broad invalidation
+}): void {
+  const engine = getContextEngine();
+  if (event.targets && event.targets.length > 0) {
+    // Targeted invalidation for specific hosts
+    for (const target of event.targets) {
+      engine.invalidateClassification(target, "domain");
+      engine.invalidateClassification(target, "ip");
+    }
+    console.log(`[ContextEngine] Cache invalidated for ${event.targets.length} targets (${event.type})`);
+  } else if (event.domain) {
+    // Pattern-based invalidation for domain-wide changes
+    const count = engine.invalidateByDomain(event.domain);
+    console.log(`[ContextEngine] Cache invalidated ${count} entries matching ${event.domain} (${event.type})`);
+  } else {
+    // Global invalidation for broad infrastructure changes
+    engine.invalidateAllClassifications();
+    console.log(`[ContextEngine] Global cache invalidation triggered (${event.type})`);
+  }
 }
