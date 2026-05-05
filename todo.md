@@ -493,7 +493,7 @@
 - [ ] Fix exploit execution and result verification
 - [ ] Ensure LLM can independently identify, create, and run exploits
 - [ ] Write vitest tests for exploit workflow fixes
-- [ ] Checkpoint and push to GitHub
+- [x] Checkpoint and push to GitHub
 
 ### Nuclei-Verified Exploit Promotion (Apr 26)
 - [x] Define criteria for Nuclei findings that qualify as verified exploits (data extraction, command execution, injection proof)
@@ -526,7 +526,7 @@
 - [x] Fix Burp extractScopeUrls to include both HTTP and HTTPS for targetDomain and discovered assets
 - [ ] Deploy fix and re-run Broken Crystals engagement to validate
 - [ ] Verify promotion logic fires with actual scanner findings
-- [ ] Checkpoint and push to GitHub
+- [x] Checkpoint and push to GitHub
 
 ### Delete Pipeline Test Engagement (Apr 26)
 - [x] Delete engagement #1830001 (Pipeline Test — Full Stack Validation) with live sites
@@ -1832,7 +1832,7 @@
 - [x] Fix duplicate parallelWithRetry import in domainIntel.ts
 - [ ] Extract Phase 6 (vulnerability scanning) from orchestrator into own module
 - [ ] Write vitest tests for Phase 6 extraction
-- [ ] Checkpoint and push to GitHub
+- [x] Checkpoint and push to GitHub
 
 ### ScanForge Analysis for Claude (May 4)
 - [x] Gather architecture data from all ScanForge modules (23,663 lines across 38 modules)
@@ -1878,7 +1878,7 @@
 - [x] Extract vuln-correlation into full vuln-correlation.ts (460 lines: buildCorrelationPrompt, parseCorrelationResponse, runSpecialistPipeline)
 - [x] Wire all extracted modules into orchestrator (3,239 lines replaced with 53-line delegation block)
 - [x] Write vitest tests for circuit breakers and extracted modules (51 tests passing across 2 test files)
-- [ ] Checkpoint and push to GitHub
+- [x] Checkpoint and push to GitHub
 
 ### Round 5d: Cache TTLs + Phase 7 Extraction + Integration Tests (May 5)
 - [x] Implement classification cache with 24h default TTL (ClassificationCache<T> with TTL-aware get/set, LRU eviction at 2000 entries)
@@ -1886,4 +1886,13 @@
 - [x] Add cache stats/monitoring helpers (getStats(), invalidateTarget(), invalidateByPattern(), invalidateAll())
 - [x] Extract Phase 7 (Exploitation) into sub-modules: credential-harvester.ts, exploit-planner.ts, target-selector.ts, exploit-executor.ts, evidence-collector.ts
 - [x] Write integration tests for Phase 6 delegation chain (39 tests: module structure, vuln-prep execution, nuclei/zap/injection/credential/correlation interfaces, delegation state flow, exploitation sub-modules, circuit breaker, cache TTL)
-- [ ] Checkpoint and push to GitHub
+- [x] Checkpoint and push to GitHub
+### Round 5e: Phase 7 Wiring + Phase 8 Extraction (May 5)
+- [x] Wire Phase 7 credential-harvester and evidence-collector into engagement-phase-exploitation.ts (1,441 → 1,220 lines)
+- [x] Create Phase 8 sub-modules: c2-deployer.ts, operation-launcher.ts, c2-poller.ts, evidence-capture.ts
+- [x] Wire Phase 8 into engagement-phase-post-exploit.ts (748 → 120 lines, full delegation)
+- [x] Add getDeploymentConfig export to c2-deployer.ts
+- [x] Fix exploit-planner.ts defensive ports handling (a.ports || [])
+- [x] Write phase78-wiring.test.ts (30 tests: credential-harvester, exploit-planner, target-selector, exploit-executor, evidence-collector, c2-deployer, operation-launcher, c2-poller, evidence-capture, wiring integrity)
+- [x] All 30 tests passing
+- [x] Checkpoint and push to GitHub
