@@ -1811,3 +1811,12 @@
 - [x] Add RoE scope enforcement to Phase 7 exploitation (matching Phase 5 isInRoeScope pattern)
 - [x] Write vitest tests for Phase 2 changes (27 tests, 60 total passing)
 - [x] Checkpoint and push to GitHub
+
+### Architecture Remediation Round 3 (May 4)
+- [x] Create shared/orchestrator-types.ts to break circular import (EngagementOpsState, AssetStatus, fmtTarget, isInRoeScope)
+- [x] Migrate engagement-phase-exploitation.ts to import types from shared module
+- [ ] Migrate engagement-phase-social-engineering.ts to import types from shared module (deferred - uses own simplified type)
+- [x] Extract Phase 8 (post-exploitation/C2, 710 lines) into engagement-phase-post-exploit.ts
+- [x] Add structured retry with exponential backoff (shared/retry-with-backoff.ts) for Stage 4.5+4.55+4.6
+- [x] Write vitest tests for all changes (86 tests total passing across 3 test files)
+- [x] Checkpoint and push to GitHub

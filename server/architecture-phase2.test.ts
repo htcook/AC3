@@ -144,8 +144,9 @@ describe("Scope Enforcement Parity (Phase 5 vs Phase 7)", () => {
     expect(exploitContent).toContain("state.assets = originalAssets;");
   });
 
-  it("Phase 7 should import isInRoeScope from the orchestrator", () => {
-    expect(exploitContent).toContain("isInRoeScope,");
+  it("Phase 7 should import isInRoeScope from shared types (breaks circular import)", () => {
+    expect(exploitContent).toContain("isInRoeScope");
+    expect(exploitContent).toContain('from "../../shared/orchestrator-types"');
   });
 
   it("Both phases should use the same isInRoeScope function signature", () => {

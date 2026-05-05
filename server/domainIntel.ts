@@ -4348,63 +4348,80 @@ export async function runDomainIntelPipeline(
   let incidentSearchResult: PipelineResult['incidentSearch'] | undefined;
   let affiliatedDomainsResult: PipelineResult['affiliatedDomains'] | undefined;
 
-  const [threatMatchSettled, incidentSearchSettled, affiliatedDomainsSettled] = await Promise.allSettled([
-    // Stage 4.5: Threat Actor Matching
-    (async () => {
-      const result = runDIThreatMatching(analyses, org, kevEnrichment, crossModuleEnrichment);
-      console.log(`[DomainIntel] Threat Matching: ${result.summary.totalMatched} groups matched (top: ${result.summary.topGroupName || 'none'}, score: ${result.summary.topGroupScore}), ${result.summary.totalAttackPaths} attack paths, ${result.summary.uniqueTechniques} techniques`);
-      return result;
-    })(),
-    // Stage 4.55: Incident Search Enrichment
-    (async () => {
-      const { runIncidentSearchEnrichment } = await import('./lib/incident-search-enrichment');
-      console.log(`[DomainIntel] Stage 4.55: Running incident search enrichment for ${org.primaryDomain}`);
-      const isResult = await runIncidentSearchEnrichment(org.primaryDomain);
-      console.log(
-        `[DomainIntel] Incident search: ${isResult.totalMatches} matches ` +
-        `(${isResult.catalogMatches.length} catalog, ${isResult.webSearchMatches.length} web), ` +
-        `ransomware=${isResult.hasRansomwareEvent}, breach=${isResult.hasRecentBreach}, ` +
-        `risk floor contribution=${isResult.riskFloorContribution}`
-      );
-      // Stage 4.56: Auto-ingest new actors/TTPs/IOCs back into threat catalog
-      let ingestResult: any;
-      try {
-        const { ingestIncidentSearchResults } = await import('./lib/incident-search-ingest');
-        ingestResult = await ingestIncidentSearchResults(
-          isResult.catalogMatches,
-          isResult.webSearchMatches,
-          org.primaryDomain
+  const { parallelWithRetry } = await import('../shared/retry-with-backoff');
+  const [threatMatchRetry, incidentSearchRetry, affiliatedDomainsRetry] = await parallelWithRetry([
+    {
+      name: 'Stage 4.5 Threat Matching',
+      fn: async () => {
+        const result = runDIThreatMatching(analyses, org, kevEnrichment, crossModuleEnrichment);
+        console.log(`[DomainIntel] Threat Matching: ${result.summary.totalMatched} groups matched (top: ${result.summary.topGroupName || 'none'}, score: ${result.summary.topGroupScore}), ${result.summary.totalAttackPaths} attack paths, ${result.summary.uniqueTechniques} techniques`);
+        return result;
+      },
+      options: { maxRetries: 2, initialDelayMs: 500 }, // Threat matching is CPU-bound, fewer retries
+    },
+    {
+      name: 'Stage 4.55 Incident Search',
+      fn: async () => {
+        const { runIncidentSearchEnrichment } = await import('./lib/incident-search-enrichment');
+        console.log(`[DomainIntel] Stage 4.55: Running incident search enrichment for ${org.primaryDomain}`);
+        const isResult = await runIncidentSearchEnrichment(org.primaryDomain);
+        console.log(
+          `[DomainIntel] Incident search: ${isResult.totalMatches} matches ` +
+          `(${isResult.catalogMatches.length} catalog, ${isResult.webSearchMatches.length} web), ` +
+          `ransomware=${isResult.hasRansomwareEvent}, breach=${isResult.hasRecentBreach}, ` +
+          `risk floor contribution=${isResult.riskFloorContribution}`
         );
-      } catch (ingestErr: any) {
-        console.error(`[DomainIntel] Stage 4.56 auto-ingest failed (non-fatal): ${ingestErr.message}`);
-      }
-      return { isResult, ingestResult };
-    })(),
-    // Stage 4.6: Affiliated Domain Discovery
-    (async () => {
-      const { runAffiliatedDomainDiscovery } = await import('./lib/affiliated-domain-discovery');
-      console.log(`[DomainIntel] Stage 4.6: Running affiliated domain discovery for ${org.primaryDomain}`);
-      const adResult = await runAffiliatedDomainDiscovery(
-        org.primaryDomain,
-        org.companyName || null
-      );
-      console.log(
-        `[DomainIntel] Affiliated domains: ${adResult.totalDiscovered} discovered ` +
-        `(registrant: ${adResult.registrantOrg || 'unknown'})`
-      );
-      return adResult;
-    })(),
+        // Stage 4.56: Auto-ingest new actors/TTPs/IOCs back into threat catalog
+        let ingestResult: any;
+        try {
+          const { ingestIncidentSearchResults } = await import('./lib/incident-search-ingest');
+          ingestResult = await ingestIncidentSearchResults(
+            isResult.catalogMatches,
+            isResult.webSearchMatches,
+            org.primaryDomain
+          );
+        } catch (ingestErr: any) {
+          console.error(`[DomainIntel] Stage 4.56 auto-ingest failed (non-fatal): ${ingestErr.message}`);
+        }
+        return { isResult, ingestResult };
+      },
+      options: { maxRetries: 3, initialDelayMs: 1500 }, // I/O-bound, more retries with longer backoff
+    },
+    {
+      name: 'Stage 4.6 Affiliated Domains',
+      fn: async () => {
+        const { runAffiliatedDomainDiscovery } = await import('./lib/affiliated-domain-discovery');
+        console.log(`[DomainIntel] Stage 4.6: Running affiliated domain discovery for ${org.primaryDomain}`);
+        const adResult = await runAffiliatedDomainDiscovery(
+          org.primaryDomain,
+          org.companyName || null
+        );
+        console.log(
+          `[DomainIntel] Affiliated domains: ${adResult.totalDiscovered} discovered ` +
+          `(registrant: ${adResult.registrantOrg || 'unknown'})`
+        );
+        return adResult;
+      },
+      options: { maxRetries: 3, initialDelayMs: 1000 }, // WHOIS/DNS lookups can be flaky
+    },
   ]);
 
-  // Unpack results
-  if (threatMatchSettled.status === 'fulfilled') {
-    threatMatchingResult = threatMatchSettled.value;
-  } else {
-    console.error(`[DomainIntel] Threat matching failed (non-fatal): ${threatMatchSettled.reason?.message}`);
+  // Log retry statistics
+  for (const r of [threatMatchRetry, incidentSearchRetry, affiliatedDomainsRetry]) {
+    if (r.retried) {
+      console.log(`[DomainIntel] Retry stats: ${r.attempts} attempts, ${r.totalDurationMs}ms total, success=${r.success}`);
+    }
   }
 
-  if (incidentSearchSettled.status === 'fulfilled') {
-    const { isResult, ingestResult } = incidentSearchSettled.value;
+  // Unpack results (using RetryResult format)
+  if (threatMatchRetry.success && threatMatchRetry.value) {
+    threatMatchingResult = threatMatchRetry.value;
+  } else {
+    console.error(`[DomainIntel] Threat matching failed after ${threatMatchRetry.attempts} attempt(s): ${threatMatchRetry.error?.message}`);
+  }
+
+  if (incidentSearchRetry.success && incidentSearchRetry.value) {
+    const { isResult, ingestResult } = incidentSearchRetry.value;
     incidentSearchResult = {
       domain: isResult.domain,
       searchedAt: isResult.searchedAt,
@@ -4429,11 +4446,11 @@ export async function runDomainIntelPipeline(
       };
     }
   } else {
-    console.error(`[DomainIntel] Stage 4.55 incident search failed (non-fatal): ${incidentSearchSettled.reason?.message}`);
+    console.error(`[DomainIntel] Stage 4.55 incident search failed after ${incidentSearchRetry.attempts} attempt(s): ${incidentSearchRetry.error?.message}`);
   }
 
-  if (affiliatedDomainsSettled.status === 'fulfilled') {
-    const adResult = affiliatedDomainsSettled.value;
+  if (affiliatedDomainsRetry.success && affiliatedDomainsRetry.value) {
+    const adResult = affiliatedDomainsRetry.value;
     affiliatedDomainsResult = {
       targetDomain: adResult.targetDomain,
       searchedAt: adResult.searchedAt,
@@ -4453,7 +4470,7 @@ export async function runDomainIntelPipeline(
       summary: adResult.summary,
     };
   } else {
-    console.error(`[DomainIntel] Stage 4.6 affiliated domain discovery failed (non-fatal): ${affiliatedDomainsSettled.reason?.message}`);
+    console.error(`[DomainIntel] Stage 4.6 affiliated domain discovery failed after ${affiliatedDomainsRetry.attempts} attempt(s): ${affiliatedDomainsRetry.error?.message}`);
   }
 
   // (Stages 4.55 + 4.6 are now parallelized above with Stage 4.5)
