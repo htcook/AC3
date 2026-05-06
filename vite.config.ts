@@ -67,12 +67,12 @@ function katexCdnPlugin(): Plugin {
  *   - The browser fetches the library from esm.sh on first use (cached by browser).
  *   - In DEV mode, the plugin is inactive — local node_modules are used as normal.
  */
+// NOTE: CDN externals completely disabled.
+// esm.sh is unreliable (CORS/network failures on production),
+// causing dynamic imports to hang indefinitely with no error.
+// All libraries (jspdf, jspdf-autotable, mermaid) are now bundled directly.
 const CDN_MAP: Record<string, string> = {
-  mermaid: "https://esm.sh/mermaid@11.12.0",
-  // NOTE: jspdf and jspdf-autotable removed from CDN externals.
-  // esm.sh is unreliable (CORS/network failures on production),
-  // causing the Report PDF button to hang indefinitely.
-  // These are now bundled directly (~413KB gzipped) via dynamic import.
+  // Previously: mermaid, jspdf, jspdf-autotable → all removed
 };
 
 function cdnExternalPlugin(): Plugin {
