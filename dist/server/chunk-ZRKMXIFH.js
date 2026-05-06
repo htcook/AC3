@@ -212,6 +212,7 @@ Return valid JSON only.`
               },
               prioritizedRecommendations: {
                 type: "array",
+                minItems: 3,
                 items: {
                   type: "object",
                   properties: {

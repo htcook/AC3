@@ -97,7 +97,7 @@ async function recoverScan(scanId) {
       console.log(
         `[ScanRecovery] Auto-retrying scan ${scanId} (${scan.primaryDomain}), attempt ${newRetryCount}/${MAX_AUTO_RETRIES}`
       );
-      const { runDomainIntelPipeline } = await import("./domainIntel-AWSEIT5Q.js");
+      const { runDomainIntelPipeline } = await import("./domainIntel-U7BUZENM.js");
       const result = await runDomainIntelPipeline(
         {
           customerName: orgProfile?.customerName || scan.primaryDomain,

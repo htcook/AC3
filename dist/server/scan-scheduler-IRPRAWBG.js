@@ -103,7 +103,7 @@ async function triggerScheduledScan(monitor) {
       createdBy: monitor.createdBy
     });
     run.scanId = scanId;
-    const { runDomainIntelPipeline } = await import("./domainIntel-AWSEIT5Q.js");
+    const { runDomainIntelPipeline } = await import("./domainIntel-U7BUZENM.js");
     const result = await runDomainIntelPipeline(
       {
         customerName: monitor.domain,
