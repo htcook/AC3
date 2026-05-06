@@ -2156,3 +2156,13 @@
 - [x] Wire telemetry into graduation engine (runGraduationWithTelemetry, computeGraduationHealth, diagnostic section)
 - [x] Write vitest tests for graduation-telemetry integration (29 tests, 99 total Sprint 11C)
 - [x] Save checkpoint
+
+### Sprint 11D — Lateral Movement Module (May 6)
+- [x] Build lateral-movement.ts core (credential harvesting, pivot execution, multi-hop tracking)
+- [x] Implement credential harvesting from compromised hosts (files, memory, config, SMB shares)
+- [x] Implement pivot execution (SSH, SMB, WinRM, RDP credential reuse)
+- [x] Implement multi-hop tracking with evidence chain (pivot graph, hop metadata)
+- [x] Wire lateral movement into engagement pipeline (post-exploit → lateral → C2 on new host)
+- [x] Integrate with telemetry system (emit events for each pivot attempt/success/failure)
+- [x] Write vitest tests for lateral movement module (44 tests passing)
+- [x] Save checkpoint
