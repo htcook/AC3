@@ -33,6 +33,19 @@ async function runEmberCleanup(configOverrides) {
   let totalTasks = 0;
   try {
     const db = await getDb();
+    if (!db) {
+      const result2 = {
+        timestamp: Date.now(),
+        durationMs: Date.now() - startTime,
+        agentsPurged: 0,
+        beaconsDeleted: 0,
+        tasksDeleted: 0,
+        purgedAgents: [],
+        errors: ["Database not yet available \u2014 skipping sweep"]
+      };
+      lastCleanupResult = result2;
+      return result2;
+    }
     const cutoffMs = Date.now() - config.retentionHours * 60 * 60 * 1e3;
     const eligibleAgents = await db.select({
       id: emberAgents.id,
@@ -171,7 +184,7 @@ function startEmberCleanupScheduler(opts) {
     }).catch((err) => {
       console.warn(`[EmberCleanup] Initial sweep failed: ${err.message}`);
     });
-  }, 1e4);
+  }, 3e4);
   cleanupInterval = setInterval(() => {
     runEmberCleanup(config).then((result) => {
       if (result.agentsPurged > 0) {
