@@ -2092,3 +2092,7 @@
 - [x] P2-4: Skip C2 section when calderaEvidenceSnapshot.agents.length === 0
 - [x] ac3_lint Python linter integrated into pentest report pipeline
 - [x] Run tests and push to GitHub
+
+### Sprint 10B — Engagement Monitoring (May 6)
+- [ ] Create /api/scheduled/engagement-monitor endpoint (check ops state, detect stuck/failed phases)
+- [ ] Set up recurring scheduled task to monitor Priceline engagement

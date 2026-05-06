@@ -1092,6 +1092,129 @@ async function startServer() {
     }
   });
 
+  // ─── Engagement Monitor (scheduled task) ──────────────────────────────
+  app.post('/api/scheduled/engagement-monitor', async (req, res) => {
+    try {
+      let user: any = null;
+      try {
+        user = await scheduledSdk.authenticateRequest(req);
+      } catch { /* unauthenticated */ }
+      if (!user) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const { getDb } = await import("../db");
+      const { engagements, engagementOpsSnapshots } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const { notifyOwner } = await import("../_core/notification");
+
+      const db = await getDb();
+      if (!db) return res.status(500).json({ error: 'Database unavailable' });
+
+      // Find all active engagements
+      const activeEngagements = await db.select()
+        .from(engagements)
+        .where(eq(engagements.status, 'active'));
+
+      if (activeEngagements.length === 0) {
+        return res.json({ success: true, message: 'No active engagements', engagements: [] });
+      }
+
+      const results: any[] = [];
+      const now = Date.now();
+      const STUCK_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutes
+
+      for (const eng of activeEngagements) {
+        const result: any = {
+          id: eng.id,
+          name: eng.name,
+          type: eng.engagementType,
+          phase: eng.currentPhase,
+          status: 'healthy',
+          issues: [],
+        };
+
+        // Load ops snapshot
+        const snapshots = await db.select()
+          .from(engagementOpsSnapshots)
+          .where(eq(engagementOpsSnapshots.engagementId, eng.id))
+          .limit(1);
+
+        if (snapshots.length > 0) {
+          const snapshot = snapshots[0];
+          const state = snapshot.stateJson as any;
+          result.opsPhase = state.phase || 'unknown';
+          result.isRunning = state.isRunning || false;
+          result.progress = state.progress || 0;
+          result.assetCount = (state.assets || []).length;
+
+          // Check for stuck phase (no update in 30+ min)
+          const lastUpdate = snapshot.updatedAt ? new Date(snapshot.updatedAt).getTime() : 0;
+          const timeSinceUpdate = now - lastUpdate;
+          if (state.isRunning && timeSinceUpdate > STUCK_THRESHOLD_MS) {
+            result.status = 'stuck';
+            result.issues.push(`Phase "${state.phase}" has been running for ${Math.round(timeSinceUpdate / 60000)} minutes without progress`);
+          }
+
+          // Check for error states in the log
+          const recentLog = (state.log || []).slice(-10);
+          const recentErrors = recentLog.filter((l: any) => l.title?.includes('❌') || l.title?.includes('FAIL') || l.title?.includes('Error'));
+          if (recentErrors.length >= 3) {
+            result.status = 'error_accumulating';
+            result.issues.push(`${recentErrors.length} errors in last 10 log entries: ${recentErrors.map((e: any) => e.title).join('; ')}`);
+          }
+
+          // Check for interrupted state
+          if (snapshot.interruptCount && snapshot.interruptCount > 2) {
+            result.issues.push(`Engagement interrupted ${snapshot.interruptCount} times`);
+          }
+
+          // Check tool failure rate
+          const allToolResults = (state.assets || []).flatMap((a: any) => a.toolResults || []);
+          const toolTotal = allToolResults.length;
+          const toolFailed = allToolResults.filter((t: any) => t.exitCode !== 0).length;
+          if (toolTotal > 5 && toolFailed / toolTotal > 0.5) {
+            result.status = 'degraded';
+            result.issues.push(`Tool failure rate: ${toolFailed}/${toolTotal} (${Math.round(toolFailed / toolTotal * 100)}%)`);
+          }
+
+          // Stats summary
+          result.stats = state.stats || {};
+        } else {
+          result.issues.push('No ops snapshot found — engagement may not have started');
+          result.status = 'no_data';
+        }
+
+        results.push(result);
+      }
+
+      // Notify owner if any engagement has issues
+      const problematic = results.filter(r => r.status !== 'healthy');
+      if (problematic.length > 0) {
+        const alertLines = problematic.map(r =>
+          `**${r.name}** [${r.status.toUpperCase()}]\n  Phase: ${r.opsPhase || r.phase}\n  Issues: ${r.issues.join(', ')}`
+        ).join('\n\n');
+
+        await notifyOwner({
+          title: `⚠️ Engagement Monitor: ${problematic.length} engagement(s) need attention`,
+          content: alertLines,
+        });
+      }
+
+      return res.json({
+        success: true,
+        timestamp: new Date().toISOString(),
+        total: activeEngagements.length,
+        healthy: results.filter(r => r.status === 'healthy').length,
+        issues: problematic.length,
+        engagements: results,
+      });
+    } catch (err: any) {
+      console.error('[EngagementMonitor] Scheduled endpoint error:', err.message);
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
   // ─── Rate Limiting ────────────────────────────────────────────────────
   const { apiRateLimiter, trpcAuthRateLimiter } = await import("../lib/rate-limiter");
 
