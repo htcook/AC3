@@ -1957,3 +1957,7 @@
 - [x] Add loading spinner + disabled state to Report button in DomainIntelResults
 - [x] Add loading state to Full DI Report dropdown menu item
 - [x] Checkpoint and push to GitHub for DO deployment
+
+### Bug Fixes (May 5 - Round 2)
+- [x] Fix Toaster component: remove next-themes dependency (no provider mounted, toasts silently fail)
+- [x] Fix /engagements/:id route returning 404 (route not defined in App.tsx, EngagementResults useRoute pattern updated)
