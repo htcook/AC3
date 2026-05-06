@@ -25,12 +25,22 @@
 import { createAssetOwnershipFilter } from '@shared/managed-provider-filter';
 
 // Dynamic imports to reduce bundle size
+// NOTE: jspdf and jspdf-autotable are bundled directly (not CDN externals)
+// to avoid esm.sh CORS/network failures that caused the Report button to hang.
 let _jsPDF: typeof import('jspdf').default | null = null;
 let _autoTable: typeof import('jspdf-autotable').default | null = null;
 async function loadPdfLibs() {
-  if (!_jsPDF) _jsPDF = (await import('jspdf')).default;
-  if (!_autoTable) _autoTable = (await import('jspdf-autotable')).default;
-  return { jsPDF: _jsPDF, autoTable: _autoTable };
+  if (!_jsPDF || !_autoTable) {
+    const timeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('PDF library load timed out after 30s')), 30000)
+    );
+    const load = async () => {
+      if (!_jsPDF) _jsPDF = (await import('jspdf')).default;
+      if (!_autoTable) _autoTable = (await import('jspdf-autotable')).default;
+    };
+    await Promise.race([load(), timeout]);
+  }
+  return { jsPDF: _jsPDF!, autoTable: _autoTable! };
 }
 
 function dateStamp(): string {
@@ -6218,7 +6228,23 @@ export async function exportDiReport(
     doc.text('CONFIDENTIAL — For authorized recipients only', margin, pageHeight - 8);
   }
 
-  doc.save(`DI_Report_${domain}_${dateStamp()}.pdf`);
+  // Primary: use doc.save() which creates a download via <a> click
+  const filename = `DI_Report_${domain}_${dateStamp()}.pdf`;
+  try {
+    doc.save(filename);
+  } catch (saveErr) {
+    // Fallback: create a Blob URL and open in new tab
+    console.warn('[DI Report] doc.save() failed, using blob fallback:', saveErr);
+    const pdfBlob = doc.output('blob');
+    const blobUrl = URL.createObjectURL(pdfBlob);
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+  }
 }
 
 // Helper: add footer to current page

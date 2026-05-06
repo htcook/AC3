@@ -69,8 +69,10 @@ function katexCdnPlugin(): Plugin {
  */
 const CDN_MAP: Record<string, string> = {
   mermaid: "https://esm.sh/mermaid@11.12.0",
-  jspdf: "https://esm.sh/jspdf@4.2.0",
-  "jspdf-autotable": "https://esm.sh/jspdf-autotable@5.0.7?external=jspdf",
+  // NOTE: jspdf and jspdf-autotable removed from CDN externals.
+  // esm.sh is unreliable (CORS/network failures on production),
+  // causing the Report PDF button to hang indefinitely.
+  // These are now bundled directly (~413KB gzipped) via dynamic import.
 };
 
 function cdnExternalPlugin(): Plugin {

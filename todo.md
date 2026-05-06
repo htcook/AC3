@@ -1961,3 +1961,13 @@
 ### Bug Fixes (May 5 - Round 2)
 - [x] Fix Toaster component: remove next-themes dependency (no provider mounted, toasts silently fail)
 - [x] Fix /engagements/:id route returning 404 (route not defined in App.tsx, EngagementResults useRoute pattern updated)
+- [ ] Test Report button on live DO site after deployment
+- [ ] Test /engagements/1830003 route on live DO site
+- [ ] Implement fallback PDF download (window.open blob URL) for browsers that block programmatic downloads
+### Report PDF CDN Fix (May 5 - Round 3)
+- [x] Root cause identified: jsPDF loaded via esm.sh CDN externals → CORS/network failure → handler hangs forever
+- [x] Fix: Remove jspdf and jspdf-autotable from CDN_MAP in vite.config.ts (bundle directly instead)
+- [x] Add timeout (30s) to loadPdfLibs() to prevent infinite hang
+- [x] Add fallback blob download in case doc.save() fails
+- [ ] Push to GitHub and deploy
+- [ ] Verify Report button works on live site
