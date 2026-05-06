@@ -8395,3 +8395,129 @@ export const dnsSecurityMonitoringConfig = mysqlTable("dns_security_monitoring_c
 	index("dns_mon_domain_idx").on(table.domain),
 	index("dns_mon_enabled_idx").on(table.enabled),
 ]);
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Sprint 11C: Telemetry & Observability Module
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export const engagementTelemetry = mysqlTable("engagement_telemetry", {
+	id: int().autoincrement().primaryKey().notNull(),
+	engagementId: int("engagement_id").notNull(),
+	phase: varchar({ length: 64 }).notNull(),
+	step: varchar({ length: 128 }).notNull(),
+	eventType: mysqlEnum("event_type", [
+		'tool_call', 'tool_response', 'llm_request', 'llm_response',
+		'decision', 'error', 'retry', 'phase_transition', 'approval_request',
+		'approval_response', 'evidence_captured', 'evidence_validated',
+	]).notNull(),
+	inputSummary: text("input_summary"),
+	outputSummary: text("output_summary"),
+	fullPayloadRef: varchar("full_payload_ref", { length: 512 }),
+	durationMs: int("duration_ms"),
+	exitCode: int("exit_code"),
+	success: tinyint().default(1).notNull(),
+	errorClass: mysqlEnum("error_class", [
+		'none', 'timeout', 'auth_failure', 'connection_refused', 'api_error',
+		'parse_failure', 'llm_hallucination', 'knowledge_gap', 'logic_error',
+		'evidence_integrity', 'infrastructure', 'rate_limit', 'unknown',
+	]).default('none').notNull(),
+	errorMessage: text("error_message"),
+	retryCount: int("retry_count").default(0).notNull(),
+	contextSnapshot: json("context_snapshot"),
+	/** Provider where full payload is stored (do_spaces, aws_s3, local) */
+	storageProvider: mysqlEnum("storage_provider", ['do_spaces', 'aws_s3', 'local', 'none']).default('none').notNull(),
+	/** Correlation ID for linking related events across the pipeline */
+	correlationId: varchar("correlation_id", { length: 64 }),
+	/** Operator who triggered this event */
+	operatorId: varchar("operator_id", { length: 64 }),
+	/** Target host/IP this event relates to */
+	targetHost: varchar("target_host", { length: 255 }),
+	/** Source tool or module that generated this event */
+	sourceModule: varchar("source_module", { length: 128 }),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+}, (table) => [
+	index("et_engagement_idx").on(table.engagementId),
+	index("et_phase_idx").on(table.phase),
+	index("et_event_type_idx").on(table.eventType),
+	index("et_error_class_idx").on(table.errorClass),
+	index("et_correlation_idx").on(table.correlationId),
+	index("et_created_at_idx").on(table.createdAt),
+	index("et_success_idx").on(table.success),
+	index("et_source_module_idx").on(table.sourceModule),
+]);
+
+export const telemetryLlmQuality = mysqlTable("telemetry_llm_quality", {
+	id: int().autoincrement().primaryKey().notNull(),
+	telemetryEventId: int("telemetry_event_id").notNull(),
+	engagementId: int("engagement_id").notNull(),
+	promptHash: varchar("prompt_hash", { length: 64 }).notNull(),
+	tokensIn: int("tokens_in").default(0).notNull(),
+	tokensOut: int("tokens_out").default(0).notNull(),
+	totalTokens: int("total_tokens").default(0).notNull(),
+	/** Did downstream code successfully parse the LLM output? */
+	parsedSuccessfully: tinyint("parsed_successfully").default(1).notNull(),
+	/** Did the output match the expected JSON schema? */
+	schemaValid: tinyint("schema_valid").default(1).notNull(),
+	/** Hallucination guardrail fired? */
+	hallucinationDetected: tinyint("hallucination_detected").default(0).notNull(),
+	/** Confidence delta from hallucination check */
+	hallucinationConfidence: double("hallucination_confidence"),
+	/** Knowledge gap detected (LLM said "I don't know" or returned empty) */
+	knowledgeGap: tinyint("knowledge_gap").default(0).notNull(),
+	/** Topic of the knowledge gap */
+	knowledgeGapTopic: varchar("knowledge_gap_topic", { length: 255 }),
+	/** Model used */
+	model: varchar({ length: 128 }),
+	/** Response format type requested */
+	responseFormat: varchar("response_format", { length: 64 }),
+	/** Grounding check result */
+	groundingCheckPassed: tinyint("grounding_check_passed"),
+	/** Full prompt ref in cloud storage */
+	promptPayloadRef: varchar("prompt_payload_ref", { length: 512 }),
+	/** Full response ref in cloud storage */
+	responsePayloadRef: varchar("response_payload_ref", { length: 512 }),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+}, (table) => [
+	index("tlq_telemetry_event_idx").on(table.telemetryEventId),
+	index("tlq_engagement_idx").on(table.engagementId),
+	index("tlq_prompt_hash_idx").on(table.promptHash),
+	index("tlq_knowledge_gap_idx").on(table.knowledgeGap),
+	index("tlq_hallucination_idx").on(table.hallucinationDetected),
+	index("tlq_created_at_idx").on(table.createdAt),
+]);
+
+export const telemetryDiagnostics = mysqlTable("telemetry_diagnostics", {
+	id: int().autoincrement().primaryKey().notNull(),
+	engagementId: int("engagement_id").notNull(),
+	/** Summary type */
+	reportType: mysqlEnum("report_type", ['post_engagement', 'phase_complete', 'error_burst', 'manual']).notNull(),
+	/** Total events in this engagement/phase */
+	totalEvents: int("total_events").default(0).notNull(),
+	/** Breakdown by event type (JSON) */
+	eventTypeBreakdown: json("event_type_breakdown"),
+	/** Failure rate by category (JSON) */
+	failureRateByCategory: json("failure_rate_by_category"),
+	/** Top 5 slowest operations (JSON array) */
+	slowestOperations: json("slowest_operations"),
+	/** Knowledge gaps encountered (JSON array) */
+	knowledgeGaps: json("knowledge_gaps"),
+	/** Retry storms (any step > 2 retries) (JSON array) */
+	retryStorms: json("retry_storms"),
+	/** Total duration of the engagement/phase in ms */
+	totalDurationMs: int("total_duration_ms"),
+	/** LLM token usage summary */
+	llmTokensTotal: int("llm_tokens_total").default(0),
+	/** LLM cost estimate (USD) */
+	llmCostEstimate: double("llm_cost_estimate"),
+	/** Overall health score (0-100) */
+	healthScore: int("health_score"),
+	/** Generated diagnostic markdown */
+	diagnosticMarkdown: text("diagnostic_markdown"),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+}, (table) => [
+	index("td_engagement_idx").on(table.engagementId),
+	index("td_report_type_idx").on(table.reportType),
+	index("td_health_score_idx").on(table.healthScore),
+	index("td_created_at_idx").on(table.createdAt),
+]);

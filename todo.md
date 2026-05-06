@@ -2132,4 +2132,27 @@
 - [x] Add post-exploit evidence screenshots (evidence-screenshot.ts: ANSI-colored terminal captures + PNG render pipeline)
 - [x] Wire screenshot evidence into integrity chain (capturePostExploitScreenshots with evidenceGate/provenance/custody)
 - [x] Write vitest tests for automated privesc and screenshot capture (60 tests passing across 2 test files)
+- [x] Save checkpoint and push to GitHub
+
+### Sprint 11B Part 3 — Blind Test Engagement + Lateral Movement (May 6)
+- [x] Install aha + wkhtmltoimage on scan server for PNG evidence screenshot rendering
+- [ ] Run blind test engagement against live lab targets (67.207.93.197 + 147.182.178.60)
+- [ ] Verify full kill chain: scan → exploit → access verify → privesc → agent deploy → C2 confirm
+- [ ] Build lateral movement module (credential reuse, pivot between compromised targets)
+- [ ] Add credential harvesting from SMB shares and config files
+- [ ] Add SSH/WinRM pivot execution via compromised credentials
+- [ ] Wire lateral movement into engagement pipeline
+- [ ] Write vitest tests for lateral movement module
 - [ ] Save checkpoint and push to GitHub
+
+### Sprint 11C — Telemetry & Observability Module (May 6)
+- [x] Design DB schema: engagement_telemetry + telemetry_llm_quality + telemetry_diagnostics tables
+- [x] Build telemetry-logger.ts core (event emitter, 13 error classes, timing wrappers, TelemetryContext, retry logic)
+- [x] Build cloud storage providers for full payload archival (DO Spaces + AWS S3 + local, provider-agnostic with Sig V4)
+- [x] Build LLM telemetry extensions (knowledge gap detection, hallucination tracking, schema validation, quality scoring)
+- [x] Build post-engagement diagnostic summary generator (health score, failure rates, slowest ops, knowledge gaps, retry storms, cost estimation)
+- [x] Wire telemetry into existing pipeline (instrumentedSshRelay, instrumentedCalderaApi, instrumentedLlmCall, phase hooks)
+- [x] Write vitest tests for telemetry module (70 tests passing)
+- [x] Wire telemetry into graduation engine (runGraduationWithTelemetry, computeGraduationHealth, diagnostic section)
+- [x] Write vitest tests for graduation-telemetry integration (29 tests, 99 total Sprint 11C)
+- [x] Save checkpoint

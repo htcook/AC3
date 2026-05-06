@@ -435,6 +435,13 @@
       "when": 1778096762579,
       "tag": "0061_worthless_quicksilver",
       "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "5",
+      "when": 1778107452266,
+      "tag": "0062_friendly_silver_centurion",
+      "breakpoints": true
     }
   ]
 }
