@@ -2,8 +2,8 @@ import {
   extractScopeUrls,
   init_burp_auto_scan,
   launchBurpAutoScan
-} from "./chunk-QNT6LLP4.js";
-import "./chunk-D7IB5Q3O.js";
+} from "./chunk-ID5T6IT4.js";
+import "./chunk-WP2EK5CH.js";
 import "./chunk-5U7VSFQX.js";
 import "./chunk-HPRQMQNG.js";
 import "./chunk-RFK3GLEK.js";

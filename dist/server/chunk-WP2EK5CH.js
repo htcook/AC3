@@ -6660,7 +6660,7 @@ ${adjustmentSummary.length > 0 ? "LLM Adjustments:\n" + adjustmentSummary.map((a
   }
 }
 async function executeEnumeration(state, engagement, operatorCtx) {
-  const { executeEnumeration: runEnumerationPhase } = await import("./engagement-phase-enumeration-JN4FIWM6.js");
+  const { executeEnumeration: runEnumerationPhase } = await import("./engagement-phase-enumeration-73FY6OKI.js");
   return runEnumerationPhase(state, engagement, operatorCtx);
 }
 async function executeVulnDetection(state, engagement, operatorCtx) {
@@ -6703,7 +6703,7 @@ async function executeVulnDetection(state, engagement, operatorCtx) {
     getEngagementAbortSignal,
     executeScanForgePhase
   };
-  const { executeVulnPrep } = await import("./vuln-prep-AZ2MKGD2.js");
+  const { executeVulnPrep } = await import("./vuln-prep-BFP44EQY.js");
   const vulnPrepCtx = {
     state,
     engagement,
@@ -6732,7 +6732,7 @@ async function executeVulnDetection(state, engagement, operatorCtx) {
   const { executeNucleiScanning } = await import("./nuclei-scanner-3W52ZIMD.js");
   const nucleiResult = await executeNucleiScanning(phase6Ctx);
   addLog(state, { phase: "vuln_detection", type: "phase_complete", title: "Nuclei Complete", detail: `${nucleiResult.findingsCount} findings, ${nucleiResult.errorsCount} errors` });
-  const { executeZapScanning } = await import("./zap-scanner-BYKLHQRZ.js");
+  const { executeZapScanning } = await import("./zap-scanner-P3ILC4SI.js");
   const zapResult = await executeZapScanning(phase6Ctx);
   addLog(state, { phase: "vuln_detection", type: "phase_complete", title: "ZAP Complete", detail: `${zapResult.findingsCount} findings across ${zapResult.webAppsScanned} targets` });
   const { executeInjectionScanning } = await import("./injection-scanner-42N6WWWP.js");
@@ -6753,11 +6753,11 @@ async function executeVulnDetection(state, engagement, operatorCtx) {
   broadcastOpsUpdate(state.engagementId, { type: "stats_update", stats: { ...state.stats } });
 }
 async function executeExploitation(state, engagement, operatorCtx) {
-  const { executeExploitation: runExploitPhase } = await import("./engagement-phase-exploitation-SYKXQWRU.js");
+  const { executeExploitation: runExploitPhase } = await import("./engagement-phase-exploitation-H3JP3KNW.js");
   return runExploitPhase(state, engagement, operatorCtx);
 }
 async function executePostExploit(state, engagement, operatorCtx) {
-  const { executePostExploit: runPostExploitPhase } = await import("./engagement-phase-post-exploit-FJEPZVVI.js");
+  const { executePostExploit: runPostExploitPhase } = await import("./engagement-phase-post-exploit-73RE7X6J.js");
   return runPostExploitPhase(state, engagement, operatorCtx);
 }
 async function executeEngagement(engagementId, operatorCtx, options) {

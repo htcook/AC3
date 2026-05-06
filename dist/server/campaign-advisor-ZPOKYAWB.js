@@ -9,7 +9,7 @@ import {
   getQuickRecommendation,
   injectBurpCompletionContext,
   registerBurpCompletionListener
-} from "./chunk-OFB6OMNO.js";
+} from "./chunk-4ISRQAMQ.js";
 import "./chunk-RY5LYP5I.js";
 import "./chunk-RUIEEOYK.js";
 import "./chunk-SI4LILOM.js";

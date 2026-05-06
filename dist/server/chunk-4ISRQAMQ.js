@@ -390,7 +390,7 @@ async function gatherEngagementContextWithBurp(engagementId) {
   return ctx;
 }
 function registerBurpCompletionListener() {
-  import("./burp-auto-scan-7IZGMOS6.js").then(({ onBurpScanComplete }) => {
+  import("./burp-auto-scan-HJHU5BHJ.js").then(({ onBurpScanComplete }) => {
     onBurpScanComplete(async (config, state) => {
       injectBurpCompletionContext(config.engagementId, {
         scanId: state.scanId,
