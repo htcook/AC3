@@ -2123,3 +2123,13 @@
 - [x] Add C2 callback confirmation (agent check-in within timeout)
 - [x] Add privilege escalation attempt logic (SUID, kernel, cron, writable paths)
 - [x] Wire full kill chain: exploit → access verify → privesc → agent deploy → C2 confirm
+
+### Sprint 11B Part 2 — Deploy Lab + Automated Privesc + Evidence Screenshots (May 6)
+- [x] Deploy DO test lab: create VPC (ac3-test-lab-vpc 10.130.0.0/20), firewall (ac3-test-lab-fw), Linux target (67.207.93.197) + Windows-equiv target (147.182.178.60)
+- [x] Verify droplet provisioning completes (cloud-init-linux.yaml + cloud-init-windows-equiv.yaml)
+- [x] Add automated privesc exploitation (privesc-executor.ts: SUID payloads for 11 binaries, /etc/passwd write, sudo NOPASSWD, writable cron)
+- [x] Extend attemptPrivilegeEscalation to actually run the escalation (executePrivilegeEscalation with ordered payload execution)
+- [x] Add post-exploit evidence screenshots (evidence-screenshot.ts: ANSI-colored terminal captures + PNG render pipeline)
+- [x] Wire screenshot evidence into integrity chain (capturePostExploitScreenshots with evidenceGate/provenance/custody)
+- [x] Write vitest tests for automated privesc and screenshot capture (60 tests passing across 2 test files)
+- [ ] Save checkpoint and push to GitHub
