@@ -1,7 +1,7 @@
 import {
   engagement_orchestrator_exports,
   init_engagement_orchestrator
-} from "./chunk-CUQ4N2ZN.js";
+} from "./chunk-QM5T2QV6.js";
 import {
   BurpSuiteConnector,
   init_burpsuite_connector,
@@ -503,7 +503,7 @@ async function launchAndPoll(config, state, key) {
         console.warn(`[BurpAutoScan] Exploit matching failed: ${e.message}`);
       }
       try {
-        const { runSeverityEscalation } = await import("./zap-burp-pipeline-5JDAF7RT.js");
+        const { runSeverityEscalation } = await import("./zap-burp-pipeline-Q7IC5LEC.js");
         const escalation = await runSeverityEscalation(config.engagementId);
         if (escalation.escalatedCount > 0 || escalation.priorityFlaggedCount > 0) {
           console.log(

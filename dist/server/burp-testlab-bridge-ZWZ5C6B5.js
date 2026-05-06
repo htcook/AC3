@@ -4,8 +4,8 @@ import {
 import {
   init_burp_auto_scan,
   launchBurpAutoScan
-} from "./chunk-LX22H3CL.js";
-import "./chunk-CUQ4N2ZN.js";
+} from "./chunk-OB3JYB4Z.js";
+import "./chunk-QM5T2QV6.js";
 import "./chunk-5U7VSFQX.js";
 import "./chunk-HPRQMQNG.js";
 import "./chunk-XDFUGBDN.js";

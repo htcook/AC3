@@ -97,7 +97,7 @@ async function executeZapScanning(ctx) {
   const { state, addLog, acquireScanSlot, genId, broadcastReconFinding, broadcastOpsUpdate, isInRoeScope, persistOpsStateDebounced } = ctx;
   const result = { findingsCount: 0, webAppsScanned: 0, wafDetections: 0, burpFallbacks: 0, timeouts: 0 };
   const webApps = state.assets.filter(
-    (a) => (a.type === "web_app" || a.type === "web" || a.ports.some((p) => ["http", "https"].includes(p.service) || [80, 443, 8080, 8443].includes(p.port))) && isInRoeScope(state, a.hostname, a.ip)
+    (a) => (a.type === "web_app" || a.type === "web" || a.ports.some((p) => ["http", "https", "http-proxy", "http-alt"].includes(p.service) || COMMON_WEB_PORTS.has(p.port))) && isInRoeScope(state, a.hostname, a.ip)
   );
   result.webAppsScanned = webApps.length;
   if (webApps.length === 0) {
@@ -183,7 +183,7 @@ async function executeZapScanning(ctx) {
         if (!zapStarted) {
           result.burpFallbacks++;
           try {
-            const { onEngagementVulnDetectionPhase } = await import("./burp-auto-scan-UKQVE56F.js");
+            const { onEngagementVulnDetectionPhase } = await import("./burp-auto-scan-LTHQZOM3.js");
             await onEngagementVulnDetectionPhase(state.engagementId, ctx.operatorCtx.id, ctx.engagement?.handle || `eng-${state.engagementId}`, [targetUrl], state.scanMode || "active", hasConfirmedCreds ? { username: webCreds[0].username, password: webCreds[0].password } : void 0, techHints);
           } catch {
           }
@@ -292,7 +292,7 @@ async function executeZapScanning(ctx) {
         const { eq, and, desc } = await import("drizzle-orm");
         const scans = await db.select().from(webAppScans).where(and(eq(webAppScans.engagementId, state.engagementId), eq(webAppScans.status, "completed"))).orderBy(desc(webAppScans.completedAt)).limit(1);
         if (scans.length > 0) {
-          const { deferredZapBurpRefeed } = await import("./zap-burp-pipeline-5JDAF7RT.js");
+          const { deferredZapBurpRefeed } = await import("./zap-burp-pipeline-Q7IC5LEC.js");
           await deferredZapBurpRefeed({ engagementId: state.engagementId, userId: ctx.operatorCtx.id, engagementHandle: ctx.engagement?.handle || `eng-${state.engagementId}`, completedZapScanId: scans[0].id, initialPipelineResult: ir, appLogin: ctx.burpAppLogin });
         }
       }
