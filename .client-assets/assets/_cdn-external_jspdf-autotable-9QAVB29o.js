@@ -1,1 +1,0 @@
-import"https://esm.sh/jspdf-autotable@5.0.7?external=jspdf";import"https://esm.sh/jspdf-autotable@5.0.7?external=jspdf";export*from"https://esm.sh/jspdf-autotable@5.0.7?external=jspdf";import{default as p}from"https://esm.sh/jspdf-autotable@5.0.7?external=jspdf";export{p as default};
