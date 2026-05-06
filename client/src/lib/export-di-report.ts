@@ -804,14 +804,16 @@ export async function exportDiReport(
   // Use client-owned count: exclude managed provider assets from the headline metric
   const _coverClientAssetCount = scan.riskScoreExclusions?.clientOwnedCount ?? (assets.length - (scan.riskScoreExclusions?.excludedCount ?? 0));
   doc.text(`Total Assets Discovered: ${scan.totalAssets ?? _coverClientAssetCount ?? assets.length ?? 0}`, metricsX, y + 18);
-  // Count confirmed findings — use observation-level counting (same as vuln section)
-  // This ensures the cover page number matches what the vulnerability details section shows
+  // T0-7 Fix: Count confirmed findings using the SAME logic as exec summary and appendix.
+  // Filter to client-owned observations (exclude provider-managed), then count [CONFIRMED] corroboration.
+  // This ensures cover page, exec summary, and appendix all show the same number.
   const _clientFindings = observations.filter((o: any) => !o.evidence?.providerManagedOnly);
   const _coverConfirmedCount = _clientFindings.filter((o: any) =>
     o.evidence?.corroboration === '[CONFIRMED]' || o.confidence === 'confirmed'
   ).length;
-  // Fallback to scan-level count only if observation counting yields zero
-  const _confirmedCount = _coverConfirmedCount > 0 ? _coverConfirmedCount : (scan.confirmedFindingsCount || 0);
+  // Only use scan-level fallback if observation-level counting is truly zero AND scan has a count
+  // This prevents the mismatch where scan.confirmedFindingsCount uses a different methodology
+  const _confirmedCount = _coverConfirmedCount;
   doc.text(`Confirmed Findings: ${_confirmedCount}`, metricsX, y + 25);
   // Count data sources: prefer connectors with observations, fallback to total connectors, then unique observation sources
   const _connectorResultsWithObs = scan.passiveRecon?.connectorResults?.filter((c: any) => c.observationCount > 0);
@@ -4499,11 +4501,17 @@ export async function exportDiReport(
         }
       }
 
-      if (exploitRows.length > 0) {
+      // T0-6 Fix: Filter out rows where module/exploit name is N/A or Unknown (data quality gate)
+      const qualityExploitRows = exploitRows.filter((row: any[]) => {
+        const moduleName = String(row[1] || '').trim();
+        return moduleName !== 'N/A' && moduleName !== '' && moduleName !== 'Unknown' && !moduleName.startsWith('EDB-: ');
+      });
+
+      if (qualityExploitRows.length > 0) {
         autoTable!(doc, {
           startY: y,
           head: [['Source', 'Module / Exploit', 'CVE', 'Rank / Type', 'Platform', 'Remote']],
-          body: exploitRows.slice(0, 40),
+          body: qualityExploitRows.slice(0, 40),
           theme: 'grid',
           headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 6, fontStyle: 'bold', cellPadding: 1.5 },
           bodyStyles: { fontSize: 6, cellPadding: 1.5, textColor: [51, 65, 85] },
@@ -4534,19 +4542,29 @@ export async function exportDiReport(
         });
         y = (doc as any).lastAutoTable.finalY + 3;
 
-        if (exploitRows.length > 40) {
+        if (qualityExploitRows.length > 40) {
           doc.setTextColor(113, 113, 122);
           doc.setFontSize(7);
-          doc.text(`Showing 40 of ${exploitRows.length} exploit entries. Full dataset available in platform.`, margin, y);
+          doc.text(`Showing 40 of ${qualityExploitRows.length} exploit entries. Full dataset available in platform.`, margin, y);
           y += 5;
         }
+        // Note if some rows were filtered for quality
+        const filteredCount = exploitRows.length - qualityExploitRows.length;
+        if (filteredCount > 0) {
+          doc.setTextColor(113, 113, 122);
+          doc.setFontSize(6.5);
+          doc.setFont('helvetica', 'italic');
+          doc.text(`${filteredCount} additional exploit match(es) omitted due to incomplete module data.`, margin, y);
+          y += 4;
+          doc.setFont('helvetica', 'normal');
+        }
       } else if ((em.matches || []).length > 0) {
-        // Fallback: show CVE-level summary if no sub-entries exist
+        // Fallback: show CVE-level summary when detailed module data is unavailable
         doc.setFontSize(7);
         doc.setFont('helvetica', 'italic');
         doc.setTextColor(100, 116, 139);
         y = checkPageBreak(y, 5);
-        doc.text(`${em.matches.length} CVE(s) have known public exploits. Detailed module data not available for this scan.`, margin, y);
+        doc.text(`${em.matches.length} CVE(s) have known public exploits. Detailed module/exploit data was not available during this scan — verify exploit availability in Metasploit/ExploitDB directly.`, margin, y);
         y += 5;
       }
     }

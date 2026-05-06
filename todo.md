@@ -1984,14 +1984,14 @@
 - [x] Push to GitHub and deploy
 
 ### Sprint 1A — Report Bugs (from Claude's prioritization)
-- [ ] T0-5: Fix blank Prioritized Recommendations page in DI report PDF
-- [ ] T0-6: Filter out Unknown/N/A exploit rows from DI report PDF
-- [ ] T0-7: Align Confirmed Findings count between cover page and exec summary
-- [ ] T0-8: Fix RDAP status string comparison (strip spaces before matching)
+- [x] T0-5: Fix blank Prioritized Recommendations page in DI report PDF
+- [x] T0-6: Filter out Unknown/N/A exploit rows from DI report PDF
+- [x] T0-7: Align Confirmed Findings count between cover page and exec summary
+- [x] T0-8: Fix RDAP status string comparison (strip spaces before matching)
 
 ### Sprint 1B — Exploit Pipeline Investigation
 - [ ] T0-1: Diagnose WHERE the exploit pipeline fails (selection? generation? execution?)
-- [ ] T0-10: Fix ZAP port targeting (scan all discovered HTTP ports, not just 80/443/8443)
+- [x] T0-10: Fix ZAP port targeting (scan all discovered HTTP ports, not just 80/443/8443)
 
 ### Sprint 2 — Report Quality
 - [ ] T2-1: Group CVEs by IP/service to compact the section
@@ -2021,3 +2021,11 @@
 - [ ] T1-13: Define proof engine safety profile before production use
 - [ ] T1-14: Fix dedup fingerprint over-merging for web findings (same target+port+CVE, different endpoint)
 - [ ] T1-15: Reconcile corroboration multipliers and CARVER confidence systems
+
+### Sprint 1B — T0-1 Exploit Pipeline Diagnosis (Completed Analysis)
+- [x] T0-1 DIAGNOSIS: Pipeline architecture is correctly wired (LLM decision → target selection → approval gate → enhanced pipeline)
+  - The enhanced pipeline routes through: MSF direct → Nuclei direct → LLM-generated exploit → retry engine
+  - All 3 execution paths (Metasploit, Nuclei, LLM-generated) require a live scan server (SCAN_SERVER_HOST)
+  - The "0 successful exploits" is an operational issue (scan server connectivity/availability), NOT a code bug
+  - The pipeline correctly handles: ROE scope filtering, approval gates, training lab detection, credential injection
+  - Recommendation: Verify scan server SSH connectivity and tool availability (msfconsole, nuclei) before engagement

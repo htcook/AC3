@@ -206,8 +206,10 @@ export async function executeZapScanning(ctx: VulnDetectionContext): Promise<Zap
 
   const result: ZapScanResult = { findingsCount: 0, webAppsScanned: 0, wafDetections: 0, burpFallbacks: 0, timeouts: 0 };
 
+  // T0-10 Fix: Use COMMON_WEB_PORTS for asset filtering (not just 80/443/8080/8443)
+  // This ensures assets with HTTP services on non-standard ports (3000, 5000, 8000, etc.) are included
   const webApps = state.assets.filter((a: any) =>
-    (a.type === "web_app" || a.type === "web" || a.ports.some((p: any) => ["http", "https"].includes(p.service) || [80, 443, 8080, 8443].includes(p.port)))
+    (a.type === "web_app" || a.type === "web" || a.ports.some((p: any) => ["http", "https", "http-proxy", "http-alt"].includes(p.service) || COMMON_WEB_PORTS.has(p.port)))
     && isInRoeScope(state, a.hostname, a.ip)
   );
   result.webAppsScanned = webApps.length;
