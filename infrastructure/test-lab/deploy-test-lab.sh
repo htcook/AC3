@@ -66,20 +66,34 @@ else
 fi
 
 # ─── Step 2: Create Firewall ─────────────────────────────────────────────────
-echo "[2/5] Creating firewall (internal-only access)..."
+echo "[2/5] Creating firewall (VPC + scan server + C2 outbound)..."
+
+# Scan server IPs that need inbound access to targets
+SCAN_SERVER_PRIMARY="137.184.71.192"
+SCAN_SERVER_LEGACY="137.184.211.238"
+# Caldera C2 server (targets need outbound to beacon back)
+CALDERA_C2_HOST="${CALDERA_BASE_URL:-http://localhost:8888}"
+
 FW_ID=$(doctl compute firewall list --format ID,Name --no-header | grep "$FW_NAME" | awk '{print $1}')
 if [ -z "$FW_ID" ]; then
-    # Allow ALL traffic from within the VPC CIDR (scan server can reach targets)
-    # Block all inbound from public internet
+    # Inbound:
+    #   - ALL from VPC CIDR (internal comms)
+    #   - ALL from scan server IPs (external scan access)
+    # Outbound:
+    #   - ALL to 0.0.0.0/0 (targets need outbound for C2 beaconing on port 8888,
+    #     agent downloads, DNS resolution, and package updates)
     FW_ID=$(doctl compute firewall create \
         --name "$FW_NAME" \
         --tag-names "$TAG" \
-        --inbound-rules "protocol:tcp,ports:all,address:10.130.0.0/20 protocol:udp,ports:all,address:10.130.0.0/20 protocol:icmp,address:10.130.0.0/20" \
-        --outbound-rules "protocol:tcp,ports:all,address:0.0.0.0/0 protocol:udp,ports:all,address:0.0.0.0/0 protocol:icmp,address:0.0.0.0/0" \
+        --inbound-rules "protocol:tcp,ports:all,address:10.130.0.0/20 protocol:udp,ports:all,address:10.130.0.0/20 protocol:icmp,address:10.130.0.0/20 protocol:tcp,ports:all,address:${SCAN_SERVER_PRIMARY}/32 protocol:udp,ports:all,address:${SCAN_SERVER_PRIMARY}/32 protocol:tcp,ports:all,address:${SCAN_SERVER_LEGACY}/32" \
+        --outbound-rules "protocol:tcp,ports:all,address:0.0.0.0/0 protocol:udp,ports:53,address:0.0.0.0/0 protocol:udp,ports:123,address:0.0.0.0/0 protocol:icmp,address:0.0.0.0/0" \
         --format ID --no-header)
     echo "  Created Firewall: $FW_ID"
+    echo "  ℹ️  Outbound allows: TCP all (C2 beacon on 8888 + agent download), UDP 53 (DNS), UDP 123 (NTP)"
+    echo "  ℹ️  Inbound allows: VPC CIDR + scan servers ($SCAN_SERVER_PRIMARY, $SCAN_SERVER_LEGACY)"
 else
     echo "  Firewall already exists: $FW_ID"
+    echo "  ⚠️  Verify outbound rules allow TCP to Caldera C2 (port 8888) for agent beaconing"
 fi
 
 # ─── Step 3: Create Linux Target ─────────────────────────────────────────────

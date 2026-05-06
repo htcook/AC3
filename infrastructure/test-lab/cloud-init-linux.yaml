@@ -1,0 +1,463 @@
+#cloud-config
+# AC3 Metasploitable3-equivalent Linux Target (Ubuntu 22.04 base)
+# Installs vulnerable services from source to replicate MS3 attack surface
+
+package_update: true
+package_upgrade: false
+
+packages:
+  - build-essential
+  - gcc
+  - make
+  - curl
+  - wget
+  - git
+  - unzip
+  - net-tools
+  - openssh-server
+  - apache2
+  - php
+  - php-cgi
+  - libapache2-mod-php
+  - mysql-server
+  - postgresql
+  - postgresql-contrib
+  - redis-server
+  - samba
+  - vsftpd
+  - telnetd
+  - xinetd
+  - inetutils-inetd
+  - tomcat9
+  - default-jdk
+  - python3
+  - python3-pip
+  - ruby
+  - nodejs
+  - npm
+  - docker.io
+  - libpam0g-dev
+  - libwrap0-dev
+  - libssl-dev
+  - zlib1g-dev
+
+write_files:
+  - path: /opt/setup/provision.sh
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      set -e
+      echo "[MS3-LAB] Starting vulnerable service provisioning..."
+
+      # ═══════════════════════════════════════════════════════════════
+      # 1. ProFTPD 1.3.5 (CVE-2015-3306 mod_copy)
+      # ═══════════════════════════════════════════════════════════════
+      echo "[MS3-LAB] Installing ProFTPD 1.3.5 with mod_copy..."
+      cd /tmp
+      wget -q http://ftp.proftpd.org/distrib/source/proftpd-1.3.5.tar.gz || wget -q https://github.com/proftpd/proftpd/archive/refs/tags/v1.3.5.tar.gz -O proftpd-1.3.5.tar.gz
+      tar xzf proftpd-1.3.5.tar.gz
+      cd proftpd-1.3.5* || cd proftpd-v1.3.5*
+      ./configure --with-modules=mod_copy --prefix=/usr/local/proftpd 2>/dev/null || true
+      make -j$(nproc) 2>/dev/null || true
+      make install 2>/dev/null || true
+      # If source build fails, install from apt and enable mod_copy
+      if [ ! -f /usr/local/proftpd/sbin/proftpd ]; then
+        apt-get install -y proftpd-basic proftpd-mod-copy 2>/dev/null || apt-get install -y proftpd-basic
+        # Configure to allow mod_copy (anonymous)
+        cat > /etc/proftpd/proftpd.conf << 'PROFTPD'
+      ServerName "MS3 FTP Server"
+      ServerType standalone
+      DefaultServer on
+      Port 21
+      Umask 022
+      MaxInstances 30
+      User nobody
+      Group nogroup
+      AllowOverwrite on
+      <Anonymous /var/ftp>
+        User ftp
+        Group ftp
+        UserAlias anonymous ftp
+        MaxClients 10
+        <Directory *>
+          <Limit WRITE>
+            DenyAll
+          </Limit>
+        </Directory>
+      </Anonymous>
+      # mod_copy enabled (CVE-2015-3306)
+      <IfModule mod_copy.c>
+        AllowAll
+      </IfModule>
+      PROFTPD
+        mkdir -p /var/ftp
+        systemctl restart proftpd 2>/dev/null || service proftpd restart
+      else
+        cat > /usr/local/proftpd/etc/proftpd.conf << 'PROFTPD'
+      ServerName "MS3 FTP Server"
+      ServerType standalone
+      DefaultServer on
+      Port 21
+      Umask 022
+      MaxInstances 30
+      User nobody
+      Group nogroup
+      AllowOverwrite on
+      <Anonymous /var/ftp>
+        User ftp
+        Group ftp
+        UserAlias anonymous ftp
+        MaxClients 10
+      </Anonymous>
+      PROFTPD
+        /usr/local/proftpd/sbin/proftpd &
+      fi
+      echo "[MS3-LAB] ProFTPD configured"
+
+      # ═══════════════════════════════════════════════════════════════
+      # 2. Samba (CVE-2017-7494 / usermap_script equivalent)
+      # ═══════════════════════════════════════════════════════════════
+      echo "[MS3-LAB] Configuring Samba with weak settings..."
+      cat > /etc/samba/smb.conf << 'SAMBA'
+      [global]
+        workgroup = WORKGROUP
+        server string = MS3 Samba Server
+        security = user
+        map to guest = Bad User
+        log file = /var/log/samba/log.%m
+        max log size = 50
+        # Intentionally weak settings
+        ntlm auth = yes
+        lanman auth = yes
+        client lanman auth = yes
+        client ntlmv2 auth = no
+        server min protocol = NT1
+
+      [public]
+        path = /srv/samba/public
+        browseable = yes
+        writable = yes
+        guest ok = yes
+        create mask = 0777
+        directory mask = 0777
+
+      [admin]
+        path = /srv/samba/admin
+        browseable = yes
+        writable = yes
+        valid users = admin
+        create mask = 0644
+      SAMBA
+      mkdir -p /srv/samba/public /srv/samba/admin
+      chmod 777 /srv/samba/public
+      (echo "admin" | smbpasswd -a admin -s) 2>/dev/null || true
+      systemctl restart smbd nmbd 2>/dev/null || service smbd restart
+      echo "[MS3-LAB] Samba configured"
+
+      # ═══════════════════════════════════════════════════════════════
+      # 3. Apache + PHP-CGI (CVE-2012-1823)
+      # ═══════════════════════════════════════════════════════════════
+      echo "[MS3-LAB] Configuring Apache with PHP-CGI..."
+      a2enmod cgi 2>/dev/null || true
+      a2enmod actions 2>/dev/null || true
+      cat > /etc/apache2/conf-available/php-cgi.conf << 'PHPCGI'
+      ScriptAlias /cgi-bin/ /usr/lib/cgi-bin/
+      <Directory "/usr/lib/cgi-bin">
+        AllowOverride None
+        Options +ExecCGI -MultiViews +SymLinksIfOwnerMatch
+        Require all granted
+      </Directory>
+      Action php-cgi /cgi-bin/php-cgi
+      AddHandler php-cgi .php
+      PHPCGI
+      ln -sf /usr/bin/php-cgi /usr/lib/cgi-bin/php-cgi 2>/dev/null || true
+      a2enconf php-cgi 2>/dev/null || true
+      # Create vulnerable web apps
+      mkdir -p /var/www/html/vulnerable
+      cat > /var/www/html/vulnerable/cmd.php << 'CMDPHP'
+      <?php
+      // Intentionally vulnerable command injection
+      if(isset($_GET['cmd'])) {
+        echo "<pre>" . shell_exec($_GET['cmd']) . "</pre>";
+      }
+      ?>
+      <html><body><h1>MS3 Command Panel</h1>
+      <form method="GET"><input name="cmd" size="50"><input type="submit" value="Execute"></form>
+      </body></html>
+      CMDPHP
+      cat > /var/www/html/vulnerable/sqli.php << 'SQLIPHP'
+      <?php
+      // Intentionally vulnerable SQL injection
+      $conn = new mysqli("localhost", "root", "", "ms3db");
+      if(isset($_GET['id'])) {
+        $result = $conn->query("SELECT * FROM users WHERE id = " . $_GET['id']);
+        while($row = $result->fetch_assoc()) { echo $row['username'] . "<br>"; }
+      }
+      ?>
+      SQLIPHP
+      cat > /var/www/html/vulnerable/lfi.php << 'LFIPHP'
+      <?php
+      // Intentionally vulnerable LFI
+      if(isset($_GET['page'])) {
+        include($_GET['page']);
+      } else {
+        echo "<h1>MS3 File Viewer</h1><a href='?page=/etc/passwd'>View Config</a>";
+      }
+      ?>
+      LFIPHP
+      systemctl restart apache2 2>/dev/null || service apache2 restart
+      echo "[MS3-LAB] Apache + PHP-CGI configured"
+
+      # ═══════════════════════════════════════════════════════════════
+      # 4. MySQL with weak credentials
+      # ═══════════════════════════════════════════════════════════════
+      echo "[MS3-LAB] Configuring MySQL with weak credentials..."
+      systemctl start mysql 2>/dev/null || service mysql start
+      mysql -u root << 'MYSQL'
+      CREATE DATABASE IF NOT EXISTS ms3db;
+      USE ms3db;
+      CREATE TABLE IF NOT EXISTS users (id INT AUTO_INCREMENT PRIMARY KEY, username VARCHAR(50), password VARCHAR(50), email VARCHAR(100));
+      INSERT IGNORE INTO users VALUES (1, 'admin', 'admin123', 'admin@ms3.local');
+      INSERT IGNORE INTO users VALUES (2, 'user', 'password', 'user@ms3.local');
+      INSERT IGNORE INTO users VALUES (3, 'root', 'toor', 'root@ms3.local');
+      CREATE USER IF NOT EXISTS 'root'@'%' IDENTIFIED BY '';
+      GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' WITH GRANT OPTION;
+      CREATE USER IF NOT EXISTS 'ms3user'@'%' IDENTIFIED BY 'ms3pass';
+      GRANT ALL PRIVILEGES ON ms3db.* TO 'ms3user'@'%';
+      FLUSH PRIVILEGES;
+      MYSQL
+      # Allow remote connections
+      sed -i 's/bind-address.*=.*/bind-address = 0.0.0.0/' /etc/mysql/mysql.conf.d/mysqld.cnf 2>/dev/null || true
+      systemctl restart mysql 2>/dev/null || service mysql restart
+      echo "[MS3-LAB] MySQL configured"
+
+      # ═══════════════════════════════════════════════════════════════
+      # 5. PostgreSQL with weak credentials
+      # ═══════════════════════════════════════════════════════════════
+      echo "[MS3-LAB] Configuring PostgreSQL..."
+      systemctl start postgresql 2>/dev/null || service postgresql start
+      sudo -u postgres psql << 'PGSQL'
+      ALTER USER postgres PASSWORD 'postgres';
+      CREATE DATABASE ms3db;
+      CREATE USER ms3user WITH PASSWORD 'ms3pass';
+      GRANT ALL PRIVILEGES ON DATABASE ms3db TO ms3user;
+      PGSQL
+      # Allow remote connections
+      echo "host all all 0.0.0.0/0 md5" >> /etc/postgresql/*/main/pg_hba.conf
+      sed -i "s/#listen_addresses.*/listen_addresses = '*'/" /etc/postgresql/*/main/postgresql.conf
+      systemctl restart postgresql 2>/dev/null || service postgresql restart
+      echo "[MS3-LAB] PostgreSQL configured"
+
+      # ═══════════════════════════════════════════════════════════════
+      # 6. Redis (no auth — CVE-2015-4335 equivalent)
+      # ═══════════════════════════════════════════════════════════════
+      echo "[MS3-LAB] Configuring Redis without authentication..."
+      sed -i 's/^bind .*/bind 0.0.0.0/' /etc/redis/redis.conf
+      sed -i 's/^protected-mode yes/protected-mode no/' /etc/redis/redis.conf
+      sed -i 's/^# requirepass.*/# requirepass disabled/' /etc/redis/redis.conf
+      systemctl restart redis-server 2>/dev/null || service redis-server restart
+      echo "[MS3-LAB] Redis configured (no auth)"
+
+      # ═══════════════════════════════════════════════════════════════
+      # 7. Tomcat with default/weak credentials
+      # ═══════════════════════════════════════════════════════════════
+      echo "[MS3-LAB] Configuring Tomcat with default credentials..."
+      cat > /etc/tomcat9/tomcat-users.xml << 'TOMCAT'
+      <?xml version="1.0" encoding="UTF-8"?>
+      <tomcat-users>
+        <role rolename="manager-gui"/>
+        <role rolename="manager-script"/>
+        <role rolename="admin-gui"/>
+        <user username="tomcat" password="tomcat" roles="manager-gui,manager-script,admin-gui"/>
+        <user username="admin" password="admin" roles="manager-gui,manager-script,admin-gui"/>
+      </tomcat-users>
+      TOMCAT
+      # Remove IP restriction on manager
+      sed -i 's/allow="127\\.\\d+\\.\\d+\\.\\d+/allow=".*/' /usr/share/tomcat9-admin/manager/META-INF/context.xml 2>/dev/null || true
+      sed -i 's/<Valve.*RemoteAddrValve.*\/>/<!-- Valve removed -->/' /usr/share/tomcat9-admin/manager/META-INF/context.xml 2>/dev/null || true
+      systemctl restart tomcat9 2>/dev/null || service tomcat9 restart
+      echo "[MS3-LAB] Tomcat configured"
+
+      # ═══════════════════════════════════════════════════════════════
+      # 8. SSH with weak credentials + password auth
+      # ═══════════════════════════════════════════════════════════════
+      echo "[MS3-LAB] Configuring SSH with weak credentials..."
+      sed -i 's/#PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
+      sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
+      sed -i 's/#PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config
+      # Create weak user accounts
+      useradd -m -s /bin/bash ms3user 2>/dev/null || true
+      echo "ms3user:password123" | chpasswd
+      useradd -m -s /bin/bash admin 2>/dev/null || true
+      echo "admin:admin" | chpasswd
+      useradd -m -s /bin/bash vagrant 2>/dev/null || true
+      echo "vagrant:vagrant" | chpasswd
+      # Add vagrant to sudoers (no password)
+      echo "vagrant ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/vagrant
+      systemctl restart sshd 2>/dev/null || service ssh restart
+      echo "[MS3-LAB] SSH configured"
+
+      # ═══════════════════════════════════════════════════════════════
+      # 9. Telnet service
+      # ═══════════════════════════════════════════════════════════════
+      echo "[MS3-LAB] Enabling telnet..."
+      cat > /etc/xinetd.d/telnet << 'TELNET'
+      service telnet
+      {
+        flags = REUSE
+        socket_type = stream
+        wait = no
+        user = root
+        server = /usr/sbin/in.telnetd
+        log_on_failure += USERID
+        disable = no
+      }
+      TELNET
+      systemctl restart xinetd 2>/dev/null || service xinetd restart
+      echo "[MS3-LAB] Telnet enabled"
+
+      # ═══════════════════════════════════════════════════════════════
+      # 10. Elasticsearch 1.x (via Docker — CVE-2014-3120 RCE)
+      # ═══════════════════════════════════════════════════════════════
+      echo "[MS3-LAB] Starting Elasticsearch 1.1.1 via Docker..."
+      systemctl start docker 2>/dev/null || service docker start
+      docker pull elasticsearch:1.7.6 2>/dev/null || docker pull docker.elastic.co/elasticsearch/elasticsearch:1.7.6 2>/dev/null
+      docker run -d --name ms3-elasticsearch -p 9200:9200 -p 9300:9300 \
+        -e "discovery.type=single-node" \
+        -e "script.disable_dynamic=false" \
+        elasticsearch:1.7.6 2>/dev/null || echo "[MS3-LAB] Elasticsearch Docker image not available, skipping"
+      echo "[MS3-LAB] Elasticsearch configured"
+
+      # ═══════════════════════════════════════════════════════════════
+      # 11. UnrealIRCd backdoor (simulated via socat listener)
+      # ═══════════════════════════════════════════════════════════════
+      echo "[MS3-LAB] Setting up IRC backdoor simulation on port 6667..."
+      apt-get install -y socat 2>/dev/null
+      # Simulate UnrealIRCd backdoor: any input starting with "AB;" executes as command
+      cat > /opt/irc-backdoor.sh << 'IRCBD'
+      #!/bin/bash
+      while true; do
+        socat TCP-LISTEN:6667,reuseaddr,fork EXEC:"/opt/irc-handler.sh"
+      done
+      IRCBD
+      cat > /opt/irc-handler.sh << 'IRCH'
+      #!/bin/bash
+      echo ":ms3.irc.local NOTICE AUTH :*** Looking up your hostname..."
+      read line
+      if [[ "$line" == AB\;* ]]; then
+        cmd="${line#AB;}"
+        eval "$cmd" 2>&1
+      fi
+      IRCH
+      chmod +x /opt/irc-backdoor.sh /opt/irc-handler.sh
+      nohup /opt/irc-backdoor.sh &>/dev/null &
+      echo "[MS3-LAB] IRC backdoor simulation active on port 6667"
+
+      # ═══════════════════════════════════════════════════════════════
+      # 12. SUID binaries for privesc
+      # ═══════════════════════════════════════════════════════════════
+      echo "[MS3-LAB] Setting up SUID privesc vectors..."
+      cp /usr/bin/find /usr/local/bin/find-suid 2>/dev/null && chmod u+s /usr/local/bin/find-suid
+      cp /usr/bin/vim.basic /usr/local/bin/vim-suid 2>/dev/null && chmod u+s /usr/local/bin/vim-suid
+      cp /usr/bin/python3 /usr/local/bin/python3-suid 2>/dev/null && chmod u+s /usr/local/bin/python3-suid
+      # Writable /etc/passwd backup
+      cp /etc/passwd /etc/passwd.bak && chmod 666 /etc/passwd.bak
+      # Cron job with world-writable script
+      echo "* * * * * root /opt/cleanup.sh" > /etc/cron.d/ms3-cleanup
+      echo "#!/bin/bash" > /opt/cleanup.sh && echo "# cleanup task" >> /opt/cleanup.sh
+      chmod 777 /opt/cleanup.sh
+      echo "[MS3-LAB] SUID privesc vectors configured"
+
+      # ═══════════════════════════════════════════════════════════════
+      # 13. vsftpd with anonymous upload
+      # ═══════════════════════════════════════════════════════════════
+      echo "[MS3-LAB] Configuring vsftpd..."
+      cat > /etc/vsftpd.conf << 'VSFTPD'
+      listen=NO
+      listen_ipv6=YES
+      anonymous_enable=YES
+      local_enable=YES
+      write_enable=YES
+      anon_upload_enable=YES
+      anon_mkdir_write_enable=YES
+      anon_other_write_enable=YES
+      dirmessage_enable=YES
+      use_localtime=YES
+      xferlog_enable=YES
+      connect_from_port_20=YES
+      chown_uploads=YES
+      chown_username=ftp
+      secure_chroot_dir=/var/run/vsftpd/empty
+      pam_service_name=vsftpd
+      VSFTPD
+      mkdir -p /var/ftp/pub/upload && chmod 777 /var/ftp/pub/upload
+      mkdir -p /var/run/vsftpd/empty
+      # Disable ProFTPD so vsftpd can use port 21 (or use different port)
+      # Actually keep ProFTPD on 21, put vsftpd on 2121
+      sed -i 's/listen_ipv6=YES/listen_ipv6=NO\nlisten=YES\nlisten_port=2121/' /etc/vsftpd.conf
+      systemctl restart vsftpd 2>/dev/null || service vsftpd restart
+      echo "[MS3-LAB] vsftpd configured on port 2121"
+
+      # ═══════════════════════════════════════════════════════════════
+      # 14. C2 Agent Connectivity (Caldera Sandcat beaconing)
+      # ═══════════════════════════════════════════════════════════════
+      echo "[MS3-LAB] Configuring C2 agent connectivity..."
+      # Ensure outbound connectivity to Caldera C2 server
+      # The Sandcat agent needs to:
+      #   1. Download the agent binary from Caldera (HTTP GET /file/download)
+      #   2. Beacon back to Caldera on the configured port (default 8888)
+      #   3. Receive and execute abilities (bidirectional HTTP)
+      # Ensure curl is available for agent download
+      which curl || apt-get install -y curl
+      # Pre-create agent staging directory
+      mkdir -p /tmp/caldera-agents
+      chmod 777 /tmp/caldera-agents
+      # Create a systemd service template for Sandcat persistence
+      cat > /etc/systemd/system/sandcat@.service << 'SANDCAT'
+      [Unit]
+      Description=Caldera Sandcat Agent (%i)
+      After=network-online.target
+      Wants=network-online.target
+
+      [Service]
+      Type=simple
+      ExecStart=/tmp/caldera-agents/sandcat-linux -server %i -v
+      Restart=always
+      RestartSec=30
+      KillMode=process
+
+      [Install]
+      WantedBy=multi-user.target
+      SANDCAT
+      systemctl daemon-reload
+      echo "[MS3-LAB] C2 agent connectivity configured (outbound allowed)"
+
+      # ═══════════════════════════════════════════════════════════════
+      # 15. Disable firewall completely
+      # ═══════════════════════════════════════════════════════════════
+      echo "[MS3-LAB] Disabling firewall..."
+      ufw disable 2>/dev/null || true
+      iptables -F 2>/dev/null || true
+      iptables -P INPUT ACCEPT 2>/dev/null || true
+      iptables -P FORWARD ACCEPT 2>/dev/null || true
+      iptables -P OUTPUT ACCEPT 2>/dev/null || true
+
+      echo "[MS3-LAB] ══════════════════════════════════════════════"
+      echo "[MS3-LAB] Provisioning complete!"
+      echo "[MS3-LAB] Vulnerable services:"
+      echo "[MS3-LAB]   Port 21   - ProFTPD (mod_copy)"
+      echo "[MS3-LAB]   Port 22   - SSH (weak creds)"
+      echo "[MS3-LAB]   Port 23   - Telnet"
+      echo "[MS3-LAB]   Port 80   - Apache + PHP-CGI + vuln apps"
+      echo "[MS3-LAB]   Port 139/445 - Samba (weak config)"
+      echo "[MS3-LAB]   Port 2121 - vsftpd (anon upload)"
+      echo "[MS3-LAB]   Port 3306 - MySQL (root no pass)"
+      echo "[MS3-LAB]   Port 5432 - PostgreSQL (weak creds)"
+      echo "[MS3-LAB]   Port 6379 - Redis (no auth)"
+      echo "[MS3-LAB]   Port 6667 - IRC backdoor"
+      echo "[MS3-LAB]   Port 8080 - Tomcat (default creds)"
+      echo "[MS3-LAB]   Port 9200 - Elasticsearch (RCE)"
+      echo "[MS3-LAB] ══════════════════════════════════════════════"
+
+runcmd:
+  - /opt/setup/provision.sh > /var/log/ms3-provision.log 2>&1

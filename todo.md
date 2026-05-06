@@ -2110,3 +2110,16 @@
 - [x] Create blind-test-engagement.json config (no pre-seeded target knowledge)
 - [x] Document expected vulnerabilities and validate pipeline discovers them independently
 - [x] All 16 fingerprint DB tests + 19 Sprint 10 tests passing
+
+### Sprint 11B — Deploy Test Lab + Post-Exploitation Validation (May 6)
+- [ ] Deploy Metasploitable3 test lab on DO (VPC, firewall, Linux + Windows droplets)
+- [x] Add post-exploitation validation module (auto-verify access level after shell)
+- [x] Add privilege escalation attempt logic (kernel exploits, SUID, misconfigs)
+- [x] Wire post-exploit validation into the exploit pipeline result handler
+- [ ] Create blind test engagement against deployed targets
+- [x] Tests passing (34 vitest tests for post-exploit validation)
+- [x] Ensure test lab targets have outbound connectivity to Caldera C2 server
+- [x] Add Ember agent deployment verification to post-exploitation module
+- [x] Add C2 callback confirmation (agent check-in within timeout)
+- [x] Add privilege escalation attempt logic (SUID, kernel, cron, writable paths)
+- [x] Wire full kill chain: exploit → access verify → privesc → agent deploy → C2 confirm
