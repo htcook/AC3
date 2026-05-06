@@ -1969,5 +1969,5 @@
 - [x] Fix: Remove jspdf and jspdf-autotable from CDN_MAP in vite.config.ts (bundle directly instead)
 - [x] Add timeout (30s) to loadPdfLibs() to prevent infinite hang
 - [x] Add fallback blob download in case doc.save() fails
-- [ ] Push to GitHub and deploy
-- [ ] Verify Report button works on live site
+- [x] Push to GitHub and deploy
+- [x] Verify Report button works on live site
