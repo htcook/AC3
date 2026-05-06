@@ -2096,3 +2096,17 @@
 ### Sprint 10B — Engagement Monitoring (May 6)
 - [x] Create /api/scheduled/engagement-monitor endpoint (check ops state, detect stuck/failed phases)
 - [x] Set up recurring scheduled task to monitor Priceline engagement (every 10 min)
+
+### Sprint 11 — Metasploitable3 Test Lab + Autonomous Exploit Pipeline Validation (May 6)
+- [x] DO provisioning scripts for Metasploitable3 ub1404 (Linux) target droplet
+- [x] DO provisioning scripts for Metasploitable3 win2k8 (Windows) target droplet
+- [x] DO deployment script: create VPC, spin up both targets, configure firewall
+- [x] Audit exploit pipeline autonomous decision-making (scan → CVE → exploit selection → execution)
+- [x] Enhance exploit selection engine: remove dependency on pre-seeded target knowledge
+- [x] Build exploit-service-fingerprint-db.ts (service version → MSF module ground truth, 40+ mappings)
+- [x] Wire fingerprint DB as Step -1 fast-path in enhanced-exploit-orchestration (before LLM)
+- [x] Add Metasploitable3 CVEs to KNOWN_MSF_CVES and KNOWN_NUCLEI_CVES
+- [x] Remove Nmap dependency — pipeline uses naabu/masscan + custom fingerprinter exclusively
+- [x] Create blind-test-engagement.json config (no pre-seeded target knowledge)
+- [x] Document expected vulnerabilities and validate pipeline discovers them independently
+- [x] All 16 fingerprint DB tests + 19 Sprint 10 tests passing

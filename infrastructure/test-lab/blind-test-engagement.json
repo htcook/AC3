@@ -1,0 +1,92 @@
+{
+  "name": "AC3 Exploit Pipeline Blind Test — Metasploitable3",
+  "description": "Fully autonomous blind assessment of Metasploitable3 Linux and Windows targets. The pipeline receives ONLY IP addresses — no CVE hints, no service versions, no pre-seeded vulnerability data. It must independently discover, assess, and exploit all vulnerabilities.",
+  "type": "red_team",
+  "objectives": [
+    "Achieve maximum shell access on all target systems",
+    "Demonstrate autonomous vulnerability discovery and exploitation",
+    "Validate the full pipeline: scan → fingerprint → CVE map → exploit select → execute → verify"
+  ],
+  "config": {
+    "trainingLabMode": true,
+    "exhaustiveExploit": true,
+    "enableChainExecution": true,
+    "enableChainReasoner": true,
+    "maxChainSteps": 6,
+    "useEnhancedPipeline": true,
+    "skipPassiveRecon": true,
+    "skipDomainHealth": true,
+    "aggressiveScan": true,
+    "scanforgeTool": "naabu",
+    "scanforgeRate": 1000,
+    "fingerprintAllPorts": true,
+    "exploitTimeoutMs": 180000,
+    "maxExploitsPerAsset": 20
+  },
+  "targets": {
+    "linux": {
+      "note": "Replace with actual droplet IP after deploy-test-lab.sh runs",
+      "ip": "LINUX_TARGET_IP",
+      "hostname": "ac3-linux-target",
+      "expectedServices": [
+        {"port": 21, "service": "ProFTPD 1.3.5", "expectedCVE": "CVE-2015-3306"},
+        {"port": 22, "service": "OpenSSH", "expectedCVE": null},
+        {"port": 80, "service": "Apache 2.4 + PHP-CGI", "expectedCVE": "CVE-2012-1823"},
+        {"port": 139, "service": "Samba", "expectedCVE": "CVE-2007-2447"},
+        {"port": 445, "service": "Samba", "expectedCVE": "CVE-2007-2447"},
+        {"port": 3306, "service": "MySQL 5.5", "expectedCVE": null},
+        {"port": 5432, "service": "PostgreSQL", "expectedCVE": null},
+        {"port": 6667, "service": "UnrealIRCd", "expectedCVE": "CVE-2010-2075"},
+        {"port": 6379, "service": "Redis", "expectedCVE": null},
+        {"port": 8080, "service": "Apache Tomcat", "expectedCVE": null},
+        {"port": 8181, "service": "Apache mod_cgi (Shellshock)", "expectedCVE": "CVE-2014-6271"},
+        {"port": 9200, "service": "Elasticsearch 1.1.1", "expectedCVE": "CVE-2014-3120"}
+      ]
+    },
+    "windows": {
+      "note": "Replace with actual droplet IP after deploy-test-lab.sh runs",
+      "ip": "WINDOWS_TARGET_IP",
+      "hostname": "ac3-windows-target",
+      "expectedServices": [
+        {"port": 21, "service": "FTP (IIS)", "expectedCVE": null},
+        {"port": 80, "service": "IIS 7.5", "expectedCVE": "CVE-2015-1635"},
+        {"port": 135, "service": "MSRPC", "expectedCVE": null},
+        {"port": 139, "service": "NetBIOS", "expectedCVE": null},
+        {"port": 445, "service": "SMBv1", "expectedCVE": "CVE-2017-0143"},
+        {"port": 3389, "service": "RDP", "expectedCVE": null},
+        {"port": 8020, "service": "ManageEngine", "expectedCVE": "CVE-2015-8249"},
+        {"port": 8080, "service": "Jenkins", "expectedCVE": null},
+        {"port": 8282, "service": "Apache Axis2", "expectedCVE": null},
+        {"port": 8484, "service": "Apache Tomcat", "expectedCVE": null},
+        {"port": 8585, "service": "WordPress", "expectedCVE": null}
+      ]
+    }
+  },
+  "successCriteria": {
+    "minimumShells": 5,
+    "minimumVulnsDiscovered": 10,
+    "maximumFalsePositives": 2,
+    "requiredCVEsExploited": [
+      "CVE-2015-3306",
+      "CVE-2014-3120",
+      "CVE-2014-6271",
+      "CVE-2017-0143"
+    ],
+    "pipelineDecisionAudit": {
+      "description": "After the engagement completes, compare the pipeline's autonomous decisions against the expectedServices list to measure precision and recall",
+      "expectedPrecision": 0.8,
+      "expectedRecall": 0.7
+    }
+  },
+  "postEngagementValidation": {
+    "steps": [
+      "Compare discovered services vs expectedServices (recall)",
+      "Compare exploited CVEs vs requiredCVEsExploited (exploitation recall)",
+      "Count false positives (findings that don't match any real vulnerability)",
+      "Measure time-to-first-shell",
+      "Measure total engagement duration",
+      "Review exploit selection reasoning for each attempt",
+      "Identify any cases where the pipeline needed human hints but didn't get them"
+    ]
+  }
+}
