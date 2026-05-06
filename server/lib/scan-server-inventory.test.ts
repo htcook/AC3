@@ -10,13 +10,13 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // Mock the SSH executor
 vi.mock("./scan-server-executor", () => ({
-  executeSSHWithRetry: vi.fn(),
+  executeRawCommand: vi.fn(),
 }));
 
-import { executeSSHWithRetry } from "./scan-server-executor";
+import { executeRawCommand } from "./scan-server-executor";
 import { getToolInventory, getInventoryForLLM, invalidateInventoryCache } from "./scan-server-inventory";
 
-const mockSSH = vi.mocked(executeSSHWithRetry);
+const mockSSH = vi.mocked(executeRawCommand);
 
 describe("scan-server-inventory", () => {
   beforeEach(() => {

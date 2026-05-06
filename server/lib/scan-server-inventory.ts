@@ -14,7 +14,13 @@
  *   - Groups tools by category for LLM context injection
  */
 
-import { executeSSHWithRetry } from "./scan-server-executor";
+import { executeRawCommand } from "./scan-server-executor";
+
+/** Wrapper to match the expected signature — executeRawCommand returns ToolExecResult */
+async function execSSH(command: string, timeoutSec = 30, _ignoreErrors = false) {
+  const result = await executeRawCommand(command, timeoutSec);
+  return { stdout: result.stdout, stderr: result.stderr, exitCode: result.exitCode, timedOut: result.timedOut };
+}
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -248,7 +254,7 @@ async function probeToolInventory(): Promise<ToolInventory> {
   // Step 1: Try reading the manifest (fast path)
   let manifestTools: Record<string, { path?: string; version?: string }> = {};
   try {
-    const manifestResult = await executeSSHWithRetry(
+    const manifestResult = await execSSH(
       "cat /opt/tool-manifest.json 2>/dev/null",
       10,
       true
@@ -275,7 +281,7 @@ async function probeToolInventory(): Promise<ToolInventory> {
 
   let whichResults: Record<string, string> = {};
   try {
-    const whichOutput = await executeSSHWithRetry(whichCommands, 30, true);
+    const whichOutput = await execSSH(whichCommands, 30, true);
     for (const line of whichOutput.stdout.split("\n")) {
       const match = line.match(/^CHECK:([^:]+):(.+)$/);
       if (match) {
@@ -308,7 +314,7 @@ async function probeToolInventory(): Promise<ToolInventory> {
         .join(" && ");
 
       try {
-        const versionOutput = await executeSSHWithRetry(versionCommands, 30, true);
+        const versionOutput = await execSSH(versionCommands, 30, true);
         for (const line of versionOutput.stdout.split("\n")) {
           const match = line.match(/^VER:([^:]+):(.+)$/);
           if (match && match[2] !== "unknown") {
@@ -326,7 +332,7 @@ async function probeToolInventory(): Promise<ToolInventory> {
   // Step 4: Get server resources
   let resources: ToolInventory["resources"];
   try {
-    const resourceOutput = await executeSSHWithRetry(
+    const resourceOutput = await execSSH(
       "echo \"UPTIME:$(uptime -p 2>/dev/null || uptime)\" && echo \"DISK:$(df -h / | tail -1 | awk '{print $4}')\" && echo \"MEM:$(free -h | grep Mem | awk '{print $7}')\" && echo \"CPU:$(nproc 2>/dev/null || echo 0)\"",
       10,
       true

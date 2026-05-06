@@ -3862,7 +3862,10 @@ export const domainIntelRouter = router({
     getEntityOverride: protectedProcedure
       .input(z.object({ scanId: z.number() }))
       .query(async ({ input }) => {
-        const [override] = await db.db.select()
+        const { getDb } = await import('../db');
+        const dbInst = await getDb();
+        if (!dbInst) return null;
+        const [override] = await dbInst.select()
           .from(schema.entityProfileOverrides)
           .where(eq(schema.entityProfileOverrides.scanId, input.scanId))
           .limit(1);
@@ -3887,6 +3890,9 @@ export const domainIntelRouter = router({
         overrideReason: z.string().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
+        const { getDb } = await import('../db');
+        const dbInst = await getDb();
+        if (!dbInst) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database not available' });
         const { scanId, domain, isPublicCompany, ...rest } = input;
         const data = {
           ...rest,
@@ -3897,18 +3903,18 @@ export const domainIntelRouter = router({
         };
 
         // Upsert: check if override already exists for this scan
-        const [existing] = await db.db.select({ id: schema.entityProfileOverrides.id })
+        const [existing] = await dbInst.select({ id: schema.entityProfileOverrides.id })
           .from(schema.entityProfileOverrides)
           .where(eq(schema.entityProfileOverrides.scanId, scanId))
           .limit(1);
 
         if (existing) {
-          await db.db.update(schema.entityProfileOverrides)
+          await dbInst.update(schema.entityProfileOverrides)
             .set(data)
             .where(eq(schema.entityProfileOverrides.id, existing.id));
           return { success: true, action: 'updated', id: existing.id };
         } else {
-          const [result] = await db.db.insert(schema.entityProfileOverrides)
+          const [result] = await dbInst.insert(schema.entityProfileOverrides)
             .values(data as any);
           return { success: true, action: 'created', id: result.insertId };
         }
@@ -3917,7 +3923,10 @@ export const domainIntelRouter = router({
     deleteEntityOverride: protectedProcedure
       .input(z.object({ scanId: z.number() }))
       .mutation(async ({ input }) => {
-        await db.db.delete(schema.entityProfileOverrides)
+        const { getDb } = await import('../db');
+        const dbInst = await getDb();
+        if (!dbInst) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database not available' });
+        await dbInst.delete(schema.entityProfileOverrides)
           .where(eq(schema.entityProfileOverrides.scanId, input.scanId));
         return { success: true };
       }),
