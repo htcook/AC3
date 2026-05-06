@@ -2043,3 +2043,9 @@
 ### Sprint 5 — ScanForge Parallel Phase + DB Fix
 - [x] Fix enrichment_history DB insert failures (status enum missing 'pending_review' value)
 - [x] Wire ScanForge port discovery as parallel batched execution (3 concurrent targets per batch)
+
+### Sprint 6 — Scan Server Tool Inventory Endpoint
+- [ ] Create scan-server-inventory.ts module (SSH-based tool detection)
+- [ ] Add tRPC endpoint to expose tool inventory to frontend/LLM planner
+- [ ] Wire tool inventory into LLM scan plan generation context
+- [ ] Write vitest tests for the inventory module
