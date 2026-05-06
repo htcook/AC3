@@ -5791,6 +5791,18 @@ export async function exportDiReport(
     finalRecommendations = autoRecs;
   }
 
+  // Guaranteed minimum: if still empty, add universal best-practice recommendations
+  if (finalRecommendations.length === 0) {
+    const assetCount = assets?.length || 0;
+    const riskScore = scan.overallRiskScore ?? 0;
+    finalRecommendations = [
+      { recommendation: `Conduct periodic external penetration testing across all ${assetCount} discovered assets to validate findings and identify new exposures.`, title: 'Periodic Penetration Testing', category: 'Security Testing', effort: 'Medium-term' },
+      { recommendation: 'Implement continuous attack surface monitoring to detect new assets, exposed services, and configuration drift in real-time.', title: 'Continuous Attack Surface Monitoring', category: 'Visibility', effort: 'Short-term' },
+      { recommendation: 'Establish a vulnerability management program with defined SLAs for patching based on severity and exploitability.', title: 'Vulnerability Management Program', category: 'Patch Management', effort: 'Medium-term' },
+      ...(riskScore >= 40 ? [{ recommendation: 'Prioritize remediation of high-risk assets identified in this assessment before the next scan cycle.', title: 'High-Risk Asset Remediation', category: 'Risk Reduction', effort: 'Immediate' }] : []),
+    ];
+  }
+
   // Humanize underscore/snake_case values for display
   const humanize = (s: string) => s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 

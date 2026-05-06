@@ -1972,13 +1972,52 @@
 - [x] Push to GitHub and deploy
 - [x] Verify Report button works on live site
 ### Enhanced Vendor/Third-Party Asset Classification (May 5)
-- [ ] Expand MANAGED_HOST_PATTERNS to comprehensive vendor taxonomy (ISP, web host, IaaS, PaaS, SaaS, CDN, DNS, analytics, etc.)
-- [ ] Add vendor category classification (not just managed_provider vs client_owned)
-- [ ] Add risk responsibility attribution (vendor_responsibility, shared_responsibility, customer_responsibility)
-- [ ] Implement hostname-based, ASN-based, and IP-range-based vendor detection
-- [ ] Update DI pipeline risk scoring to attribute findings to responsible party
-- [ ] Update PDF report to show risk breakdown by responsible party
-- [ ] Update UI (VendorRiskTab, DomainIntelResults) to clearly separate vendor vs customer findings
-- [ ] Ensure OSINT subdomain enumeration identifies all org-owned domains (not vendor domains)
+- [x] Expand MANAGED_HOST_PATTERNS to comprehensive vendor taxonomy (ISP, web host, IaaS, PaaS, SaaS, CDN, DNS, analytics, etc.)
+- [x] Add vendor category classification (not just managed_provider vs client_owned)
+- [x] Add risk responsibility attribution (vendor_responsibility, shared_responsibility, customer_responsibility)
+- [x] Implement hostname-based, ASN-based, and IP-range-based vendor detection
+- [x] Update DI pipeline risk scoring to attribute findings to responsible party
+- [x] Update PDF report to show risk breakdown by responsible party
+- [x] Update UI (VendorRiskTab, DomainIntelResults) to clearly separate vendor vs customer findings
+- [x] Ensure OSINT subdomain enumeration identifies all org-owned domains (not vendor domains)
 - [ ] Write tests for enhanced classification
-- [ ] Push to GitHub and deploy
+- [x] Push to GitHub and deploy
+
+### Sprint 1A — Report Bugs (from Claude's prioritization)
+- [ ] T0-5: Fix blank Prioritized Recommendations page in DI report PDF
+- [ ] T0-6: Filter out Unknown/N/A exploit rows from DI report PDF
+- [ ] T0-7: Align Confirmed Findings count between cover page and exec summary
+- [ ] T0-8: Fix RDAP status string comparison (strip spaces before matching)
+
+### Sprint 1B — Exploit Pipeline Investigation
+- [ ] T0-1: Diagnose WHERE the exploit pipeline fails (selection? generation? execution?)
+- [ ] T0-10: Fix ZAP port targeting (scan all discovered HTTP ports, not just 80/443/8443)
+
+### Sprint 2 — Report Quality
+- [ ] T2-1: Group CVEs by IP/service to compact the section
+- [ ] T2-2: Remove text truncation in recommendations
+- [ ] T2-3: Pull CVSS from NVD data
+- [ ] T2-4: Fix phishing difficulty wording contradiction
+- [ ] T2-5: Fix double footer on cover page
+- [ ] T2-6: Combine/skip empty pages (Breach, Dark Web)
+- [ ] T2-7: Fix mission function underscores (display as proper names)
+- [ ] T2-8: Fix compliance table text truncation
+- [ ] T2-9: Deduplicate technologies (Express vs Express.js)
+- [ ] T2-11: Fix CARVER feedback loop ordering bug (stale scores)
+
+### Sprint 3 — Exploit Pipeline Fix
+- [ ] T0-1: Fix exploit pipeline end-to-end (vuln selection → LLM generation → execution → verification)
+- [ ] T4-1: Fix ZAP to scan all discovered HTTP ports
+- [ ] T4-2: Investigate Burp connectivity/timeout (16-second scan, 0 issues)
+- [ ] T4-3: Fix ScanForge template matching (37 templates, 0 findings against known-vuln app)
+
+### Sprint 4 — Architecture Wiring
+- [ ] T1-1: Wire ScanForge into engagement pipeline as parallel phase
+- [ ] T1-2: Wire Discovery Context Engine into DI pipeline (replace monolithic analyzeAssets)
+- [ ] T1-3: Wire Actor Context Provider into engagement orchestrator scan planning
+- [ ] T1-4: Decompose engagement orchestrator (8573 lines → phase modules)
+- [ ] T1-11: Swap ScanForge YAML parser to yaml npm package
+- [ ] T1-12: Tighten FAST_TRACK_RULES (1 engagement/3 scans too aggressive)
+- [ ] T1-13: Define proof engine safety profile before production use
+- [ ] T1-14: Fix dedup fingerprint over-merging for web findings (same target+port+CVE, different endpoint)
+- [ ] T1-15: Reconcile corroboration multipliers and CARVER confidence systems
