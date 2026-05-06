@@ -421,6 +421,13 @@
       "when": 1778031751035,
       "tag": "0059_ordinary_wallow",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "5",
+      "when": 1778037774373,
+      "tag": "0060_useful_wilson_fisk",
+      "breakpoints": true
     }
   ]
 }

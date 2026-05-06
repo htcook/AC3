@@ -2039,3 +2039,7 @@
 - [x] Added Burp suspicious fast-completion detection
   - If scan completes in <30s with 0 issues, logs warning about likely target unreachability
   - Provides actionable diagnostic message to operator
+
+### Sprint 5 — ScanForge Parallel Phase + DB Fix
+- [x] Fix enrichment_history DB insert failures (status enum missing 'pending_review' value)
+- [x] Wire ScanForge port discovery as parallel batched execution (3 concurrent targets per batch)

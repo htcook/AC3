@@ -1,0 +1,1 @@
+ALTER TABLE `enrichment_history` MODIFY COLUMN `status` enum('success','failed','partial','pending_review') NOT NULL DEFAULT 'success';

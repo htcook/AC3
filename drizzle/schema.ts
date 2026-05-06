@@ -3587,7 +3587,7 @@ export const enrichmentHistory = mysqlTable("enrichment_history", {
 	dataQualityBefore: int("data_quality_before"),
 	dataQualityAfter: int("data_quality_after"),
 	summary: text(),
-	status: mysqlEnum(['success','failed','partial']).default('success').notNull(),
+	status: mysqlEnum(['success','failed','partial','pending_review']).default('success').notNull(),
 	errorMessage: text("error_message"),
 	durationMs: int("duration_ms"),
 	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
