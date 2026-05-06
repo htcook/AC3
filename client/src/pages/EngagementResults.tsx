@@ -91,7 +91,9 @@ function OwaspExportButtons({ engagementId }: { engagementId: number }) {
 
 export default function EngagementResults() {
   const [, navigate] = useLocation();
-  const [, params] = useRoute("/engagements/:id/results");
+  const [, paramsResults] = useRoute("/engagements/:id/results");
+  const [, paramsBase] = useRoute("/engagements/:id");
+  const params = paramsResults || paramsBase;
   const engagementId = params?.id ? parseInt(params.id) : null;
   const [expandedCampaign, setExpandedCampaign] = useState<number | null>(null);
 

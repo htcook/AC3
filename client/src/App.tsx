@@ -725,6 +725,9 @@ function Router() {
         <Route path="/engagements/:id/recon">
           {() => <ProtectedRoute component={OsintRecon} />}
         </Route>
+        <Route path="/engagements/:id">
+          {() => <ProtectedRoute component={EngagementResults} />}
+        </Route>
         <Route path="/engagement-ops/:id">
           {() => <ProtectedRoute component={EngagementOps} />}
         </Route>
