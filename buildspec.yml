@@ -30,8 +30,8 @@ version: 0.2
 
 env:
   variables:
-    ECR_REPO_NAME: "ace-c3/caldera-dashboard"
-    ECR_ACCOUNT_ID: "890319879326"
+    ECR_REPO_NAME: "ac3/caldera-dashboard"
+    ECR_ACCOUNT_ID: "808038814732"
     DOCKER_BUILDKIT: "1"
   exported-variables:
     - IMAGE_URI

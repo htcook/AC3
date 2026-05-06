@@ -81,6 +81,20 @@ export async function runEmberCleanup(
 
   try {
     const db = await getDb();
+    if (!db) {
+      // DB not yet connected — skip this sweep silently
+      const result: CleanupResult = {
+        timestamp: Date.now(),
+        durationMs: Date.now() - startTime,
+        agentsPurged: 0,
+        beaconsDeleted: 0,
+        tasksDeleted: 0,
+        purgedAgents: [],
+        errors: ["Database not yet available — skipping sweep"],
+      };
+      lastCleanupResult = result;
+      return result;
+    }
     const cutoffMs = Date.now() - config.retentionHours * 60 * 60 * 1000;
 
     // Find agents eligible for cleanup:
@@ -285,7 +299,7 @@ export function startEmberCleanupScheduler(opts?: {
     `retention: ${config?.retentionHours || DEFAULT_CONFIG.retentionHours}h)`,
   );
 
-  // Run initial cleanup after a short delay
+  // Run initial cleanup after DB has time to connect (30s delay)
   setTimeout(() => {
     runEmberCleanup(config).then((result) => {
       if (result.agentsPurged > 0) {
@@ -297,7 +311,7 @@ export function startEmberCleanupScheduler(opts?: {
     }).catch((err) => {
       console.warn(`[EmberCleanup] Initial sweep failed: ${err.message}`);
     });
-  }, 10_000);
+  }, 30_000);
 
   cleanupInterval = setInterval(() => {
     runEmberCleanup(config).then((result) => {

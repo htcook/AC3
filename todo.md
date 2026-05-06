@@ -2061,3 +2061,8 @@
 - [ ] Ensure OSINT subdomain enumeration identifies all org-owned domains (not vendor domains)
 - [ ] Write tests for enhanced classification
 - [ ] Push to GitHub and deploy
+
+### Sprint 8 — EmberCleanup Fix + AWS Buildout
+- [x] Fix EmberCleanup null reference (DB not ready when cron fires at startup)
+- [ ] Verify AWS permissions are active after boss ran the script bundle
+- [ ] Proceed with AWS infrastructure buildout if permissions confirmed
