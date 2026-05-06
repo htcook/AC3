@@ -2066,3 +2066,17 @@
 - [x] Fix EmberCleanup null reference (DB not ready when cron fires at startup)
 - [ ] Verify AWS permissions are active after boss ran the script bundle
 - [ ] Proceed with AWS infrastructure buildout if permissions confirmed
+
+### Sprint 9 — Report Validation Linter + P0 Fixes (Claude Feedback)
+- [x] P0-1: Fix exploit result classification (SUCCEEDED + access_level=none → downgraded to unverified)
+- [x] P0-2: Fix vendor-asset attribution (ALREADY IMPLEMENTED: clientOwnedAssets filter + _ownershipFilter)
+- [ ] P0-3: Add tool failure gating (>50% failures → DEGRADED engagement, not completed)
+- [ ] P0-4: Add X-Scan-Key validation to pre-engagement health check
+- [ ] P1-1: Implement single-source-of-truth count reconciliation (ReportMetrics object)
+- [ ] P1-2: Add source_type field to findings schema (scanner vs llm_inference)
+- [ ] P1-3: Quarantine LLM-inferred findings from main count and Risk Matrix
+- [ ] P2-1: Add DNSBL false-positive detection (Query Refused / rate-limited responses)
+- [x] P2-2: Fix [object Object] serialization (truncate() safety net + e.data coercion in pentest report)
+- [ ] P2-3: Fix Suricata rule truncation in PDF
+- [ ] P2-4: Skip C2 section when agents === 0
+- [x] LINTER: Implement post-generation report validation linter (37 tests passing)

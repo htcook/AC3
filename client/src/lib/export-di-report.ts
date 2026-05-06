@@ -86,8 +86,12 @@ function getSeverityLabel(score: number): string {
   return 'Low';
 }
 
-function truncate(str: string | null | undefined, max: number): string {
+function truncate(str: any, max: number): string {
   if (!str) return '';
+  // Safety net: coerce non-string values to prevent [object Object] in PDF output
+  if (typeof str !== 'string') {
+    str = typeof str === 'object' ? JSON.stringify(str) : String(str);
+  }
   return str.length > max ? str.substring(0, max - 3) + '...' : str;
 }
 
