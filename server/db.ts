@@ -3232,6 +3232,7 @@ export interface EngagementFindingInput {
   exploitTechnique?: string;
   owaspCategory?: string;
   mitreTechnique?: string;
+  sourceType?: 'scanner' | 'llm_inference' | 'manual';
 }
 
 /**
@@ -3404,6 +3405,7 @@ export async function saveEngagementFindings(findings: EngagementFindingInput[])
         exploitTechnique: f.exploitTechnique,
         owaspCategory: f.owaspCategory || autoClassifyOwasp(f.title || '', f.description) || null,
         mitreTechnique: f.mitreTechnique,
+        sourceType: f.sourceType || 'scanner',
         createdAt: now,
       }))
     );

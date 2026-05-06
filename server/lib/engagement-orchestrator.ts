@@ -20,7 +20,7 @@
  */
 
 import { invokeLLM } from "../_core/llm";
-import { SCANFORGE_DEDICATED_IP } from "./scan-service-url";
+import { SCANFORGE_DEDICATED_IP, SCAN_API_KEY } from "./scan-service-url";
 import { throttledLLMCall } from "./llm-throttle";
 import { buildGobusterCommand, getScanProfile } from "./scan-profiles";
 import {
@@ -140,6 +140,7 @@ export type OpsPhase =
   | "post_exploit"            // Phase 8: Post-Exploitation (Red Team only)
   | "reporting"               // Phase 9: Reporting
   | "completed"
+  | "degraded"              // Tool failure rate >50% — engagement results unreliable
   | "paused"
   | "error";
 
@@ -4804,11 +4805,59 @@ export async function executeEngagement(
     // Complete
     clearInterval(heartbeatInterval); // Clean up heartbeat on completion
     clearInterval(periodicPersistInterval); // Clean up periodic persistence on completion
-    state.phase = "completed";
+
+    // ═══ P0-3: TOOL FAILURE GATING ═══
+    // If >50% of tools failed, mark engagement as DEGRADED instead of completed.
+    // This prevents misleading "completed" status when scan infrastructure was broken.
+    const allToolResults = state.assets.flatMap(a => a.toolResults || []);
+    const totalToolRuns = allToolResults.length;
+    const failedToolRuns = allToolResults.filter(tr =>
+      tr.exitCode !== 0 || tr.timedOut || tr.durationMs < 100
+    ).length;
+    const toolFailureRate = totalToolRuns > 0 ? failedToolRuns / totalToolRuns : 0;
+    const isDegraded = totalToolRuns >= 3 && toolFailureRate > 0.5; // Need at least 3 tool runs to judge
+
+    // ═══ P0-4: X-SCAN-KEY VALIDATION ═══
+    // Detect if the scan key is still the default placeholder "ADMIN123".
+    // If so, all exploit attempts were likely blocked by scanner gateway auth.
+    const scanKeyIsPlaceholder = SCAN_API_KEY === 'ADMIN123';
+    const exploitBlockedByAuth = scanKeyIsPlaceholder && state.stats.exploitsAttempted > 0 && state.stats.exploitsSucceeded === 0;
+
+    if (isDegraded) {
+      state.phase = "degraded";
+      addLog(state, {
+        phase: 'degraded', type: 'error',
+        title: '⚠️ ENGAGEMENT DEGRADED — Tool Failure Rate Exceeds 50%',
+        detail: `${failedToolRuns}/${totalToolRuns} tool executions failed (${Math.round(toolFailureRate * 100)}%). ` +
+          `Results are unreliable. Check scan server connectivity, tool installations, and resource limits. ` +
+          `Report will include a DEGRADED banner.`,
+        data: { toolFailureRate, failedToolRuns, totalToolRuns },
+      });
+    } else {
+      state.phase = "completed";
+    }
+
+    if (exploitBlockedByAuth) {
+      addLog(state, {
+        phase: state.phase, type: 'error',
+        title: '🔒 X-Scan-Key Still Using Default Placeholder (ADMIN123)',
+        detail: `All ${state.stats.exploitsAttempted} exploit attempts likely blocked by scanner gateway authentication. ` +
+          `The SCAN_API_KEY is still set to the default "ADMIN123" placeholder. ` +
+          `Configure a real scan key in scan-service-url.ts or set SCAN_API_KEY env var.`,
+        data: { scanKeyIsPlaceholder, exploitsAttempted: state.stats.exploitsAttempted, exploitsSucceeded: state.stats.exploitsSucceeded },
+      });
+    }
+
     state.progress = 100;
     state.isRunning = false;
     state.completedAt = Date.now();
     state.currentAction = undefined;
+    // Store tool failure metrics for report pipeline consumption
+    (state.stats as any).toolFailureRate = toolFailureRate;
+    (state.stats as any).totalToolRuns = totalToolRuns;
+    (state.stats as any).failedToolRuns = failedToolRuns;
+    (state.stats as any).isDegraded = isDegraded;
+    (state.stats as any).scanKeyIsPlaceholder = scanKeyIsPlaceholder;
 
     // ── Evidence-Gated Stats Recalculation ──
     // Classify each vuln's evidence status before counting.

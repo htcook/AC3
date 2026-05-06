@@ -2078,5 +2078,17 @@
 - [ ] P2-1: Add DNSBL false-positive detection (Query Refused / rate-limited responses)
 - [x] P2-2: Fix [object Object] serialization (truncate() safety net + e.data coercion in pentest report)
 - [ ] P2-3: Fix Suricata rule truncation in PDF
-- [ ] P2-4: Skip C2 section when agents === 0
+- [x] P2-4: Skip C2 section when agents === 0
 - [x] LINTER: Implement post-generation report validation linter (37 tests passing)
+
+### Sprint 10 — Complete Report Quality Overhaul (May 6)
+- [x] P0-3: Tool failure gating — >50% tool failures → DEGRADED status + banner in report
+- [x] P0-4: X-Scan-Key validation in pre-engagement health check (detect placeholder ADMIN123)
+- [x] P1-1: ReportMetrics single source of truth — compute counts ONCE, inject everywhere
+- [x] P1-2: Add source_type field to engagement_findings schema (scanner vs llm_inference)
+- [x] P1-3: LLM finding quarantine — exclude from main count + Risk Matrix
+- [x] P2-1: DNSBL false-positive detection — filter Query Refused / rate-limited responses at source
+- [x] P2-3: Fix Suricata rule truncation in DOCX (use word-wrap in code block rendering)
+- [x] P2-4: Skip C2 section when calderaEvidenceSnapshot.agents.length === 0
+- [x] ac3_lint Python linter integrated into pentest report pipeline
+- [x] Run tests and push to GitHub

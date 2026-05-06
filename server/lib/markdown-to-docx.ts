@@ -244,14 +244,26 @@ export async function markdownToDocx(
       if (inCodeBlock) {
         // End code block
         flushTable();
+        // P2-3: Split long code lines (>100 chars) to prevent Suricata rule truncation in DOCX
+        const wrappedCodeLines: string[] = [];
+        for (const cl of codeLines) {
+          if (cl.length > 100) {
+            // Wrap at 100 chars, preserving readability
+            for (let ci = 0; ci < cl.length; ci += 100) {
+              wrappedCodeLines.push(ci === 0 ? cl.slice(ci, ci + 100) : "  " + cl.slice(ci, ci + 100));
+            }
+          } else {
+            wrappedCodeLines.push(cl);
+          }
+        }
         children.push(
           new Paragraph({
             spacing: { before: 100, after: 100 },
             shading: { type: ShadingType.SOLID, color: "2a2a2a" },
-            children: codeLines.map(
+            children: wrappedCodeLines.map(
               (cl, idx) =>
                 new TextRun({
-                  text: cl + (idx < codeLines.length - 1 ? "\n" : ""),
+                  text: cl + (idx < wrappedCodeLines.length - 1 ? "\n" : ""),
                   font: "Courier New",
                   size: 16,
                   color: "E0E0E0",

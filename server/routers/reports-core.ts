@@ -618,6 +618,37 @@ export const reportsRouter = router({
               })(),
             });
 
+            // ── AC3 Lint Quality Gate ──
+            let lintResult: any = null;
+            try {
+              const { lintReport, formatLintIssues } = await import('../lib/ac3-lint-bridge');
+              // Build the lint input dict from pipeline data
+              const lintInput: Record<string, unknown> = {
+                report_type: 'pentest',
+                metadata: {
+                  engagement_id: input.engagementId,
+                  target: pipelineResult.reportMetrics?.targetDomain || engagement.targetDomain,
+                },
+                counts: pipelineResult.reportMetrics ? {
+                  total_assets: pipelineResult.reportMetrics.totalAssets,
+                  confirmed_findings: pipelineResult.reportMetrics.totalFindings,
+                } : undefined,
+                rendered_text: {
+                  full_report: pipelineResult.markdown.slice(0, 50000), // First 50k chars for narrative checks
+                },
+              };
+              lintResult = await lintReport(lintInput);
+              if (!lintResult.passed) {
+                console.warn(`[AC3 Lint] Report FAILED quality gate: ${lintResult.summary.errors} errors, ${lintResult.summary.warnings} warnings`);
+                console.warn(formatLintIssues(lintResult));
+              } else {
+                console.log(`[AC3 Lint] Report PASSED quality gate (${lintResult.checks_run} checks, ${lintResult.summary.warnings} warnings)`);
+              }
+            } catch (lintErr: any) {
+              // Non-fatal: don't block report delivery if linter fails
+              console.error('[AC3 Lint] Linter execution failed (non-blocking):', lintErr.message);
+            }
+
             // Store as S3 file
             try {
               const reportKey = `reports/${input.engagementId}/${reportId}-pentest-${Date.now()}.md`;
@@ -651,13 +682,13 @@ export const reportsRouter = router({
                 console.error(`[Evidence Integrity] Anchor creation failed for engagement ${input.engagementId}:`, anchorErr.message);
               }
 
-              return { id: reportId, url, content: pipelineResult.markdown };
+              return { id: reportId, url, content: pipelineResult.markdown, lintResult };
             } catch (storageErr) {
               await db.updateReport(reportId, {
                 status: 'completed',
                 generatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
               });
-              return { id: reportId, url: null, content: pipelineResult.markdown };
+              return { id: reportId, url: null, content: pipelineResult.markdown, lintResult };
             }
           } catch (err: any) {
             console.error('Pentest pipeline failed:', err);

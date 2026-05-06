@@ -552,6 +552,28 @@ async function checkDnsbl(ip: string, timeoutMs: number, domain?: string): Promi
 
   await Promise.all(checks);
 
+  // P2-1: DNSBL false-positive detection — if >60% of zones returned errors
+  // (ECONNREFUSED, SERVFAIL, ETIMEDOUT), the results are unreliable.
+  // This typically indicates rate-limiting or network-level blocking.
+  const errorRate = result.totalChecked > 0 ? result.errors.length / result.totalChecked : 0;
+  if (errorRate > 0.6 && result.listed.length > 0) {
+    // Most zones couldn't be queried — any "listed" results are likely false positives
+    // from zones that returned garbage A records instead of proper NXDOMAIN
+    const refusedCount = result.errors.filter(e => /ECONNREFUSED|SERVFAIL|ETIMEDOUT|REFUSED/i.test(e)).length;
+    if (refusedCount > result.errors.length * 0.5) {
+      console.warn(`[DNSBL] High error rate (${Math.round(errorRate * 100)}%) with ${refusedCount} refused/timeout — marking ${result.listed.length} listings as potentially unreliable`);
+      for (const listing of result.listed) {
+        listing.falsePositiveIndicators = listing.falsePositiveIndicators || [];
+        listing.falsePositiveIndicators.push(
+          `⚠️ UNRELIABLE: ${Math.round(errorRate * 100)}% of DNSBL zones returned errors (${refusedCount} REFUSED/TIMEOUT). This listing may be a false positive due to rate-limiting or resolver blocking.`
+        );
+        listing.severity = 'informational';
+        listing.actionRequired = false;
+      }
+      result.actionableCount = 0;
+    }
+  }
+
   // Compute summary statistics
   result.actionableCount = result.listed.filter(l => l.actionRequired).length;
   result.informationalCount = result.listed.filter(l => !l.actionRequired).length;

@@ -3315,6 +3315,7 @@ export const engagementFindings = mysqlTable("engagement_findings", {
 	source: varchar({ length: 128 }),
 	tool: varchar({ length: 128 }),
 	corroborationTier: mysqlEnum("corroboration_tier", ['confirmed','corroborated','unverified']).default('unverified'),
+	sourceType: mysqlEnum("source_type", ['scanner','llm_inference','manual']).default('scanner'),
 	rawEvidence: text("raw_evidence"),
 	screenshotPath: text("screenshot_path"),
 	exploitAttempted: tinyint("exploit_attempted").default(0),
