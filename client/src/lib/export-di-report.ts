@@ -893,11 +893,10 @@ export async function exportDiReport(
     doc.text(`Evidence Quality: ${evidenceQuality}`, margin + 5, evY + 22);
   }
 
-  // Footer
+  // Footer (single consolidated line to avoid double-footer appearance)
   doc.setFontSize(7);
   doc.setTextColor(100, 116, 139);
-  doc.text('CONFIDENTIAL \u2014 For authorized recipients only', margin, pageHeight - 15);
-  doc.text(`${_wl.platformName} Platform \u2014 Domain Intelligence Module`, margin, pageHeight - 10);
+  doc.text(`CONFIDENTIAL \u2014 ${_wl.platformName} Platform \u2014 Domain Intelligence Module`, margin, pageHeight - 10);
 
   // ═══════════════════════════════════════════════════════════════════════
   // TABLE OF CONTENTS (placeholder page — filled in after all sections render)
@@ -1248,7 +1247,7 @@ export async function exportDiReport(
         truncate(a.hostname || a.name, 40),
         String(a.hybridRiskScore ?? 0),
         (a.riskBand || 'unknown').toUpperCase(),
-        truncate(a.missionFunction, 25),
+        truncate((a.missionFunction || '').replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()), 30),
         String(Array.isArray(a.postureFindings) ? a.postureFindings.length : 0),
       ]),
       theme: 'grid',
@@ -2139,7 +2138,7 @@ export async function exportDiReport(
         f.severity?.toUpperCase() || 'N/A',
         truncate(f.title, 45),
         truncate(f.affectedRecord || '', 35),
-        truncate(f.remediation, 40),
+        f.remediation || 'N/A',
       ]);
       autoTable!(doc, {
         startY: y,
@@ -2147,9 +2146,9 @@ export async function exportDiReport(
         body: danglingRows,
         theme: 'grid',
         headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 6.5, fontStyle: 'bold', cellPadding: 1.5 },
-        bodyStyles: { fontSize: 6, cellPadding: 1.2, textColor: [51, 65, 85] },
+        bodyStyles: { fontSize: 6, cellPadding: 1.2, textColor: [51, 65, 85], overflow: 'linebreak' },
         margin: { left: margin, right: margin },
-        columnStyles: { 0: { cellWidth: 16 } },
+        columnStyles: { 0: { cellWidth: 16 }, 3: { cellWidth: 45 } },
         didParseCell: (data: any) => {
           if (data.section === 'body' && data.column.index === 0) {
             const sev = String(data.cell.text).toLowerCase();
@@ -2172,7 +2171,7 @@ export async function exportDiReport(
         truncate(f.title, 40),
         f.category?.replace(/_/g, ' ') || '',
         f.mitreAttackId || '—',
-        truncate(f.remediation, 35),
+        f.remediation || 'N/A',
       ]);
       autoTable!(doc, {
         startY: y,
@@ -2180,9 +2179,9 @@ export async function exportDiReport(
         body: findingRows,
         theme: 'grid',
         headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 6.5, fontStyle: 'bold', cellPadding: 1.5 },
-        bodyStyles: { fontSize: 6, cellPadding: 1.2, textColor: [51, 65, 85] },
+        bodyStyles: { fontSize: 6, cellPadding: 1.2, textColor: [51, 65, 85], overflow: 'linebreak' },
         margin: { left: margin, right: margin },
-        columnStyles: { 0: { cellWidth: 14 }, 3: { cellWidth: 18 } },
+        columnStyles: { 0: { cellWidth: 14 }, 3: { cellWidth: 18 }, 4: { cellWidth: 40 } },
         didParseCell: (data: any) => {
           if (data.section === 'body' && data.column.index === 0) {
             const sev = String(data.cell.text).toLowerCase();
@@ -4287,11 +4286,11 @@ export async function exportDiReport(
           (r.severity || 'medium').charAt(0).toUpperCase() + (r.severity || 'medium').slice(1),
           truncate(r.description, 45),
           truncate((r.affectedServices || []).join(', '), 30),
-          truncate(r.recommendation, 40),
+          r.recommendation || 'N/A',
         ]),
         theme: 'grid',
         headStyles: { fillColor: [100, 116, 139], textColor: [255, 255, 255], fontSize: 7, fontStyle: 'bold', cellPadding: 1.5 },
-        bodyStyles: { fontSize: 6.5, cellPadding: 1.5, textColor: [51, 65, 85] },
+        bodyStyles: { fontSize: 6.5, cellPadding: 1.5, textColor: [51, 65, 85], overflow: 'linebreak' },
         alternateRowStyles: { fillColor: [248, 250, 252] },
         columnStyles: { 0: { cellWidth: 28 }, 1: { cellWidth: 16 }, 2: { cellWidth: 45 }, 3: { cellWidth: 30 }, 4: { cellWidth: 'auto' } },
         margin: { left: margin, right: margin },
@@ -4716,11 +4715,11 @@ export async function exportDiReport(
             truncate(c.title || 'N/A', 50),
             c.severity || 'N/A',
             (c.category || 'N/A').replace(/_/g, ' '),
-            truncate(c.remediation || 'N/A', 80),
+            c.remediation || 'N/A',
           ]),
           theme: 'grid',
           headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 6, fontStyle: 'bold', cellPadding: 1.5 },
-          bodyStyles: { fontSize: 6, cellPadding: 1.5, textColor: [51, 65, 85] },
+          bodyStyles: { fontSize: 6, cellPadding: 1.5, textColor: [51, 65, 85], overflow: 'linebreak' },
           alternateRowStyles: { fillColor: [241, 245, 249] },
           margin: { left: margin, right: margin },
           didParseCell: (data: any) => {

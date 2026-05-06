@@ -514,6 +514,17 @@ async function launchAndPoll(
       broadcastBurpUpdate(config.engagementId, state);
 
       if (scanStatus.status === "succeeded") {
+        // Suspicious fast completion: if scan finishes in under 30s with 0 issues,
+        // it likely means the target was unreachable or scope was empty.
+        const scanDurationMs = Date.now() - pollStart;
+        if (scanDurationMs < 30_000 && scanStatus.issueCount === 0) {
+          console.warn(`[BurpAutoScan] Suspicious fast completion: scan ${state.scanId} finished in ${Math.round(scanDurationMs / 1000)}s with 0 issues. Target may be unreachable from Burp.`);
+          state.error = `Scan completed suspiciously fast (${Math.round(scanDurationMs / 1000)}s) with 0 findings. ` +
+            `This typically indicates the target is unreachable from the Burp scan server, ` +
+            `or the scan scope resolved to 0 crawlable URLs. ` +
+            `Verify network connectivity between Burp and the target.`;
+          // Still mark as importing to attempt issue retrieval (might have findings despite 0 in metrics)
+        }
         state.status = "importing";
         await persistUpdate(state);
         broadcastBurpUpdate(config.engagementId, state);

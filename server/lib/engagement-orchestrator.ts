@@ -4081,6 +4081,45 @@ export async function executeEngagement(
         if (!enumGate.allowed) {
           addLog(state, { phase: 'enumeration', type: 'warning', title: '🛡️ Safety: Enumeration Blocked', detail: `${enumGate.reason}. Requires safety level '${enumGate.requiredLevel}' or higher.` });
         } else {
+          // ═══ PRE-ENGAGEMENT SCAN SERVER HEALTH CHECK ═══
+          // Validate SSH connectivity and tool availability before starting active phases.
+          // This prevents wasted time and confusing 0-result phases when the scan server is unreachable.
+          try {
+            const { checkScanServerStatus } = await import('./scan-server-executor');
+            const serverHealth = await checkScanServerStatus();
+            if (!serverHealth.connected) {
+              addLog(state, {
+                phase: 'enumeration', type: 'warning',
+                title: '⚠️ Scan Server Unreachable',
+                detail: `Pre-engagement health check failed: ${serverHealth.error || 'SSH connection refused'}. ` +
+                  `Active scanning phases (enumeration, vuln detection, exploitation) may produce 0 results. ` +
+                  `Verify scan server is running and SSH credentials are correct.`,
+              });
+              broadcastOpsUpdate(engagementId, { type: 'log_update' });
+            } else {
+              const toolNames = Object.entries(serverHealth.tools || {})
+                .filter(([, info]) => info.installed)
+                .map(([name]) => name);
+              const missingTools = ['nmap', 'nuclei', 'httpx', 'zap-cli'].filter(
+                t => !toolNames.some(tn => tn.toLowerCase().includes(t))
+              );
+              addLog(state, {
+                phase: 'enumeration', type: 'info',
+                title: '✅ Scan Server Health Check Passed',
+                detail: `SSH connected. Available tools: ${toolNames.slice(0, 10).join(', ')}${toolNames.length > 10 ? ` (+${toolNames.length - 10} more)` : ''}` +
+                  (missingTools.length > 0 ? `\nMissing recommended tools: ${missingTools.join(', ')}` : '') +
+                  (serverHealth.diskFree ? `\nDisk: ${serverHealth.diskFree}` : '') +
+                  (serverHealth.memoryFree ? ` | Memory: ${serverHealth.memoryFree}` : ''),
+              });
+            }
+          } catch (healthErr: any) {
+            addLog(state, {
+              phase: 'enumeration', type: 'warning',
+              title: '⚠️ Scan Server Health Check Failed',
+              detail: `Could not validate scan server: ${healthErr.message}. Proceeding with active phases — results may be limited.`,
+            });
+          }
+
           await executeEnumeration(state, engagement, operatorCtx);
           await breathe(); // yield event loop between phases
           // ─── Customer Integration Bridge: Enumeration ───
