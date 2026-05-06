@@ -127,6 +127,8 @@ export const ac3ReportFindings = mysqlTable("ac3_report_findings", {
 	rfUpdatedAt: bigint("rf_updated_at", { mode: "number" }).notNull(),
 	rfSourceModule: varchar("rf_source_module", { length: 128 }),
 	rfSourceEventId: varchar("rf_source_event_id", { length: 128 }),
+	rfRiskOwner: mysqlEnum("rf_risk_owner", ['customer','vendor','shared']).default('customer'),
+	rfVendorName: varchar("rf_vendor_name", { length: 128 }),
 },
 (table) => [
 	index("ac3_report_findings_rf_finding_id_unique").on(table.rfFindingId),

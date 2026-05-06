@@ -13,6 +13,7 @@
 
 import { randomUUID } from "crypto";
 import { invokeLLM } from "../_core/llm";
+import { classifyVendor, type RiskResponsibility } from "../../shared/managed-provider-filter";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -195,6 +196,12 @@ export async function generateAutoReport(
         evidence.push({ type: 'analysis', reference: `Analysis for ${finding.title || vuln.title}`, description: analysis.technicalAnalysis.slice(0, 1000) });
       }
 
+      // Classify risk ownership based on the asset hostname
+      const assetHostname = finding.asset || '';
+      const vendorClass = classifyVendor({ hostname: assetHostname });
+      const riskOwner: 'customer' | 'vendor' | 'shared' = vendorClass.riskResponsibility === 'vendor_responsibility' ? 'vendor'
+        : vendorClass.riskResponsibility === 'shared_responsibility' ? 'shared' : 'customer';
+
       await reportDb.insert(findingsTable).values({
         rfFindingId: findingId,
         rfReportId: reportId,
@@ -207,6 +214,8 @@ export async function generateAutoReport(
         rfControls: JSON.stringify(vuln.controls || []),
         rfNarrativeStatus: 'pending',
         rfSortOrder: importedCount,
+        rfRiskOwner: riskOwner,
+        rfVendorName: vendorClass.vendor?.name || null,
         rfCreatedAt: now,
         rfUpdatedAt: now,
       });
@@ -222,6 +231,12 @@ export async function generateAutoReport(
       for (const v of (rptAsset.vulns || [])) {
         try {
           const findingId = `FND-${randomUUID().slice(0, 8).toUpperCase()}`;
+          // Classify risk ownership for this asset
+          const assetHost = rptAsset.hostname || rptAsset.ip || '';
+          const vc = classifyVendor({ hostname: assetHost });
+          const owner: 'customer' | 'vendor' | 'shared' = vc.riskResponsibility === 'vendor_responsibility' ? 'vendor'
+            : vc.riskResponsibility === 'shared_responsibility' ? 'shared' : 'customer';
+
           await reportDb.insert(findingsTable).values({
             rfFindingId: findingId,
             rfReportId: reportId,
@@ -238,6 +253,8 @@ export async function generateAutoReport(
             rfControls: JSON.stringify([]),
             rfNarrativeStatus: 'pending',
             rfSortOrder: importedCount,
+            rfRiskOwner: owner,
+            rfVendorName: vc.vendor?.name || null,
             rfCreatedAt: now,
             rfUpdatedAt: now,
           });
@@ -249,6 +266,7 @@ export async function generateAutoReport(
       for (const zf of (rptAsset.zapFindings || [])) {
         try {
           const findingId = `FND-${randomUUID().slice(0, 8).toUpperCase()}`;
+          // ZAP findings inherit the asset's vendor classification
           await reportDb.insert(findingsTable).values({
             rfFindingId: findingId,
             rfReportId: reportId,
@@ -261,6 +279,8 @@ export async function generateAutoReport(
             rfControls: JSON.stringify([]),
             rfNarrativeStatus: 'pending',
             rfSortOrder: importedCount,
+            rfRiskOwner: owner,
+            rfVendorName: vc.vendor?.name || null,
             rfCreatedAt: now,
             rfUpdatedAt: now,
           });
@@ -356,8 +376,10 @@ export async function generateAutoReport(
         .where(eqOp(reportsTable.rptReportId, reportId));
 
       const sevCounts: Record<string, number> = {};
+      const ownerCounts: Record<string, number> = { customer: 0, vendor: 0, shared: 0 };
       for (const f of allRptFindings) {
         sevCounts[f.rfSeverity || 'moderate'] = (sevCounts[f.rfSeverity || 'moderate'] || 0) + 1;
+        ownerCounts[f.rfRiskOwner || 'customer'] = (ownerCounts[f.rfRiskOwner || 'customer'] || 0) + 1;
       }
 
       const execResp = await invokeLLM({
@@ -365,11 +387,11 @@ export async function generateAutoReport(
         messages: [
           {
             role: 'system',
-            content: 'You are a senior penetration tester writing an executive summary for a security assessment report. Be concise, professional, and actionable. Do not include customer-specific identifiable information.',
+            content: 'You are a senior penetration tester writing an executive summary for a security assessment report. Be concise, professional, and actionable. Clearly distinguish between findings that are the customer\'s responsibility vs. those attributed to third-party vendors. Do not include customer-specific identifiable information.',
           },
           {
             role: 'user',
-            content: `Generate an executive summary for this penetration test report:\n\nAssessment: ${reportRow?.rptName || engagement.name}\nTarget: ${state.assets.map((a) => a.hostname).join(', ')}\nFindings: ${allRptFindings.length} total (${sevCounts.critical || 0} critical, ${sevCounts.high || 0} high, ${sevCounts.moderate || 0} moderate, ${sevCounts.low || 0} low, ${sevCounts.informational || 0} informational)\nExploits: ${state.stats.exploitsSucceeded}/${state.stats.exploitsAttempted} successful\nSessions: ${state.stats.sessionsOpened} opened\n\nTop findings:\n${allRptFindings.slice(0, 10).map((f: any) => `- [${f.rfSeverity}] ${f.rfTitle}`).join('\n')}\n\nProvide:\n1. Risk statement\n2. Overall risk rating (critical/high/moderate/low)\n3. Key strengths observed\n4. Key gaps identified\n5. Executive narrative (2-3 paragraphs)`,
+            content: `Generate an executive summary for this penetration test report:\n\nAssessment: ${reportRow?.rptName || engagement.name}\nTarget: ${state.assets.map((a) => a.hostname).join(', ')}\nFindings: ${allRptFindings.length} total (${sevCounts.critical || 0} critical, ${sevCounts.high || 0} high, ${sevCounts.moderate || 0} moderate, ${sevCounts.low || 0} low, ${sevCounts.informational || 0} informational)\nRisk Ownership: ${ownerCounts.customer} customer-owned, ${ownerCounts.vendor} vendor-managed, ${ownerCounts.shared} shared responsibility\nExploits: ${state.stats.exploitsSucceeded}/${state.stats.exploitsAttempted} successful\nSessions: ${state.stats.sessionsOpened} opened\n\nTop findings:\n${allRptFindings.slice(0, 10).map((f: any) => `- [${f.rfSeverity}] [${f.rfRiskOwner || 'customer'}] ${f.rfTitle}`).join('\n')}\n\nProvide:\n1. Risk statement (clearly separate customer vs vendor risk)\n2. Overall risk rating (critical/high/moderate/low) — based on CUSTOMER-owned findings only\n3. Key strengths observed\n4. Key gaps identified\n5. Executive narrative (2-3 paragraphs, noting vendor dependency risks separately)`,
           },
         ],
         response_format: {

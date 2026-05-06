@@ -1969,5 +1969,16 @@
 - [x] Fix: Remove jspdf and jspdf-autotable from CDN_MAP in vite.config.ts (bundle directly instead)
 - [x] Add timeout (30s) to loadPdfLibs() to prevent infinite hang
 - [x] Add fallback blob download in case doc.save() fails
+- [x] Push to GitHub and deploy
+- [x] Verify Report button works on live site
+### Enhanced Vendor/Third-Party Asset Classification (May 5)
+- [ ] Expand MANAGED_HOST_PATTERNS to comprehensive vendor taxonomy (ISP, web host, IaaS, PaaS, SaaS, CDN, DNS, analytics, etc.)
+- [ ] Add vendor category classification (not just managed_provider vs client_owned)
+- [ ] Add risk responsibility attribution (vendor_responsibility, shared_responsibility, customer_responsibility)
+- [ ] Implement hostname-based, ASN-based, and IP-range-based vendor detection
+- [ ] Update DI pipeline risk scoring to attribute findings to responsible party
+- [ ] Update PDF report to show risk breakdown by responsible party
+- [ ] Update UI (VendorRiskTab, DomainIntelResults) to clearly separate vendor vs customer findings
+- [ ] Ensure OSINT subdomain enumeration identifies all org-owned domains (not vendor domains)
+- [ ] Write tests for enhanced classification
 - [ ] Push to GitHub and deploy
-- [ ] Verify Report button works on live site
