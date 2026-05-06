@@ -2094,5 +2094,5 @@
 - [x] Run tests and push to GitHub
 
 ### Sprint 10B — Engagement Monitoring (May 6)
-- [ ] Create /api/scheduled/engagement-monitor endpoint (check ops state, detect stuck/failed phases)
-- [ ] Set up recurring scheduled task to monitor Priceline engagement
+- [x] Create /api/scheduled/engagement-monitor endpoint (check ops state, detect stuck/failed phases)
+- [x] Set up recurring scheduled task to monitor Priceline engagement (every 10 min)

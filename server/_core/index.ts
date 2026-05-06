@@ -1096,9 +1096,23 @@ async function startServer() {
   app.post('/api/scheduled/engagement-monitor', async (req, res) => {
     try {
       let user: any = null;
+      // Try Manus OAuth first (for Manus-hosted scheduled tasks)
       try {
         user = await scheduledSdk.authenticateRequest(req);
-      } catch { /* unauthenticated */ }
+      } catch { /* unauthenticated via Manus OAuth */ }
+      // Fallback: accept caldera_session cookie (for DO-hosted deployment)
+      if (!user) {
+        const token = req.cookies?.['caldera_session'];
+        if (token) {
+          try {
+            const AUTH_SECRET = process.env.CALDERA_JWT_SECRET || 'caldera-dashboard-secret-key-2024';
+            const decoded = jwt.verify(token, AUTH_SECRET) as any;
+            if (decoded && decoded.accountId) {
+              user = { id: decoded.accountId, role: decoded.role || 'user' };
+            }
+          } catch { /* invalid caldera_session */ }
+        }
+      }
       if (!user) {
         return res.status(401).json({ error: 'Unauthorized' });
       }
