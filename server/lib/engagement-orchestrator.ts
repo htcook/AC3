@@ -2218,9 +2218,16 @@ Return valid JSON per the response_format schema.`;
     } catch (e) {
       console.warn('[ScanPlan] Failed to build WAF adaptive context:', e);
     }
-    // Tool availability tracking — exclude tools that failed in previous phases
+    // Tool availability tracking — use comprehensive inventory + failed-tool exclusion
     let toolAvailabilityCtx = '';
     try {
+      // Get comprehensive tool inventory from scan server
+      const { getToolInventory, getInventoryForLLM } = await import('./scan-server-inventory');
+      const inventory = await getToolInventory();
+      if (inventory.serverReachable) {
+        toolAvailabilityCtx = '## Scan Server Tool Inventory\n' + getInventoryForLLM(inventory);
+      }
+      // Also append tools that failed in previous phases (runtime failures)
       const failedTools = new Set<string>();
       for (const asset of state.assets) {
         for (const tr of (asset.toolResults || [])) {
@@ -2230,7 +2237,7 @@ Return valid JSON per the response_format schema.`;
         }
       }
       if (failedTools.size > 0) {
-        toolAvailabilityCtx = `## Tool Availability Warning\n**The following tools are NOT available on the scan server — do NOT recommend them:**\n${[...failedTools].map(t => `- ${t} (not installed)`).join('\n')}\n\nUse alternative tools instead.`;
+        toolAvailabilityCtx += `\n\n## Runtime Tool Failures\n**The following tools FAILED during this engagement — do NOT recommend them:**\n${[...failedTools].map(t => `- ${t} (runtime failure)`).join('\n')}\n\nUse alternative tools instead.`;
       }
     } catch (e) {
       console.warn('[ScanPlan] Failed to build tool availability context:', e);

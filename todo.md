@@ -2045,10 +2045,10 @@
 - [x] Wire ScanForge port discovery as parallel batched execution (3 concurrent targets per batch)
 
 ### Sprint 6 — Scan Server Tool Inventory Endpoint
-- [ ] Create scan-server-inventory.ts module (SSH-based tool detection)
-- [ ] Add tRPC endpoint to expose tool inventory to frontend/LLM planner
-- [ ] Wire tool inventory into LLM scan plan generation context
-- [ ] Write vitest tests for the inventory module
+- [x] Create scan-server-inventory.ts module (SSH-based tool detection)
+- [x] Add tRPC endpoint to expose tool inventory to frontend/LLM planner
+- [x] Wire tool inventory into LLM scan plan generation context
+- [x] Write vitest tests for the inventory module (9/9 passing)
 
 ### Sprint 7 — Vendor/Customer Asset Separation (from remote)
 - [ ] Expand MANAGED_HOST_PATTERNS to comprehensive vendor taxonomy (ISP, web host, IaaS, PaaS, SaaS, CDN, DNS, analytics, etc.)

@@ -201,4 +201,24 @@ export const scanServerRouter = router({
         totalMissing: report.missingTools,
       };
     }),
+    // ─── Tool Inventory (Enhanced) ──────────────────────────────────────
+    /** Get comprehensive tool inventory with categories, versions, and paths */
+    toolInventory: protectedProcedure
+      .input(z.object({ forceRefresh: z.boolean().optional() }).optional())
+      .query(async ({ input }) => {
+        const { getToolInventory } = await import('../lib/scan-server-inventory');
+        return getToolInventory(input?.forceRefresh ?? false);
+      }),
+    /** Get LLM-formatted tool inventory string for scan plan generation */
+    toolInventoryForLLM: protectedProcedure.query(async () => {
+      const { getToolInventory, getInventoryForLLM } = await import('../lib/scan-server-inventory');
+      const inventory = await getToolInventory();
+      return { summary: getInventoryForLLM(inventory), lastRefreshed: inventory.lastRefreshed };
+    }),
+    /** Invalidate the tool inventory cache (e.g., after installing new tools) */
+    invalidateInventoryCache: protectedProcedure.mutation(async () => {
+      const { invalidateInventoryCache } = await import('../lib/scan-server-inventory');
+      invalidateInventoryCache();
+      return { success: true };
+    }),
   });
