@@ -120,7 +120,7 @@ async function executeStage(stage, campaign, operatorCtx, signal) {
         getOpsState,
         initOpsState,
         getOpsStateWithRecovery
-      } = await import("./engagement-orchestrator-PILISZV6.js");
+      } = await import("./engagement-orchestrator-HDMVLEY6.js");
       const stageToPhaseMap = {
         recon: "recon",
         enumeration: "enumeration",

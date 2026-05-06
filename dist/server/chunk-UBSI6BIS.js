@@ -1,7 +1,7 @@
 import {
   engagement_orchestrator_exports,
   init_engagement_orchestrator
-} from "./chunk-QM5T2QV6.js";
+} from "./chunk-UF6MSFFL.js";
 import {
   BurpSuiteConnector,
   init_burpsuite_connector,
@@ -363,6 +363,11 @@ async function launchAndPoll(config, state, key) {
       }
       broadcastBurpUpdate(config.engagementId, state);
       if (scanStatus.status === "succeeded") {
+        const scanDurationMs = Date.now() - pollStart;
+        if (scanDurationMs < 3e4 && scanStatus.issueCount === 0) {
+          console.warn(`[BurpAutoScan] Suspicious fast completion: scan ${state.scanId} finished in ${Math.round(scanDurationMs / 1e3)}s with 0 issues. Target may be unreachable from Burp.`);
+          state.error = `Scan completed suspiciously fast (${Math.round(scanDurationMs / 1e3)}s) with 0 findings. This typically indicates the target is unreachable from the Burp scan server, or the scan scope resolved to 0 crawlable URLs. Verify network connectivity between Burp and the target.`;
+        }
         state.status = "importing";
         await persistUpdate(state);
         broadcastBurpUpdate(config.engagementId, state);
@@ -503,7 +508,7 @@ async function launchAndPoll(config, state, key) {
         console.warn(`[BurpAutoScan] Exploit matching failed: ${e.message}`);
       }
       try {
-        const { runSeverityEscalation } = await import("./zap-burp-pipeline-Q7IC5LEC.js");
+        const { runSeverityEscalation } = await import("./zap-burp-pipeline-LZTHLDQW.js");
         const escalation = await runSeverityEscalation(config.engagementId);
         if (escalation.escalatedCount > 0 || escalation.priorityFlaggedCount > 0) {
           console.log(

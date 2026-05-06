@@ -6653,7 +6653,7 @@ ${adjustmentSummary.length > 0 ? "LLM Adjustments:\n" + adjustmentSummary.map((a
   }
 }
 async function executeEnumeration(state, engagement, operatorCtx) {
-  const { executeEnumeration: runEnumerationPhase } = await import("./engagement-phase-enumeration-WLG5HOYW.js");
+  const { executeEnumeration: runEnumerationPhase } = await import("./engagement-phase-enumeration-IP2ZBMWP.js");
   return runEnumerationPhase(state, engagement, operatorCtx);
 }
 async function executeVulnDetection(state, engagement, operatorCtx) {
@@ -6696,7 +6696,7 @@ async function executeVulnDetection(state, engagement, operatorCtx) {
     getEngagementAbortSignal,
     executeScanForgePhase
   };
-  const { executeVulnPrep } = await import("./vuln-prep-LJJ2HXA2.js");
+  const { executeVulnPrep } = await import("./vuln-prep-Z3VBEBTP.js");
   const vulnPrepCtx = {
     state,
     engagement,
@@ -6725,7 +6725,7 @@ async function executeVulnDetection(state, engagement, operatorCtx) {
   const { executeNucleiScanning } = await import("./nuclei-scanner-3W52ZIMD.js");
   const nucleiResult = await executeNucleiScanning(phase6Ctx);
   addLog(state, { phase: "vuln_detection", type: "phase_complete", title: "Nuclei Complete", detail: `${nucleiResult.findingsCount} findings, ${nucleiResult.errorsCount} errors` });
-  const { executeZapScanning } = await import("./zap-scanner-VR3FACMQ.js");
+  const { executeZapScanning } = await import("./zap-scanner-ZDGJCFUB.js");
   const zapResult = await executeZapScanning(phase6Ctx);
   addLog(state, { phase: "vuln_detection", type: "phase_complete", title: "ZAP Complete", detail: `${zapResult.findingsCount} findings across ${zapResult.webAppsScanned} targets` });
   const { executeInjectionScanning } = await import("./injection-scanner-UW5VT7PQ.js");
@@ -6746,11 +6746,11 @@ async function executeVulnDetection(state, engagement, operatorCtx) {
   broadcastOpsUpdate(state.engagementId, { type: "stats_update", stats: { ...state.stats } });
 }
 async function executeExploitation(state, engagement, operatorCtx) {
-  const { executeExploitation: runExploitPhase } = await import("./engagement-phase-exploitation-BU2TMQEK.js");
+  const { executeExploitation: runExploitPhase } = await import("./engagement-phase-exploitation-7XIGF3QC.js");
   return runExploitPhase(state, engagement, operatorCtx);
 }
 async function executePostExploit(state, engagement, operatorCtx) {
-  const { executePostExploit: runPostExploitPhase } = await import("./engagement-phase-post-exploit-RHI2OQTC.js");
+  const { executePostExploit: runPostExploitPhase } = await import("./engagement-phase-post-exploit-QIFQD2AZ.js");
   return runPostExploitPhase(state, engagement, operatorCtx);
 }
 async function executeEngagement(engagementId, operatorCtx, options) {
@@ -7247,6 +7247,39 @@ Max blast radius: ${engagementSafetyLevel === "passive_only" ? 5 : engagementSaf
         if (!enumGate.allowed) {
           addLog(state, { phase: "enumeration", type: "warning", title: "\u{1F6E1}\uFE0F Safety: Enumeration Blocked", detail: `${enumGate.reason}. Requires safety level '${enumGate.requiredLevel}' or higher.` });
         } else {
+          try {
+            const { checkScanServerStatus } = await import("./scan-server-executor-JZBPP72B.js");
+            const serverHealth = await checkScanServerStatus();
+            if (!serverHealth.connected) {
+              addLog(state, {
+                phase: "enumeration",
+                type: "warning",
+                title: "\u26A0\uFE0F Scan Server Unreachable",
+                detail: `Pre-engagement health check failed: ${serverHealth.error || "SSH connection refused"}. Active scanning phases (enumeration, vuln detection, exploitation) may produce 0 results. Verify scan server is running and SSH credentials are correct.`
+              });
+              broadcastOpsUpdate(engagementId, { type: "log_update" });
+            } else {
+              const toolNames = Object.entries(serverHealth.tools || {}).filter(([, info]) => info.installed).map(([name]) => name);
+              const missingTools = ["nmap", "nuclei", "httpx", "zap-cli"].filter(
+                (t) => !toolNames.some((tn) => tn.toLowerCase().includes(t))
+              );
+              addLog(state, {
+                phase: "enumeration",
+                type: "info",
+                title: "\u2705 Scan Server Health Check Passed",
+                detail: `SSH connected. Available tools: ${toolNames.slice(0, 10).join(", ")}${toolNames.length > 10 ? ` (+${toolNames.length - 10} more)` : ""}` + (missingTools.length > 0 ? `
+Missing recommended tools: ${missingTools.join(", ")}` : "") + (serverHealth.diskFree ? `
+Disk: ${serverHealth.diskFree}` : "") + (serverHealth.memoryFree ? ` | Memory: ${serverHealth.memoryFree}` : "")
+              });
+            }
+          } catch (healthErr) {
+            addLog(state, {
+              phase: "enumeration",
+              type: "warning",
+              title: "\u26A0\uFE0F Scan Server Health Check Failed",
+              detail: `Could not validate scan server: ${healthErr.message}. Proceeding with active phases \u2014 results may be limited.`
+            });
+          }
           await executeEnumeration(state, engagement, operatorCtx);
           await breathe();
           try {

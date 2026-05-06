@@ -364,7 +364,7 @@ Total combined: ${combinedTechs.size} unique technologies`
     }
   }
   try {
-    const { onBurpScanComplete } = await import("./burp-auto-scan-LTHQZOM3.js");
+    const { onBurpScanComplete } = await import("./burp-auto-scan-OFOUQPQQ.js");
     onBurpScanComplete(async (burpConfig, burpState) => {
       if (burpConfig.engagementId !== state.engagementId) return;
       const deduped = burpState.deduplicatedCount || 0;
@@ -553,7 +553,7 @@ Total combined: ${combinedTechs.size} unique technologies`
   }
   result.burpAppLogin = burpAppLogin;
   try {
-    const { onEngagementVulnDetectionPhase, extractScopeUrls } = await import("./burp-auto-scan-LTHQZOM3.js");
+    const { onEngagementVulnDetectionPhase, extractScopeUrls } = await import("./burp-auto-scan-OFOUQPQQ.js");
     const scopeUrls = extractScopeUrls(engagement, state);
     if (scopeUrls.length > 0) {
       const allTechHints = [];
@@ -593,7 +593,7 @@ Total combined: ${combinedTechs.size} unique technologies`
     console.warn(`[EngagementOps] Burp auto-scan hook failed: ${burpErr.message}`);
   }
   try {
-    const { runZapToBurpPipeline } = await import("./zap-burp-pipeline-Q7IC5LEC.js");
+    const { runZapToBurpPipeline } = await import("./zap-burp-pipeline-LZTHLDQW.js");
     const pipelineResult = await runZapToBurpPipeline({
       engagementId: state.engagementId,
       userId: operatorCtx.id,
@@ -622,7 +622,7 @@ Total combined: ${combinedTechs.size} unique technologies`
     console.warn(`[EngagementOps] ZAP\u2192Burp pipeline failed: ${pipelineErr.message}`);
   }
   try {
-    const { runSeverityEscalation } = await import("./zap-burp-pipeline-Q7IC5LEC.js");
+    const { runSeverityEscalation } = await import("./zap-burp-pipeline-LZTHLDQW.js");
     const escalation = await runSeverityEscalation(state.engagementId);
     if (escalation.escalatedCount > 0 || escalation.priorityFlaggedCount > 0) {
       addLog(state, {

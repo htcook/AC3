@@ -183,7 +183,7 @@ async function executeZapScanning(ctx) {
         if (!zapStarted) {
           result.burpFallbacks++;
           try {
-            const { onEngagementVulnDetectionPhase } = await import("./burp-auto-scan-LTHQZOM3.js");
+            const { onEngagementVulnDetectionPhase } = await import("./burp-auto-scan-OFOUQPQQ.js");
             await onEngagementVulnDetectionPhase(state.engagementId, ctx.operatorCtx.id, ctx.engagement?.handle || `eng-${state.engagementId}`, [targetUrl], state.scanMode || "active", hasConfirmedCreds ? { username: webCreds[0].username, password: webCreds[0].password } : void 0, techHints);
           } catch {
           }
@@ -292,7 +292,7 @@ async function executeZapScanning(ctx) {
         const { eq, and, desc } = await import("drizzle-orm");
         const scans = await db.select().from(webAppScans).where(and(eq(webAppScans.engagementId, state.engagementId), eq(webAppScans.status, "completed"))).orderBy(desc(webAppScans.completedAt)).limit(1);
         if (scans.length > 0) {
-          const { deferredZapBurpRefeed } = await import("./zap-burp-pipeline-Q7IC5LEC.js");
+          const { deferredZapBurpRefeed } = await import("./zap-burp-pipeline-LZTHLDQW.js");
           await deferredZapBurpRefeed({ engagementId: state.engagementId, userId: ctx.operatorCtx.id, engagementHandle: ctx.engagement?.handle || `eng-${state.engagementId}`, completedZapScanId: scans[0].id, initialPipelineResult: ir, appLogin: ctx.burpAppLogin });
         }
       }

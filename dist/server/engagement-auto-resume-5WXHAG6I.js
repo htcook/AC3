@@ -230,7 +230,7 @@ async function executeAutoResume(engagementId) {
     }
     console.log(`[AutoResume] Executing auto-resume for engagement #${engagementId} from ${interruption.phase} (RSS=${rssGB.toFixed(2)}GB)...`);
     try {
-      const { dismissAllStaleApprovals } = await import("./engagement-orchestrator-PILISZV6.js");
+      const { dismissAllStaleApprovals } = await import("./engagement-orchestrator-HDMVLEY6.js");
       const staleCount = dismissAllStaleApprovals(engagementId, `auto-resume:server-restart`);
       if (staleCount > 0) {
         console.log(`[AutoResume] Dismissed ${staleCount} stale approval gate(s) for engagement #${engagementId}`);
@@ -255,7 +255,7 @@ async function executeAutoResume(engagementId) {
     } catch (notifErr) {
       console.warn(`[AutoResume] Notification failed for #${engagementId}:`, notifErr.message);
     }
-    const { getOpsStateWithRecovery, initOpsState, addLog: addOpsLog, broadcastOpsUpdate, persistOpsStateNow } = await import("./engagement-orchestrator-PILISZV6.js");
+    const { getOpsStateWithRecovery, initOpsState, addLog: addOpsLog, broadcastOpsUpdate, persistOpsStateNow } = await import("./engagement-orchestrator-HDMVLEY6.js");
     let state = await getOpsStateWithRecovery(engagementId);
     if (state) {
       const recoveryLogPhase = interruption.phase || state.phase || "recon";
@@ -330,7 +330,7 @@ async function executeAutoResume(engagementId) {
         const errorMsg = responseData?.error?.json?.message || responseData?.error?.message || `HTTP ${response.status}`;
         console.error(`[AutoResume] rerunFullPipeline failed for #${engagementId}: ${errorMsg}`);
         console.log(`[AutoResume] Falling back to orchestrator resumeEngagement for #${engagementId}...`);
-        const { resumeEngagement } = await import("./engagement-orchestrator-PILISZV6.js");
+        const { resumeEngagement } = await import("./engagement-orchestrator-HDMVLEY6.js");
         const result = await resumeEngagement(engagementId, {
           id: "system-auto-resume",
           name: "Auto-Resume System"
@@ -355,7 +355,7 @@ async function executeAutoResume(engagementId) {
     } catch (httpErr) {
       console.error(`[AutoResume] Internal HTTP call failed for #${engagementId}: ${httpErr.message}`);
       console.log(`[AutoResume] Falling back to orchestrator resumeEngagement for #${engagementId}...`);
-      const { resumeEngagement } = await import("./engagement-orchestrator-PILISZV6.js");
+      const { resumeEngagement } = await import("./engagement-orchestrator-HDMVLEY6.js");
       const result = await resumeEngagement(engagementId, {
         id: "system-auto-resume",
         name: "Auto-Resume System"
