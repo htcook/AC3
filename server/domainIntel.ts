@@ -33,7 +33,7 @@ import { discoverOrgDomains, type OrgDiscoveryResult } from "./lib/org-domain-di
 import { runPostEnrichmentAnalysis, type PostEnrichmentAnalysis } from "./lib/llm-post-enrichment-analysis";
 import { runWafNgfwAssessment, buildScanForgeDiscoveryCommand, buildNucleiCommand, type WafNgfwAssessment } from "./lib/waf-ngfw-detection";
 import { applyCarverFeedbackLoop, applyCarverFeedbackEarly, applyCarverFeedbackLate, type CarverFeedbackResult } from "./lib/carver-feedback-loop";
-import { createAssetOwnershipFilter, partitionByOwnership } from "../shared/managed-provider-filter";
+import { createAssetOwnershipFilter, partitionByOwnership, partitionByOwnershipEnhanced, computeAdjustedRiskScore, generateVendorRiskSummary, type EnhancedOwnershipResult } from "../shared/managed-provider-filter";
 import { runDIThreatMatching, type DIThreatMatchResult } from "./lib/di-threat-matching";
 import type { TechStackGroupingResult } from "./lib/tech-stack-grouping";
 import { computeTechStackGrouping } from "./lib/tech-stack-grouping";
@@ -3977,21 +3977,39 @@ export async function runDomainIntelPipeline(
   // so we no longer add an additional overall KEV boost (was double-counting)
   //
   // Exclude managed provider assets from the overall risk score:
-  // - Assets on managed mail infrastructure (e.g. outlook.com for M365) have CVEs that
-  //   are the provider's responsibility, not the client's
-  // - Third-party assets discovered via reverse WHOIS that the org doesn't operate
-  //   (e.g. nsone.net, sender.zohoinvoice.com) inflate the score unfairly
+   // Enhanced three-tier risk attribution:
+  // - vendor_responsibility: Fully excluded (e.g., outlook.com, wix.com infrastructure)
+  // - shared_responsibility: Partial risk — customer configs count, vendor infra CVEs don't
+  // - customer_responsibility: Full risk attribution
   const managedProviderName = emailSecurityReport?.managedProvider?.name
     || emailSecurityReport?.mx?.provider || null;
   const riskOwnershipFilter = createAssetOwnershipFilter({
     managedProviderName,
     primaryDomain: org.primaryDomain,
+    additionalDomains: org.additionalDomains,
   });
-  const clientOwnedAnalyses = analyses.filter(a =>
-    riskOwnershipFilter.isClientOwned({ hostname: a.asset.hostname, tags: a.asset.tags })
+  // Enhanced partition with three-tier classification
+  const { customerOwned, vendorManaged, sharedResponsibility, classifications } = partitionByOwnershipEnhanced(
+    analyses,
+    (a) => ({
+      hostname: a.asset.hostname,
+      tags: a.asset.tags,
+      cnames: a.asset.dnsRecords?.CNAME ? (Array.isArray(a.asset.dnsRecords.CNAME) ? a.asset.dnsRecords.CNAME.map(String) : [String(a.asset.dnsRecords.CNAME)]) : undefined,
+    }),
+    riskOwnershipFilter,
   );
-
-  const riskScores = clientOwnedAnalyses.map(a => a.hybridRiskScore);
+  // Backward compat: clientOwnedAnalyses includes customer-owned + shared responsibility (customer's domains on vendor infra)
+  const clientOwnedAnalyses = [...customerOwned, ...sharedResponsibility];
+  // Risk scores with multiplier applied for shared responsibility assets
+  const riskScores = clientOwnedAnalyses.map(a => {
+    const classification = classifications.get(a);
+    if (classification && classification.riskMultiplier < 1.0) {
+      return computeAdjustedRiskScore(a.hybridRiskScore, classification);
+    }
+    return a.hybridRiskScore;
+  });
+  // Generate vendor risk summary for pipeline output
+  const vendorRiskSummary = generateVendorRiskSummary(classifications);
   // Max-weighted risk scoring: blend the peak asset risk with the average.
   // This prevents high-risk assets from being diluted by many low-risk subdomains.
   // Formula: 60% max + 40% average — ensures the overall score reflects the worst-case
@@ -4004,9 +4022,12 @@ export async function runDomainIntelPipeline(
     ? Math.round(maxRisk * 0.6 + avgRisk * 0.4)
     : 0;
   const overallBand = riskBand(overallRisk);
-  const excludedFromRiskCount = analyses.length - clientOwnedAnalyses.length;
-  if (excludedFromRiskCount > 0) {
-    console.log(`[DomainIntel] Risk score: excluded ${excludedFromRiskCount} managed/third-party assets from overall risk calculation (${analyses.length} total, ${clientOwnedAnalyses.length} client-owned)`);
+  const excludedFromRiskCount = vendorManaged.length;
+  if (excludedFromRiskCount > 0 || sharedResponsibility.length > 0) {
+    console.log(`[DomainIntel] Risk attribution: ${customerOwned.length} customer-owned, ${sharedResponsibility.length} shared-responsibility, ${vendorManaged.length} vendor-managed (excluded). Total: ${analyses.length}`);
+    if (vendorRiskSummary.vendorBreakdown.length > 0) {
+      console.log(`[DomainIntel] Vendor breakdown: ${vendorRiskSummary.vendorBreakdown.slice(0, 5).map(v => `${v.vendor}(${v.count})`).join(', ')}`);
+    }
   }
   console.log(`[DomainIntel] Risk scoring: max=${maxRisk}, avg=${Math.round(avgRisk)}, blended=${overallRisk} (60% max + 40% avg), band=${overallBand}`);
 
@@ -4694,8 +4715,10 @@ export async function runDomainIntelPipeline(
       excludedCount: excludedFromRiskCount,
       totalAnalyzed: analyses.length,
       clientOwnedCount: clientOwnedAnalyses.length,
-      reason: 'Managed provider and third-party reverse-WHOIS assets excluded from overall risk calculation',
+      sharedResponsibilityCount: sharedResponsibility.length,
+      reason: 'Vendor-managed assets excluded; shared-responsibility assets scored at reduced multiplier',
     } : undefined,
+    vendorRiskSummary,
     executiveSummary: summaries.executiveSummary,
     threatModelSummary: summaries.threatModelSummary,
     // @ts-ignore

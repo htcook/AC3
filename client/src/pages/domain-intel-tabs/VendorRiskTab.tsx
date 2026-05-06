@@ -11,7 +11,7 @@ import {
   Info, ExternalLink, Bug, FileText, Users, TrendingUp, TrendingDown, Minus, CheckCircle2,
   XCircle, Clock, Shield, Layers, TriangleAlert, Scale, Handshake, Activity
 } from "lucide-react";
-import { createAssetOwnershipFilter, type AssetOwnershipFilter } from "../../../../shared/managed-provider-filter";
+import { createAssetOwnershipFilter, classifyVendor, getCategoryLabel, getRiskResponsibilityLabel, type AssetOwnershipFilter, type VendorClassification } from "../../../../shared/managed-provider-filter";
 
 const SEVERITY_COLORS: Record<string, string> = {
   critical: "text-red-400 bg-red-500/20 border-red-500/40",
@@ -105,18 +105,26 @@ export default function VendorRiskTab({ scanId, domain, pipeline, assets }: Vend
     });
   }, [providerName, domain]);
 
-  // Partition assets into client-owned vs managed/third-party
-  const { clientOwned, managed } = useMemo(() => {
+  // Partition assets into client-owned vs managed/third-party with enhanced vendor classification
+  const { clientOwned, managed, vendorClassifications } = useMemo(() => {
     const clientOwned: any[] = [];
     const managed: any[] = [];
+    const vendorClassifications = new Map<string, VendorClassification>();
     for (const asset of assets) {
-      if (ownershipFilter.isClientOwned({ hostname: asset.hostname || '', tags: asset.tags || [] })) {
+      const hostname = asset.hostname || '';
+      const vc = classifyVendor({
+        hostname,
+        cnames: asset.dnsRecords?.CNAME ? (Array.isArray(asset.dnsRecords.CNAME) ? asset.dnsRecords.CNAME.map(String) : [String(asset.dnsRecords.CNAME)]) : undefined,
+        tags: asset.tags || [],
+      });
+      vendorClassifications.set(hostname, vc);
+      if (ownershipFilter.isClientOwned({ hostname, tags: asset.tags || [] })) {
         clientOwned.push(asset);
       } else {
         managed.push(asset);
       }
     }
-    return { clientOwned, managed };
+    return { clientOwned, managed, vendorClassifications };
   }, [assets, ownershipFilter]);
 
   // Extract vendor-managed CVEs from pipeline observations
