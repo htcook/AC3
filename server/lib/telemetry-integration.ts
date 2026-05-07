@@ -111,7 +111,6 @@ export async function instrumentedSshRelay(
   },
 ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
   const sshCtx = forkContext(ctx, "ssh-relay");
-  const port = opts.scanServerPort || 3001;
   const timeout = opts.timeout || 30000;
 
   const { result, success, error } = await withTelemetry(
@@ -124,21 +123,17 @@ export async function instrumentedSshRelay(
       retryDelayMs: 2000,
     },
     async () => {
+      const { executeTool } = await import('./scan-server-executor');
       const sshOpts = "-o StrictHostKeyChecking=no -o ConnectTimeout=10 -o BatchMode=yes";
       const relayCmd = `ssh ${sshOpts} root@${opts.targetIp} '${opts.command.replace(/'/g, "'\\''")}'`;
 
-      const res = await fetch(`http://${opts.scanServerHost}:${port}/exec`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ command: relayCmd, timeout }),
-        signal: AbortSignal.timeout(timeout + 5000),
+      const data = await executeTool({
+        tool: 'bash',
+        args: `-c "${relayCmd.replace(/"/g, '\\"')}"`,
+        target: opts.targetIp,
+        timeoutSeconds: Math.ceil(timeout / 1000),
       });
 
-      if (!res.ok) {
-        throw new Error(`SSH relay HTTP ${res.status}: ${res.statusText}`);
-      }
-
-      const data = await res.json();
       return {
         stdout: data.stdout || "",
         stderr: data.stderr || "",

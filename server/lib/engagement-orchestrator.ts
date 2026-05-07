@@ -4128,7 +4128,16 @@ export async function executeEngagement(
             });
           }
 
-          await executeEnumeration(state, engagement, operatorCtx);
+          try {
+            await executeEnumeration(state, engagement, operatorCtx);
+          } catch (enumErr: any) {
+            // Handle AbortError from force-abort gracefully — allow pipeline to continue
+            if (enumErr?.name === 'AbortError' || enumErr?.message?.includes('abort') || enumErr?.message?.includes('Abort')) {
+              addLog(state, { phase: 'enumeration', type: 'warning', title: '⚡ Enumeration Force-Aborted', detail: 'Phase was force-aborted due to stall. Continuing to next phase with partial results.' });
+            } else {
+              addLog(state, { phase: 'enumeration', type: 'error', title: '❌ Enumeration Error', detail: `${enumErr?.message || enumErr}`.slice(0, 500) });
+            }
+          }
           await breathe(); // yield event loop between phases
           // ─── Customer Integration Bridge: Enumeration ───
           try {
@@ -4155,7 +4164,15 @@ export async function executeEngagement(
         if (!vulnGate.allowed) {
           addLog(state, { phase: 'vuln_detection', type: 'warning', title: '🛡️ Safety: Vuln Detection Blocked', detail: `${vulnGate.reason}. Requires safety level '${vulnGate.requiredLevel}' or higher.` });
         } else {
-          await executeVulnDetection(state, engagement, operatorCtx);
+          try {
+            await executeVulnDetection(state, engagement, operatorCtx);
+          } catch (vulnErr: any) {
+            if (vulnErr?.name === 'AbortError' || vulnErr?.message?.includes('abort') || vulnErr?.message?.includes('Abort')) {
+              addLog(state, { phase: 'vuln_detection', type: 'warning', title: '⚡ Vuln Detection Force-Aborted', detail: 'Phase was force-aborted due to stall. Continuing to next phase with partial results.' });
+            } else {
+              addLog(state, { phase: 'vuln_detection', type: 'error', title: '❌ Vuln Detection Error', detail: `${vulnErr?.message || vulnErr}`.slice(0, 500) });
+            }
+          }
           await breathe(); // yield event loop between phases
           // ─── Customer Integration Bridge: Vuln Detection ───
           try {
@@ -4661,7 +4678,15 @@ export async function executeEngagement(
       if (!exploitGate.allowed) {
         addLog(state, { phase: 'exploitation', type: 'warning', title: '🛡️ Safety: Exploitation Blocked', detail: `${exploitGate.reason}. Requires safety level '${exploitGate.requiredLevel}' or higher. ${state.stats.vulnsFound} vulns found but exploitation is not permitted at current safety level.` });
       } else if (state.stats.vulnsFound > 0) {
-        await executeExploitation(state, engagement, operatorCtx);
+        try {
+          await executeExploitation(state, engagement, operatorCtx);
+        } catch (exploitErr: any) {
+          if (exploitErr?.name === 'AbortError' || exploitErr?.message?.includes('abort') || exploitErr?.message?.includes('Abort')) {
+            addLog(state, { phase: 'exploitation', type: 'warning', title: '⚡ Exploitation Force-Aborted', detail: 'Phase was force-aborted due to stall. Continuing to next phase with partial results.' });
+          } else {
+            addLog(state, { phase: 'exploitation', type: 'error', title: '❌ Exploitation Error', detail: `${exploitErr?.message || exploitErr}`.slice(0, 500) });
+          }
+        }
         await breathe(); // yield event loop between phases
         // ─── Customer Integration Bridge: Exploitation ───
         try {

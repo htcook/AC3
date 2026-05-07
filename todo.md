@@ -2177,3 +2177,18 @@
 - [x] Integrate with telemetry system (emit events for each pivot attempt/success/failure)
 - [x] Write vitest tests for lateral movement module (44 tests passing)
 - [x] Save checkpoint
+
+### Sprint 11E — Exploit Selection Fix + Screenshot Fix + Re-engagement (May 7)
+- [x] Fix OS-aware exploit selection: add OS fingerprint context to exploitation LLM prompt
+- [x] Prioritize SSH brute force when weak credentials detected during enumeration
+- [x] Add credential-based exploit attempts (hydra SSH/FTP/SMB) before Metasploit payloads
+- [x] Rotate scan server API key from default ADMIN123 to cryptographic random (both dedicated + legacy servers)
+- [x] Fix evidence screenshot capture connectivity (replace port 3001 exec endpoint with SSH executor)
+- [x] Fix lateral-movement.ts, privesc-executor.ts, post-exploit-validation.ts, telemetry-integration.ts — all port 3001 refs replaced with SSH executor
+- [x] Fix scan routing: all scans now route through dedicated ScanForge (137.184.71.192) instead of overloaded legacy server
+- [x] Add abort handling: wrap executeEnumeration, executeVulnDetection, executeExploitation in try/catch for graceful force-abort recovery
+- [x] Fix circular dependency: convert knowledge-lazy imports to lazy accessor pattern in engagement-phase-exploitation.ts
+- [x] Fix broken dynamic imports: vuln-correlation.ts and exploit-planner.ts — replace 10 non-existent module refs with knowledge-lazy
+- [ ] Re-run blind test engagement against live lab targets (pending deployment)
+- [ ] Validate full kill chain: exploit → session → post-exploit → privesc → lateral movement
+- [x] Save checkpoint and push to GitHub

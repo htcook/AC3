@@ -111,7 +111,12 @@ const SCAN_SERVER_KEY_URL = process.env.SCAN_SERVER_KEY_URL
   || "https://files.manuscdn.com/user_upload_by_module/session_file/310419663028432609/hHJfIBSNDxDiefRC";
 
 export async function getScanServerConfig() {
-  const host = ENV.SCAN_SERVER_HOST;
+  // IMPORTANT: Always route SSH scan execution to the dedicated ScanForge droplet.
+  // The legacy server (SCAN_SERVER_HOST=137.184.211.238) is perpetually OOM at 15.5GB/16GB
+  // because it hosts Docker lab containers (Juice Shop, ZAP, Burp, WebGoat, etc.).
+  // SSH fallback to the legacy server causes hangs and pipeline failures.
+  const SCANFORGE_DEDICATED = "137.184.71.192";
+  const host = SCANFORGE_DEDICATED; // Always use dedicated, ignore legacy
   const user = ENV.SCAN_SERVER_USER || "root";
   // Read SSH key directly from process.env (removed from ENV object to prevent
   // deployment system from injecting multi-line PEM into Docker build command)
@@ -958,14 +963,34 @@ export async function suggestToolCommands(asset: {
     }
   }
 
-  // SSH (generic wordlist fallback)
+  // SSH (multi-user credential testing with lab-aware weak pairs)
   const sshPorts = asset.ports.filter(p => p.service === "ssh" || p.port === 22);
   if (sshPorts.length > 0) {
     for (const sp of sshPorts) {
+      // Priority 2: Test common weak credential pairs first (fast, high-yield)
+      // These cover lab environments, default installs, and lazy admin passwords
+      const WEAK_CRED_PAIRS = [
+        'root:root', 'root:toor', 'root:password', 'root:123456',
+        'admin:admin', 'admin:password', 'admin:admin123',
+        'user:user', 'user:password', 'test:test', 'test:password',
+        'ubuntu:ubuntu', 'vagrant:vagrant', 'pi:raspberry',
+        'ms3user:ms3password', 'msfadmin:msfadmin', 'postgres:postgres',
+        'ftp:ftp', 'guest:guest', 'operator:operator',
+      ];
+      // Write credential pairs to a temp file for hydra -C flag
+      const credPairsStr = WEAK_CRED_PAIRS.join('\\n');
       commands.push({
-        tool: "hydra",
-        args: `-l admin -P /opt/SecLists/Passwords/Common-Credentials/10k-most-common.txt -s ${sp.port} -t 4 -f -V ${hydraTarget} ssh`,
-        purpose: `SSH credential testing (generic wordlist) on port ${sp.port}`,
+        tool: "raw",
+        args: `printf '${credPairsStr}' > /tmp/ssh-weak-creds-${sp.port}.txt && hydra -C /tmp/ssh-weak-creds-${sp.port}.txt -s ${sp.port} -t 4 -f -V ${hydraTarget} ssh`,
+        purpose: `SSH weak credential pairs testing (${WEAK_CRED_PAIRS.length} pairs including lab defaults) on port ${sp.port}`,
+        priority: 2,
+      });
+
+      // Priority 3: Broader username + wordlist testing as fallback
+      commands.push({
+        tool: "raw",
+        args: `hydra -L <(printf 'root\\nadmin\\nuser\\nubuntu\\ntest\\nms3user\\ndeploy\\nwww-data\\n') -P /opt/SecLists/Passwords/Common-Credentials/top-20-common-SSH-passwords.txt -s ${sp.port} -t 4 -f -V ${hydraTarget} ssh`,
+        purpose: `SSH credential testing (8 users × top-20 passwords) on port ${sp.port}`,
         priority: 3,
       });
     }

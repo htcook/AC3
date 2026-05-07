@@ -374,16 +374,18 @@ export async function executeVulnCorrelation(ctx: VulnDetectionContext): Promise
 
     // LLM correlation decision
     try {
-      const { getChainsByVulnDescriptions, formatChainsForPrompt } = await import("../knowledge-corpus");
-      const { formatOntologyForPrompt } = await import("../ontology-service");
-      const { getBugBountyContext, getTriageCorpusContext } = await import("../triage-corpus");
-      const { buildCloudSecurityContext } = await import("../cloud-security-context");
-      const { getScanforgeVulnCorrelationContext, getOwaspVulnCorrelationContext, getThreatGroupVulnContext } = await import("../vuln-correlation-context");
-      const { buildOffensiveTechniquesContext } = await import("../offensive-techniques");
-      const { buildZAPKnowledgeContext } = await import("../zap-knowledge");
-      const { buildSourceSecretsContext } = await import("../source-secrets-context");
-      const { buildBurpKnowledgeContext } = await import("../burp-knowledge");
-      const { _capLLMContext } = await import("../llm-context-cap");
+      const {
+        getChainsByVulnDescriptions, formatChainsForPrompt,
+        formatOntologyForPrompt,
+        getBugBountyContext, getTriageCorpusContext,
+        buildCloudSecurityContext,
+        getScanforgeVulnCorrelationContext, getOwaspVulnCorrelationContext, getThreatGroupVulnContext,
+        buildOffensiveTechniquesContext,
+        buildZAPKnowledgeContext,
+        buildSourceSecretsContext,
+        buildBurpKnowledgeContext,
+      } = await import("../knowledge-lazy");
+      const { capLLMContext: _capLLMContext } = await import("../memory-manager");
 
       const vulnDescs = allVulns.map((v: any) => v.title + (v.cve ? ` ${v.cve}` : ""));
       const chains = getChainsByVulnDescriptions(vulnDescs, 3);

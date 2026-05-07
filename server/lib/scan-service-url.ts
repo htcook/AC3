@@ -1,15 +1,16 @@
 /**
  * Shared scan-service URL resolver
  * ─────────────────────────────────
- * Routes scan tool execution to the dedicated ScanForge droplet (primary)
- * with automatic failover to the legacy shared scan server.
+ * Routes scan tool execution to the dedicated ScanForge droplet (primary).
  *
  * Architecture:
  *   Primary:  scanforge-dedicated (137.184.71.192) — CPU-optimized 4vCPU/8GB, scan tools only
- *   Fallback: scan.aceofcloud.io (137.184.211.238) — shared server with lab containers
+ *   Legacy:   scan.aceofcloud.io (137.184.211.238) — shared server with lab containers + ZAP
  *
- * The dedicated droplet runs scan tools without competing for resources with
- * Docker lab containers, resulting in 2-3x faster scan execution.
+ * IMPORTANT: The legacy server is perpetually at memory capacity (~15.5GB/16GB used)
+ * because it hosts Juice Shop, ZAP, Burp, WebGoat, and other Docker containers.
+ * We MUST NOT fall back to it for scan execution — only use it for ZAP API access
+ * (which is already running there as a daemon).
  *
  * SCAN_SERVER_HOST env var is still respected for override scenarios.
  */
@@ -35,18 +36,19 @@ export const SCAN_SERVICE_URL = (() => {
   return SCANFORGE_DEDICATED_URL;
 })();
 
-// The scan service uses its own API key (ADMIN123), separate from the Caldera C2 API key.
+// The scan service uses its own API key, separate from the Caldera C2 API key.
 // Do NOT use CALDERA_API_KEY here — that was rotated for the Caldera v2 REST API.
-export const SCAN_API_KEY = "ADMIN123";
+// Reads from SCAN_API_KEY env var; falls back to the rotated key for backward compat.
+export const SCAN_API_KEY = process.env.SCAN_API_KEY || "2f7aec9e8d3ab1e9b2fe2bb94dfc57a1cb142f4a7cbd5443";
 
 // ─── Health Check & Failover ────────────────────────────────────────────────
 let _dedicatedHealthy = true;
 let _lastHealthCheck = 0;
-const HEALTH_CHECK_INTERVAL_MS = 30_000; // 30s — reduced from 60s for faster ScanForge recovery detection
+const HEALTH_CHECK_INTERVAL_MS = 30_000; // 30s
 
 /**
  * Check if the dedicated ScanForge droplet is healthy.
- * Caches the result for 1 minute to avoid excessive health checks.
+ * Caches the result for 30s to avoid excessive health checks.
  */
 export async function isDedicatedHealthy(): Promise<boolean> {
   const now = Date.now();
@@ -54,7 +56,7 @@ export async function isDedicatedHealthy(): Promise<boolean> {
 
   try {
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 10_000); // 10s timeout (was 5s — ScanForge can be slow under load)
+    const timer = setTimeout(() => ctrl.abort(), 10_000);
     const resp = await fetch(`${SCANFORGE_DEDICATED_URL}/health`, { signal: ctrl.signal });
     clearTimeout(timer);
     _dedicatedHealthy = resp.ok;
@@ -66,14 +68,24 @@ export async function isDedicatedHealthy(): Promise<boolean> {
 }
 
 /**
- * Get the best available scan service URL with automatic failover.
- * Returns the dedicated droplet URL if healthy, otherwise falls back to legacy.
+ * Get the scan service URL for tool execution.
+ *
+ * ALWAYS returns the dedicated ScanForge URL — no legacy fallback.
+ * The legacy server (137.184.211.238) is perpetually overloaded with Docker
+ * containers (Juice Shop, WebGoat, Burp, ZAP, etc.) consuming 15.5GB/16GB RAM.
+ * Falling back to it for scan execution causes OOM conditions and pipeline failures.
+ *
+ * If the dedicated server is unhealthy, we return it anyway and let the
+ * do-scan-api.ts retry/timeout logic handle the failure gracefully rather than
+ * sending traffic to an overloaded machine that will hang indefinitely.
  */
 export async function getActiveScanUrl(): Promise<string> {
   const healthy = await isDedicatedHealthy();
-  if (healthy) return SCANFORGE_DEDICATED_URL;
-  console.warn("[ScanServiceURL] Dedicated ScanForge droplet unhealthy, falling back to legacy scan server");
-  return LEGACY_SCAN_URL;
+  if (!healthy) {
+    console.warn("[ScanServiceURL] Dedicated ScanForge droplet unhealthy — NOT falling back to legacy (overloaded). Returning dedicated URL for retry.");
+  }
+  // Always return dedicated — legacy fallback disabled due to chronic OOM
+  return SCANFORGE_DEDICATED_URL;
 }
 
 /**
