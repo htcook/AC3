@@ -6146,8 +6146,10 @@ export async function executeEngagement(
       const { updateEngagement } = await import('../db');
       const existingEng = await (await import('../db')).getEngagementById(engagementId);
       const existingNotes = existingEng?.notes || '';
+      let parsedNotes: Record<string, any> = {};
+      try { parsedNotes = existingNotes ? JSON.parse(existingNotes) : {}; } catch { parsedNotes = { originalNotes: existingNotes }; }
       const errorNote = JSON.stringify({
-        ...(existingNotes ? JSON.parse(existingNotes) : {}),
+        ...parsedNotes,
         pipelineError: e.message?.slice(0, 2000),
         errorPhase: state.phase || 'unknown',
         errorAt: new Date().toISOString(),
