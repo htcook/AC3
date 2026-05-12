@@ -9,7 +9,7 @@ CREATE TABLE `ability_graph_edges` (
 	`output_match_pattern` varchar(512),
 	`weight` int DEFAULT 1,
 	`label` varchar(255),
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -37,7 +37,7 @@ CREATE TABLE `ability_graph_nodes` (
 	`execution_order` int DEFAULT 0,
 	`layer` int DEFAULT 0,
 	`execution_result` json,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -64,7 +64,7 @@ CREATE TABLE `ability_graphs` (
 	`nodes_failed` int DEFAULT 0,
 	`nodes_skipped` int DEFAULT 0,
 	`created_by` varchar(255),
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -192,7 +192,7 @@ CREATE TABLE `access_broker_listings` (
 	`iabConfidence` int DEFAULT 75,
 	`iabDescription` text,
 	`iabRawData` json,
-	`iabCreatedAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`iabCreatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`iabUpdatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	`priority_tags` json,
 	`priority_score` int DEFAULT 0,
@@ -226,8 +226,8 @@ CREATE TABLE `accuracy_comparisons` (
 	`recall_delta` double,
 	`knowledge_modules_used` json,
 	`scan_duration_ms` int,
-	`scored_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`scored_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -238,9 +238,9 @@ CREATE TABLE `active_sessions` (
 	`ip_address` varchar(45),
 	`user_agent` text,
 	`device_info` varchar(255),
-	`last_activity_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`last_activity_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`expires_at` timestamp NOT NULL,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -251,7 +251,7 @@ CREATE TABLE `activity_logs` (
 	`action` varchar(255) NOT NULL,
 	`details` text,
 	`ipAddress` varchar(45),
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`alog_tenant_id` int,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -267,7 +267,7 @@ CREATE TABLE `ad_attack_paths` (
 	`path_edges` json,
 	`risk_score` double,
 	`is_shortest_path` tinyint DEFAULT 0,
-	`created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -290,7 +290,7 @@ CREATE TABLE `ad_attack_simulations` (
 	`detected_by` json,
 	`executed_at` timestamp,
 	`completed_at` timestamp,
-	`created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -315,8 +315,8 @@ CREATE TABLE `ad_domain_connections` (
 	`last_enumeration_at` timestamp,
 	`conn_error_message` text,
 	`conn_created_by` varchar(255),
-	`conn_created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
-	`conn_updated_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	`conn_created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
+	`conn_updated_at` timestamp DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -341,7 +341,7 @@ CREATE TABLE `ad_enumeration_runs` (
 	`ad_enum_error_log` json,
 	`ad_enum_started_at` timestamp,
 	`ad_enum_completed_at` timestamp,
-	`ad_enum_created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	`ad_enum_created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -356,8 +356,8 @@ CREATE TABLE `ad_environments` (
 	`last_enum_at` timestamp,
 	`connection_config` json,
 	`stats` json,
-	`created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
-	`updated_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
+	`updated_at` timestamp DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -373,7 +373,7 @@ CREATE TABLE `ad_objects` (
 	`member_of` json,
 	`members` json,
 	`properties` json,
-	`created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -391,7 +391,7 @@ CREATE TABLE `adjustment_effectiveness` (
 	`ae_adjusted_priority` int,
 	`ae_exec_duration_ms` int,
 	`ae_exploit_output` text,
-	`ae_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`ae_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -427,8 +427,8 @@ CREATE TABLE `agent_definitions` (
 	`ad_priority` enum('essential','standard','bulk') DEFAULT 'standard',
 	`ad_status` enum('active','draft','deprecated','testing') DEFAULT 'draft',
 	`ad_version` int NOT NULL DEFAULT 1,
-	`ad_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`ad_updated_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`ad_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	`ad_updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -506,7 +506,7 @@ CREATE TABLE `agentless_bas_tests` (
 	`abt_executed_at` timestamp,
 	`abt_duration_ms` int,
 	`abt_created_by` varchar(255),
-	`abt_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`abt_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -523,7 +523,7 @@ CREATE TABLE `ai_attack_plans` (
 	`aap_status` enum('generating','ready','executing','completed') NOT NULL DEFAULT 'generating',
 	`aap_accepted_at` timestamp,
 	`aap_created_by` varchar(255),
-	`aap_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`aap_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -535,7 +535,7 @@ CREATE TABLE `ai_vuln_research_code_snippets` (
 	`content` mediumtext NOT NULL,
 	`line_count` int,
 	`checksum` varchar(64),
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -569,7 +569,7 @@ CREATE TABLE `ai_vuln_research_findings` (
 	`exported_to_bug_bounty` tinyint DEFAULT 0,
 	`bug_bounty_finding_id` int,
 	`metadata` json,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -597,7 +597,7 @@ CREATE TABLE `ai_vuln_research_sessions` (
 	`bug_bounty_program_id` int,
 	`engagement_id` int,
 	`metadata` json,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -615,7 +615,7 @@ CREATE TABLE `api_endpoints` (
 	`auth_required` tinyint DEFAULT 0,
 	`rate_limited` tinyint DEFAULT 0,
 	`deprecated` tinyint DEFAULT 0,
-	`created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -632,7 +632,7 @@ CREATE TABLE `api_fuzzing_runs` (
 	`fuzz_results` json,
 	`started_at` timestamp,
 	`completed_at` timestamp,
-	`created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -646,7 +646,7 @@ CREATE TABLE `api_security_tests` (
 	`expected_result` text,
 	`api_test_severity` enum('critical','high','medium','low','info') DEFAULT 'medium',
 	`is_builtin` tinyint DEFAULT 1,
-	`created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -662,8 +662,8 @@ CREATE TABLE `api_targets` (
 	`auth_config` json,
 	`total_endpoints` int DEFAULT 0,
 	`api_status` enum('active','inactive','scanning') NOT NULL DEFAULT 'active',
-	`created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
-	`updated_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
+	`updated_at` timestamp DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -680,7 +680,7 @@ CREATE TABLE `api_test_results` (
 	`api_notes` text,
 	`api_false_positive` tinyint DEFAULT 0,
 	`executed_at` timestamp,
-	`created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -702,8 +702,8 @@ CREATE TABLE `approved_exploit_catalog` (
 	`approval_notes` text,
 	`source_pipeline` varchar(128) NOT NULL,
 	`original_engagement_id` int,
-	`approved_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`approved_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -727,8 +727,8 @@ CREATE TABLE `apt_ics_mappings` (
 	`aim_last_known_activity` varchar(255),
 	`aim_description` text,
 	`aim_references` json,
-	`aim_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`aim_updated_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`aim_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	`aim_updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -740,7 +740,7 @@ CREATE TABLE `archetype_actor_mappings` (
 	`actorAbilities` json,
 	`confidence` int DEFAULT 50,
 	`evidence` text,
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -769,7 +769,7 @@ CREATE TABLE `atomic_test_executions` (
 	`duration_ms` int,
 	`started_at` timestamp,
 	`completed_at` timestamp,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -788,8 +788,8 @@ CREATE TABLE `atomic_tests` (
 	`input_arguments` text,
 	`dependencies` text,
 	`mitre_tactic` varchar(255),
-	`last_synced_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`last_synced_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -807,7 +807,7 @@ CREATE TABLE `attack_chain_records` (
 	`acr_mitre_techniques` json,
 	`acr_validated` tinyint DEFAULT 0,
 	`acr_validation_result` json,
-	`acr_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`acr_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -829,7 +829,7 @@ CREATE TABLE `attack_chains_catalog` (
 	`acc_source_reference` varchar(1024),
 	`acc_confidence` int DEFAULT 75,
 	`acc_observed_date` varchar(32),
-	`acc_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`acc_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`acc_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -843,7 +843,7 @@ CREATE TABLE `attack_path_graph_edges` (
 	`apge_technique` varchar(32),
 	`apge_probability` double,
 	`apge_properties` json,
-	`apge_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`apge_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -856,7 +856,7 @@ CREATE TABLE `attack_path_graph_nodes` (
 	`apgn_risk_score` double,
 	`apgn_is_crown_jewel` tinyint DEFAULT 0,
 	`apgn_source` varchar(64),
-	`apgn_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`apgn_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -871,7 +871,7 @@ CREATE TABLE `attack_paths` (
 	`riskScore` int,
 	`status` varchar(50) DEFAULT 'draft',
 	`createdBy` int,
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	`atp_tenant_id` int,
 	CONSTRAINT PRIMARY KEY(`id`)
@@ -937,7 +937,7 @@ CREATE TABLE `attack_sequence_templates` (
 	`useCount` int DEFAULT 0,
 	`ast_confidence` int,
 	`ast_status` enum('draft','validated','production') DEFAULT 'draft',
-	`ast_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`ast_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`ast_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -996,7 +996,7 @@ CREATE TABLE `benchmark_scan_plan_rules` (
 	`is_active` tinyint DEFAULT 1,
 	`applied_count` int DEFAULT 0,
 	`last_applied_at` bigint,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -1015,7 +1015,7 @@ CREATE TABLE `benchmark_tool_results` (
 	`scan_duration_ms` int,
 	`exit_code` int,
 	`timed_out` tinyint DEFAULT 0,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -1028,7 +1028,7 @@ CREATE TABLE `bug_bounty_correlations` (
 	`matched_entity_name` varchar(512),
 	`confidence_score` double,
 	`details` json,
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -1055,7 +1055,7 @@ CREATE TABLE `bug_bounty_findings` (
 	`asset_type` varchar(64),
 	`votes` int,
 	`summary` text,
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	`submitted_at` timestamp,
 	CONSTRAINT PRIMARY KEY(`id`)
@@ -1086,7 +1086,7 @@ CREATE TABLE `bug_bounty_llm_training_samples` (
 	`mitre_techniques` json,
 	`tags` json,
 	`exported_at` timestamp,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -1106,7 +1106,7 @@ CREATE TABLE `bug_bounty_program_scopes` (
 	`integrity_requirement` varchar(32),
 	`availability_requirement` varchar(32),
 	`instruction` text,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -1120,7 +1120,7 @@ CREATE TABLE `bug_bounty_program_weaknesses` (
 	`cwe_id` varchar(32),
 	`name` varchar(512) NOT NULL,
 	`description` text,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -1143,7 +1143,7 @@ CREATE TABLE `bug_bounty_programs` (
 	`scope_assets` json,
 	`policy_url` varchar(1024),
 	`last_synced_at` timestamp,
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -1155,7 +1155,7 @@ CREATE TABLE `bug_bounty_sync_logs` (
 	`status` varchar(32) NOT NULL,
 	`items_synced` int DEFAULT 0,
 	`error_message` text,
-	`started_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`started_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`completed_at` timestamp,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -1176,7 +1176,7 @@ CREATE TABLE `bug_reports` (
 	`status` varchar(32) NOT NULL DEFAULT 'open',
 	`admin_notes` text,
 	`resolved_at` timestamp,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -1200,7 +1200,7 @@ CREATE TABLE `burp_scan_history` (
 	`last_poll_at` bigint,
 	`poll_count` int NOT NULL DEFAULT 0,
 	`metadata` json,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -1218,7 +1218,7 @@ CREATE TABLE `c2_execution_log` (
 	`observed_telemetry` json,
 	`cel_constraints` json,
 	`cel_engagement_id` int,
-	`cel_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`cel_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -1250,8 +1250,8 @@ CREATE TABLE `caldera_accounts` (
 	`invite_expires_at` timestamp,
 	`password_reset_token` varchar(128),
 	`password_reset_expires_at` timestamp,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`updated_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	`updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`totp_secret` varchar(255),
 	`totp_enabled` tinyint NOT NULL DEFAULT 0,
 	`backup_codes` text,
@@ -1267,7 +1267,7 @@ CREATE TABLE `caldera_stats` (
 	`totalAbilities` int DEFAULT 0,
 	`activeOperations` int DEFAULT 0,
 	`totalAgents` int DEFAULT 0,
-	`lastUpdated` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`lastUpdated` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -1282,7 +1282,7 @@ CREATE TABLE `campaign_abilities` (
 	`executionOrder` int DEFAULT 0,
 	`status` enum('pending','running','completed','failed','skipped') NOT NULL DEFAULT 'pending',
 	`executedAt` timestamp,
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -1294,7 +1294,7 @@ CREATE TABLE `campaign_agents` (
 	`platform` varchar(64),
 	`hostname` varchar(255),
 	`status` enum('pending','deployed','active','inactive') NOT NULL DEFAULT 'pending',
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -1314,7 +1314,7 @@ CREATE TABLE `campaign_archetypes` (
 	`archetypeComplexity` enum('low','medium','high','expert') DEFAULT 'medium',
 	`isBuiltIn` tinyint DEFAULT 1,
 	`createdBy` int,
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -1326,7 +1326,7 @@ CREATE TABLE `campaign_engagements` (
 	`gophishCampaignName` varchar(255),
 	`calderaOperationId` varchar(255),
 	`notes` text,
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -1339,7 +1339,7 @@ CREATE TABLE `campaign_run_states` (
 	`started_at` bigint,
 	`last_heartbeat` bigint,
 	`node_id` varchar(128),
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -1356,7 +1356,7 @@ CREATE TABLE `campaigns` (
 	`createdBy` int,
 	`startDate` timestamp,
 	`endDate` timestamp,
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	`cmp_tenant_id` int,
 	CONSTRAINT PRIMARY KEY(`id`)
@@ -1389,7 +1389,7 @@ CREATE TABLE `carver_risk_cards` (
 	`source` varchar(64) DEFAULT 'manual',
 	`batch_id` varchar(128),
 	`created_by` int,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -1427,7 +1427,7 @@ CREATE TABLE `chain_runs` (
 	`started_at` bigint NOT NULL,
 	`completed_at` bigint,
 	`duration_ms` bigint,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -1446,7 +1446,7 @@ CREATE TABLE `chain_stage_results` (
 	`started_at` bigint,
 	`completed_at` bigint,
 	`duration_ms` bigint,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -1458,7 +1458,7 @@ CREATE TABLE `chat_messages` (
 	`chat_msg_content` text NOT NULL,
 	`chat_msg_tool_name` varchar(128),
 	`chat_msg_tool_result` json,
-	`chat_msg_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`chat_msg_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -1468,9 +1468,9 @@ CREATE TABLE `chat_sessions` (
 	`chat_session_title` varchar(255) DEFAULT 'New Chat',
 	`chat_session_role` varchar(64) NOT NULL DEFAULT 'operator',
 	`chat_session_message_count` int DEFAULT 0,
-	`chat_session_last_message_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	`chat_session_last_message_at` timestamp DEFAULT CURRENT_TIMESTAMP,
 	`chat_session_archived` tinyint DEFAULT 0,
-	`chat_session_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`chat_session_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`chat_session_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	`cs_tenant_id` int,
 	CONSTRAINT PRIMARY KEY(`id`)
@@ -1501,7 +1501,7 @@ CREATE TABLE `cicd_compliance_scores` (
 	`not_tested` int NOT NULL DEFAULT 0,
 	`risk_level` varchar(20) NOT NULL DEFAULT 'medium',
 	`category_scores` json,
-	`created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -1511,7 +1511,7 @@ CREATE TABLE `cicd_pipeline_access` (
 	`user_id` int NOT NULL,
 	`role` enum('owner','editor','viewer') NOT NULL DEFAULT 'viewer',
 	`granted_by` int NOT NULL,
-	`granted_at` datetime DEFAULT 'CURRENT_TIMESTAMP',
+	`granted_at` datetime DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -1528,7 +1528,7 @@ CREATE TABLE `cicd_pipelines` (
 	`cicd_is_active` tinyint NOT NULL DEFAULT 1,
 	`cicd_last_triggered` timestamp,
 	`cicd_created_by` varchar(255),
-	`cicd_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`cicd_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`cicd_allowed_domains` json,
 	`cicd_scan_types` json,
 	`cicd_last_baseline_id` int,
@@ -1574,7 +1574,7 @@ CREATE TABLE `cicd_runs` (
 	`cicd_report_url` text,
 	`cicd_started_at` timestamp,
 	`cicd_completed_at` timestamp,
-	`cicd_run_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`cicd_run_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`cicd_new_findings` int DEFAULT 0,
 	`cicd_fixed_findings` int DEFAULT 0,
 	`cicd_run_engagement_id` int,
@@ -1609,7 +1609,7 @@ CREATE TABLE `cicd_webhook_deliveries` (
 	`next_retry_at` timestamp,
 	`last_attempt_at` timestamp,
 	`delivered_at` timestamp,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`webhook_url` varchar(512),
 	`error_message` text,
 	`duration_ms` int,
@@ -1633,8 +1633,8 @@ CREATE TABLE `cloud_attack_paths` (
 	`remediation_steps` json,
 	`path_status` enum('open','exploited','mitigated','accepted') DEFAULT 'open',
 	`exploited_at` timestamp,
-	`created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
-	`updated_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
+	`updated_at` timestamp DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -1660,8 +1660,8 @@ CREATE TABLE `cloud_credentials` (
 	`last_used_at` timestamp,
 	`expires_at` timestamp,
 	`cred_created_by` varchar(255),
-	`cred_created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
-	`cred_updated_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	`cred_created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
+	`cred_updated_at` timestamp DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -1683,7 +1683,7 @@ CREATE TABLE `cloud_enumeration_runs` (
 	`enum_error_log` json,
 	`enum_started_at` timestamp,
 	`enum_completed_at` timestamp,
-	`enum_created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	`enum_created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -1699,7 +1699,7 @@ CREATE TABLE `cloud_identities` (
 	`permissions` json,
 	`policies` json,
 	`metadata` json,
-	`created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -1717,7 +1717,7 @@ CREATE TABLE `cloud_misconfigurations` (
 	`remediation_steps` text,
 	`compliance_frameworks` json,
 	`misconfig_status` enum('open','remediated','accepted','false_positive') DEFAULT 'open',
-	`created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -1731,8 +1731,8 @@ CREATE TABLE `cloud_providers` (
 	`status` enum('active','inactive','scanning') NOT NULL DEFAULT 'active',
 	`last_scan_at` timestamp,
 	`config` json,
-	`created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
-	`updated_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
+	`updated_at` timestamp DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -1801,7 +1801,7 @@ CREATE TABLE `company_intel_profiles` (
 	`cip_sources` json,
 	`cip_confidence` int DEFAULT 0,
 	`cip_last_enriched_at` timestamp,
-	`cip_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`cip_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`cip_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -1817,7 +1817,7 @@ CREATE TABLE `compliance_controls` (
 	`subcategory` varchar(255),
 	`implementation_guidance` text,
 	`test_procedures` json,
-	`created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -1830,7 +1830,7 @@ CREATE TABLE `compliance_frameworks` (
 	`total_controls` int,
 	`control_hierarchy` json,
 	`is_active` tinyint DEFAULT 1,
-	`created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -1847,8 +1847,8 @@ CREATE TABLE `compliance_mappings` (
 	`risk_acceptance` text,
 	`assessed_by` varchar(255),
 	`assessed_at` timestamp,
-	`created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
-	`updated_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
+	`updated_at` timestamp DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -1865,7 +1865,7 @@ CREATE TABLE `compliance_reports` (
 	`overall_score` double,
 	`report_data` json,
 	`generated_by` varchar(255),
-	`created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -1884,7 +1884,7 @@ CREATE TABLE `config_baseline_rules` (
 	`ksi_ids` json,
 	`mitre_ids` json,
 	`enabled` tinyint NOT NULL DEFAULT 1,
-	`cbr_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`cbr_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -1901,7 +1901,7 @@ CREATE TABLE `config_baselines` (
 	`last_scan_score` int,
 	`created_by` int,
 	`created_by_name` varchar(255),
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -1921,7 +1921,7 @@ CREATE TABLE `config_drift_alerts` (
 	`cda_ksi_ids` json,
 	`cda_mitre_ids` json,
 	`resolved_at` timestamp,
-	`cda_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`cda_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -1940,7 +1940,7 @@ CREATE TABLE `config_scan_results` (
 	`target_type` varchar(64),
 	`scanned_by` int,
 	`scanned_by_name` varchar(255),
-	`scanned_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`scanned_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -1954,7 +1954,7 @@ CREATE TABLE `connector_performance_history` (
 	`duration_ms` int NOT NULL DEFAULT 0,
 	`status` enum('completed','failed','skipped','timeout') NOT NULL DEFAULT 'completed',
 	`rate_limited` tinyint NOT NULL DEFAULT 0,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -1987,7 +1987,7 @@ CREATE TABLE `container_image_scans` (
 	`scan_duration_ms` int,
 	`scan_engine` varchar(64) DEFAULT 'built-in',
 	`error_message` text,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -2006,7 +2006,7 @@ CREATE TABLE `container_registries` (
 	`repo_count` int DEFAULT 0,
 	`image_count` int DEFAULT 0,
 	`last_sync_at` timestamp,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -2045,7 +2045,7 @@ CREATE TABLE `corroboration_results` (
 	`cr_verdict` varchar(32) NOT NULL,
 	`cr_reasoning` text,
 	`cr_suppress_recommendation` tinyint DEFAULT 0,
-	`cr_created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	`cr_created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -2064,7 +2064,7 @@ CREATE TABLE `credential_alert_history` (
 	`alert_cred_name` varchar(255),
 	`alert_expires_at` timestamp,
 	`days_until_expiry` int,
-	`alert_hist_created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	`alert_hist_created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -2079,7 +2079,7 @@ CREATE TABLE `credential_alert_rules` (
 	`alert_last_alerted_at` timestamp,
 	`alert_next_alert_at` timestamp,
 	`alert_created_by` varchar(255),
-	`alert_created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	`alert_created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -2101,9 +2101,9 @@ CREATE TABLE `credential_attack_runs` (
 	`config` json,
 	`error_message` text,
 	`domain_intel_scan_id` int,
-	`started_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`started_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`completed_at` timestamp,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`tool` varchar(32) DEFAULT 'builtin',
 	`tool_version` varchar(64),
 	`raw_output` mediumtext,
@@ -2133,7 +2133,7 @@ CREATE TABLE `credential_exposures` (
 	`ce_description` text,
 	`ce_tags` json,
 	`ce_raw_data` json,
-	`ce_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`ce_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`ce_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	`ce_tenant_id` int,
 	CONSTRAINT PRIMARY KEY(`id`)
@@ -2158,8 +2158,8 @@ CREATE TABLE `credential_findings` (
 	`verified` tinyint DEFAULT 0,
 	`domain_intel_scan_id` int,
 	`notes` text,
-	`discovered_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`discovered_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`tool` varchar(32) DEFAULT 'builtin',
 	`response_snippet` text,
 	`additional_info` text,
@@ -2178,7 +2178,7 @@ CREATE TABLE `credential_rotation_audit` (
 	`rotation_error_message` text,
 	`rotation_duration_ms` int NOT NULL DEFAULT 0,
 	`rotation_initiated_by` varchar(255) NOT NULL,
-	`rotation_audit_created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	`rotation_audit_created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -2194,8 +2194,8 @@ CREATE TABLE `credential_rotation_policies` (
 	`rotation_max_retries` int NOT NULL DEFAULT 3,
 	`rotation_retry_count` int NOT NULL DEFAULT 0,
 	`rotation_created_by` varchar(255),
-	`rotation_policy_created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
-	`rotation_policy_updated_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	`rotation_policy_created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
+	`rotation_policy_updated_at` timestamp DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -2272,7 +2272,7 @@ CREATE TABLE `customer_accounts` (
 	`locked_until` timestamp,
 	`mfa_enabled` tinyint NOT NULL DEFAULT 0,
 	`mfa_secret` varchar(128),
-	`ca_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`ca_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`ca_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -2288,7 +2288,7 @@ CREATE TABLE `customer_audit_log` (
 	`cal_ip_address` varchar(45),
 	`cal_user_agent` varchar(512),
 	`cal_result` enum('success','failure','denied') NOT NULL DEFAULT 'success',
-	`cal_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`cal_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -2370,7 +2370,7 @@ CREATE TABLE `customer_shared_reports` (
 	`csr_title` varchar(512) NOT NULL,
 	`csr_description` text,
 	`csr_shared_by` int NOT NULL,
-	`csr_shared_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`csr_shared_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`csr_expires_at` timestamp,
 	`csr_access_count` int NOT NULL DEFAULT 0,
 	`csr_last_accessed_at` timestamp,
@@ -2440,7 +2440,7 @@ CREATE TABLE `darkweb_enriched_records` (
 	`der_enrichment_model` varchar(128),
 	`der_enrichment_version` varchar(32),
 	`der_processing_time_ms` int,
-	`der_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`der_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`der_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -2467,7 +2467,7 @@ CREATE TABLE `darkweb_feed_registry` (
 	`dfr_is_built_in` tinyint DEFAULT 1,
 	`dfr_enabled` tinyint DEFAULT 1,
 	`dfr_config` json,
-	`dfr_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`dfr_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`dfr_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -2487,7 +2487,7 @@ CREATE TABLE `defense_scores` (
 	`recommendations` json,
 	`engagement_id` varchar(128),
 	`created_by` varchar(128),
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	`dfs_tenant_id` int,
 	CONSTRAINT PRIMARY KEY(`id`)
@@ -2542,7 +2542,7 @@ CREATE TABLE `deployment_update_history` (
 	`migration_log` text,
 	`error` text,
 	`rolled_back` tinyint NOT NULL DEFAULT 0,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -2558,7 +2558,7 @@ CREATE TABLE `deployment_versions` (
 	`checksum_sha256` varchar(64),
 	`is_breaking` tinyint NOT NULL DEFAULT 0,
 	`is_required` tinyint NOT NULL DEFAULT 0,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -2576,7 +2576,7 @@ CREATE TABLE `detection_feedback_results` (
 	`dfr_alert_details` json,
 	`dfr_query_used` text,
 	`dfr_latency_ms` int,
-	`dfr_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`dfr_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -2602,7 +2602,7 @@ CREATE TABLE `detection_tests` (
 	`mitigationStatus` varchar(50) DEFAULT 'open',
 	`notes` text,
 	`evidence` json,
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	`blueTeamOutcome` varchar(32) DEFAULT 'not_tested',
 	`blueTeamNotes` text,
@@ -2637,7 +2637,7 @@ CREATE TABLE `dfir_observations` (
 	`dfir_detection_methods` json,
 	`dfir_mitigations` json,
 	`dfir_confidence` int DEFAULT 75,
-	`dfir_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`dfir_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -2647,7 +2647,7 @@ CREATE TABLE `dfir_report_iocs` (
 	`ioc_type` enum('ip','domain','hash_md5','hash_sha1','hash_sha256','url','email','cve','filename','registry_key','mutex') NOT NULL,
 	`ioc_value` varchar(1024) NOT NULL,
 	`ioc_context` text,
-	`ioc_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`ioc_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -2669,8 +2669,8 @@ CREATE TABLE `dfir_reports` (
 	`dfir_tags` json,
 	`raw_content` longtext,
 	`dfir_status` enum('pending','parsed','enriched','training_ready') NOT NULL DEFAULT 'pending',
-	`dfir_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`dfir_updated_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`dfir_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	`dfir_updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -2695,7 +2695,7 @@ CREATE TABLE `di_incident_training_data` (
 	`risk_band_at_scan` varchar(32),
 	`used_in_prompt_count` int DEFAULT 0,
 	`last_used_at` bigint,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -2727,7 +2727,7 @@ CREATE TABLE `discovered_assets` (
 	`recommendedAttackChain` json,
 	`confidence` int,
 	`confidenceExplanation` json,
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`excluded` tinyint NOT NULL DEFAULT 0,
 	`exclusionReason` varchar(512),
 	`excludedAt` timestamp,
@@ -2769,7 +2769,7 @@ CREATE TABLE `discovered_attack_paths` (
 	`dap_crown_jewel` varchar(255),
 	`dap_choke_points` json,
 	`dap_status` enum('active','mitigated','accepted') NOT NULL DEFAULT 'active',
-	`dap_discovered_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`dap_discovered_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -2857,7 +2857,7 @@ CREATE TABLE `domain_intel_scans` (
 	`campaignRecommendations` json,
 	`pipelineOutput` json,
 	`createdBy` int,
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	`confirmedFindings` int DEFAULT 0,
 	`probableFindings` int DEFAULT 0,
@@ -2888,7 +2888,7 @@ CREATE TABLE `domain_recon` (
 	`scanStatus` enum('pending','running','completed','failed') NOT NULL DEFAULT 'pending',
 	`scanStartedAt` timestamp,
 	`scanCompletedAt` timestamp,
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -2906,7 +2906,7 @@ CREATE TABLE `edr_coverage_matrix` (
 	`avg_detection_time_ms` int,
 	`coverage_score` double,
 	`last_tested_at` timestamp,
-	`updated_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	`updated_at` timestamp DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -2920,8 +2920,8 @@ CREATE TABLE `edr_products` (
 	`agent_count` int,
 	`config` json,
 	`edr_status` enum('active','inactive','testing') NOT NULL DEFAULT 'active',
-	`created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
-	`updated_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
+	`updated_at` timestamp DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -2937,7 +2937,7 @@ CREATE TABLE `edr_test_catalog` (
 	`expected_behavior` text,
 	`test_risk` enum('safe','low','medium','high') DEFAULT 'safe',
 	`is_builtin` tinyint DEFAULT 1,
-	`created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -2957,7 +2957,7 @@ CREATE TABLE `edr_test_results` (
 	`notes` text,
 	`executed_at` timestamp,
 	`detected_at` timestamp,
-	`created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -2974,7 +2974,7 @@ CREATE TABLE `email_security_tests` (
 	`est_sent_at` timestamp,
 	`est_result_received_at` timestamp,
 	`est_created_by` varchar(255),
-	`est_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`est_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -3218,7 +3218,7 @@ CREATE TABLE `emulation_playbooks` (
 	`calderaDeployedAt` timestamp,
 	`tags` json,
 	`createdBy` int,
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -3264,7 +3264,7 @@ CREATE TABLE `engagement_comms_protocols` (
 	`status_check_in_frequency` varchar(128),
 	`status_check_in_method` varchar(256),
 	`raw_comms_section` text,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	`ecp_tenant_id` int,
 	CONSTRAINT PRIMARY KEY(`id`)
@@ -3287,7 +3287,7 @@ CREATE TABLE `engagement_credential_lists` (
 	`ecl_used_at` timestamp,
 	`ecl_used_result` enum('success','failure','locked','mfa_blocked','not_tested') DEFAULT 'not_tested',
 	`ecl_confidence` enum('high','medium','low') NOT NULL DEFAULT 'medium',
-	`ecl_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`ecl_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -3325,7 +3325,7 @@ CREATE TABLE `engagement_ops_snapshots` (
 	`phase` varchar(64),
 	`is_running` tinyint DEFAULT 0,
 	`asset_count` int DEFAULT 0,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	`interrupt_count` int DEFAULT 0,
 	`last_interrupted_at` timestamp,
@@ -3356,7 +3356,7 @@ CREATE TABLE `engagement_pipelines` (
 	`stepLog` json,
 	`errorMessage` text,
 	`completedAt` timestamp,
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -3377,7 +3377,7 @@ CREATE TABLE `engagement_reports` (
 	`brandingLogo` text,
 	`brandingColor` varchar(32),
 	`createdBy` int,
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -3447,7 +3447,7 @@ CREATE TABLE `engagement_scope_constraints` (
 	`testing_start_date` timestamp,
 	`testing_end_date` timestamp,
 	`raw_scope_section` text,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	`esc_tenant_id` int,
 	CONSTRAINT PRIMARY KEY(`id`)
@@ -3475,7 +3475,7 @@ CREATE TABLE `engagement_shares` (
 	`customMessage` text,
 	`createdBy` int,
 	`lastAccessedAt` timestamp,
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -3501,7 +3501,7 @@ CREATE TABLE `engagement_telemetry` (
 	`operator_id` varchar(64),
 	`target_host` varchar(255),
 	`source_module` varchar(128),
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT `engagement_telemetry_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -3521,7 +3521,7 @@ CREATE TABLE `engagement_timeline_events` (
 	`attack_technique` varchar(64),
 	`operator_id` int,
 	`timestamp` bigint NOT NULL,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -3538,7 +3538,7 @@ CREATE TABLE `engagement_workflow_states` (
 	`objectives_total` json,
 	`overall_progress` int DEFAULT 0,
 	`notes` text,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -3560,7 +3560,7 @@ CREATE TABLE `engagements` (
 	`gophishCampaignId` int,
 	`notes` text,
 	`createdBy` int,
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	`roe_status` enum('none','pending','signed','expired') NOT NULL DEFAULT 'none',
 	`roe_signed_date` timestamp,
@@ -3599,7 +3599,7 @@ CREATE TABLE `enrichment_history` (
 	`status` enum('success','failed','partial','pending_review') NOT NULL DEFAULT 'success',
 	`error_message` text,
 	`duration_ms` int,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -3668,7 +3668,7 @@ CREATE TABLE `evasion_sessions` (
 	`status` enum('running','completed','failed') NOT NULL DEFAULT 'running',
 	`error_message` text,
 	`created_by` int,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`completed_at` timestamp,
 	`evs_tenant_id` int,
 	CONSTRAINT PRIMARY KEY(`id`)
@@ -3679,7 +3679,7 @@ CREATE TABLE `evidence_chain_of_custody` (
 	`evidenceId` varchar(64) NOT NULL,
 	`action` varchar(50) NOT NULL,
 	`performedBy` varchar(255) NOT NULL,
-	`performedAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`performedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`details` text,
 	`ipAddress` varchar(45),
 	`userAgent` varchar(500),
@@ -3703,7 +3703,7 @@ CREATE TABLE `evidence_guardrail_audit` (
 	`ega_was_sanitized` tinyint DEFAULT 0,
 	`ega_details` json,
 	`ega_content_hash` varchar(64),
-	`ega_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`ega_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -3713,7 +3713,7 @@ CREATE TABLE `evidence_integrity_anchors` (
 	`eia_merkle_root` varchar(64) NOT NULL,
 	`eia_hmac_signature` varchar(64) NOT NULL,
 	`eia_chain_length` int NOT NULL,
-	`eia_anchored_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`eia_anchored_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`eia_anchored_by` varchar(255) NOT NULL,
 	`eia_status` enum('active','superseded','invalidated') NOT NULL DEFAULT 'active',
 	`eia_notes` text,
@@ -3742,7 +3742,7 @@ CREATE TABLE `evidence_items` (
 	`collectedBy` varchar(255),
 	`collectedAt` timestamp,
 	`notes` text,
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	`evi_tenant_id` int,
 	CONSTRAINT PRIMARY KEY(`id`)
@@ -3762,7 +3762,7 @@ CREATE TABLE `exploit_feedback_records` (
 	`efr_output` text,
 	`efr_os_type` varchar(64),
 	`efr_os_version` varchar(128),
-	`efr_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`efr_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -3782,7 +3782,7 @@ CREATE TABLE `exploit_ingestion_jobs` (
 	`eij_triggered_by` varchar(255),
 	`eij_started_at` timestamp,
 	`eij_completed_at` timestamp,
-	`eij_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`eij_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -3807,7 +3807,7 @@ CREATE TABLE `exploit_intelligence` (
 	`cisaKev` tinyint DEFAULT 0,
 	`ei_source` varchar(64),
 	`ei_confidence` int,
-	`ei_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`ei_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`ei_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -3836,7 +3836,7 @@ CREATE TABLE `exploit_jobs` (
 	`approvedBy` varchar(255),
 	`approvedAt` timestamp,
 	`scopeVerified` tinyint DEFAULT 0,
-	`exploitJobCreatedAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`exploitJobCreatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`exploitJobUpdatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -3852,7 +3852,7 @@ CREATE TABLE `exploit_learning_chains` (
 	`target_hostname` varchar(255),
 	`times_used` int NOT NULL DEFAULT 0,
 	`last_used_at` bigint,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -3882,7 +3882,7 @@ CREATE TABLE `exploit_learning_outcomes` (
 	`attempt_number` int NOT NULL DEFAULT 1,
 	`previous_attempt_ids` json,
 	`correction_applied` text,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -3898,7 +3898,7 @@ CREATE TABLE `exploit_learning_patterns` (
 	`total_failures` int NOT NULL DEFAULT 0,
 	`success_rate` float NOT NULL,
 	`updated_at` bigint NOT NULL,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -3939,7 +3939,7 @@ CREATE TABLE `exploit_plan_history` (
 	`final_target_count` int NOT NULL DEFAULT 0,
 	`removed_targets` json,
 	`review_duration_ms` int,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`resolved_at` timestamp,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -3965,7 +3965,7 @@ CREATE TABLE `exploit_playbooks` (
 	`ep_source_reference` varchar(1024),
 	`ep_confidence` int DEFAULT 75,
 	`ep_observed_date` varchar(32),
-	`ep_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`ep_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`ep_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -3981,7 +3981,7 @@ CREATE TABLE `exploit_preflight_history` (
 	`eph_error_type` varchar(128),
 	`eph_preflight_score` double,
 	`eph_preflight_factors` json,
-	`eph_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`eph_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -4006,7 +4006,7 @@ CREATE TABLE `exploit_quarantine_queue` (
 	`reviewed_at` timestamp,
 	`reviewed_by` varchar(255),
 	`review_notes` text,
-	`quarantined_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`quarantined_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -4051,7 +4051,7 @@ CREATE TABLE `exploit_scripts` (
 	`es_dependencies` json,
 	`es_target_products` json,
 	`es_ingested_by` varchar(255),
-	`es_ingested_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`es_ingested_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`es_last_updated` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -4067,7 +4067,7 @@ CREATE TABLE `exploit_selection_snapshots` (
 	`rag_query_used` text,
 	`rag_result_count` int,
 	`rag_result_ids` json,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -4097,7 +4097,7 @@ CREATE TABLE `exploitation_attempts` (
 	`ea_attempted_at` bigint NOT NULL,
 	`ea_completed_at` bigint,
 	`screenshot_urls` json,
-	`ea_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`ea_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`expa_tenant_id` int,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -4114,11 +4114,11 @@ CREATE TABLE `false_positive_findings` (
 	`reason` text NOT NULL,
 	`fpStatus` enum('false_positive','under_review','reinstated') NOT NULL DEFAULT 'false_positive',
 	`markedBy` varchar(255),
-	`markedAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`markedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`reinstatedBy` varchar(255),
 	`reinstatedAt` timestamp,
 	`reinstatedReason` text,
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -4137,7 +4137,7 @@ CREATE TABLE `file_transfers` (
 	`transferStatus` enum('pending','in_progress','completed','failed') NOT NULL DEFAULT 'pending',
 	`transferErrorMessage` text,
 	`transferCreatedBy` varchar(64),
-	`transferCreatedAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`transferCreatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`transferCompletedAt` timestamp,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -4159,7 +4159,7 @@ CREATE TABLE `fingerprint_cache` (
 	`fc_fingerprinted_at` bigint NOT NULL,
 	`fc_expires_at` bigint NOT NULL,
 	`fc_engagement_id` varchar(64),
-	`fc_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`fc_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`fc_id`)
 );
 --> statement-breakpoint
@@ -4192,7 +4192,7 @@ CREATE TABLE `forest_domains` (
 	`forest_privileged_users` int DEFAULT 0,
 	`forest_last_enumerated_at` timestamp,
 	`forest_metadata` json,
-	`forest_domain_created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	`forest_domain_created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -4208,8 +4208,8 @@ CREATE TABLE `forest_trusts` (
 	`trust_attributes` int DEFAULT 0,
 	`trust_is_vulnerable` tinyint NOT NULL DEFAULT 0,
 	`trust_vulnerability_notes` text,
-	`trust_discovered_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
-	`forest_trust_created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	`trust_discovered_at` timestamp DEFAULT CURRENT_TIMESTAMP,
+	`forest_trust_created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -4226,7 +4226,7 @@ CREATE TABLE `generated_detection_rules` (
 	`gdr_data_sources` json,
 	`gdr_validated` tinyint DEFAULT 0,
 	`gdr_validation_errors` json,
-	`gdr_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`gdr_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -4251,7 +4251,7 @@ CREATE TABLE `generated_payloads` (
 	`file_size` int,
 	`file_sha256` varchar(64),
 	`created_by` int,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`completed_at` timestamp,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -4290,7 +4290,7 @@ CREATE TABLE `hunt_hypotheses` (
 	`hypothesis_priority` int NOT NULL DEFAULT 0,
 	`investigated_at` timestamp,
 	`evaluated_at` timestamp,
-	`hyp_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`hyp_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`hyp_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -4318,7 +4318,7 @@ CREATE TABLE `hunt_sessions` (
 	`created_by_name` varchar(255),
 	`started_at` timestamp,
 	`completed_at` timestamp,
-	`hunt_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`hunt_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`hunt_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -4345,7 +4345,7 @@ CREATE TABLE `iab_activity` (
 	`iab_last_active` timestamp,
 	`iab_tags` json,
 	`iab_raw_data` json,
-	`iab_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`iab_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`iab_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -4367,7 +4367,7 @@ CREATE TABLE `ics_assessments` (
 	`ica_status` enum('pending','running','completed','failed') DEFAULT 'pending',
 	`ica_started_at` timestamp,
 	`ica_completed_at` timestamp,
-	`ica_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`ica_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -4399,8 +4399,8 @@ CREATE TABLE `ics_devices` (
 	`icd_shodan_data` json,
 	`icd_censys_data` json,
 	`icd_last_seen` timestamp,
-	`icd_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`icd_updated_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`icd_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	`icd_updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -4428,7 +4428,7 @@ CREATE TABLE `ics_exploits` (
 	`ice_sector` json,
 	`ice_references` json,
 	`ice_mitigations` text,
-	`ice_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`ice_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -4457,7 +4457,7 @@ CREATE TABLE `incident_reports` (
 	`ir_severity` enum('critical','high','medium','low') DEFAULT 'medium',
 	`ir_status` enum('raw','extracted','enriched','training_ready') DEFAULT 'raw',
 	`ir_enriched_at` timestamp,
-	`ir_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`ir_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`ir_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -4483,7 +4483,7 @@ CREATE TABLE `influence_operations` (
 	`io_confidence` int DEFAULT 75,
 	`io_tags` json,
 	`io_raw_data` json,
-	`io_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`io_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`io_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -4522,7 +4522,7 @@ CREATE TABLE `info_ops_campaigns` (
 	`ioDescription` text,
 	`ioDataSource` varchar(128),
 	`ioLastEnriched` timestamp,
-	`ioCreatedAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`ioCreatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`ioUpdatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -4599,8 +4599,8 @@ CREATE TABLE `ioc_feeds` (
 	`linkedActors` json,
 	`feedTags` json,
 	`rawData` json,
-	`fetchedAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`fetchedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -4611,9 +4611,9 @@ CREATE TABLE `ioc_sync_logs` (
 	`results` json,
 	`totalFetched` int DEFAULT 0,
 	`errorMessage` text,
-	`startedAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`startedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`completedAt` timestamp,
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -4632,7 +4632,7 @@ CREATE TABLE `ioc_ttp_mappings` (
 	`itm_inference_confidence` int DEFAULT 60,
 	`itm_derivation_method` enum('pattern_match','llm_analysis','malware_analysis','behavioral_analysis','infrastructure_analysis','manual') NOT NULL,
 	`itm_context` json,
-	`itm_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`itm_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -4677,7 +4677,7 @@ CREATE TABLE `job_queue_entries` (
 	`completed_at` bigint,
 	`duration_ms` int,
 	`error_message` text,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -4707,8 +4707,8 @@ CREATE TABLE `knowledge_entries` (
 	`tags` json,
 	`is_active` tinyint NOT NULL DEFAULT 1,
 	`created_by` varchar(255),
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`updated_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	`updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -4722,7 +4722,7 @@ CREATE TABLE `ksi_control_mappings` (
 	`ace_c3_module` varchar(256),
 	`automation_level` enum('full','partial','manual') NOT NULL DEFAULT 'manual',
 	`notes` text,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -4740,7 +4740,7 @@ CREATE TABLE `ksi_definitions` (
 	`ace_c3_module` varchar(256),
 	`coverage_status` enum('direct','supporting','planned','not_applicable') NOT NULL DEFAULT 'planned',
 	`coverage_notes` text,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -4767,7 +4767,7 @@ CREATE TABLE `ksi_evidence` (
 	`expires_at` timestamp,
 	`collected_by` int,
 	`collected_by_name` varchar(256),
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -4786,7 +4786,7 @@ CREATE TABLE `ksi_evidence_chains` (
 	`status` enum('active','complete','broken','archived') NOT NULL DEFAULT 'active',
 	`created_by` int,
 	`created_by_name` varchar(256),
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -4809,7 +4809,7 @@ CREATE TABLE `ksi_validation_runs` (
 	`next_scheduled_at` timestamp,
 	`run_by` int,
 	`run_by_name` varchar(256),
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -4829,7 +4829,7 @@ CREATE TABLE `ksi_validation_schedules` (
 	`alert_threshold` int NOT NULL DEFAULT 3,
 	`config` json,
 	`created_by` int,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -4851,7 +4851,7 @@ CREATE TABLE `lateral_movement_paths` (
 	`opsec_risk` int,
 	`attempted_at` bigint,
 	`lm_completed_at` bigint,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -4863,7 +4863,7 @@ CREATE TABLE `license_usage_logs` (
 	`resource_id` varchar(255),
 	`metadata` json,
 	`timestamp` bigint NOT NULL,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -4888,8 +4888,8 @@ CREATE TABLE `licensed_organizations` (
 	`feature_overrides` json,
 	`deployment_domain` varchar(255),
 	`notes` text,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`updated_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	`updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -4907,7 +4907,7 @@ CREATE TABLE `llm_accuracy_scores` (
 	`severity_accuracy` decimal(5,4) DEFAULT '0',
 	`overall_score` decimal(5,4) DEFAULT '0',
 	`scored_at` bigint NOT NULL,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -4926,7 +4926,7 @@ CREATE TABLE `llm_decision_log` (
 	`tokens_used` int,
 	`context_summary` text,
 	`knowledge_modules_used` json,
-	`dl_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`dl_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -4946,13 +4946,13 @@ CREATE TABLE `llm_learning_entries` (
 	`operator_id` int,
 	`applied_count` int DEFAULT 0,
 	`last_applied_at` bigint,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `llm_telemetry` (
 	`id` int AUTO_INCREMENT NOT NULL,
-	`called_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`called_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`caller` varchar(255) NOT NULL DEFAULT 'unknown',
 	`model` varchar(128) NOT NULL DEFAULT 'gemini-2.5-flash',
 	`llm_status` enum('success','error','timeout','retried_success') NOT NULL DEFAULT 'success',
@@ -4964,7 +4964,7 @@ CREATE TABLE `llm_telemetry` (
 	`has_response_format` tinyint DEFAULT 0,
 	`error_message` text,
 	`engagement_id` int,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -4978,7 +4978,7 @@ CREATE TABLE `llm_training_examples` (
 	`quality_score` double NOT NULL,
 	`te_messages` json NOT NULL,
 	`te_metadata` json,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`te_review_status` enum('pending_review','approved','rejected','flagged') NOT NULL DEFAULT 'pending_review',
 	`te_reviewed_by` varchar(128),
 	`te_reviewed_at` timestamp,
@@ -4998,7 +4998,7 @@ CREATE TABLE `lolbin_catalog` (
 	`detection_guidance` text,
 	`lolbin_references` json,
 	`is_built_in` tinyint DEFAULT 1,
-	`lolbin_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`lolbin_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -5022,7 +5022,7 @@ CREATE TABLE `metasploit_servers` (
 	`activeSessionCount` int DEFAULT 0,
 	`autoDestroy` tinyint DEFAULT 0,
 	`engagementId` int,
-	`msfCreatedAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`msfCreatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`msfUpdatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	`sshTunnelEnabled` tinyint DEFAULT 1,
 	`sshUser` varchar(64) DEFAULT 'root',
@@ -5105,7 +5105,7 @@ CREATE TABLE `network_events` (
 	`ne_last_seen` timestamp,
 	`ne_tags` json,
 	`ne_raw_data` json,
-	`ne_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`ne_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`ne_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -5130,7 +5130,7 @@ CREATE TABLE `nexus_pipeline_executions` (
 	`npe_llm_calls_count` int DEFAULT 0,
 	`npe_status` enum('running','completed','failed','rolled_back','paused') DEFAULT 'running',
 	`npe_error_message` text,
-	`npe_started_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`npe_started_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`npe_completed_at` timestamp,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -5145,7 +5145,7 @@ CREATE TABLE `nexus_quality_gates` (
 	`nqg_max_score` int DEFAULT 100,
 	`nqg_evidence` json,
 	`nqg_retry_attempt` int DEFAULT 0,
-	`nqg_evaluated_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`nqg_evaluated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -5161,8 +5161,8 @@ CREATE TABLE `nexus_shadow_configs` (
 	`nsc_max_concurrent` int NOT NULL DEFAULT 10,
 	`nsc_active_shadow_tests` int NOT NULL DEFAULT 0,
 	`nsc_total_runs` int NOT NULL DEFAULT 0,
-	`nsc_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`nsc_updated_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`nsc_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	`nsc_updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -5186,7 +5186,7 @@ CREATE TABLE `nexus_shadow_tests` (
 	`nst_judge_score` int,
 	`nst_status` enum('running','completed','error') DEFAULT 'running',
 	`nst_error_message` text,
-	`nst_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`nst_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`nst_completed_at` timestamp,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -5208,7 +5208,7 @@ CREATE TABLE `ngfw_validation_tests` (
 	`nvt_executed_at` timestamp,
 	`nvt_duration_ms` int,
 	`nvt_created_by` varchar(255),
-	`nvt_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`nvt_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -5235,7 +5235,7 @@ CREATE TABLE `nuclei_findings` (
 	`false_positive` tinyint DEFAULT 0,
 	`remediation` text,
 	`engagement_id` int,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`access_level` varchar(64),
 	`confidence` int,
 	`execution_context` varchar(32),
@@ -5274,7 +5274,7 @@ CREATE TABLE `nuclei_scans` (
 	`started_by` varchar(100),
 	`started_at` timestamp,
 	`completed_at` timestamp,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -5351,7 +5351,7 @@ CREATE TABLE `obtained_shells` (
 	`os_notes` text,
 	`os_obtained_at` bigint NOT NULL,
 	`os_last_checked_at` bigint,
-	`os_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`os_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`os_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -5370,7 +5370,7 @@ CREATE TABLE `oem_default_credentials` (
 	`cve_reference` varchar(64),
 	`source` varchar(256),
 	`tags` json,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -5390,7 +5390,7 @@ CREATE TABLE `offensive_audit_log` (
 	`result_status` enum('success','failure','blocked','pending_approval') NOT NULL DEFAULT 'pending_approval',
 	`result_detail` text,
 	`ip_address` varchar(45),
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -5413,7 +5413,7 @@ CREATE TABLE `opsec_events` (
 	`detection_details` text,
 	`opsec_operator_id` int,
 	`opsec_timestamp` bigint NOT NULL,
-	`opsec_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`opsec_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`opse_tenant_id` int,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -5430,7 +5430,7 @@ CREATE TABLE `opsec_scores` (
 	`burned_assets` json,
 	`opsec_recommendations` json,
 	`opsec_last_updated_at` bigint NOT NULL,
-	`opsec_score_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`opsec_score_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`opsec_score_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -5461,7 +5461,7 @@ CREATE TABLE `orchestration_plans` (
 	`completed_at` timestamp,
 	`last_heartbeat` bigint,
 	`node_id` varchar(128),
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	`op_tenant_id` int,
 	CONSTRAINT PRIMARY KEY(`id`)
@@ -5484,7 +5484,7 @@ CREATE TABLE `oscal_exports` (
 	`error_message` text,
 	`generated_by` int,
 	`generated_by_name` varchar(256),
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`completed_at` timestamp,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -5501,7 +5501,7 @@ CREATE TABLE `osint_findings` (
 	`source` varchar(255),
 	`campaignRelevance` text,
 	`usedInCampaign` tinyint DEFAULT 0,
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -5517,7 +5517,7 @@ CREATE TABLE `osint_monitor_changes` (
 	`acknowledged` tinyint DEFAULT 0,
 	`acknowledgedBy` int,
 	`acknowledgedAt` timestamp,
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -5536,7 +5536,7 @@ CREATE TABLE `osint_monitors` (
 	`notifyEmail` varchar(320),
 	`baselineSnapshot` json,
 	`createdBy` int,
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -5558,7 +5558,7 @@ CREATE TABLE `ot_networks` (
 	`otn_has_data_diode` tinyint DEFAULT 0,
 	`otn_has_ids` tinyint DEFAULT 0,
 	`otn_segmentation_score` double,
-	`otn_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`otn_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -5570,7 +5570,7 @@ CREATE TABLE `parsed_policy_cache` (
 	`program_url` varchar(1024) NOT NULL,
 	`parsed_result` json NOT NULL,
 	`expires_at` timestamp NOT NULL,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -5603,7 +5603,7 @@ CREATE TABLE `pentest_reports` (
 	`executive_summary` mediumtext,
 	`report_html` mediumtext,
 	`generated_at` timestamp,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	`ptr_tenant_id` int,
 	CONSTRAINT PRIMARY KEY(`id`)
@@ -5649,7 +5649,7 @@ CREATE TABLE `phishing_drafts` (
 	`sendByDate` timestamp,
 	`campaignStats` json,
 	`createdBy` int,
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	`phishingExploits` json,
 	`exploitEnhancedLandingPage` text,
@@ -5674,7 +5674,7 @@ CREATE TABLE `pivot_hosts` (
 	`notes` text,
 	`obtained_at` bigint NOT NULL,
 	`last_seen_at` bigint,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -5696,7 +5696,7 @@ CREATE TABLE `platform_errors` (
 	`resolved_at` timestamp,
 	`retry_count` int DEFAULT 0,
 	`auto_recovered` tinyint DEFAULT 0,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`perr_tenant_id` int,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -5718,7 +5718,7 @@ CREATE TABLE `playbook_executions` (
 	`completedAt` timestamp,
 	`launchedBy` int,
 	`notes` text,
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -5733,7 +5733,7 @@ CREATE TABLE `post_exploit_executions` (
 	`peTotalSteps` int NOT NULL,
 	`peOutput` json,
 	`peErrorMessage` text,
-	`peStartedAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`peStartedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`peCompletedAt` timestamp,
 	`peTriggeredBy` enum('manual','auto') NOT NULL DEFAULT 'manual',
 	`peCreatedBy` varchar(64),
@@ -5752,7 +5752,7 @@ CREATE TABLE `post_exploit_playbooks` (
 	`isBuiltIn` tinyint NOT NULL DEFAULT 0,
 	`playbookEnabled` tinyint NOT NULL DEFAULT 1,
 	`playbookCreatedBy` varchar(64),
-	`playbookCreatedAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`playbookCreatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`playbookUpdatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -5776,7 +5776,7 @@ CREATE TABLE `privesc_findings` (
 	`resulting_access` varchar(64),
 	`pe_evidence` json,
 	`pe_discovered_at` bigint NOT NULL,
-	`pe_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`pe_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -5796,7 +5796,7 @@ CREATE TABLE `protocol_findings` (
 	`pf_compensating_controls` text,
 	`pf_relevant_apt_groups` json,
 	`pf_relevant_mitre_techniques` json,
-	`pf_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`pf_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -5821,7 +5821,7 @@ CREATE TABLE `ransomware_affiliates` (
 	`ra_last_active` varchar(32),
 	`ra_tags` json,
 	`ra_raw_data` json,
-	`ra_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`ra_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`ra_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -5837,7 +5837,7 @@ CREATE TABLE `ransomware_events` (
 	`publishedAt` timestamp,
 	`reSource` varchar(128),
 	`verified` tinyint DEFAULT 0,
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -5867,7 +5867,7 @@ CREATE TABLE `ransomware_groups` (
 	`rwDataSource` varchar(128),
 	`rwConfidence` int DEFAULT 75,
 	`lastEnriched` timestamp,
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -5879,7 +5879,7 @@ CREATE TABLE `recording_chunks` (
 	`chunkType` enum('input','output','system') NOT NULL DEFAULT 'output',
 	`chunkContent` text NOT NULL,
 	`timestampMs` int NOT NULL,
-	`chunkCreatedAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`chunkCreatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -5962,7 +5962,7 @@ CREATE TABLE `regulatory_frameworks` (
 	`rf_notes` text,
 	`rf_confirmed_by` int,
 	`rf_confirmed_at` timestamp,
-	`rf_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`rf_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`rf_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -5988,7 +5988,7 @@ CREATE TABLE `remediation_tasks` (
 	`cve_id` varchar(32),
 	`affected_asset` varchar(255),
 	`remediation_guidance` text,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -6005,7 +6005,7 @@ CREATE TABLE `remediation_verifications` (
 	`rv_current_result` text,
 	`rv_verified_at` timestamp,
 	`rv_verified_by` varchar(255),
-	`rv_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`rv_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`rv_severity` enum('critical','high','medium','low','info') DEFAULT 'medium',
 	`rv_sla_deadline` timestamp,
 	`rv_sla_hours` int,
@@ -6030,7 +6030,7 @@ CREATE TABLE `report_templates` (
 	`rt_primary_color` varchar(16),
 	`rt_is_default` tinyint DEFAULT 0,
 	`rt_created_by` varchar(255),
-	`rt_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`rt_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`rt_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -6051,7 +6051,7 @@ CREATE TABLE `review_queue_items` (
 	`review_notes` text,
 	`auto_approve_eligible` tinyint DEFAULT 0,
 	`expires_at` bigint,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -6069,7 +6069,7 @@ CREATE TABLE `risk_trend_snapshots` (
 	`rts_mttr_ms` int,
 	`rts_tactic_scores` json,
 	`rts_source` varchar(64),
-	`rts_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`rts_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -6085,7 +6085,7 @@ CREATE TABLE `roe_acknowledgments` (
 	`scan_profile` varchar(32) NOT NULL,
 	`session_id` varchar(128),
 	`ip_address` varchar(64),
-	`acknowledged_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`acknowledged_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -6170,7 +6170,7 @@ CREATE TABLE `roe_documents` (
 	`approved_at` timestamp,
 	`last_modified_by` int,
 	`pdf_url` varchar(1024),
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	`roe_tenant_id` int,
 	CONSTRAINT PRIMARY KEY(`id`)
@@ -6188,7 +6188,7 @@ CREATE TABLE `roe_personnel` (
 	`alternate_phone` varchar(32),
 	`clearance_level` varchar(64),
 	`is_primary` tinyint DEFAULT 0,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -6202,7 +6202,7 @@ CREATE TABLE `roe_signatures` (
 	`signed_at` timestamp,
 	`signature_data` text,
 	`ip_address` varchar(45),
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -6217,7 +6217,7 @@ CREATE TABLE `roe_versions` (
 	`current_snapshot` json,
 	`changed_by` int,
 	`changed_by_name` varchar(256),
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -6236,7 +6236,7 @@ CREATE TABLE `rule_robustness_results` (
 	`weakest_categories` json,
 	`hardening_tips` json,
 	`variant_details` json,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -6249,7 +6249,7 @@ CREATE TABLE `saml_auth_events` (
 	`saml_event_ip_address` varchar(45),
 	`saml_event_error_details` text,
 	`saml_event_assertion_id` varchar(256),
-	`saml_event_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`saml_event_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -6271,7 +6271,7 @@ CREATE TABLE `saml_idp_configs` (
 	`saml_idp_want_assertions_signed` tinyint NOT NULL DEFAULT 1,
 	`saml_idp_want_response_signed` tinyint NOT NULL DEFAULT 1,
 	`saml_idp_created_by` int,
-	`saml_idp_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`saml_idp_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`saml_idp_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -6291,7 +6291,7 @@ CREATE TABLE `scan_graduation_scores` (
 	`supply_chain_analyst` int NOT NULL,
 	`overall_score` int NOT NULL,
 	`summary` text,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -6358,7 +6358,7 @@ CREATE TABLE `scan_results` (
 	`severity_summary` json,
 	`phase` varchar(64),
 	`operator_id` int,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -6394,8 +6394,8 @@ CREATE TABLE `scan_schedules` (
 	`last_run_stats` json,
 	`total_runs` int NOT NULL DEFAULT 0,
 	`total_findings` int NOT NULL DEFAULT 0,
-	`ss_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`ss_updated_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`ss_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	`ss_updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -6434,7 +6434,7 @@ CREATE TABLE `scanforge_engagement_report` (
 	`reassessment_summary` text,
 	`template_improvements` json,
 	`coverage_gaps` json,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`auth_context` json,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -6454,7 +6454,7 @@ CREATE TABLE `scanforge_finding_log` (
 	`verdict_reason` text,
 	`finding_data` json,
 	`cross_tool_matches` json,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`assessed_at` timestamp,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -6470,7 +6470,7 @@ CREATE TABLE `scanforge_generated_templates` (
 	`generation_confidence` float DEFAULT 0.5,
 	`review_notes` text,
 	`promoted_to_template_id` varchar(128),
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -6487,7 +6487,7 @@ CREATE TABLE `scanforge_promotion_history` (
 	`previous_status` varchar(32) NOT NULL,
 	`new_status` varchar(32) NOT NULL,
 	`evaluated_by` varchar(64) NOT NULL DEFAULT 'auto',
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -6499,7 +6499,7 @@ CREATE TABLE `scanforge_research_log` (
 	`analysis_result` json,
 	`generated_template_ids` json,
 	`actionable` tinyint DEFAULT 0,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -6557,7 +6557,7 @@ CREATE TABLE `scoring_audit_log` (
 	`riskBand` varchar(32),
 	`weightsSnapshot` json,
 	`computedBy` varchar(255),
-	`computedAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`computedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`triggerType` varchar(64),
 	`previousScore` double,
 	`delta` double,
@@ -6591,8 +6591,8 @@ CREATE TABLE `scoring_profiles` (
 	`highThreshold` int NOT NULL DEFAULT 65,
 	`mediumThreshold` int NOT NULL DEFAULT 40,
 	`createdBy` int NOT NULL,
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`updatedAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	`updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -6607,7 +6607,7 @@ CREATE TABLE `server_configs` (
 	`dropletId` varchar(64),
 	`status` enum('online','offline','unknown') NOT NULL DEFAULT 'unknown',
 	`lastHealthCheck` timestamp,
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -6620,7 +6620,7 @@ CREATE TABLE `server_credentials` (
 	`password` text,
 	`apiKey` text,
 	`sshKeyPath` text,
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -6638,7 +6638,7 @@ CREATE TABLE `session_recordings` (
 	`totalChunks` int NOT NULL DEFAULT 0,
 	`totalBytes` int NOT NULL DEFAULT 0,
 	`durationMs` int DEFAULT 0,
-	`recordingStartedAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`recordingStartedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`recordingCompletedAt` timestamp,
 	`recordingCreatedBy` varchar(64),
 	CONSTRAINT PRIMARY KEY(`id`)
@@ -6664,7 +6664,7 @@ CREATE TABLE `siem_connections` (
 	`alert_count` int,
 	`error_message` text,
 	`created_by` int,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -6679,7 +6679,7 @@ CREATE TABLE `siem_integrations` (
 	`siem_query_template` text,
 	`siem_is_active` tinyint NOT NULL DEFAULT 1,
 	`siem_last_tested` timestamp,
-	`siem_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`siem_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -6700,7 +6700,7 @@ CREATE TABLE `sliver_implants` (
 	`download_url` text,
 	`engagement_id` int,
 	`created_by` varchar(100),
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -6722,7 +6722,7 @@ CREATE TABLE `sliver_sessions` (
 	`proxy_url` varchar(512),
 	`is_dead` tinyint DEFAULT 0,
 	`last_checkin` timestamp,
-	`first_seen` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`first_seen` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`engagement_id` int,
 	`notes` text,
 	CONSTRAINT PRIMARY KEY(`id`)
@@ -6742,7 +6742,7 @@ CREATE TABLE `sliver_tasks` (
 	`executed_by` varchar(100),
 	`started_at` timestamp,
 	`completed_at` timestamp,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -6759,7 +6759,7 @@ CREATE TABLE `soar_connectors` (
 	`soar_is_active` tinyint NOT NULL DEFAULT 1,
 	`soar_last_sync` timestamp,
 	`soar_created_by` varchar(255),
-	`soar_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`soar_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -6773,7 +6773,7 @@ CREATE TABLE `soar_events` (
 	`soar_evt_status` enum('pending','delivered','failed') NOT NULL DEFAULT 'pending',
 	`soar_evt_response_code` int,
 	`soar_evt_error` text,
-	`soar_evt_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`soar_evt_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -6790,7 +6790,7 @@ CREATE TABLE `ssh_keys` (
 	`associatedServerId` int,
 	`createdBy` varchar(64),
 	`lastUsedAt` timestamp,
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -6826,7 +6826,7 @@ CREATE TABLE `submission_history` (
 CREATE TABLE `system_settings` (
 	`setting_key` varchar(255) NOT NULL,
 	`setting_value` longtext,
-	`updated_at` timestamp DEFAULT 'CURRENT_TIMESTAMP'
+	`updated_at` timestamp DEFAULT CURRENT_TIMESTAMP
 );
 --> statement-breakpoint
 CREATE TABLE `team_invitations` (
@@ -6841,7 +6841,7 @@ CREATE TABLE `team_invitations` (
 	`accepted_at` timestamp,
 	`accepted_by_user_id` int,
 	`invite_message` text,
-	`invite_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`invite_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`invite_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -6861,7 +6861,7 @@ CREATE TABLE `telemetry_diagnostics` (
 	`llm_cost_estimate` double,
 	`health_score` int,
 	`diagnostic_markdown` text,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT `telemetry_diagnostics_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -6884,7 +6884,7 @@ CREATE TABLE `telemetry_llm_quality` (
 	`grounding_check_passed` tinyint,
 	`prompt_payload_ref` varchar(512),
 	`response_payload_ref` varchar(512),
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT `telemetry_llm_quality_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -6893,7 +6893,7 @@ CREATE TABLE `tenant_memberships` (
 	`tm_tenant_id` int NOT NULL,
 	`tm_user_id` int NOT NULL,
 	`tm_role` enum('owner','admin','operator','viewer') NOT NULL DEFAULT 'viewer',
-	`tm_joined_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`tm_joined_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -6906,7 +6906,7 @@ CREATE TABLE `tenants` (
 	`tenant_is_active` tinyint NOT NULL DEFAULT 1,
 	`tenant_max_users` int NOT NULL DEFAULT 50,
 	`tenant_plan` enum('free','pro','enterprise') NOT NULL DEFAULT 'free',
-	`tenant_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`tenant_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`tenant_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -7008,7 +7008,7 @@ CREATE TABLE `test_plans` (
 	`reviewed_at` timestamp,
 	`approved_at` timestamp,
 	`signature_hash` varchar(128),
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -7026,7 +7026,7 @@ CREATE TABLE `threat_actor_abilities` (
 	`singleton` tinyint DEFAULT 0,
 	`repeatable` tinyint DEFAULT 1,
 	`requirements` json,
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -7040,7 +7040,7 @@ CREATE TABLE `threat_actor_iocs` (
 	`iocFirstSeen` varchar(32),
 	`iocLastSeen` varchar(32),
 	`source` varchar(128),
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -7067,7 +7067,7 @@ CREATE TABLE `threat_actors` (
 	`stixId` varchar(128),
 	`dataSource` varchar(128),
 	`confidence` int,
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	`ta_tenant_id` int,
 	`logoUrl` varchar(512),
@@ -7092,8 +7092,8 @@ CREATE TABLE `threat_group_events` (
 	`tgeSourceUrl` varchar(1024),
 	`tgeConfidence` int DEFAULT 75,
 	`eventDate` timestamp,
-	`discoveredAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`tgeCreatedAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`discoveredAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	`tgeCreatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -7109,7 +7109,7 @@ CREATE TABLE `threat_intel_updates` (
 	`tiuSummary` text,
 	`tiuDetails` json,
 	`tiuErrors` json,
-	`tiuStartedAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`tiuStartedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`tiuCompletedAt` timestamp,
 	`durationMs` int,
 	CONSTRAINT PRIMARY KEY(`id`)
@@ -7141,7 +7141,7 @@ CREATE TABLE `training_benchmark_runs` (
 	`completed_at` bigint,
 	`duration_ms` int,
 	`error_message` text,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -7157,7 +7157,7 @@ CREATE TABLE `training_ground_truth` (
 	`description` text,
 	`detection_hint` text,
 	`is_active` tinyint DEFAULT 1,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -7171,7 +7171,7 @@ CREATE TABLE `training_lab_feedback` (
 	`expected_severity` varchar(32),
 	`expected_category` varchar(128),
 	`operator_id` int,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -7197,7 +7197,7 @@ CREATE TABLE `training_lab_sessions` (
 	`completed_at` bigint,
 	`duration_ms` int,
 	`error_message` text,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -7225,7 +7225,7 @@ CREATE TABLE `ttp_knowledge` (
 	`dataSource` varchar(128),
 	`confidence` int,
 	`lastEnriched` timestamp,
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	`environmentalConstraints` json,
 	`expectedTelemetry` json,
@@ -7250,7 +7250,7 @@ CREATE TABLE `typosquat_domains` (
 	`expiryDate` timestamp,
 	`annualCost` varchar(32),
 	`notes` text,
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -7277,8 +7277,8 @@ CREATE TABLE `underground_intel_events` (
 	`uie_tags` json,
 	`uie_raw_data` json,
 	`uie_event_date` timestamp,
-	`uie_ingested_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`uie_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`uie_ingested_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	`uie_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`uie_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -7325,7 +7325,7 @@ CREATE TABLE `unified_exploit_catalog` (
 	`exploitEnabled` tinyint DEFAULT 1,
 	`exploitAuthor` varchar(255),
 	`exploitDatePublished` varchar(32),
-	`catalogCreatedAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`catalogCreatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`catalogUpdatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -7347,7 +7347,7 @@ CREATE TABLE `uploaded_roe_documents` (
 	`created_engagement_id` int,
 	`created_roe_document_id` int,
 	`uploaded_by` int,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	`urd_tenant_id` int,
 	CONSTRAINT PRIMARY KEY(`id`)
@@ -7367,7 +7367,7 @@ CREATE TABLE `user_platform_credentials` (
 	`sync_status` enum('idle','syncing','success','failed') DEFAULT 'idle',
 	`error_message` text,
 	`metadata` json,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -7393,9 +7393,9 @@ CREATE TABLE `user_sessions` (
 	`session_device_type` varchar(32),
 	`session_is_current` tinyint DEFAULT 0,
 	`session_status` enum('active','expired','revoked') NOT NULL DEFAULT 'active',
-	`session_last_activity_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`session_last_activity_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`session_expires_at` timestamp NOT NULL,
-	`session_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`session_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -7406,9 +7406,9 @@ CREATE TABLE `users` (
 	`email` varchar(320),
 	`loginMethod` varchar(64),
 	`role` enum('user','admin','viewer','operator','team_lead','analyst','executive','client','soc') NOT NULL DEFAULT 'operator',
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
-	`lastSignedIn` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`lastSignedIn` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`avatar_url` text,
 	`title` varchar(128),
 	`department` varchar(128),
@@ -7438,7 +7438,7 @@ CREATE TABLE `validation_results` (
 	`newRiskScore` double,
 	`validationDurationMs` int,
 	`validationResultError` text,
-	`validationResultCreatedAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`validationResultCreatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`evidenceUrl` text,
 	`evidenceArtifacts` json,
 	CONSTRAINT PRIMARY KEY(`id`)
@@ -7463,7 +7463,7 @@ CREATE TABLE `validation_runs` (
 	`skippedCount` int NOT NULL DEFAULT 0,
 	`avgScoreAdjustment` double,
 	`validationOperatorId` varchar(255) NOT NULL,
-	`validationStartedAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`validationStartedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`validationCompletedAt` timestamp,
 	`totalDurationMs` int,
 	`validationRunError` text,
@@ -7486,7 +7486,7 @@ CREATE TABLE `validation_schedules` (
 	`run_count` int NOT NULL DEFAULT 0,
 	`config` json,
 	`created_by` varchar(255),
-	`created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
 	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -7507,7 +7507,7 @@ CREATE TABLE `vendor_cached_data` (
 	`mitreAttackId` varchar(32),
 	`detectedAt` bigint,
 	`lastUpdatedAt` bigint,
-	`cachedAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`cachedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -7525,7 +7525,7 @@ CREATE TABLE `vendor_integrations` (
 	`syncIntervalMinutes` int DEFAULT 60,
 	`lastSyncAt` bigint,
 	`createdBy` varchar(64),
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -7541,7 +7541,7 @@ CREATE TABLE `vendor_sync_events` (
 	`errorMessage` text,
 	`durationMs` int,
 	`triggeredBy` varchar(64),
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -7562,7 +7562,7 @@ CREATE TABLE `vuln_scan_findings` (
 	`vsf_plugin_id` varchar(64),
 	`vsf_exploit_available` tinyint DEFAULT 0,
 	`vsf_attack_path_linked` tinyint DEFAULT 0,
-	`vsf_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`vsf_created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`vsf_corroboration_score` int,
 	`vsf_corroboration_verdict` varchar(32),
 	`vsf_corroboration_sources` int DEFAULT 0,
@@ -7575,7 +7575,7 @@ CREATE TABLE `vuln_scan_imports` (
 	`vsi_tenant_id` int,
 	`vsi_scanner_type` enum('nessus','qualys','rapid7','openvas','burp','zap','custom') NOT NULL,
 	`vsi_file_name` varchar(512) NOT NULL,
-	`vsi_imported_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`vsi_imported_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`vsi_total_hosts` int NOT NULL DEFAULT 0,
 	`vsi_total_vulns` int NOT NULL DEFAULT 0,
 	`vsi_critical` int NOT NULL DEFAULT 0,
@@ -7604,7 +7604,7 @@ CREATE TABLE `vuln_scan_snapshots` (
 	`categories` json,
 	`asset_breakdown` json,
 	`metadata` json,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -7621,7 +7621,7 @@ CREATE TABLE `vuln_trend_entries` (
 	`tool` varchar(64),
 	`status` enum('new','existing','resolved','regressed') NOT NULL DEFAULT 'new',
 	`first_seen_snapshot_id` int,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -7635,7 +7635,7 @@ CREATE TABLE `vuln_type_accuracy` (
 	`times_missed` int DEFAULT 0,
 	`times_false_positive` int DEFAULT 0,
 	`target_preset` varchar(128) NOT NULL,
-	`scored_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`scored_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -7657,7 +7657,7 @@ CREATE TABLE `web_app_findings` (
 	`evidence` text,
 	`zap_plugin_id` varchar(50),
 	`zap_alert_ref` varchar(50),
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`mitre_attack_id` varchar(20),
 	`mitre_attack_name` varchar(255),
 	`mitre_tactic` varchar(100),
@@ -7687,7 +7687,7 @@ CREATE TABLE `web_app_scans` (
 	`total_alerts` int DEFAULT 0,
 	`alert_counts` text,
 	`error_message` text,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`scan_mode` varchar(30) NOT NULL DEFAULT 'passive',
 	`zap_ajax_spider_scan_id` varchar(100),
 	`detected_tech_stack` text,
@@ -7728,7 +7728,7 @@ CREATE TABLE `web_crawl_jobs` (
 	`startedBy` varchar(64),
 	`startedAt` bigint,
 	`completedAt` bigint,
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -7772,7 +7772,7 @@ CREATE TABLE `web_crawl_results` (
 	`crawledBy` varchar(64),
 	`startedAt` bigint,
 	`completedAt` bigint,
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -7784,7 +7784,7 @@ CREATE TABLE `webhook_deliveries` (
 	`responseStatus` int,
 	`responseBody` text,
 	`success` tinyint DEFAULT 0,
-	`deliveredAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`deliveredAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -7821,7 +7821,7 @@ CREATE TABLE `webhook_endpoints` (
 	`failCount` int DEFAULT 0,
 	`createdBy` int,
 	`tenant_id` varchar(64),
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -7904,9 +7904,9 @@ CREATE TABLE `zap_proxy_sessions` (
 	`scan_progress` int DEFAULT 0,
 	`domain_intel_scan_id` int,
 	`report_html` mediumtext,
-	`started_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`started_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`completed_at` timestamp,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
@@ -7926,7 +7926,7 @@ CREATE TABLE `zero_day_cache` (
 	`reported_by` varchar(512),
 	`source` enum('project_zero','cisa_kev') NOT NULL DEFAULT 'project_zero',
 	`year` int,
-	`fetched_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`fetched_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
@@ -7946,7 +7946,7 @@ CREATE TABLE `zero_day_scan_matches` (
 	`zero_day_type` varchar(128),
 	`advisory_url` text,
 	`dismissed` tinyint NOT NULL DEFAULT 0,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
