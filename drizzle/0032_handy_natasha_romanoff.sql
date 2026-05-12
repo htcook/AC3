@@ -1,1 +1,0 @@
-ALTER TABLE `engagements` ADD `roe_catalog_consent` tinyint DEFAULT 0;

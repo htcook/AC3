@@ -1,1 +1,0 @@
-ALTER TABLE `integration_health_checks` ADD PRIMARY KEY(`id`);

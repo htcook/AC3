@@ -1,1 +1,0 @@
-ALTER TABLE `cicd_pipelines` ADD `cicd_baseline_run_id` int;

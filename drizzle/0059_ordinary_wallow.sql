@@ -1,2 +1,0 @@
-ALTER TABLE `ac3_report_findings` ADD `rf_risk_owner` enum('customer','vendor','shared') DEFAULT 'customer';--> statement-breakpoint
-ALTER TABLE `ac3_report_findings` ADD `rf_vendor_name` varchar(128);

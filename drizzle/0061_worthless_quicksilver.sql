@@ -1,1 +1,0 @@
-ALTER TABLE `engagement_findings` ADD `source_type` enum('scanner','llm_inference','manual') DEFAULT 'scanner';
