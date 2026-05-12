@@ -102,6 +102,7 @@ const ThreatActorCatalogDetail = lazyWithRetry(() => import("./pages/ThreatActor
 const ThreatActorDiscovery = lazyWithRetry(() => import("./pages/ThreatActorDiscovery"));
 const DarkwebIntel = lazyWithRetry(() => import("./pages/DarkwebIntel"));
 const SOCRadar = lazyWithRetry(() => import("./pages/SOCRadar"));
+const GoogleDorking = lazyWithRetry(() => import("./pages/GoogleDorking"));
 const BreachEvents = lazyWithRetry(() => import("./pages/BreachEvents"));
 const ThreatIntelHub = lazyWithRetry(() => import("./pages/ThreatIntelHub"));
 const ThreatGroupBrowser = lazyWithRetry(() => import("./pages/ThreatGroupBrowser"));
@@ -662,6 +663,9 @@ function Router() {
         </Route>
         <Route path="/socradar">
           <ProtectedRoute component={SOCRadar} />
+        </Route>
+        <Route path="/google-dorking">
+          <ProtectedRoute component={GoogleDorking} />
         </Route>
         <Route path="/breach-events">
           <ProtectedRoute component={BreachEvents} />

@@ -1374,7 +1374,7 @@
 - [x] Deploy CloudFormation template to AC3 test account — template validated by AWS API, deployment blocked by PowerUserAccess IAM restriction (needs AdministratorAccess session)
 - [ ] Validate cross-account role works with aws-cicd-connector.ts assumeRole flow (blocked — needs IAM role created first via AdministratorAccess)
 - [ ] Wire ACM DNS CNAME for aceofcloud.io domain (skipped for now — needs Cloudflare dashboard access)
-- [ ] Configure HTTPS listener and HTTP→HTTPS 301 redirect (blocked by ACM validation)
+- [x] Configure HTTPS listener (TLS 1.3, ELBSecurityPolicy-TLS13-1-2-2021-06) and HTTP→HTTPS 301 redirect
 - [x] Sync PDF export with vendor risk tab data — added 4 new sections: Shared Responsibility Model (M365/Google/Cloudflare/AWS), Supply Chain Concentration Analysis (vendor deps with SPOF flags), Supply Chain Risk Findings, Infrastructure Posture Summary
 - [x] Wire infraMap data fetch into all 3 exportDiReport call sites (DomainIntelResults, DomainIntelReports, ScanHistory)
 - [x] Write tests for PDF export vendor risk sections (18 tests passing)
@@ -2206,10 +2206,10 @@
 - [ ] Populate ac3/dev/app secret with all app env vars (JWT_SECRET, VITE_APP_ID, OAUTH_SERVER_URL, etc.)
 - [ ] Run DB migrations against Aurora MySQL (automatic via docker-entrypoint.sh on first deploy)
 - [ ] Register ECS task definition (requires PassRole)
-- [ ] Create ECS service and verify health (requires PassRole)
+- [x] Create ECS service (task failed — execution role needs secretsmanager:GetSecretValue policy)
 - [x] Fix ACM certificate for aceofcloud.io — new cert requested (ARN: ...certificate/b5692f5a-9008-4002-8823-8be500870db4), DNS CNAME sent to boss for GoDaddy
-- [ ] Boss adds CNAME record to GoDaddy DNS for ACM validation
-- [ ] Add HTTPS listener to ALB (requires valid ACM cert)
+- [x] Added ACM CNAME to DigitalOcean DNS (aceofcloud.io DNS is managed by DO, not GoDaddy)
+- [x] Add HTTPS listener to ALB (ACM cert ISSUED, TLS 1.3 policy)
 - [ ] Verify full app accessible on AWS via ALB DNS
 
 ### Executive Metrics Dashboard + CISO Role (May 12)
@@ -2251,7 +2251,7 @@
 
 ### New Connector Backlog (May 12)
 - [x] Add SOCRadar connector (dark web monitoring, brand protection, threat feeds)
-- [ ] Add Google Dorking module (Google Custom Search API for exposed panels, directory listings, config files)
+- [x] Add Google Dorking module (Google Custom Search API for exposed panels, directory listings, config files)
 - [ ] Add Pulsedive connector (IOC enrichment, risk scoring, threat feeds)
 
 ### API & Software Cost Inventory (May 12)
@@ -2276,3 +2276,12 @@
 - [x] AWS credentials updated — PowerUserAccess confirmed, PassRole working
 - [x] ECS task definition registered successfully (ac3-dev-app:1)
 - [x] ACM certificate PENDING_VALIDATION — DNS CNAME record needed in GoDaddy
+
+### Google Dorking Module + DNS Check (May 12)
+- [x] Check DigitalOcean DNS records for aceofcloud.io domain — identified 1 CNAME needed, DNS managed by DO (not GoDaddy), can add via doctl
+- [x] Build Google Dorking connector library (server/lib/google-dorking-connector.ts)
+- [x] Build Google Dorking tRPC router (server/routers/google-dorking.ts)
+- [x] Build Google Dorking dashboard page (client/src/pages/GoogleDorking.tsx)
+- [x] Add Google Dorking to sidebar navigation and App.tsx routing
+- [x] Write vitest tests for Google Dorking module (30 tests passing)
+- [ ] Checkpoint and push to GitHub

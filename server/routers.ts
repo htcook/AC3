@@ -246,6 +246,7 @@ import { customerIntelProfileRouter } from "./routers/customer-intel-profile";
 import { demoRequestsRouter } from "./routers/demo-requests";
 import { dnsSecurityRouter } from "./routers/dns-security";
 import { socradarRouter } from "./routers/socradar";
+import { googleDorkingRouter } from "./routers/google-dorking";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -664,6 +665,7 @@ export const appRouter = router({
   dnsSecurity: dnsSecurityRouter,
   // ─── SOCRadar (Dark Web, Brand Protection, Threat Feeds) ──
   socradar: socradarRouter,
+  googleDorking: googleDorkingRouter,
 });
 export type AppRouter = typeof appRouter;
 
