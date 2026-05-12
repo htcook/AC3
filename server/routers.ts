@@ -245,6 +245,7 @@ import { intelligenceGapsRouter } from "./routers/intelligence-gaps";
 import { customerIntelProfileRouter } from "./routers/customer-intel-profile";
 import { demoRequestsRouter } from "./routers/demo-requests";
 import { dnsSecurityRouter } from "./routers/dns-security";
+import { socradarRouter } from "./routers/socradar";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -661,6 +662,8 @@ export const appRouter = router({
   demoRequests: demoRequestsRouter,
   // ─── DNS Security Validator ──
   dnsSecurity: dnsSecurityRouter,
+  // ─── SOCRadar (Dark Web, Brand Protection, Threat Feeds) ──
+  socradar: socradarRouter,
 });
 export type AppRouter = typeof appRouter;
 

@@ -196,6 +196,40 @@ describe("CISO Metrics Router", () => {
     });
   });
 
+  describe("mitreHeatmap", () => {
+    it("returns empty defaults when DB is null", async () => {
+      const { getDb } = await import("./db");
+      (getDb as any).mockResolvedValue(null);
+
+      const { cisoMetricsRouter } = await import("./routers/ciso-metrics");
+      const caller = cisoMetricsRouter.createCaller({ user: { id: 1, role: "admin", openId: "test", name: "Test" } } as any);
+      const result = await caller.mitreHeatmap();
+
+      expect(result.tactics).toBeDefined();
+      expect(result.tactics.length).toBeGreaterThan(0);
+      expect(result.techniques).toEqual([]);
+      expect(result.coverage.totalTechniques).toBe(0);
+      expect(result.coverage.testedTechniques).toBe(0);
+      expect(result.coverage.coveragePercent).toBe(0);
+    });
+
+    it("returns tactics with correct MITRE ATT&CK IDs", async () => {
+      const { getDb } = await import("./db");
+      (getDb as any).mockResolvedValue(null);
+
+      const { cisoMetricsRouter } = await import("./routers/ciso-metrics");
+      const caller = cisoMetricsRouter.createCaller({ user: { id: 1, role: "admin", openId: "test", name: "Test" } } as any);
+      const result = await caller.mitreHeatmap();
+
+      // All tactics should have TA-prefixed IDs
+      for (const tactic of result.tactics) {
+        expect(tactic.id).toMatch(/^TA\d{4}$/);
+        expect(tactic.name).toBeTruthy();
+        expect(tactic.shortName).toBeTruthy();
+      }
+    });
+  });
+
   describe("CISO Role Access", () => {
     it("executive role enum exists in schema", async () => {
       const fs = await import("fs");

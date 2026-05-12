@@ -291,6 +291,7 @@ export const sidebarNavGroups: NavGroup[] = [
       { label: "TTP Knowledge", path: "/ttp-knowledge", icon: Brain },
       { label: "Threat Enrichment", path: "/threat-enrichment", icon: Sparkles },
       { label: "Darkweb Intel", path: "/darkweb-intel", icon: Eye },
+      { label: "SOCRadar", path: "/socradar", icon: Radar },
       { label: "Breach Events", path: "/breach-events", icon: AlertTriangle },
       { label: "Ransomware Groups", path: "/ransomware-groups", icon: Skull },
       { label: "IOC Feed", path: "/ioc-feed", icon: Radio },

@@ -2243,14 +2243,14 @@
 - [x] PDF download button already existed in Executive Dashboard UI
 - [x] Create seed-ciso-demo-data.mjs: 8 phishing campaigns, 45 EDR tests, 120 C2 logs, 21 vuln snapshots, 20 remediation tasks, 5 customer profiles, 53 engagement findings, 5 compliance reports
 - [x] Write vitest tests for CISO metrics (12/12 passing, duplicate key warning fixed)
-- [ ] Checkpoint and push to GitHub
+- [x] Checkpoint and push to GitHub
 
 ### Pentester Search Engine Integration Analysis (May 12)
 - [x] Audit all 24 pentester search engines against AC3 codebase
 - [x] Evaluate and prioritize new integrations — recommended SOCRadar, Google Dorking, Pulsedive
 
 ### New Connector Backlog (May 12)
-- [ ] Add SOCRadar connector (dark web monitoring, brand protection, threat feeds)
+- [x] Add SOCRadar connector (dark web monitoring, brand protection, threat feeds)
 - [ ] Add Google Dorking module (Google Custom Search API for exposed panels, directory listings, config files)
 - [ ] Add Pulsedive connector (IOC enrichment, risk scoring, threat feeds)
 
@@ -2262,3 +2262,17 @@
 - [x] Research software licensing requirements for commercial redistribution/use
 - [x] Identified 9 legal action items before commercial launch
 - [x] Compile comprehensive cost inventory document with current vs commercial costs (infrastructure/AC3-API-SOFTWARE-COST-INVENTORY.md)
+
+### Sprint: MITRE Drill-Down + PDF Export + SOCRadar + AWS (May 12)
+- [x] Add MITRE heatmap click-to-drill-down panel (C2 + EDR stats per technique, heat level badge)
+- [x] Enhance executive PDF export with branded cover page (AC3 logo, classification banner, exec summary, TOC)
+- [x] Build SOCRadar connector library (server/lib/socradar-connector.ts) — API client for incidents, dark web, brand, IOC enrichment, threat feeds
+- [x] Build SOCRadar tRPC router (server/routers/socradar.ts) — 12 procedures (health, incidents, markFP, markResolved, darkWebMentions, brandAlerts, requestTakedown, enrichIP, enrichDomain, enrichHash, threatFeeds, feedIndicators, stats)
+- [x] Build SOCRadar dashboard page (client/src/pages/SOCRadar.tsx) — 6 tabs (Overview, Incidents, Dark Web, Brand Protection, IOC Enrichment, Threat Feeds)
+- [x] Add SOCRadar to sidebar navigation under Intelligence section
+- [x] Add SOCRadar route to App.tsx
+- [x] Write vitest tests for SOCRadar connector (28 tests passing)
+- [x] Write vitest tests for MITRE heatmap (2 additional tests, 14 total in ciso-metrics)
+- [x] AWS credentials updated — PowerUserAccess confirmed, PassRole working
+- [x] ECS task definition registered successfully (ac3-dev-app:1)
+- [x] ACM certificate PENDING_VALIDATION — DNS CNAME record needed in GoDaddy
