@@ -167,7 +167,7 @@ fix-*.sh
 server/lib/knowledge/attack_chains_300.json
 server/lib/knowledge/asset_role_ontology.json
 server/threatActorSeed2.ts
-drizzle/meta/*_snapshot.json
+# drizzle/meta/*_snapshot.json
 drizzle/0006_amused_golden_guardian.sql
 
 # Test files (not needed for deployment, but harmless to include)
