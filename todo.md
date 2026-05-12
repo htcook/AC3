@@ -2233,3 +2233,32 @@
 - [x] Create ALB HTTPS redirect script (HTTP 301 → HTTPS on port 80 listener)
 - [x] Add infrastructure/setup-https-alb.sh script for ALB HTTPS listener + redirect (TLS 1.3/1.2, SG port 443 check)
 - [ ] BLOCKED: Run setup-https-alb.sh (requires ACM cert to be ISSUED — waiting on GoDaddy CNAME)
+
+### MITRE ATT&CK Heatmap + PDF Export + Demo Data (May 12)
+- [x] Research MITRE ATT&CK matrix structure (14 tactics, technique-to-tactic mapping)
+- [x] Build mitreHeatmap backend procedure aggregating C2 execution logs + EDR tests by technique
+- [x] Build MITRE ATT&CK heatmap frontend component (color-coded grid by tactic/technique with success/fail/blocked)
+- [x] Add MITRE Heatmap as new tab in Executive Dashboard
+- [x] Enhance PDF export with CISO metrics sections (phishing, detection, posture, remediation)
+- [x] PDF download button already existed in Executive Dashboard UI
+- [x] Create seed-ciso-demo-data.mjs: 8 phishing campaigns, 45 EDR tests, 120 C2 logs, 21 vuln snapshots, 20 remediation tasks, 5 customer profiles, 53 engagement findings, 5 compliance reports
+- [x] Write vitest tests for CISO metrics (12/12 passing, duplicate key warning fixed)
+- [ ] Checkpoint and push to GitHub
+
+### Pentester Search Engine Integration Analysis (May 12)
+- [x] Audit all 24 pentester search engines against AC3 codebase
+- [x] Evaluate and prioritize new integrations — recommended SOCRadar, Google Dorking, Pulsedive
+
+### New Connector Backlog (May 12)
+- [ ] Add SOCRadar connector (dark web monitoring, brand protection, threat feeds)
+- [ ] Add Google Dorking module (Google Custom Search API for exposed panels, directory listings, config files)
+- [ ] Add Pulsedive connector (IOC enrichment, risk scoring, threat feeds)
+
+### API & Software Cost Inventory (May 12)
+- [x] Audit all external API integrations in AC3 codebase (24 APIs identified)
+- [x] Audit all software/tools used that may need commercial licenses for resale (14 tools identified)
+- [x] Research current pricing tiers (free/personal) for all APIs
+- [x] Research commercial/enterprise pricing for all APIs (when selling AC3 licenses)
+- [x] Research software licensing requirements for commercial redistribution/use
+- [x] Identified 9 legal action items before commercial launch
+- [x] Compile comprehensive cost inventory document with current vs commercial costs (infrastructure/AC3-API-SOFTWARE-COST-INVENTORY.md)

@@ -5,7 +5,10 @@ import { sql, eq, desc, count, and, gte, lte, isNotNull, asc } from "drizzle-orm
 import {
   phishingDrafts,
   edrTestResults,
+  edrCoverageMatrix,
+  edrTestCatalog,
   c2ExecutionLog,
+  atomicTests,
   customerIntelligenceProfiles,
   remediationTasks,
   vulnScanSnapshots,
@@ -22,6 +25,55 @@ import {
 // - Remediation velocity & SLA compliance
 //
 // Author: Harrison Cook — AceofCloud (https://aceofcloud.com)
+
+// ── MITRE ATT&CK Tactic Definitions ─────────────────────────────────────────
+const MITRE_TACTICS = [
+  { id: "TA0043", name: "Reconnaissance", shortName: "Recon" },
+  { id: "TA0042", name: "Resource Development", shortName: "Res Dev" },
+  { id: "TA0001", name: "Initial Access", shortName: "Init Access" },
+  { id: "TA0002", name: "Execution", shortName: "Execution" },
+  { id: "TA0003", name: "Persistence", shortName: "Persistence" },
+  { id: "TA0004", name: "Privilege Escalation", shortName: "Priv Esc" },
+  { id: "TA0005", name: "Defense Evasion", shortName: "Def Evasion" },
+  { id: "TA0006", name: "Credential Access", shortName: "Cred Access" },
+  { id: "TA0007", name: "Discovery", shortName: "Discovery" },
+  { id: "TA0008", name: "Lateral Movement", shortName: "Lat Movement" },
+  { id: "TA0009", name: "Collection", shortName: "Collection" },
+  { id: "TA0011", name: "Command and Control", shortName: "C2" },
+  { id: "TA0010", name: "Exfiltration", shortName: "Exfiltration" },
+  { id: "TA0040", name: "Impact", shortName: "Impact" },
+];
+
+// Map common tactic name variations to canonical tactic IDs
+function normalizeTactic(raw: string): string | null {
+  const lower = raw.toLowerCase().replace(/[_-]/g, " ").trim();
+  const map: Record<string, string> = {
+    "reconnaissance": "TA0043", "recon": "TA0043",
+    "resource development": "TA0042",
+    "initial access": "TA0001",
+    "execution": "TA0002",
+    "persistence": "TA0003",
+    "privilege escalation": "TA0004", "priv esc": "TA0004",
+    "defense evasion": "TA0005", "def evasion": "TA0005",
+    "credential access": "TA0006", "cred access": "TA0006",
+    "discovery": "TA0007",
+    "lateral movement": "TA0008", "lat movement": "TA0008",
+    "collection": "TA0009",
+    "command and control": "TA0011", "c2": "TA0011", "command control": "TA0011",
+    "exfiltration": "TA0010",
+    "impact": "TA0040",
+    // EDR test categories
+    "process injection": "TA0005",
+    "credential_access": "TA0006",
+    "defense_evasion": "TA0005",
+    "lateral_movement": "TA0008",
+    "privilege_escalation": "TA0004",
+    "command_and_control": "TA0011",
+  };
+  // Direct tactic ID match
+  if (lower.startsWith("ta")) return lower.toUpperCase();
+  return map[lower] || null;
+}
 
 export const cisoMetricsRouter = router({
   // ── Phishing Susceptibility Trends ──────────────────────────────────────
@@ -593,6 +645,155 @@ export const cisoMetricsRouter = router({
         latestCritical: latest?.critical || 0,
         latestHigh: latest?.high || 0,
         trend,
+      },
+    };
+  }),
+
+  // ── MITRE ATT&CK Heatmap ───────────────────────────────────────────────
+  // Aggregates C2 execution logs, EDR coverage matrix, and Caldera abilities
+  // into a tactic × technique grid with success/fail/blocked counts.
+  mitreHeatmap: protectedProcedure.query(async () => {
+    const drizzleDb = await getDb();
+    if (!drizzleDb) return { tactics: MITRE_TACTICS, techniques: [], coverage: { totalTechniques: 0, testedTechniques: 0, coveragePercent: 0 } };
+
+    // 1. C2 execution logs grouped by technique
+    const c2Rows = await drizzleDb.select({
+      techniqueId: c2ExecutionLog.techniqueId,
+      success: c2ExecutionLog.celSuccess,
+      cnt: count(),
+    })
+      .from(c2ExecutionLog)
+      .groupBy(c2ExecutionLog.techniqueId, c2ExecutionLog.celSuccess);
+
+    // 2. EDR coverage matrix (already has tactic+technique+detected/missed/blocked)
+    const edrRows = await drizzleDb.select({
+      tacticId: edrCoverageMatrix.mitreTacticId,
+      techniqueId: edrCoverageMatrix.mitreTechniqueId,
+      totalTests: edrCoverageMatrix.totalTests,
+      detected: edrCoverageMatrix.detected,
+      missed: edrCoverageMatrix.missed,
+      partial: edrCoverageMatrix.partial,
+      blocked: edrCoverageMatrix.blocked,
+      coverageScore: edrCoverageMatrix.coverageScore,
+    })
+      .from(edrCoverageMatrix);
+
+    // 3. Atomic tests for technique → tactic mapping
+    const abilityRows = await drizzleDb.select({
+      techniqueId: atomicTests.techniqueId,
+      techniqueName: atomicTests.techniqueName,
+      tactic: atomicTests.mitreTactic,
+    })
+      .from(atomicTests)
+      .groupBy(atomicTests.techniqueId, atomicTests.techniqueName, atomicTests.mitreTactic);
+
+    // 4. EDR test catalog for technique → tactic mapping via category
+    const catalogRows = await drizzleDb.select({
+      techniqueId: edrTestCatalog.mitreTechniqueId,
+      techniqueName: edrTestCatalog.mitreTechniqueName,
+      category: edrTestCatalog.testCategory,
+    })
+      .from(edrTestCatalog)
+      .where(isNotNull(edrTestCatalog.mitreTechniqueId));
+
+    // Build technique map: techniqueId → { name, tacticId, succeeded, failed, blocked, detected, missed, tested }
+    type TechniqueData = {
+      id: string;
+      name: string;
+      tacticId: string;
+      succeeded: number;
+      failed: number;
+      blocked: number;
+      detected: number;
+      missed: number;
+      partial: number;
+      totalTests: number;
+      coverageScore: number | null;
+    };
+    const techMap: Record<string, TechniqueData> = {};
+
+    function ensureTech(id: string, name?: string, tacticId?: string): TechniqueData {
+      if (!techMap[id]) {
+        techMap[id] = { id, name: name || id, tacticId: tacticId || "TA0002", succeeded: 0, failed: 0, blocked: 0, detected: 0, missed: 0, partial: 0, totalTests: 0, coverageScore: null };
+      }
+      if (name && techMap[id].name === id) techMap[id].name = name;
+      if (tacticId) techMap[id].tacticId = tacticId;
+      return techMap[id];
+    }
+
+    // Map abilities to techniques with tactic
+    for (const a of abilityRows) {
+      const tacticId = a.tactic ? normalizeTactic(a.tactic) : null;
+      ensureTech(a.techniqueId, a.techniqueName, tacticId || undefined);
+    }
+
+    // Map catalog entries
+    for (const c of catalogRows) {
+      if (!c.techniqueId) continue;
+      const tacticId = normalizeTactic(c.category);
+      ensureTech(c.techniqueId, c.techniqueName || undefined, tacticId || undefined);
+    }
+
+    // Aggregate C2 execution results
+    for (const r of c2Rows) {
+      const tech = ensureTech(r.techniqueId);
+      if (r.success === 1) tech.succeeded += r.cnt;
+      else tech.failed += r.cnt;
+    }
+
+    // Aggregate EDR coverage
+    for (const r of edrRows) {
+      const tech = ensureTech(r.techniqueId, undefined, r.tacticId);
+      tech.detected += r.detected || 0;
+      tech.missed += r.missed || 0;
+      tech.partial += r.partial || 0;
+      tech.blocked += r.blocked || 0;
+      tech.totalTests += r.totalTests || 0;
+      if (r.coverageScore != null) tech.coverageScore = r.coverageScore;
+    }
+
+    // Build output grouped by tactic
+    const techniques = Object.values(techMap).map(t => {
+      const total = t.succeeded + t.failed + t.blocked;
+      const edrTotal = t.detected + t.missed + t.partial + t.blocked;
+      return {
+        id: t.id,
+        name: t.name,
+        tacticId: t.tacticId,
+        c2: {
+          total,
+          succeeded: t.succeeded,
+          failed: t.failed,
+          successRate: total > 0 ? Math.round((t.succeeded / total) * 100) : 0,
+        },
+        edr: {
+          total: edrTotal,
+          detected: t.detected,
+          missed: t.missed,
+          partial: t.partial,
+          blocked: t.blocked,
+          detectionRate: edrTotal > 0 ? Math.round(((t.detected + t.blocked) / edrTotal) * 100) : 0,
+        },
+        coverageScore: t.coverageScore,
+        // Heat level: 0=untested, 1=all detected/blocked, 2=mostly detected, 3=mixed, 4=mostly missed, 5=all missed
+        heatLevel: total === 0 && edrTotal === 0 ? 0
+          : (t.succeeded === 0 && t.missed === 0) ? 1
+          : (t.succeeded > 0 && t.missed === 0 && t.detected > t.succeeded) ? 2
+          : (t.missed > t.detected + t.blocked) ? 4
+          : (t.missed > 0 && t.detected === 0 && t.blocked === 0) ? 5
+          : 3,
+      };
+    });
+
+    const testedTechniques = techniques.filter(t => t.c2.total > 0 || t.edr.total > 0).length;
+
+    return {
+      tactics: MITRE_TACTICS,
+      techniques,
+      coverage: {
+        totalTechniques: techniques.length,
+        testedTechniques,
+        coveragePercent: techniques.length > 0 ? Math.round((testedTechniques / techniques.length) * 100) : 0,
       },
     };
   }),

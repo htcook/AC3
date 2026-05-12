@@ -82,6 +82,56 @@ export interface ExecDashboardData {
     totalActors: number;
     actorsWithProfiles: number;
   };
+  // CISO Metrics - Phishing
+  phishing?: {
+    campaigns: Array<{
+      subject: string;
+      sentCount: number;
+      clickRate: number;
+      reportRate: number;
+      credsCaptured: number;
+      status: string;
+    }>;
+    avgClickRate: number;
+    avgReportRate: number;
+    totalCampaigns: number;
+  };
+  // CISO Metrics - Detection Validation
+  detection?: {
+    edrHitRate: number;
+    c2SuccessRate: number;
+    totalEdrTests: number;
+    totalC2Tests: number;
+    controlCoverage: number;
+  };
+  // CISO Metrics - Posture
+  posture?: {
+    customers: Array<{
+      name: string;
+      score: number;
+      grade: string;
+      trend: string;
+    }>;
+    avgScore: number;
+  };
+  // CISO Metrics - Remediation
+  remediation?: {
+    mttrDays: number;
+    slaCompliance: number;
+    totalTasks: number;
+    completedTasks: number;
+    bySeverity: Array<{ severity: string; total: number; completed: number }>;
+  };
+  // CISO Metrics - Vuln Trends
+  vulnTrend?: {
+    snapshots: Array<{
+      date: string;
+      critical: number;
+      high: number;
+      medium: number;
+      low: number;
+    }>;
+  };
 }
 
 // ─── Color Palette ────────────────────────────────────────────────────
@@ -520,10 +570,179 @@ export async function exportExecutiveDashboardPdf(
     });
   }
 
-  // ─── Add footers to all pages ──────────────────────────────────────
+    // ═══════════════════════════════════════════════════════════════════
+  // PAGE 5: CISO Metrics — Phishing & Detection
+  // ═══════════════════════════════════════════════════════════════════
+  if (data.phishing || data.detection) {
+    doc.addPage();
+    yPos = 14;
+
+    doc.setFillColor(...COLORS.headerBg);
+    doc.rect(0, 0, pageWidth, 20, "F");
+    doc.setTextColor(...COLORS.headerText);
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.text("CISO Metrics: Phishing & Detection Validation", 14, 13);
+    yPos = 26;
+
+    if (data.phishing) {
+      const ph = data.phishing;
+      const phCardW = (pageWidth - 28 - 10) / 3;
+      drawKpiCard(doc, 14, yPos, phCardW, 18,
+        "Total Campaigns", ph.totalCampaigns, COLORS.accentBlue);
+      drawKpiCard(doc, 14 + phCardW + 5, yPos, phCardW, 18,
+        "Avg Click Rate", `${ph.avgClickRate.toFixed(1)}%`, COLORS.accentAmber);
+      drawKpiCard(doc, 14 + (phCardW + 5) * 2, yPos, phCardW, 18,
+        "Avg Report Rate", `${ph.avgReportRate.toFixed(1)}%`, COLORS.accentGreen);
+      yPos += 26;
+
+      if (ph.campaigns.length > 0) {
+        yPos = drawSectionHeader(doc, "Phishing Campaign Results", yPos, pageWidth);
+        autoTable(doc, {
+          startY: yPos,
+          head: [["Campaign", "Sent", "Click Rate", "Report Rate", "Creds Captured", "Status"]],
+          body: ph.campaigns.slice(0, 15).map(c => [
+            c.subject.length > 40 ? c.subject.slice(0, 37) + "..." : c.subject,
+            c.sentCount,
+            `${c.clickRate.toFixed(1)}%`,
+            `${c.reportRate.toFixed(1)}%`,
+            c.credsCaptured,
+            c.status,
+          ]),
+          theme: "grid",
+          headStyles: { fillColor: COLORS.tableBg, textColor: [255, 255, 255], fontSize: 8, fontStyle: "bold", cellPadding: 2.5 },
+          bodyStyles: { fontSize: 7, cellPadding: 2, textColor: COLORS.textPrimary },
+          alternateRowStyles: { fillColor: COLORS.altRow },
+          margin: { left: 14, right: 14 },
+        });
+        yPos = (doc as any).lastAutoTable.finalY + 8;
+      }
+    }
+
+    if (data.detection) {
+      const dt = data.detection;
+      yPos = drawSectionHeader(doc, "Detection & Control Validation", yPos, pageWidth);
+      const dtCardW = (pageWidth - 28 - 15) / 4;
+      drawKpiCard(doc, 14, yPos, dtCardW, 18,
+        "EDR Detection Rate", `${dt.edrHitRate.toFixed(1)}%`, dt.edrHitRate > 70 ? COLORS.accentGreen : COLORS.accentRed);
+      drawKpiCard(doc, 14 + dtCardW + 5, yPos, dtCardW, 18,
+        "C2 Success Rate", `${dt.c2SuccessRate.toFixed(1)}%`, dt.c2SuccessRate < 30 ? COLORS.accentGreen : COLORS.accentAmber);
+      drawKpiCard(doc, 14 + (dtCardW + 5) * 2, yPos, dtCardW, 18,
+        "Total EDR Tests", dt.totalEdrTests, COLORS.accentBlue);
+      drawKpiCard(doc, 14 + (dtCardW + 5) * 3, yPos, dtCardW, 18,
+        "Control Coverage", `${dt.controlCoverage.toFixed(0)}%`, COLORS.accentBlue);
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // PAGE 6: CISO Metrics — Posture & Remediation
+  // ═══════════════════════════════════════════════════════════════════
+  if (data.posture || data.remediation || data.vulnTrend) {
+    doc.addPage();
+    yPos = 14;
+
+    doc.setFillColor(...COLORS.headerBg);
+    doc.rect(0, 0, pageWidth, 20, "F");
+    doc.setTextColor(...COLORS.headerText);
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.text("CISO Metrics: Posture Trending & Remediation", 14, 13);
+    yPos = 26;
+
+    if (data.remediation) {
+      const rm = data.remediation;
+      const rmCardW = (pageWidth - 28 - 15) / 4;
+      drawKpiCard(doc, 14, yPos, rmCardW, 18,
+        "Mean Time to Remediate", `${rm.mttrDays.toFixed(1)} days`, COLORS.accentBlue);
+      drawKpiCard(doc, 14 + rmCardW + 5, yPos, rmCardW, 18,
+        "SLA Compliance", `${rm.slaCompliance.toFixed(0)}%`, rm.slaCompliance > 80 ? COLORS.accentGreen : COLORS.accentRed);
+      drawKpiCard(doc, 14 + (rmCardW + 5) * 2, yPos, rmCardW, 18,
+        "Total Tasks", rm.totalTasks, COLORS.accentBlue);
+      drawKpiCard(doc, 14 + (rmCardW + 5) * 3, yPos, rmCardW, 18,
+        "Completed", rm.completedTasks, COLORS.accentGreen);
+      yPos += 26;
+
+      if (rm.bySeverity.length > 0) {
+        yPos = drawSectionHeader(doc, "Remediation by Severity", yPos, pageWidth);
+        autoTable(doc, {
+          startY: yPos,
+          head: [["Severity", "Total", "Completed", "Completion Rate"]],
+          body: rm.bySeverity.map(s => [
+            s.severity,
+            s.total,
+            s.completed,
+            s.total > 0 ? `${((s.completed / s.total) * 100).toFixed(0)}%` : "N/A",
+          ]),
+          theme: "grid",
+          headStyles: { fillColor: COLORS.tableBg, textColor: [255, 255, 255], fontSize: 8, fontStyle: "bold", cellPadding: 2.5 },
+          bodyStyles: { fontSize: 8, cellPadding: 2, textColor: COLORS.textPrimary },
+          alternateRowStyles: { fillColor: COLORS.altRow },
+          margin: { left: 14, right: 14 },
+        });
+        yPos = (doc as any).lastAutoTable.finalY + 8;
+      }
+    }
+
+    if (data.posture && data.posture.customers.length > 0) {
+      yPos = drawSectionHeader(doc, "Customer Security Posture", yPos, pageWidth);
+      autoTable(doc, {
+        startY: yPos,
+        head: [["Customer", "Posture Score", "Grade", "Trend"]],
+        body: data.posture.customers.slice(0, 20).map(c => [
+          c.name,
+          `${c.score}/100`,
+          c.grade,
+          c.trend,
+        ]),
+        theme: "grid",
+        headStyles: { fillColor: COLORS.tableBg, textColor: [255, 255, 255], fontSize: 8, fontStyle: "bold", cellPadding: 2.5 },
+        bodyStyles: { fontSize: 8, cellPadding: 2, textColor: COLORS.textPrimary },
+        alternateRowStyles: { fillColor: COLORS.altRow },
+        columnStyles: {
+          0: { fontStyle: "bold", cellWidth: 60 },
+          1: { halign: "center", cellWidth: 30 },
+          2: { halign: "center", cellWidth: 20 },
+          3: { cellWidth: 30 },
+        },
+        margin: { left: 14, right: 14 },
+      });
+      yPos = (doc as any).lastAutoTable.finalY + 8;
+    }
+
+    if (data.vulnTrend && data.vulnTrend.snapshots.length > 0) {
+      yPos = drawSectionHeader(doc, "Vulnerability Trend (Last Snapshots)", yPos, pageWidth);
+      autoTable(doc, {
+        startY: yPos,
+        head: [["Date", "Critical", "High", "Medium", "Low", "Total"]],
+        body: data.vulnTrend.snapshots.slice(-10).map(s => [
+          s.date,
+          s.critical,
+          s.high,
+          s.medium,
+          s.low,
+          s.critical + s.high + s.medium + s.low,
+        ]),
+        theme: "grid",
+        headStyles: { fillColor: COLORS.tableBg, textColor: [255, 255, 255], fontSize: 8, fontStyle: "bold", cellPadding: 2.5 },
+        bodyStyles: { fontSize: 8, cellPadding: 2, textColor: COLORS.textPrimary },
+        alternateRowStyles: { fillColor: COLORS.altRow },
+        columnStyles: {
+          0: { fontStyle: "bold", cellWidth: 40 },
+          1: { halign: "center", cellWidth: 25 },
+          2: { halign: "center", cellWidth: 25 },
+          3: { halign: "center", cellWidth: 25 },
+          4: { halign: "center", cellWidth: 25 },
+          5: { halign: "center", cellWidth: 25, fontStyle: "bold" },
+        },
+        margin: { left: 14, right: 14 },
+      });
+    }
+  }
+
+  // ─── Add footers to all pages ────────────────────────────────────────
   addFooter();
 
-  // ─── Save ──────────────────────────────────────────────────────────
+  // ─── Save ──────────────────────────────────────────────────────
   const filename = `AC3_Executive_Dashboard_${now.toISOString().slice(0, 10)}.pdf`;
   doc.save(filename);
 }

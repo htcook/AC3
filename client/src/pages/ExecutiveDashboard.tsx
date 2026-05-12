@@ -19,6 +19,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
+import { MitreHeatmap } from "@/components/MitreHeatmap";
 
 // ─── Risk Score Gauge ──────────────────────────────────────────────────────
 function RiskGauge({ score, level }: { score: number; level: string }) {
@@ -398,6 +399,7 @@ export default function ExecutiveDashboard() {
   const { data: postureData, isLoading: postureLoading } = trpc.cisoMetrics.postureHistory.useQuery();
   const { data: remediationData, isLoading: remediationLoading } = trpc.cisoMetrics.remediationMetrics.useQuery();
   const { data: vulnTrendData, isLoading: vulnTrendLoading } = trpc.cisoMetrics.vulnTrend.useQuery();
+  const { data: mitreHeatmapData, isLoading: mitreHeatmapLoading } = trpc.cisoMetrics.mitreHeatmap.useQuery();
 
   // PDF export handler
   const handleExportPdf = async () => {
@@ -453,6 +455,56 @@ export default function ExecutiveDashboard() {
           })),
           totalActors: threatSummary.totalGroups ?? 0,
           actorsWithProfiles: kbStats?.actorsWithProfiles ?? 0,
+        } : undefined,
+        // CISO Metrics
+        phishing: phishingData ? {
+          campaigns: (phishingData.campaigns ?? []).map((c: any) => ({
+            subject: c.subject ?? "Untitled",
+            sentCount: c.sentCount ?? 0,
+            clickRate: c.clickRate ?? 0,
+            reportRate: c.reportRate ?? 0,
+            credsCaptured: c.credsCaptured ?? 0,
+            status: c.status ?? "unknown",
+          })),
+          avgClickRate: phishingData.avgClickRate ?? 0,
+          avgReportRate: phishingData.avgReportRate ?? 0,
+          totalCampaigns: phishingData.totalCampaigns ?? 0,
+        } : undefined,
+        detection: detectionData ? {
+          edrHitRate: detectionData.edrDetectionRate ?? 0,
+          c2SuccessRate: detectionData.c2SuccessRate ?? 0,
+          totalEdrTests: detectionData.totalEdrTests ?? 0,
+          totalC2Tests: detectionData.totalC2Executions ?? 0,
+          controlCoverage: detectionData.controlCoverage ?? 0,
+        } : undefined,
+        posture: postureData ? {
+          customers: (postureData.customers ?? []).map((c: any) => ({
+            name: c.companyName ?? "Unknown",
+            score: c.postureScore ?? 0,
+            grade: c.postureScore >= 90 ? "A" : c.postureScore >= 80 ? "B" : c.postureScore >= 70 ? "C" : c.postureScore >= 60 ? "D" : "F",
+            trend: c.postureTrend ?? "stable",
+          })),
+          avgScore: postureData.avgScore ?? 0,
+        } : undefined,
+        remediation: remediationData ? {
+          mttrDays: remediationData.mttrDays ?? 0,
+          slaCompliance: remediationData.slaCompliance ?? 0,
+          totalTasks: remediationData.totalTasks ?? 0,
+          completedTasks: remediationData.completedTasks ?? 0,
+          bySeverity: (remediationData.bySeverity ?? []).map((s: any) => ({
+            severity: s.severity,
+            total: s.total ?? 0,
+            completed: s.completed ?? 0,
+          })),
+        } : undefined,
+        vulnTrend: vulnTrendData?.vuln ? {
+          snapshots: (vulnTrendData.vuln.trend ?? []).map((s: any) => ({
+            date: s.scanDate ?? "N/A",
+            critical: s.critical ?? 0,
+            high: s.high ?? 0,
+            medium: s.medium ?? 0,
+            low: s.low ?? 0,
+          })),
         } : undefined,
       });
       toast.success("Executive Dashboard PDF exported successfully");
@@ -616,6 +668,9 @@ export default function ExecutiveDashboard() {
           </TabsTrigger>
           <TabsTrigger value="remediation" className="gap-1.5">
             <Wrench className="w-4 h-4" /> Remediation
+          </TabsTrigger>
+          <TabsTrigger value="mitre-heatmap" className="gap-1.5">
+            <Radar className="w-4 h-4" /> ATT&CK Heatmap
           </TabsTrigger>
         </TabsList>
 
@@ -2108,6 +2163,34 @@ export default function ExecutiveDashboard() {
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        {/* ── MITRE ATT&CK Heatmap Tab ── */}
+        <TabsContent value="mitre-heatmap" className="mt-4">
+          {mitreHeatmapLoading ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-3 gap-4">
+                <Skeleton className="h-24" />
+                <Skeleton className="h-24" />
+                <Skeleton className="h-24" />
+              </div>
+              <Skeleton className="h-[500px]" />
+            </div>
+          ) : mitreHeatmapData ? (
+            <MitreHeatmap
+              tactics={mitreHeatmapData.tactics}
+              techniques={mitreHeatmapData.techniques}
+              coverage={mitreHeatmapData.coverage}
+            />
+          ) : (
+            <Card className="bg-zinc-900/50 border-zinc-800">
+              <CardContent className="py-12 text-center">
+                <Radar className="w-12 h-12 mx-auto mb-3 text-zinc-600" />
+                <p className="text-zinc-400">No MITRE ATT&CK data available</p>
+                <p className="text-sm text-zinc-500 mt-1">Run C2 emulations or EDR tests to populate the heatmap</p>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
       </Tabs>
     </div>
