@@ -160,6 +160,7 @@ import { dastScannersRouter } from "./routers/dast-scanners";
 import { packetAnalysisRouter } from "./routers/packet-analysis";
 import { aiGovernanceRouter } from "./routers/ai-governance";
 import { executiveDashboardRouter } from "./routers/executive-dashboard";
+import { cisoMetricsRouter } from "./routers/ciso-metrics";
 import { threatIntelMatchingRouter } from "./routers/threat-intel-matching";
 import { graduationEngineRouter } from "./routers/graduation-engine";
 import { remediationRouter } from "./routers/remediation";
@@ -563,6 +564,7 @@ export const appRouter = router({
   // ─── AI Governance & Guardrails (NIST AI RMF, OMB M-24-10, DoD RAI) ────────
   aiGovernance: aiGovernanceRouter,
   executiveDashboard: executiveDashboardRouter,
+  cisoMetrics: cisoMetricsRouter,
   threatIntelMatching: threatIntelMatchingRouter,
   graduationEngine: graduationEngineRouter,
   remediation: remediationRouter,

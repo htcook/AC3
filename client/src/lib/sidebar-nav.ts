@@ -85,7 +85,7 @@ const ROLE_GROUP_ACCESS: Record<UserRole, string[] | 'all'> = {
     'command-control', 'intel-recon', 'detection-validation', 'infrastructure',
     'llm-ai', 'compliance-reporting',
   ],
-  executive: ['command-control', 'compliance-reporting', 'ksi-fedramp'],
+  executive: ['command-control', 'compliance-reporting', 'ksi-fedramp', 'detection-validation'],
   client: ['command-control', 'compliance-reporting'],
   viewer: ['command-control', 'compliance-reporting'],
 };
@@ -144,6 +144,7 @@ export const sidebarNavGroups: NavGroup[] = [
     defaultOpen: true,
     items: [
       { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
+      { label: "Executive Dashboard", path: "/executive-dashboard", icon: TrendingUp, roles: ["admin", "executive", "team_lead"] },
       { label: "Home", path: "/home", icon: Activity },
       { label: "Engagements", path: "/engagements", icon: Briefcase },
       { label: "Engagement Ops", path: "/engagement-ops", icon: Crosshair, roles: ["admin", "operator", "team_lead"] },

@@ -2207,6 +2207,29 @@
 - [ ] Run DB migrations against Aurora MySQL (automatic via docker-entrypoint.sh on first deploy)
 - [ ] Register ECS task definition (requires PassRole)
 - [ ] Create ECS service and verify health (requires PassRole)
-- [ ] Fix ACM certificate for aceofcloud.io (DNS validation records needed)
+- [x] Fix ACM certificate for aceofcloud.io — new cert requested (ARN: ...certificate/b5692f5a-9008-4002-8823-8be500870db4), DNS CNAME sent to boss for GoDaddy
+- [ ] Boss adds CNAME record to GoDaddy DNS for ACM validation
 - [ ] Add HTTPS listener to ALB (requires valid ACM cert)
 - [ ] Verify full app accessible on AWS via ALB DNS
+
+### Executive Metrics Dashboard + CISO Role (May 12)
+- [x] Audit current role system, engagement data, scoring, phishing, and vuln data sources
+- [x] Design CISO role (read-only executive view, no engagement execution) — uses existing 'executive' role enum
+- [x] Executive role already exists in schema (admin, operator, analyst, team_lead, viewer, client, soc, executive)
+- [x] CISO metrics use protectedProcedure (admin + executive access via role-based nav)
+- [x] Build executive metrics tRPC procedures: cisoMetrics router with 5 procedures (phishingSusceptibility, detectionValidation, postureHistory, remediationMetrics, vulnTrend)
+- [x] Build 4 new Executive Dashboard tabs: Phishing & Social Eng, Detection Validation, Posture Trending, Remediation Velocity
+- [x] Add phishing susceptibility trend chart (click rates, report rates, cred captures, campaign timeline)
+- [x] Add detection validation tab (EDR hit rate, C2 technique success, control coverage %, recent tests)
+- [x] Add posture trending tab (customer scores, grades, attack surface trends, recurring weaknesses, persistent gaps)
+- [x] Add remediation velocity tab (MTTR, SLA compliance, severity breakdown, recently fixed)
+- [x] Add vulnerability trend chart (scan snapshots over time with critical/high/medium/low)
+- [x] Add role-based navigation (executive sees command-control, compliance-reporting, ksi-fedramp, detection-validation groups)
+- [x] Write vitest tests for CISO role and metrics endpoints (12/12 passing)
+- [ ] Checkpoint and push to GitHub
+
+### HTTPS Enforcement (Production Compliance) (May 12)
+- [x] Add Express middleware for HSTS header and X-Forwarded-Proto redirect (already implemented in server/_core/index.ts lines 245-263)
+- [x] Create ALB HTTPS redirect script (HTTP 301 → HTTPS on port 80 listener)
+- [x] Add infrastructure/setup-https-alb.sh script for ALB HTTPS listener + redirect (TLS 1.3/1.2, SG port 443 check)
+- [ ] BLOCKED: Run setup-https-alb.sh (requires ACM cert to be ISSUED — waiting on GoDaddy CNAME)

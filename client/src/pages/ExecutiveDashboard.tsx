@@ -7,7 +7,8 @@ import {
   ChevronRight, ArrowUpRight, ArrowDownRight, Minus,
   ShieldCheck, ShieldAlert, FileText, Layers, Globe,
   Briefcase, Lock, Eye, Zap, Users, Download, Crosshair, Cpu,
-  Radio, Workflow, Bot, Server, GitBranch, Radar, Flame, Network
+  Radio, Workflow, Bot, Server, GitBranch, Radar, Flame, Network,
+  Mail, Wrench, Timer, CircleCheck, CircleX, CircleDot
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -391,6 +392,13 @@ export default function ExecutiveDashboard() {
   // Pipeline status for PDF export
   const { data: pipelineStatus } = trpc.c2KnowledgeBase.getPipelineStatus.useQuery();
 
+  // CISO Metrics queries
+  const { data: phishingData, isLoading: phishingLoading } = trpc.cisoMetrics.phishingSusceptibility.useQuery();
+  const { data: detectionData, isLoading: detectionLoading } = trpc.cisoMetrics.detectionValidation.useQuery();
+  const { data: postureData, isLoading: postureLoading } = trpc.cisoMetrics.postureHistory.useQuery();
+  const { data: remediationData, isLoading: remediationLoading } = trpc.cisoMetrics.remediationMetrics.useQuery();
+  const { data: vulnTrendData, isLoading: vulnTrendLoading } = trpc.cisoMetrics.vulnTrend.useQuery();
+
   // PDF export handler
   const handleExportPdf = async () => {
     setExportingPdf(true);
@@ -596,6 +604,18 @@ export default function ExecutiveDashboard() {
           </TabsTrigger>
           <TabsTrigger value="pipeline" className="gap-1.5">
             <Workflow className="w-4 h-4" /> Automation Pipeline
+          </TabsTrigger>
+          <TabsTrigger value="phishing" className="gap-1.5">
+            <Mail className="w-4 h-4" /> Phishing & Social Eng
+          </TabsTrigger>
+          <TabsTrigger value="detection" className="gap-1.5">
+            <Eye className="w-4 h-4" /> Detection Validation
+          </TabsTrigger>
+          <TabsTrigger value="posture" className="gap-1.5">
+            <TrendingUp className="w-4 h-4" /> Posture Trending
+          </TabsTrigger>
+          <TabsTrigger value="remediation" className="gap-1.5">
+            <Wrench className="w-4 h-4" /> Remediation
           </TabsTrigger>
         </TabsList>
 
@@ -1392,6 +1412,699 @@ export default function ExecutiveDashboard() {
                     <span className="text-xs">Server Access</span>
                   </Button>
                 </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        {/* ══ Phishing & Social Engineering Tab ══ */}
+        <TabsContent value="phishing" className="mt-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Summary Cards */}
+            <Card className="lg:col-span-2">
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Mail className="w-4 h-4 text-red-500" />
+                  Phishing Susceptibility Overview
+                </CardTitle>
+                <CardDescription>Aggregate metrics across all launched phishing campaigns</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {phishingLoading ? (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {Array(4).fill(0).map((_, i) => <Skeleton key={i} className="h-[80px]" />)}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="p-4 rounded-lg bg-muted/20 border text-center">
+                      <div className="text-3xl font-bold tabular-nums text-red-500">{phishingData?.summary.avgClickRate || 0}%</div>
+                      <div className="text-xs text-muted-foreground mt-1">Avg Click Rate</div>
+                    </div>
+                    <div className="p-4 rounded-lg bg-muted/20 border text-center">
+                      <div className="text-3xl font-bold tabular-nums text-emerald-500">{phishingData?.summary.avgReportRate || 0}%</div>
+                      <div className="text-xs text-muted-foreground mt-1">Avg Report Rate</div>
+                    </div>
+                    <div className="p-4 rounded-lg bg-muted/20 border text-center">
+                      <div className="text-3xl font-bold tabular-nums">{phishingData?.summary.totalCampaigns || 0}</div>
+                      <div className="text-xs text-muted-foreground mt-1">Total Campaigns</div>
+                    </div>
+                    <div className="p-4 rounded-lg bg-muted/20 border text-center">
+                      <div className="text-3xl font-bold tabular-nums text-orange-500">{phishingData?.summary.totalCredsCaptured || 0}</div>
+                      <div className="text-xs text-muted-foreground mt-1">Credentials Captured</div>
+                    </div>
+                  </div>
+                )}
+                {phishingData?.summary.trend && (
+                  <div className="mt-4 flex items-center gap-2">
+                    <Badge variant="outline" className={phishingData.summary.trend === 'improving' ? 'text-emerald-500 bg-emerald-500/10 border-0' : phishingData.summary.trend === 'declining' ? 'text-red-500 bg-red-500/10 border-0' : ''}>
+                      {phishingData.summary.trend === 'improving' ? <TrendingDown className="w-3 h-3 mr-1" /> : phishingData.summary.trend === 'declining' ? <TrendingUp className="w-3 h-3 mr-1" /> : <Minus className="w-3 h-3 mr-1" />}
+                      Click rate {phishingData.summary.trend}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground">
+                      {phishingData.summary.totalTargets} total targets across {phishingData.summary.totalCampaigns} campaigns
+                    </span>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Campaign History */}
+            <Card className="lg:col-span-2">
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <BarChart3 className="w-4 h-4 text-primary" />
+                  Campaign Performance History
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {phishingLoading ? (
+                  <Skeleton className="h-[300px]" />
+                ) : (phishingData?.campaigns.length || 0) > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-border/50">
+                          <th className="text-left py-2 px-3 text-xs text-muted-foreground font-medium">Campaign</th>
+                          <th className="text-center py-2 px-3 text-xs text-muted-foreground font-medium">Type</th>
+                          <th className="text-center py-2 px-3 text-xs text-muted-foreground font-medium">Sent</th>
+                          <th className="text-center py-2 px-3 text-xs text-muted-foreground font-medium">Opened</th>
+                          <th className="text-center py-2 px-3 text-xs text-muted-foreground font-medium">Clicked</th>
+                          <th className="text-center py-2 px-3 text-xs text-muted-foreground font-medium">Creds</th>
+                          <th className="text-center py-2 px-3 text-xs text-muted-foreground font-medium">Reported</th>
+                          <th className="text-right py-2 px-3 text-xs text-muted-foreground font-medium">Click Rate</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {phishingData!.campaigns.map(c => (
+                          <tr key={c.id} className="border-b border-border/20 hover:bg-muted/20 transition-colors">
+                            <td className="py-2.5 px-3 font-medium max-w-[200px] truncate">{c.name}</td>
+                            <td className="py-2.5 px-3 text-center">
+                              <Badge variant="outline" className="text-[10px]">{c.type || 'phishing'}</Badge>
+                            </td>
+                            <td className="py-2.5 px-3 text-center tabular-nums">{c.metrics.sent}</td>
+                            <td className="py-2.5 px-3 text-center tabular-nums">{c.metrics.opened}</td>
+                            <td className="py-2.5 px-3 text-center">
+                              {c.metrics.clicked > 0 ? (
+                                <Badge variant="destructive" className="text-xs tabular-nums">{c.metrics.clicked}</Badge>
+                              ) : <span className="text-muted-foreground">0</span>}
+                            </td>
+                            <td className="py-2.5 px-3 text-center">
+                              {c.metrics.submitted > 0 ? (
+                                <Badge variant="outline" className="text-orange-500 bg-orange-500/10 border-0 text-xs tabular-nums">{c.metrics.submitted}</Badge>
+                              ) : <span className="text-muted-foreground">0</span>}
+                            </td>
+                            <td className="py-2.5 px-3 text-center">
+                              {c.metrics.reported > 0 ? (
+                                <Badge variant="outline" className="text-emerald-500 bg-emerald-500/10 border-0 text-xs tabular-nums">{c.metrics.reported}</Badge>
+                              ) : <span className="text-muted-foreground">0</span>}
+                            </td>
+                            <td className="py-2.5 px-3 text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                <div className="w-16 h-1.5 bg-muted/30 rounded overflow-hidden">
+                                  <div className={`h-full rounded ${c.metrics.clickRate > 30 ? 'bg-red-500' : c.metrics.clickRate > 15 ? 'bg-orange-500' : c.metrics.clickRate > 5 ? 'bg-yellow-500' : 'bg-emerald-500'}`}
+                                    style={{ width: `${Math.min(100, c.metrics.clickRate)}%` }} />
+                                </div>
+                                <span className="text-xs tabular-nums font-medium">{c.metrics.clickRate}%</span>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="py-12 text-center text-muted-foreground">
+                    <Mail className="w-8 h-8 mx-auto mb-3 opacity-30" />
+                    <p className="text-sm font-medium">No phishing campaigns completed yet</p>
+                    <p className="text-xs mt-1">Campaign results will appear here once phishing tests are launched</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        {/* ══ Detection & Control Validation Tab ══ */}
+        <TabsContent value="detection" className="mt-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* EDR Detection Rate */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Eye className="w-4 h-4 text-cyan-500" />
+                  EDR Detection Rate
+                </CardTitle>
+                <CardDescription>How well do endpoint defenses detect simulated attacks?</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {detectionLoading ? (
+                  <Skeleton className="h-[200px]" />
+                ) : (
+                  <div className="flex flex-col gap-4">
+                    <div className="flex items-center justify-center">
+                      <div className="relative w-40 h-40">
+                        <svg width="160" height="160" viewBox="0 0 160 160" className="transform -rotate-90">
+                          <circle cx="80" cy="80" r="65" fill="none" stroke="currentColor" strokeWidth="12" className="text-muted/20" />
+                          <circle cx="80" cy="80" r="65" fill="none" strokeWidth="12"
+                            className={`${(detectionData?.edr.detectionRate || 0) >= 80 ? 'stroke-emerald-500' : (detectionData?.edr.detectionRate || 0) >= 50 ? 'stroke-yellow-500' : 'stroke-red-500'} transition-all duration-1000`}
+                            strokeDasharray={2 * Math.PI * 65}
+                            strokeDashoffset={2 * Math.PI * 65 - ((detectionData?.edr.detectionRate || 0) / 100) * 2 * Math.PI * 65}
+                            strokeLinecap="round" />
+                        </svg>
+                        <div className="absolute inset-0 flex flex-col items-center justify-center">
+                          <span className="text-3xl font-bold tabular-nums">{detectionData?.edr.detectionRate || 0}%</span>
+                          <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Detection Rate</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-center">
+                      <div className="p-2 rounded bg-emerald-500/10">
+                        <div className="text-lg font-bold tabular-nums text-emerald-500">{detectionData?.edr.detected || 0}</div>
+                        <div className="text-[10px] text-muted-foreground">Detected</div>
+                      </div>
+                      <div className="p-2 rounded bg-red-500/10">
+                        <div className="text-lg font-bold tabular-nums text-red-500">{detectionData?.edr.missed || 0}</div>
+                        <div className="text-[10px] text-muted-foreground">Missed</div>
+                      </div>
+                      <div className="p-2 rounded bg-yellow-500/10">
+                        <div className="text-lg font-bold tabular-nums text-yellow-500">{(detectionData?.edr.partial || 0) + (detectionData?.edr.delayed || 0)}</div>
+                        <div className="text-[10px] text-muted-foreground">Partial/Delayed</div>
+                      </div>
+                    </div>
+                    <div className="p-3 rounded-lg bg-muted/20 border">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">Blocked by controls</span>
+                        <span className="font-bold tabular-nums">{detectionData?.edr.blocked || 0}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm mt-1">
+                        <span className="text-muted-foreground">Total tests</span>
+                        <span className="font-bold tabular-nums">{detectionData?.edr.total || 0}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* C2 Technique Success Rate */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Radio className="w-4 h-4 text-orange-500" />
+                  C2 Technique Success Rate
+                </CardTitle>
+                <CardDescription>Adversary emulation technique outcomes from Caldera/Sliver</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {detectionLoading ? (
+                  <Skeleton className="h-[200px]" />
+                ) : (
+                  <div className="flex flex-col gap-4">
+                    <div className="flex items-center justify-center">
+                      <div className="relative w-40 h-40">
+                        <svg width="160" height="160" viewBox="0 0 160 160" className="transform -rotate-90">
+                          <circle cx="80" cy="80" r="65" fill="none" stroke="currentColor" strokeWidth="12" className="text-muted/20" />
+                          <circle cx="80" cy="80" r="65" fill="none" strokeWidth="12"
+                            className={`${(detectionData?.c2.successRate || 0) >= 70 ? 'stroke-red-500' : (detectionData?.c2.successRate || 0) >= 40 ? 'stroke-orange-500' : 'stroke-emerald-500'} transition-all duration-1000`}
+                            strokeDasharray={2 * Math.PI * 65}
+                            strokeDashoffset={2 * Math.PI * 65 - ((detectionData?.c2.successRate || 0) / 100) * 2 * Math.PI * 65}
+                            strokeLinecap="round" />
+                        </svg>
+                        <div className="absolute inset-0 flex flex-col items-center justify-center">
+                          <span className="text-3xl font-bold tabular-nums">{detectionData?.c2.successRate || 0}%</span>
+                          <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Attack Success</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-center">
+                      <div className="p-2 rounded bg-red-500/10">
+                        <div className="text-lg font-bold tabular-nums text-red-500">{detectionData?.c2.succeeded || 0}</div>
+                        <div className="text-[10px] text-muted-foreground">Techniques Succeeded</div>
+                      </div>
+                      <div className="p-2 rounded bg-emerald-500/10">
+                        <div className="text-lg font-bold tabular-nums text-emerald-500">{detectionData?.c2.failed || 0}</div>
+                        <div className="text-[10px] text-muted-foreground">Techniques Blocked</div>
+                      </div>
+                    </div>
+                    <div className="p-3 rounded-lg bg-muted/20 border">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">Control coverage</span>
+                        <span className="font-bold tabular-nums">{detectionData?.controlCoverage || 0}%</span>
+                      </div>
+                      <Progress value={detectionData?.controlCoverage || 0} className="mt-2 h-2" />
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Recent EDR Test Results */}
+            <Card className="lg:col-span-2">
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-primary" />
+                  Recent Detection Tests
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {detectionLoading ? (
+                  <Skeleton className="h-[200px]" />
+                ) : (detectionData?.recentTests.length || 0) > 0 ? (
+                  <div className="flex flex-col gap-2">
+                    {detectionData!.recentTests.map(t => (
+                      <div key={t.id} className="flex items-center gap-3 p-2.5 rounded-lg bg-muted/20 border border-border/50">
+                        <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${
+                          t.result === 'detected' ? 'bg-emerald-500' :
+                          t.result === 'blocked' ? 'bg-cyan-500' :
+                          t.result === 'missed' ? 'bg-red-500' :
+                          t.result === 'partial' ? 'bg-yellow-500' : 'bg-orange-500'
+                        }`} />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium truncate">{t.alertTitle || 'Unnamed Test'}</span>
+                            <Badge variant="outline" className={`text-[10px] ${
+                              t.result === 'detected' ? 'text-emerald-500' :
+                              t.result === 'blocked' ? 'text-cyan-500' :
+                              t.result === 'missed' ? 'text-red-500' : 'text-yellow-500'
+                            }`}>{t.result}</Badge>
+                            {t.alertSeverity && (
+                              <Badge variant="outline" className="text-[10px]">{t.alertSeverity}</Badge>
+                            )}
+                          </div>
+                          {t.responseAction && (
+                            <span className="text-xs text-muted-foreground">Response: {t.responseAction}</span>
+                          )}
+                        </div>
+                        {t.detectionTimeMs != null && (
+                          <span className="text-xs text-muted-foreground tabular-nums flex-shrink-0">
+                            {t.detectionTimeMs}ms
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="py-12 text-center text-muted-foreground">
+                    <Eye className="w-8 h-8 mx-auto mb-3 opacity-30" />
+                    <p className="text-sm font-medium">No detection tests recorded yet</p>
+                    <p className="text-xs mt-1">EDR validation results will appear here once tests are executed</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        {/* ══ Posture Trending Tab ══ */}
+        <TabsContent value="posture" className="mt-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Aggregate Posture Score */}
+            <Card className="lg:col-span-2">
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4 text-primary" />
+                  Posture Score Trending
+                </CardTitle>
+                <CardDescription>Cross-customer security posture scores from intelligence profiles</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {postureLoading ? (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {Array(4).fill(0).map((_, i) => <Skeleton key={i} className="h-[80px]" />)}
+                  </div>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                      <div className="p-4 rounded-lg bg-muted/20 border text-center">
+                        <div className="text-3xl font-bold tabular-nums">{postureData?.aggregatePosture.avgScore || 0}</div>
+                        <div className="text-xs text-muted-foreground mt-1">Avg Posture Score</div>
+                      </div>
+                      <div className="p-4 rounded-lg bg-muted/20 border text-center">
+                        <div className="text-3xl font-bold tabular-nums text-emerald-500">{postureData?.aggregatePosture.bestScore || 0}</div>
+                        <div className="text-xs text-muted-foreground mt-1">Best Score</div>
+                      </div>
+                      <div className="p-4 rounded-lg bg-muted/20 border text-center">
+                        <div className="text-3xl font-bold tabular-nums text-red-500">{postureData?.aggregatePosture.worstScore || 0}</div>
+                        <div className="text-xs text-muted-foreground mt-1">Worst Score</div>
+                      </div>
+                      <div className="p-4 rounded-lg bg-muted/20 border text-center">
+                        <Badge variant="outline" className={`text-sm ${
+                          postureData?.aggregatePosture.trend === 'improving' ? 'text-emerald-500 bg-emerald-500/10 border-0' :
+                          postureData?.aggregatePosture.trend === 'declining' ? 'text-red-500 bg-red-500/10 border-0' : ''
+                        }`}>
+                          {postureData?.aggregatePosture.trend === 'improving' ? <TrendingUp className="w-3 h-3 mr-1" /> :
+                           postureData?.aggregatePosture.trend === 'declining' ? <TrendingDown className="w-3 h-3 mr-1" /> :
+                           <Minus className="w-3 h-3 mr-1" />}
+                          {postureData?.aggregatePosture.trend || 'stable'}
+                        </Badge>
+                        <div className="text-xs text-muted-foreground mt-2">Overall Trend</div>
+                      </div>
+                    </div>
+
+                    {/* Customer Profiles Table */}
+                    {(postureData?.profiles.length || 0) > 0 ? (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b border-border/50">
+                              <th className="text-left py-2 px-3 text-xs text-muted-foreground font-medium">Customer</th>
+                              <th className="text-center py-2 px-3 text-xs text-muted-foreground font-medium">Score</th>
+                              <th className="text-center py-2 px-3 text-xs text-muted-foreground font-medium">Grade</th>
+                              <th className="text-center py-2 px-3 text-xs text-muted-foreground font-medium">Trend</th>
+                              <th className="text-center py-2 px-3 text-xs text-muted-foreground font-medium">Engagements</th>
+                              <th className="text-center py-2 px-3 text-xs text-muted-foreground font-medium">Critical</th>
+                              <th className="text-center py-2 px-3 text-xs text-muted-foreground font-medium">Open Gaps</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {postureData!.profiles.map(p => (
+                              <tr key={p.id} className="border-b border-border/20 hover:bg-muted/20 transition-colors">
+                                <td className="py-2.5 px-3 font-medium">{p.customerName}</td>
+                                <td className="py-2.5 px-3 text-center">
+                                  <span className={`font-bold tabular-nums ${
+                                    (p.score || 0) >= 80 ? 'text-emerald-500' :
+                                    (p.score || 0) >= 60 ? 'text-yellow-500' :
+                                    (p.score || 0) >= 40 ? 'text-orange-500' : 'text-red-500'
+                                  }`}>{p.score ?? 'N/A'}</span>
+                                </td>
+                                <td className="py-2.5 px-3 text-center">
+                                  <Badge variant="outline" className={`text-xs ${
+                                    p.grade === 'A' || p.grade === 'A+' ? 'text-emerald-500 bg-emerald-500/10 border-0' :
+                                    p.grade === 'B' || p.grade === 'B+' ? 'text-cyan-500 bg-cyan-500/10 border-0' :
+                                    p.grade === 'C' ? 'text-yellow-500 bg-yellow-500/10 border-0' :
+                                    p.grade === 'D' ? 'text-orange-500 bg-orange-500/10 border-0' : 'text-red-500 bg-red-500/10 border-0'
+                                  }`}>{p.grade || 'N/A'}</Badge>
+                                </td>
+                                <td className="py-2.5 px-3 text-center">
+                                  {p.trend === 'improving' ? <TrendingUp className="w-4 h-4 text-emerald-500 mx-auto" /> :
+                                   p.trend === 'declining' ? <TrendingDown className="w-4 h-4 text-red-500 mx-auto" /> :
+                                   <Minus className="w-4 h-4 text-muted-foreground mx-auto" />}
+                                </td>
+                                <td className="py-2.5 px-3 text-center tabular-nums">{p.totalEngagements || 0}</td>
+                                <td className="py-2.5 px-3 text-center">
+                                  {(p.totalCritical || 0) > 0 ? (
+                                    <Badge variant="destructive" className="text-xs tabular-nums">{p.totalCritical}</Badge>
+                                  ) : <span className="text-muted-foreground">0</span>}
+                                </td>
+                                <td className="py-2.5 px-3 text-center tabular-nums">{p.openGaps || 0}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div className="py-12 text-center text-muted-foreground">
+                        <TrendingUp className="w-8 h-8 mx-auto mb-3 opacity-30" />
+                        <p className="text-sm font-medium">No customer intelligence profiles yet</p>
+                        <p className="text-xs mt-1">Posture data builds automatically across engagements</p>
+                      </div>
+                    )}
+                  </>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Top Recurring Weaknesses */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-orange-500" />
+                  Top Recurring Weaknesses
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {postureLoading ? (
+                  <Skeleton className="h-[200px]" />
+                ) : (postureData?.topWeaknesses.length || 0) > 0 ? (
+                  <div className="flex flex-col gap-2">
+                    {postureData!.topWeaknesses.map((w, i) => (
+                      <div key={i} className="flex items-center justify-between p-2.5 rounded-lg bg-muted/20 border border-border/50">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-muted-foreground w-5">{i + 1}</span>
+                          <span className="text-sm font-medium">{w.category}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="text-xs tabular-nums">{w.count}x</Badge>
+                          {w.trend === 'increasing' ? <TrendingUp className="w-3 h-3 text-red-500" /> :
+                           w.trend === 'decreasing' ? <TrendingDown className="w-3 h-3 text-emerald-500" /> :
+                           <Minus className="w-3 h-3 text-muted-foreground" />}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="py-8 text-center text-muted-foreground">
+                    <AlertTriangle className="w-6 h-6 mx-auto mb-2 opacity-30" />
+                    <p className="text-sm">No recurring weaknesses identified yet</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Persistent Gaps */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <ShieldAlert className="w-4 h-4 text-red-500" />
+                  Persistent Security Gaps
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {postureLoading ? (
+                  <Skeleton className="h-[200px]" />
+                ) : (postureData?.persistentGaps.length || 0) > 0 ? (
+                  <div className="flex flex-col gap-2">
+                    {postureData!.persistentGaps.map((g, i) => (
+                      <div key={i} className="p-2.5 rounded-lg bg-muted/20 border border-border/50">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium">{g.title}</span>
+                          <Badge variant="destructive" className="text-[10px] tabular-nums">{g.occurrences}x seen</Badge>
+                        </div>
+                        <span className="text-xs text-muted-foreground">First seen: {g.firstSeen}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="py-8 text-center text-muted-foreground">
+                    <ShieldAlert className="w-6 h-6 mx-auto mb-2 opacity-30" />
+                    <p className="text-sm">No persistent gaps tracked yet</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        {/* ══ Remediation Tab ══ */}
+        <TabsContent value="remediation" className="mt-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Remediation Summary */}
+            <Card className="lg:col-span-2">
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Wrench className="w-4 h-4 text-primary" />
+                  Remediation Velocity
+                </CardTitle>
+                <CardDescription>Task status, SLA compliance, and mean time to remediate</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {remediationLoading ? (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {Array(4).fill(0).map((_, i) => <Skeleton key={i} className="h-[80px]" />)}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="p-4 rounded-lg bg-muted/20 border text-center">
+                      <div className="text-3xl font-bold tabular-nums">{remediationData?.summary.total || 0}</div>
+                      <div className="text-xs text-muted-foreground mt-1">Total Tasks</div>
+                    </div>
+                    <div className="p-4 rounded-lg bg-muted/20 border text-center">
+                      <div className="text-3xl font-bold tabular-nums text-orange-500">{remediationData?.summary.open || 0}</div>
+                      <div className="text-xs text-muted-foreground mt-1">Open</div>
+                    </div>
+                    <div className="p-4 rounded-lg bg-muted/20 border text-center">
+                      <div className="text-3xl font-bold tabular-nums text-emerald-500">{remediationData?.summary.fixed || 0}</div>
+                      <div className="text-xs text-muted-foreground mt-1">Fixed</div>
+                    </div>
+                    <div className="p-4 rounded-lg bg-muted/20 border text-center">
+                      <div className="text-3xl font-bold tabular-nums text-cyan-500">{remediationData?.summary.verified || 0}</div>
+                      <div className="text-xs text-muted-foreground mt-1">Verified</div>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* MTTR */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Timer className="w-4 h-4 text-yellow-500" />
+                  Mean Time to Remediate
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {remediationLoading ? (
+                  <Skeleton className="h-[150px]" />
+                ) : (
+                  <div className="flex flex-col gap-3">
+                    <div className="p-4 rounded-lg bg-muted/20 border text-center">
+                      <div className="text-4xl font-bold tabular-nums">{remediationData?.mttr.avgDays || 0}</div>
+                      <div className="text-xs text-muted-foreground mt-1">Average Days (All Severities)</div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-center">
+                        <div className="text-2xl font-bold tabular-nums text-red-500">{remediationData?.mttr.criticalAvgDays || 0}</div>
+                        <div className="text-[10px] text-muted-foreground mt-1">Critical MTTR (days)</div>
+                      </div>
+                      <div className="p-3 rounded-lg bg-orange-500/10 border border-orange-500/20 text-center">
+                        <div className="text-2xl font-bold tabular-nums text-orange-500">{remediationData?.mttr.highAvgDays || 0}</div>
+                        <div className="text-[10px] text-muted-foreground mt-1">High MTTR (days)</div>
+                      </div>
+                    </div>
+                    <div className="p-3 rounded-lg bg-muted/20 border">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">Median MTTR</span>
+                        <span className="font-bold tabular-nums">{remediationData?.mttr.medianDays || 0} days</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* SLA Compliance */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                  SLA Compliance
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {remediationLoading ? (
+                  <Skeleton className="h-[150px]" />
+                ) : (
+                  <div className="flex flex-col gap-4">
+                    <div className="flex items-center justify-center">
+                      <div className="relative w-36 h-36">
+                        <svg width="144" height="144" viewBox="0 0 144 144" className="transform -rotate-90">
+                          <circle cx="72" cy="72" r="58" fill="none" stroke="currentColor" strokeWidth="10" className="text-muted/20" />
+                          <circle cx="72" cy="72" r="58" fill="none" strokeWidth="10"
+                            className={`${(remediationData?.slaCompliance.complianceRate || 0) >= 90 ? 'stroke-emerald-500' : (remediationData?.slaCompliance.complianceRate || 0) >= 70 ? 'stroke-yellow-500' : 'stroke-red-500'} transition-all duration-1000`}
+                            strokeDasharray={2 * Math.PI * 58}
+                            strokeDashoffset={2 * Math.PI * 58 - ((remediationData?.slaCompliance.complianceRate || 0) / 100) * 2 * Math.PI * 58}
+                            strokeLinecap="round" />
+                        </svg>
+                        <div className="absolute inset-0 flex flex-col items-center justify-center">
+                          <span className="text-3xl font-bold tabular-nums">{remediationData?.slaCompliance.complianceRate || 0}%</span>
+                          <span className="text-[10px] text-muted-foreground">Within SLA</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-center">
+                      <div className="p-2 rounded bg-emerald-500/10">
+                        <div className="text-lg font-bold tabular-nums text-emerald-500">{remediationData?.slaCompliance.withinSla || 0}</div>
+                        <div className="text-[10px] text-muted-foreground">Within SLA</div>
+                      </div>
+                      <div className="p-2 rounded bg-red-500/10">
+                        <div className="text-lg font-bold tabular-nums text-red-500">{remediationData?.slaCompliance.overdue || 0}</div>
+                        <div className="text-[10px] text-muted-foreground">Overdue</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Severity Breakdown */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <BarChart3 className="w-4 h-4 text-primary" />
+                  Remediation by Severity
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {remediationLoading ? (
+                  <Skeleton className="h-[200px]" />
+                ) : (remediationData?.bySeverity.length || 0) > 0 ? (
+                  <div className="flex flex-col gap-2">
+                    {remediationData!.bySeverity.map(s => {
+                      const completionRate = s.total > 0 ? Math.round(((s.fixed + s.verified) / s.total) * 100) : 0;
+                      const sevColor = s.severity === 'critical' ? 'text-red-500' :
+                                       s.severity === 'high' ? 'text-orange-500' :
+                                       s.severity === 'medium' ? 'text-yellow-500' : 'text-emerald-500';
+                      return (
+                        <div key={s.severity} className="p-2.5 rounded-lg bg-muted/20 border border-border/50">
+                          <div className="flex items-center justify-between mb-1">
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline" className={`text-xs capitalize ${sevColor}`}>{s.severity}</Badge>
+                              <span className="text-xs text-muted-foreground">{s.total} total</span>
+                            </div>
+                            <span className="text-xs font-bold tabular-nums">{completionRate}% resolved</span>
+                          </div>
+                          <Progress value={completionRate} className="h-1.5" />
+                          <div className="flex gap-3 mt-1 text-[10px] text-muted-foreground">
+                            <span>Open: {s.open}</span>
+                            <span>Fixed: {s.fixed}</span>
+                            <span>Verified: {s.verified}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="py-8 text-center text-muted-foreground">
+                    <Wrench className="w-6 h-6 mx-auto mb-2 opacity-30" />
+                    <p className="text-sm">No remediation tasks tracked yet</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Recently Fixed */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                  Recently Remediated
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {remediationLoading ? (
+                  <Skeleton className="h-[200px]" />
+                ) : (remediationData?.recentFixed.length || 0) > 0 ? (
+                  <div className="flex flex-col gap-2">
+                    {remediationData!.recentFixed.map(t => (
+                      <div key={t.id} className="flex items-center gap-3 p-2.5 rounded-lg bg-muted/20 border border-border/50">
+                        <CircleCheck className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <span className="text-sm font-medium truncate block">{t.title}</span>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <Badge variant="outline" className={`text-[10px] capitalize ${
+                              t.severity === 'critical' ? 'text-red-500' :
+                              t.severity === 'high' ? 'text-orange-500' : ''
+                            }`}>{t.severity}</Badge>
+                            {t.affectedAsset && (
+                              <span className="text-[10px] text-muted-foreground truncate">{t.affectedAsset}</span>
+                            )}
+                          </div>
+                        </div>
+                        {t.fixedAt && (
+                          <span className="text-[10px] text-muted-foreground flex-shrink-0 tabular-nums">
+                            {new Date(t.fixedAt).toLocaleDateString()}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="py-8 text-center text-muted-foreground">
+                    <CheckCircle2 className="w-6 h-6 mx-auto mb-2 opacity-30" />
+                    <p className="text-sm">No remediated tasks yet</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
