@@ -44,6 +44,7 @@ scripts/
 fix-*.py
 fix-*.sh
 *.mjs
+!seed-admin.mjs
 *.cjs
 !build.cjs
 !postinstall.cjs

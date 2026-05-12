@@ -118,6 +118,7 @@ drizzle/0004_opposite_marvel_apes.sql
 
 # Debug/test/analysis files (not needed for deployment)
 *.mjs
+!seed-admin.mjs
 debug-*.txt
 *-audit*.md
 *-research*.md
