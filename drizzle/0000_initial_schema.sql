@@ -9,7 +9,8 @@ CREATE TABLE `ability_graph_edges` (
 	`output_match_pattern` varchar(512),
 	`weight` int DEFAULT 1,
 	`label` varchar(255),
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `ability_graph_nodes` (
@@ -37,7 +38,8 @@ CREATE TABLE `ability_graph_nodes` (
 	`layer` int DEFAULT 0,
 	`execution_result` json,
 	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `ability_graphs` (
@@ -63,7 +65,8 @@ CREATE TABLE `ability_graphs` (
 	`nodes_skipped` int DEFAULT 0,
 	`created_by` varchar(255),
 	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `ac3_report_artifacts` (
@@ -79,7 +82,8 @@ CREATE TABLE `ac3_report_artifacts` (
 	`mime_type` varchar(128),
 	`file_size` int,
 	`captured_at` bigint,
-	`created_at` bigint NOT NULL
+	`created_at` bigint NOT NULL,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `ac3_report_findings` (
@@ -110,7 +114,8 @@ CREATE TABLE `ac3_report_findings` (
 	`rf_source_module` varchar(128),
 	`rf_source_event_id` varchar(128),
 	`rf_risk_owner` enum('customer','vendor','shared') DEFAULT 'customer',
-	`rf_vendor_name` varchar(128)
+	`rf_vendor_name` varchar(128),
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `ac3_reports` (
@@ -151,7 +156,8 @@ CREATE TABLE `ac3_reports` (
 	`rpt_tools_used` json,
 	`rpt_test_phases` json,
 	`engagement_id` int,
-	`rpt_intelligence_gaps` json
+	`rpt_intelligence_gaps` json,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `access_broker_listings` (
@@ -193,7 +199,8 @@ CREATE TABLE `access_broker_listings` (
 	`targets_us_gov` tinyint DEFAULT 0,
 	`targets_ics_scada` tinyint DEFAULT 0,
 	`priority_reason` text,
-	`priority_level` varchar(16)
+	`priority_level` varchar(16),
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `accuracy_comparisons` (
@@ -220,7 +227,8 @@ CREATE TABLE `accuracy_comparisons` (
 	`knowledge_modules_used` json,
 	`scan_duration_ms` int,
 	`scored_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `active_sessions` (
@@ -232,7 +240,8 @@ CREATE TABLE `active_sessions` (
 	`device_info` varchar(255),
 	`last_activity_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
 	`expires_at` timestamp NOT NULL,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `activity_logs` (
@@ -243,7 +252,8 @@ CREATE TABLE `activity_logs` (
 	`details` text,
 	`ipAddress` varchar(45),
 	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`alog_tenant_id` int
+	`alog_tenant_id` int,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `ad_attack_paths` (
@@ -257,7 +267,8 @@ CREATE TABLE `ad_attack_paths` (
 	`path_edges` json,
 	`risk_score` double,
 	`is_shortest_path` tinyint DEFAULT 0,
-	`created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `ad_attack_simulations` (
@@ -279,7 +290,8 @@ CREATE TABLE `ad_attack_simulations` (
 	`detected_by` json,
 	`executed_at` timestamp,
 	`completed_at` timestamp,
-	`created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `ad_domain_connections` (
@@ -304,7 +316,8 @@ CREATE TABLE `ad_domain_connections` (
 	`conn_error_message` text,
 	`conn_created_by` varchar(255),
 	`conn_created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
-	`conn_updated_at` timestamp DEFAULT 'CURRENT_TIMESTAMP'
+	`conn_updated_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `ad_enumeration_runs` (
@@ -328,7 +341,8 @@ CREATE TABLE `ad_enumeration_runs` (
 	`ad_enum_error_log` json,
 	`ad_enum_started_at` timestamp,
 	`ad_enum_completed_at` timestamp,
-	`ad_enum_created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP'
+	`ad_enum_created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `ad_environments` (
@@ -343,7 +357,8 @@ CREATE TABLE `ad_environments` (
 	`connection_config` json,
 	`stats` json,
 	`created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
-	`updated_at` timestamp DEFAULT 'CURRENT_TIMESTAMP'
+	`updated_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `ad_objects` (
@@ -358,7 +373,8 @@ CREATE TABLE `ad_objects` (
 	`member_of` json,
 	`members` json,
 	`properties` json,
-	`created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `adjustment_effectiveness` (
@@ -375,7 +391,8 @@ CREATE TABLE `adjustment_effectiveness` (
 	`ae_adjusted_priority` int,
 	`ae_exec_duration_ms` int,
 	`ae_exploit_output` text,
-	`ae_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`ae_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `agent_audit_log` (
@@ -389,7 +406,8 @@ CREATE TABLE `agent_audit_log` (
 	`previousHash` varchar(64) NOT NULL,
 	`ipAddress` varchar(45),
 	`userAgent` varchar(512),
-	`createdAt` bigint NOT NULL
+	`createdAt` bigint NOT NULL,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `agent_definitions` (
@@ -410,7 +428,8 @@ CREATE TABLE `agent_definitions` (
 	`ad_status` enum('active','draft','deprecated','testing') DEFAULT 'draft',
 	`ad_version` int NOT NULL DEFAULT 1,
 	`ad_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`ad_updated_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`ad_updated_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `agent_deployments` (
@@ -487,7 +506,8 @@ CREATE TABLE `agentless_bas_tests` (
 	`abt_executed_at` timestamp,
 	`abt_duration_ms` int,
 	`abt_created_by` varchar(255),
-	`abt_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`abt_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `ai_attack_plans` (
@@ -503,7 +523,8 @@ CREATE TABLE `ai_attack_plans` (
 	`aap_status` enum('generating','ready','executing','completed') NOT NULL DEFAULT 'generating',
 	`aap_accepted_at` timestamp,
 	`aap_created_by` varchar(255),
-	`aap_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`aap_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `ai_vuln_research_code_snippets` (
@@ -514,7 +535,8 @@ CREATE TABLE `ai_vuln_research_code_snippets` (
 	`content` mediumtext NOT NULL,
 	`line_count` int,
 	`checksum` varchar(64),
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `ai_vuln_research_findings` (
@@ -548,7 +570,8 @@ CREATE TABLE `ai_vuln_research_findings` (
 	`bug_bounty_finding_id` int,
 	`metadata` json,
 	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `ai_vuln_research_sessions` (
@@ -575,7 +598,8 @@ CREATE TABLE `ai_vuln_research_sessions` (
 	`engagement_id` int,
 	`metadata` json,
 	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `api_endpoints` (
@@ -591,7 +615,8 @@ CREATE TABLE `api_endpoints` (
 	`auth_required` tinyint DEFAULT 0,
 	`rate_limited` tinyint DEFAULT 0,
 	`deprecated` tinyint DEFAULT 0,
-	`created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `api_fuzzing_runs` (
@@ -607,7 +632,8 @@ CREATE TABLE `api_fuzzing_runs` (
 	`fuzz_results` json,
 	`started_at` timestamp,
 	`completed_at` timestamp,
-	`created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `api_security_tests` (
@@ -620,7 +646,8 @@ CREATE TABLE `api_security_tests` (
 	`expected_result` text,
 	`api_test_severity` enum('critical','high','medium','low','info') DEFAULT 'medium',
 	`is_builtin` tinyint DEFAULT 1,
-	`created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `api_targets` (
@@ -636,7 +663,8 @@ CREATE TABLE `api_targets` (
 	`total_endpoints` int DEFAULT 0,
 	`api_status` enum('active','inactive','scanning') NOT NULL DEFAULT 'active',
 	`created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
-	`updated_at` timestamp DEFAULT 'CURRENT_TIMESTAMP'
+	`updated_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `api_test_results` (
@@ -652,7 +680,8 @@ CREATE TABLE `api_test_results` (
 	`api_notes` text,
 	`api_false_positive` tinyint DEFAULT 0,
 	`executed_at` timestamp,
-	`created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `approved_exploit_catalog` (
@@ -674,7 +703,8 @@ CREATE TABLE `approved_exploit_catalog` (
 	`source_pipeline` varchar(128) NOT NULL,
 	`original_engagement_id` int,
 	`approved_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `apt_ics_mappings` (
@@ -698,7 +728,8 @@ CREATE TABLE `apt_ics_mappings` (
 	`aim_description` text,
 	`aim_references` json,
 	`aim_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`aim_updated_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`aim_updated_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `archetype_actor_mappings` (
@@ -709,7 +740,8 @@ CREATE TABLE `archetype_actor_mappings` (
 	`actorAbilities` json,
 	`confidence` int DEFAULT 50,
 	`evidence` text,
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `atomic_test_executions` (
@@ -737,7 +769,8 @@ CREATE TABLE `atomic_test_executions` (
 	`duration_ms` int,
 	`started_at` timestamp,
 	`completed_at` timestamp,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `atomic_tests` (
@@ -756,7 +789,8 @@ CREATE TABLE `atomic_tests` (
 	`dependencies` text,
 	`mitre_tactic` varchar(255),
 	`last_synced_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `attack_chain_records` (
@@ -773,7 +807,8 @@ CREATE TABLE `attack_chain_records` (
 	`acr_mitre_techniques` json,
 	`acr_validated` tinyint DEFAULT 0,
 	`acr_validation_result` json,
-	`acr_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`acr_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `attack_chains_catalog` (
@@ -795,7 +830,8 @@ CREATE TABLE `attack_chains_catalog` (
 	`acc_confidence` int DEFAULT 75,
 	`acc_observed_date` varchar(32),
 	`acc_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`acc_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`acc_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `attack_path_graph_edges` (
@@ -807,7 +843,8 @@ CREATE TABLE `attack_path_graph_edges` (
 	`apge_technique` varchar(32),
 	`apge_probability` double,
 	`apge_properties` json,
-	`apge_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`apge_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `attack_path_graph_nodes` (
@@ -819,7 +856,8 @@ CREATE TABLE `attack_path_graph_nodes` (
 	`apgn_risk_score` double,
 	`apgn_is_crown_jewel` tinyint DEFAULT 0,
 	`apgn_source` varchar(64),
-	`apgn_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`apgn_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `attack_paths` (
@@ -835,7 +873,8 @@ CREATE TABLE `attack_paths` (
 	`createdBy` int,
 	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
 	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
-	`atp_tenant_id` int
+	`atp_tenant_id` int,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `attack_playbook_executions` (
@@ -899,7 +938,8 @@ CREATE TABLE `attack_sequence_templates` (
 	`ast_confidence` int,
 	`ast_status` enum('draft','validated','production') DEFAULT 'draft',
 	`ast_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`ast_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`ast_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `attack_vector_evidence` (
@@ -956,7 +996,8 @@ CREATE TABLE `benchmark_scan_plan_rules` (
 	`is_active` tinyint DEFAULT 1,
 	`applied_count` int DEFAULT 0,
 	`last_applied_at` bigint,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `benchmark_tool_results` (
@@ -974,7 +1015,8 @@ CREATE TABLE `benchmark_tool_results` (
 	`scan_duration_ms` int,
 	`exit_code` int,
 	`timed_out` tinyint DEFAULT 0,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `bug_bounty_correlations` (
@@ -986,7 +1028,8 @@ CREATE TABLE `bug_bounty_correlations` (
 	`matched_entity_name` varchar(512),
 	`confidence_score` double,
 	`details` json,
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `bug_bounty_findings` (
@@ -1014,7 +1057,8 @@ CREATE TABLE `bug_bounty_findings` (
 	`summary` text,
 	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
 	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
-	`submitted_at` timestamp
+	`submitted_at` timestamp,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `bug_bounty_llm_training_samples` (
@@ -1043,7 +1087,8 @@ CREATE TABLE `bug_bounty_llm_training_samples` (
 	`tags` json,
 	`exported_at` timestamp,
 	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `bug_bounty_program_scopes` (
@@ -1062,7 +1107,8 @@ CREATE TABLE `bug_bounty_program_scopes` (
 	`availability_requirement` varchar(32),
 	`instruction` text,
 	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `bug_bounty_program_weaknesses` (
@@ -1074,7 +1120,8 @@ CREATE TABLE `bug_bounty_program_weaknesses` (
 	`cwe_id` varchar(32),
 	`name` varchar(512) NOT NULL,
 	`description` text,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `bug_bounty_programs` (
@@ -1097,7 +1144,8 @@ CREATE TABLE `bug_bounty_programs` (
 	`policy_url` varchar(1024),
 	`last_synced_at` timestamp,
 	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `bug_bounty_sync_logs` (
@@ -1108,7 +1156,8 @@ CREATE TABLE `bug_bounty_sync_logs` (
 	`items_synced` int DEFAULT 0,
 	`error_message` text,
 	`started_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`completed_at` timestamp
+	`completed_at` timestamp,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `bug_reports` (
@@ -1128,7 +1177,8 @@ CREATE TABLE `bug_reports` (
 	`admin_notes` text,
 	`resolved_at` timestamp,
 	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `burp_scan_history` (
@@ -1150,7 +1200,8 @@ CREATE TABLE `burp_scan_history` (
 	`last_poll_at` bigint,
 	`poll_count` int NOT NULL DEFAULT 0,
 	`metadata` json,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `c2_execution_log` (
@@ -1167,7 +1218,8 @@ CREATE TABLE `c2_execution_log` (
 	`observed_telemetry` json,
 	`cel_constraints` json,
 	`cel_engagement_id` int,
-	`cel_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`cel_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `c2_servers` (
@@ -1204,7 +1256,8 @@ CREATE TABLE `caldera_accounts` (
 	`totp_enabled` tinyint NOT NULL DEFAULT 0,
 	`backup_codes` text,
 	`failed_login_attempts` int NOT NULL DEFAULT 0,
-	`locked_until` timestamp
+	`locked_until` timestamp,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `caldera_stats` (
@@ -1214,7 +1267,8 @@ CREATE TABLE `caldera_stats` (
 	`totalAbilities` int DEFAULT 0,
 	`activeOperations` int DEFAULT 0,
 	`totalAgents` int DEFAULT 0,
-	`lastUpdated` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`lastUpdated` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `campaign_abilities` (
@@ -1228,7 +1282,8 @@ CREATE TABLE `campaign_abilities` (
 	`executionOrder` int DEFAULT 0,
 	`status` enum('pending','running','completed','failed','skipped') NOT NULL DEFAULT 'pending',
 	`executedAt` timestamp,
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `campaign_agents` (
@@ -1239,7 +1294,8 @@ CREATE TABLE `campaign_agents` (
 	`platform` varchar(64),
 	`hostname` varchar(255),
 	`status` enum('pending','deployed','active','inactive') NOT NULL DEFAULT 'pending',
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `campaign_archetypes` (
@@ -1259,7 +1315,8 @@ CREATE TABLE `campaign_archetypes` (
 	`isBuiltIn` tinyint DEFAULT 1,
 	`createdBy` int,
 	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `campaign_engagements` (
@@ -1269,7 +1326,8 @@ CREATE TABLE `campaign_engagements` (
 	`gophishCampaignName` varchar(255),
 	`calderaOperationId` varchar(255),
 	`notes` text,
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `campaign_run_states` (
@@ -1282,7 +1340,8 @@ CREATE TABLE `campaign_run_states` (
 	`last_heartbeat` bigint,
 	`node_id` varchar(128),
 	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `campaigns` (
@@ -1299,7 +1358,8 @@ CREATE TABLE `campaigns` (
 	`endDate` timestamp,
 	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
 	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
-	`cmp_tenant_id` int
+	`cmp_tenant_id` int,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `carver_risk_cards` (
@@ -1330,7 +1390,8 @@ CREATE TABLE `carver_risk_cards` (
 	`batch_id` varchar(128),
 	`created_by` int,
 	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `chain_runs` (
@@ -1367,7 +1428,8 @@ CREATE TABLE `chain_runs` (
 	`completed_at` bigint,
 	`duration_ms` bigint,
 	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `chain_stage_results` (
@@ -1385,7 +1447,8 @@ CREATE TABLE `chain_stage_results` (
 	`completed_at` bigint,
 	`duration_ms` bigint,
 	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `chat_messages` (
@@ -1395,7 +1458,8 @@ CREATE TABLE `chat_messages` (
 	`chat_msg_content` text NOT NULL,
 	`chat_msg_tool_name` varchar(128),
 	`chat_msg_tool_result` json,
-	`chat_msg_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`chat_msg_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `chat_sessions` (
@@ -1408,7 +1472,8 @@ CREATE TABLE `chat_sessions` (
 	`chat_session_archived` tinyint DEFAULT 0,
 	`chat_session_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
 	`chat_session_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
-	`cs_tenant_id` int
+	`cs_tenant_id` int,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `cicd_baselines` (
@@ -1419,7 +1484,8 @@ CREATE TABLE `cicd_baselines` (
 	`finding_hashes` json NOT NULL,
 	`total_findings` int NOT NULL DEFAULT 0,
 	`created_at` bigint NOT NULL,
-	`created_by` varchar(255)
+	`created_by` varchar(255),
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `cicd_compliance_scores` (
@@ -1435,7 +1501,8 @@ CREATE TABLE `cicd_compliance_scores` (
 	`not_tested` int NOT NULL DEFAULT 0,
 	`risk_level` varchar(20) NOT NULL DEFAULT 'medium',
 	`category_scores` json,
-	`created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `cicd_pipeline_access` (
@@ -1444,7 +1511,8 @@ CREATE TABLE `cicd_pipeline_access` (
 	`user_id` int NOT NULL,
 	`role` enum('owner','editor','viewer') NOT NULL DEFAULT 'viewer',
 	`granted_by` int NOT NULL,
-	`granted_at` datetime DEFAULT 'CURRENT_TIMESTAMP'
+	`granted_at` datetime DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `cicd_pipelines` (
@@ -1471,7 +1539,8 @@ CREATE TABLE `cicd_pipelines` (
 	`cicd_schedule_target_url` varchar(512),
 	`cicd_schedule_last_run` timestamp,
 	`cicd_schedule_next_run` timestamp,
-	`cicd_baseline_run_id` int
+	`cicd_baseline_run_id` int,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `cicd_run_findings` (
@@ -1487,7 +1556,8 @@ CREATE TABLE `cicd_run_findings` (
 	`description` text,
 	`cwe_id` varchar(32),
 	`is_new` tinyint NOT NULL DEFAULT 1,
-	`created_at` bigint NOT NULL
+	`created_at` bigint NOT NULL,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `cicd_runs` (
@@ -1508,7 +1578,8 @@ CREATE TABLE `cicd_runs` (
 	`cicd_new_findings` int DEFAULT 0,
 	`cicd_fixed_findings` int DEFAULT 0,
 	`cicd_run_engagement_id` int,
-	`cicd_threat_context` json
+	`cicd_threat_context` json,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `cicd_sbom_artifacts` (
@@ -1520,7 +1591,8 @@ CREATE TABLE `cicd_sbom_artifacts` (
 	`storage_url` varchar(1024) NOT NULL,
 	`storage_key` varchar(512) NOT NULL,
 	`package_count` int DEFAULT 0,
-	`created_at` bigint NOT NULL
+	`created_at` bigint NOT NULL,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `cicd_webhook_deliveries` (
@@ -1540,7 +1612,8 @@ CREATE TABLE `cicd_webhook_deliveries` (
 	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
 	`webhook_url` varchar(512),
 	`error_message` text,
-	`duration_ms` int
+	`duration_ms` int,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `cloud_attack_paths` (
@@ -1561,7 +1634,8 @@ CREATE TABLE `cloud_attack_paths` (
 	`path_status` enum('open','exploited','mitigated','accepted') DEFAULT 'open',
 	`exploited_at` timestamp,
 	`created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
-	`updated_at` timestamp DEFAULT 'CURRENT_TIMESTAMP'
+	`updated_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `cloud_credentials` (
@@ -1587,7 +1661,8 @@ CREATE TABLE `cloud_credentials` (
 	`expires_at` timestamp,
 	`cred_created_by` varchar(255),
 	`cred_created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
-	`cred_updated_at` timestamp DEFAULT 'CURRENT_TIMESTAMP'
+	`cred_updated_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `cloud_enumeration_runs` (
@@ -1608,7 +1683,8 @@ CREATE TABLE `cloud_enumeration_runs` (
 	`enum_error_log` json,
 	`enum_started_at` timestamp,
 	`enum_completed_at` timestamp,
-	`enum_created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP'
+	`enum_created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `cloud_identities` (
@@ -1623,7 +1699,8 @@ CREATE TABLE `cloud_identities` (
 	`permissions` json,
 	`policies` json,
 	`metadata` json,
-	`created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `cloud_misconfigurations` (
@@ -1640,7 +1717,8 @@ CREATE TABLE `cloud_misconfigurations` (
 	`remediation_steps` text,
 	`compliance_frameworks` json,
 	`misconfig_status` enum('open','remediated','accepted','false_positive') DEFAULT 'open',
-	`created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `cloud_providers` (
@@ -1654,7 +1732,8 @@ CREATE TABLE `cloud_providers` (
 	`last_scan_at` timestamp,
 	`config` json,
 	`created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
-	`updated_at` timestamp DEFAULT 'CURRENT_TIMESTAMP'
+	`updated_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `collection_job_history` (
@@ -1723,7 +1802,8 @@ CREATE TABLE `company_intel_profiles` (
 	`cip_confidence` int DEFAULT 0,
 	`cip_last_enriched_at` timestamp,
 	`cip_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`cip_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`cip_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `compliance_controls` (
@@ -1737,7 +1817,8 @@ CREATE TABLE `compliance_controls` (
 	`subcategory` varchar(255),
 	`implementation_guidance` text,
 	`test_procedures` json,
-	`created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `compliance_frameworks` (
@@ -1749,7 +1830,8 @@ CREATE TABLE `compliance_frameworks` (
 	`total_controls` int,
 	`control_hierarchy` json,
 	`is_active` tinyint DEFAULT 1,
-	`created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `compliance_mappings` (
@@ -1766,7 +1848,8 @@ CREATE TABLE `compliance_mappings` (
 	`assessed_by` varchar(255),
 	`assessed_at` timestamp,
 	`created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
-	`updated_at` timestamp DEFAULT 'CURRENT_TIMESTAMP'
+	`updated_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `compliance_reports` (
@@ -1782,7 +1865,8 @@ CREATE TABLE `compliance_reports` (
 	`overall_score` double,
 	`report_data` json,
 	`generated_by` varchar(255),
-	`created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `config_baseline_rules` (
@@ -1800,7 +1884,8 @@ CREATE TABLE `config_baseline_rules` (
 	`ksi_ids` json,
 	`mitre_ids` json,
 	`enabled` tinyint NOT NULL DEFAULT 1,
-	`cbr_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`cbr_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `config_baselines` (
@@ -1816,7 +1901,8 @@ CREATE TABLE `config_baselines` (
 	`last_scan_score` int,
 	`created_by` int,
 	`created_by_name` varchar(255),
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `config_drift_alerts` (
@@ -1835,7 +1921,8 @@ CREATE TABLE `config_drift_alerts` (
 	`cda_ksi_ids` json,
 	`cda_mitre_ids` json,
 	`resolved_at` timestamp,
-	`cda_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`cda_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `config_scan_results` (
@@ -1853,7 +1940,8 @@ CREATE TABLE `config_scan_results` (
 	`target_type` varchar(64),
 	`scanned_by` int,
 	`scanned_by_name` varchar(255),
-	`scanned_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`scanned_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `connector_performance_history` (
@@ -1866,7 +1954,8 @@ CREATE TABLE `connector_performance_history` (
 	`duration_ms` int NOT NULL DEFAULT 0,
 	`status` enum('completed','failed','skipped','timeout') NOT NULL DEFAULT 'completed',
 	`rate_limited` tinyint NOT NULL DEFAULT 0,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `container_image_scans` (
@@ -1899,7 +1988,8 @@ CREATE TABLE `container_image_scans` (
 	`scan_engine` varchar(64) DEFAULT 'built-in',
 	`error_message` text,
 	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `container_registries` (
@@ -1917,7 +2007,8 @@ CREATE TABLE `container_registries` (
 	`image_count` int DEFAULT 0,
 	`last_sync_at` timestamp,
 	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `container_vulnerabilities` (
@@ -1937,7 +2028,8 @@ CREATE TABLE `container_vulnerabilities` (
 	`data_source` varchar(128),
 	`published_date` varchar(32),
 	`cvss_score` varchar(10),
-	`created_at` bigint NOT NULL
+	`created_at` bigint NOT NULL,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `corroboration_results` (
@@ -1953,7 +2045,8 @@ CREATE TABLE `corroboration_results` (
 	`cr_verdict` varchar(32) NOT NULL,
 	`cr_reasoning` text,
 	`cr_suppress_recommendation` tinyint DEFAULT 0,
-	`cr_created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP'
+	`cr_created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `credential_alert_history` (
@@ -1971,7 +2064,8 @@ CREATE TABLE `credential_alert_history` (
 	`alert_cred_name` varchar(255),
 	`alert_expires_at` timestamp,
 	`days_until_expiry` int,
-	`alert_hist_created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP'
+	`alert_hist_created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `credential_alert_rules` (
@@ -1985,7 +2079,8 @@ CREATE TABLE `credential_alert_rules` (
 	`alert_last_alerted_at` timestamp,
 	`alert_next_alert_at` timestamp,
 	`alert_created_by` varchar(255),
-	`alert_created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP'
+	`alert_created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `credential_attack_runs` (
@@ -2015,7 +2110,8 @@ CREATE TABLE `credential_attack_runs` (
 	`tool_metadata` json,
 	`target_domain` varchar(255),
 	`failed_attempts` int DEFAULT 0,
-	`stopped_reason` varchar(255)
+	`stopped_reason` varchar(255),
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `credential_exposures` (
@@ -2039,7 +2135,8 @@ CREATE TABLE `credential_exposures` (
 	`ce_raw_data` json,
 	`ce_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
 	`ce_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
-	`ce_tenant_id` int
+	`ce_tenant_id` int,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `credential_findings` (
@@ -2066,7 +2163,8 @@ CREATE TABLE `credential_findings` (
 	`tool` varchar(32) DEFAULT 'builtin',
 	`response_snippet` text,
 	`additional_info` text,
-	`validation_status` varchar(32) DEFAULT 'unvalidated'
+	`validation_status` varchar(32) DEFAULT 'unvalidated',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `credential_rotation_audit` (
@@ -2080,7 +2178,8 @@ CREATE TABLE `credential_rotation_audit` (
 	`rotation_error_message` text,
 	`rotation_duration_ms` int NOT NULL DEFAULT 0,
 	`rotation_initiated_by` varchar(255) NOT NULL,
-	`rotation_audit_created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP'
+	`rotation_audit_created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `credential_rotation_policies` (
@@ -2096,7 +2195,8 @@ CREATE TABLE `credential_rotation_policies` (
 	`rotation_retry_count` int NOT NULL DEFAULT 0,
 	`rotation_created_by` varchar(255),
 	`rotation_policy_created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
-	`rotation_policy_updated_at` timestamp DEFAULT 'CURRENT_TIMESTAMP'
+	`rotation_policy_updated_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `cspm_findings` (
@@ -2120,7 +2220,8 @@ CREATE TABLE `cspm_findings` (
 	`compliance_frameworks` json,
 	`categories` json,
 	`raw_finding` json,
-	`created_at` bigint NOT NULL
+	`created_at` bigint NOT NULL,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `cspm_scan_runs` (
@@ -2147,7 +2248,8 @@ CREATE TABLE `cspm_scan_runs` (
 	`triggered_by` varchar(255),
 	`scan_started_at` bigint,
 	`scan_completed_at` bigint,
-	`created_at` bigint NOT NULL
+	`created_at` bigint NOT NULL,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `customer_accounts` (
@@ -2171,7 +2273,8 @@ CREATE TABLE `customer_accounts` (
 	`mfa_enabled` tinyint NOT NULL DEFAULT 0,
 	`mfa_secret` varchar(128),
 	`ca_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`ca_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`ca_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `customer_audit_log` (
@@ -2185,7 +2288,8 @@ CREATE TABLE `customer_audit_log` (
 	`cal_ip_address` varchar(45),
 	`cal_user_agent` varchar(512),
 	`cal_result` enum('success','failure','denied') NOT NULL DEFAULT 'success',
-	`cal_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`cal_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `customer_integrations` (
@@ -2223,7 +2327,8 @@ CREATE TABLE `customer_integrations` (
 	`total_errors` int DEFAULT 0,
 	`avg_latency_ms` int,
 	`created_at` bigint NOT NULL,
-	`updated_at` bigint NOT NULL
+	`updated_at` bigint NOT NULL,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `customer_intelligence_profiles` (
@@ -2269,7 +2374,8 @@ CREATE TABLE `customer_shared_reports` (
 	`csr_expires_at` timestamp,
 	`csr_access_count` int NOT NULL DEFAULT 0,
 	`csr_last_accessed_at` timestamp,
-	`csr_is_active` tinyint NOT NULL DEFAULT 1
+	`csr_is_active` tinyint NOT NULL DEFAULT 1,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `customer_stack_profiles` (
@@ -2310,7 +2416,8 @@ CREATE TABLE `cve_enrichment` (
 	`last_modified_date` varchar(64),
 	`references` json,
 	`enriched_at` bigint NOT NULL,
-	`error` text
+	`error` text,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `darkweb_enriched_records` (
@@ -2334,7 +2441,8 @@ CREATE TABLE `darkweb_enriched_records` (
 	`der_enrichment_version` varchar(32),
 	`der_processing_time_ms` int,
 	`der_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`der_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`der_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `darkweb_feed_registry` (
@@ -2360,7 +2468,8 @@ CREATE TABLE `darkweb_feed_registry` (
 	`dfr_enabled` tinyint DEFAULT 1,
 	`dfr_config` json,
 	`dfr_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`dfr_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`dfr_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `defense_scores` (
@@ -2380,7 +2489,8 @@ CREATE TABLE `defense_scores` (
 	`created_by` varchar(128),
 	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
 	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
-	`dfs_tenant_id` int
+	`dfs_tenant_id` int,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `demo_requests` (
@@ -2432,7 +2542,8 @@ CREATE TABLE `deployment_update_history` (
 	`migration_log` text,
 	`error` text,
 	`rolled_back` tinyint NOT NULL DEFAULT 0,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `deployment_versions` (
@@ -2447,7 +2558,8 @@ CREATE TABLE `deployment_versions` (
 	`checksum_sha256` varchar(64),
 	`is_breaking` tinyint NOT NULL DEFAULT 0,
 	`is_required` tinyint NOT NULL DEFAULT 0,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `detection_feedback_results` (
@@ -2464,7 +2576,8 @@ CREATE TABLE `detection_feedback_results` (
 	`dfr_alert_details` json,
 	`dfr_query_used` text,
 	`dfr_latency_ms` int,
-	`dfr_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`dfr_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `detection_tests` (
@@ -2498,7 +2611,8 @@ CREATE TABLE `detection_tests` (
 	`responseAction` varchar(128),
 	`timeToDetect` int,
 	`timeToRespond` int,
-	`blueTeamUpdatedAt` timestamp
+	`blueTeamUpdatedAt` timestamp,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `dfir_observations` (
@@ -2523,7 +2637,8 @@ CREATE TABLE `dfir_observations` (
 	`dfir_detection_methods` json,
 	`dfir_mitigations` json,
 	`dfir_confidence` int DEFAULT 75,
-	`dfir_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`dfir_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `dfir_report_iocs` (
@@ -2532,7 +2647,8 @@ CREATE TABLE `dfir_report_iocs` (
 	`ioc_type` enum('ip','domain','hash_md5','hash_sha1','hash_sha256','url','email','cve','filename','registry_key','mutex') NOT NULL,
 	`ioc_value` varchar(1024) NOT NULL,
 	`ioc_context` text,
-	`ioc_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`ioc_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `dfir_reports` (
@@ -2554,7 +2670,8 @@ CREATE TABLE `dfir_reports` (
 	`raw_content` longtext,
 	`dfir_status` enum('pending','parsed','enriched','training_ready') NOT NULL DEFAULT 'pending',
 	`dfir_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`dfir_updated_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`dfir_updated_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `di_incident_training_data` (
@@ -2578,7 +2695,8 @@ CREATE TABLE `di_incident_training_data` (
 	`risk_band_at_scan` varchar(32),
 	`used_in_prompt_count` int DEFAULT 0,
 	`last_used_at` bigint,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `discovered_assets` (
@@ -2636,7 +2754,8 @@ CREATE TABLE `discovered_assets` (
 	`da_tenant_id` int,
 	`discovery_context` json,
 	`discovery_context_history` json,
-	`discovery_context_analyzed_at` timestamp
+	`discovery_context_analyzed_at` timestamp,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `discovered_attack_paths` (
@@ -2650,7 +2769,8 @@ CREATE TABLE `discovered_attack_paths` (
 	`dap_crown_jewel` varchar(255),
 	`dap_choke_points` json,
 	`dap_status` enum('active','mitigated','accepted') NOT NULL DEFAULT 'active',
-	`dap_discovered_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`dap_discovered_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `dns_security_assessments` (
@@ -2743,7 +2863,8 @@ CREATE TABLE `domain_intel_scans` (
 	`probableFindings` int DEFAULT 0,
 	`potentialFindings` int DEFAULT 0,
 	`discoveryCoverageScore` int DEFAULT 0,
-	`discoveryCoverageBand` varchar(32)
+	`discoveryCoverageBand` varchar(32),
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `domain_recon` (
@@ -2768,7 +2889,8 @@ CREATE TABLE `domain_recon` (
 	`scanStartedAt` timestamp,
 	`scanCompletedAt` timestamp,
 	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `edr_coverage_matrix` (
@@ -2784,7 +2906,8 @@ CREATE TABLE `edr_coverage_matrix` (
 	`avg_detection_time_ms` int,
 	`coverage_score` double,
 	`last_tested_at` timestamp,
-	`updated_at` timestamp DEFAULT 'CURRENT_TIMESTAMP'
+	`updated_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `edr_products` (
@@ -2798,7 +2921,8 @@ CREATE TABLE `edr_products` (
 	`config` json,
 	`edr_status` enum('active','inactive','testing') NOT NULL DEFAULT 'active',
 	`created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
-	`updated_at` timestamp DEFAULT 'CURRENT_TIMESTAMP'
+	`updated_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `edr_test_catalog` (
@@ -2813,7 +2937,8 @@ CREATE TABLE `edr_test_catalog` (
 	`expected_behavior` text,
 	`test_risk` enum('safe','low','medium','high') DEFAULT 'safe',
 	`is_builtin` tinyint DEFAULT 1,
-	`created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `edr_test_results` (
@@ -2832,7 +2957,8 @@ CREATE TABLE `edr_test_results` (
 	`notes` text,
 	`executed_at` timestamp,
 	`detected_at` timestamp,
-	`created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `email_security_tests` (
@@ -2848,7 +2974,8 @@ CREATE TABLE `email_security_tests` (
 	`est_sent_at` timestamp,
 	`est_result_received_at` timestamp,
 	`est_created_by` varchar(255),
-	`est_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`est_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `ember_agents` (
@@ -2893,7 +3020,8 @@ CREATE TABLE `ember_agents` (
 	`ember_traffic_profile` varchar(64),
 	`ember_created_at` bigint NOT NULL,
 	`ember_updated_at` bigint NOT NULL,
-	`ember_terminated_at` bigint
+	`ember_terminated_at` bigint,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `ember_beacons` (
@@ -2906,7 +3034,8 @@ CREATE TABLE `ember_beacons` (
 	`ember_beacon_health` json,
 	`ember_beacon_intel` json,
 	`ember_beacon_results` json,
-	`ember_beacon_received_at` bigint NOT NULL
+	`ember_beacon_received_at` bigint NOT NULL,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `ember_campaign_logs` (
@@ -2916,7 +3045,8 @@ CREATE TABLE `ember_campaign_logs` (
 	`ecl_level` enum('info','warn','error','success') NOT NULL DEFAULT 'info',
 	`ecl_message` text NOT NULL,
 	`ecl_metadata` json,
-	`ecl_created_at` bigint NOT NULL
+	`ecl_created_at` bigint NOT NULL,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `ember_campaign_phases` (
@@ -2946,7 +3076,8 @@ CREATE TABLE `ember_campaign_phases` (
 	`ecph_completed_at` bigint,
 	`ecph_output` mediumtext,
 	`ecph_error` text,
-	`ecph_created_at` bigint NOT NULL
+	`ecph_created_at` bigint NOT NULL,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `ember_campaigns` (
@@ -2967,7 +3098,8 @@ CREATE TABLE `ember_campaigns` (
 	`ecmp_started_at` bigint,
 	`ecmp_completed_at` bigint,
 	`ecmp_created_at` bigint NOT NULL,
-	`ecmp_updated_at` bigint NOT NULL
+	`ecmp_updated_at` bigint NOT NULL,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `ember_custom_templates` (
@@ -2986,7 +3118,8 @@ CREATE TABLE `ember_custom_templates` (
 	`ect_usage_count` int DEFAULT 0,
 	`ect_last_used_at` bigint,
 	`ect_created_at` bigint NOT NULL,
-	`ect_updated_at` bigint NOT NULL
+	`ect_updated_at` bigint NOT NULL,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `ember_intelligence` (
@@ -2997,7 +3130,8 @@ CREATE TABLE `ember_intelligence` (
 	`ember_intel_confidence` int DEFAULT 50,
 	`ember_intel_data` json,
 	`ember_intel_shared` tinyint DEFAULT 0,
-	`ember_intel_discovered_at` bigint NOT NULL
+	`ember_intel_discovered_at` bigint NOT NULL,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `ember_payloads` (
@@ -3020,7 +3154,8 @@ CREATE TABLE `ember_payloads` (
 	`ember_payload_evasion_techniques` json,
 	`ember_payload_capabilities` json,
 	`ember_generated_by` varchar(64),
-	`ember_payload_created_at` bigint NOT NULL
+	`ember_payload_created_at` bigint NOT NULL,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `ember_swarms` (
@@ -3034,7 +3169,8 @@ CREATE TABLE `ember_swarms` (
 	`ember_evasion_state` json,
 	`ember_swarm_status` enum('forming','active','degraded','dissolved') NOT NULL DEFAULT 'forming',
 	`ember_swarm_created_at` bigint NOT NULL,
-	`ember_swarm_updated_at` bigint NOT NULL
+	`ember_swarm_updated_at` bigint NOT NULL,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `ember_tasks` (
@@ -3060,7 +3196,8 @@ CREATE TABLE `ember_tasks` (
 	`ember_duration_ms` int,
 	`ember_sent_at` bigint,
 	`ember_completed_at` bigint,
-	`ember_task_created_at` bigint NOT NULL
+	`ember_task_created_at` bigint NOT NULL,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `emulation_playbooks` (
@@ -3082,7 +3219,8 @@ CREATE TABLE `emulation_playbooks` (
 	`tags` json,
 	`createdBy` int,
 	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `engagement_approved_targets` (
@@ -3128,7 +3266,8 @@ CREATE TABLE `engagement_comms_protocols` (
 	`raw_comms_section` text,
 	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
 	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
-	`ecp_tenant_id` int
+	`ecp_tenant_id` int,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `engagement_credential_lists` (
@@ -3148,7 +3287,8 @@ CREATE TABLE `engagement_credential_lists` (
 	`ecl_used_at` timestamp,
 	`ecl_used_result` enum('success','failure','locked','mfa_blocked','not_tested') DEFAULT 'not_tested',
 	`ecl_confidence` enum('high','medium','low') NOT NULL DEFAULT 'medium',
-	`ecl_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`ecl_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `engagement_findings` (
@@ -3174,7 +3314,8 @@ CREATE TABLE `engagement_findings` (
 	`exploit_technique` varchar(255),
 	`owasp_category` varchar(128),
 	`mitre_technique` varchar(128),
-	`created_at` bigint NOT NULL
+	`created_at` bigint NOT NULL,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `engagement_ops_snapshots` (
@@ -3188,7 +3329,8 @@ CREATE TABLE `engagement_ops_snapshots` (
 	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	`interrupt_count` int DEFAULT 0,
 	`last_interrupted_at` timestamp,
-	`server_instance_id` varchar(64)
+	`server_instance_id` varchar(64),
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `engagement_pipelines` (
@@ -3215,7 +3357,8 @@ CREATE TABLE `engagement_pipelines` (
 	`errorMessage` text,
 	`completedAt` timestamp,
 	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `engagement_reports` (
@@ -3235,7 +3378,8 @@ CREATE TABLE `engagement_reports` (
 	`brandingColor` varchar(32),
 	`createdBy` int,
 	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `engagement_results` (
@@ -3270,7 +3414,8 @@ CREATE TABLE `engagement_results` (
 	`owasp_critical_gaps` json,
 	`auto_report_id` varchar(128),
 	`summary_json` json,
-	`created_at` bigint NOT NULL
+	`created_at` bigint NOT NULL,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `engagement_scope_constraints` (
@@ -3304,7 +3449,8 @@ CREATE TABLE `engagement_scope_constraints` (
 	`raw_scope_section` text,
 	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
 	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
-	`esc_tenant_id` int
+	`esc_tenant_id` int,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `engagement_shares` (
@@ -3330,7 +3476,8 @@ CREATE TABLE `engagement_shares` (
 	`createdBy` int,
 	`lastAccessedAt` timestamp,
 	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `engagement_telemetry` (
@@ -3374,7 +3521,8 @@ CREATE TABLE `engagement_timeline_events` (
 	`attack_technique` varchar(64),
 	`operator_id` int,
 	`timestamp` bigint NOT NULL,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `engagement_workflow_states` (
@@ -3391,7 +3539,8 @@ CREATE TABLE `engagement_workflow_states` (
 	`overall_progress` int DEFAULT 0,
 	`notes` text,
 	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `engagements` (
@@ -3431,7 +3580,8 @@ CREATE TABLE `engagements` (
 	`license_tier` enum('standard','professional','enterprise') DEFAULT 'standard',
 	`bug_bounty_program_url` text,
 	`bug_bounty_platform` enum('hackerone','bugcrowd','intigriti','synack','yeswehack','custom'),
-	`selected_frameworks` json
+	`selected_frameworks` json,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `enrichment_history` (
@@ -3449,7 +3599,8 @@ CREATE TABLE `enrichment_history` (
 	`status` enum('success','failed','partial','pending_review') NOT NULL DEFAULT 'success',
 	`error_message` text,
 	`duration_ms` int,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `entity_profile_overrides` (
@@ -3487,7 +3638,8 @@ CREATE TABLE `error_incidents` (
 	`timestamp` varchar(64),
 	`viewportWidth` int,
 	`viewportHeight` int,
-	`createdAt` bigint
+	`createdAt` bigint,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `evasion_sessions` (
@@ -3518,7 +3670,8 @@ CREATE TABLE `evasion_sessions` (
 	`created_by` int,
 	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
 	`completed_at` timestamp,
-	`evs_tenant_id` int
+	`evs_tenant_id` int,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `evidence_chain_of_custody` (
@@ -3531,7 +3684,8 @@ CREATE TABLE `evidence_chain_of_custody` (
 	`ipAddress` varchar(45),
 	`userAgent` varchar(500),
 	`integrityHash` varchar(64),
-	`previousHash` varchar(64)
+	`previousHash` varchar(64),
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `evidence_guardrail_audit` (
@@ -3549,7 +3703,8 @@ CREATE TABLE `evidence_guardrail_audit` (
 	`ega_was_sanitized` tinyint DEFAULT 0,
 	`ega_details` json,
 	`ega_content_hash` varchar(64),
-	`ega_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`ega_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `evidence_integrity_anchors` (
@@ -3561,7 +3716,8 @@ CREATE TABLE `evidence_integrity_anchors` (
 	`eia_anchored_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
 	`eia_anchored_by` varchar(255) NOT NULL,
 	`eia_status` enum('active','superseded','invalidated') NOT NULL DEFAULT 'active',
-	`eia_notes` text
+	`eia_notes` text,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `evidence_items` (
@@ -3588,7 +3744,8 @@ CREATE TABLE `evidence_items` (
 	`notes` text,
 	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
 	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
-	`evi_tenant_id` int
+	`evi_tenant_id` int,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `exploit_feedback_records` (
@@ -3605,7 +3762,8 @@ CREATE TABLE `exploit_feedback_records` (
 	`efr_output` text,
 	`efr_os_type` varchar(64),
 	`efr_os_version` varchar(128),
-	`efr_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`efr_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `exploit_ingestion_jobs` (
@@ -3624,7 +3782,8 @@ CREATE TABLE `exploit_ingestion_jobs` (
 	`eij_triggered_by` varchar(255),
 	`eij_started_at` timestamp,
 	`eij_completed_at` timestamp,
-	`eij_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`eij_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `exploit_intelligence` (
@@ -3649,7 +3808,8 @@ CREATE TABLE `exploit_intelligence` (
 	`ei_source` varchar(64),
 	`ei_confidence` int,
 	`ei_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`ei_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`ei_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `exploit_jobs` (
@@ -3677,7 +3837,8 @@ CREATE TABLE `exploit_jobs` (
 	`approvedAt` timestamp,
 	`scopeVerified` tinyint DEFAULT 0,
 	`exploitJobCreatedAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`exploitJobUpdatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`exploitJobUpdatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `exploit_learning_chains` (
@@ -3691,7 +3852,8 @@ CREATE TABLE `exploit_learning_chains` (
 	`target_hostname` varchar(255),
 	`times_used` int NOT NULL DEFAULT 0,
 	`last_used_at` bigint,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `exploit_learning_outcomes` (
@@ -3720,7 +3882,8 @@ CREATE TABLE `exploit_learning_outcomes` (
 	`attempt_number` int NOT NULL DEFAULT 1,
 	`previous_attempt_ids` json,
 	`correction_applied` text,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `exploit_learning_patterns` (
@@ -3735,7 +3898,8 @@ CREATE TABLE `exploit_learning_patterns` (
 	`total_failures` int NOT NULL DEFAULT 0,
 	`success_rate` float NOT NULL,
 	`updated_at` bigint NOT NULL,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `exploit_methodologies` (
@@ -3776,7 +3940,8 @@ CREATE TABLE `exploit_plan_history` (
 	`removed_targets` json,
 	`review_duration_ms` int,
 	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`resolved_at` timestamp
+	`resolved_at` timestamp,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `exploit_playbooks` (
@@ -3801,7 +3966,8 @@ CREATE TABLE `exploit_playbooks` (
 	`ep_confidence` int DEFAULT 75,
 	`ep_observed_date` varchar(32),
 	`ep_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`ep_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`ep_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `exploit_preflight_history` (
@@ -3815,7 +3981,8 @@ CREATE TABLE `exploit_preflight_history` (
 	`eph_error_type` varchar(128),
 	`eph_preflight_score` double,
 	`eph_preflight_factors` json,
-	`eph_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`eph_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `exploit_quarantine_queue` (
@@ -3839,7 +4006,8 @@ CREATE TABLE `exploit_quarantine_queue` (
 	`reviewed_at` timestamp,
 	`reviewed_by` varchar(255),
 	`review_notes` text,
-	`quarantined_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`quarantined_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `exploit_scripts` (
@@ -3884,7 +4052,8 @@ CREATE TABLE `exploit_scripts` (
 	`es_target_products` json,
 	`es_ingested_by` varchar(255),
 	`es_ingested_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`es_last_updated` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`es_last_updated` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `exploit_selection_snapshots` (
@@ -3898,7 +4067,8 @@ CREATE TABLE `exploit_selection_snapshots` (
 	`rag_query_used` text,
 	`rag_result_count` int,
 	`rag_result_ids` json,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `exploitation_attempts` (
@@ -3928,7 +4098,8 @@ CREATE TABLE `exploitation_attempts` (
 	`ea_completed_at` bigint,
 	`screenshot_urls` json,
 	`ea_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`expa_tenant_id` int
+	`expa_tenant_id` int,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `false_positive_findings` (
@@ -3948,7 +4119,8 @@ CREATE TABLE `false_positive_findings` (
 	`reinstatedAt` timestamp,
 	`reinstatedReason` text,
 	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `file_transfers` (
@@ -3966,7 +4138,8 @@ CREATE TABLE `file_transfers` (
 	`transferErrorMessage` text,
 	`transferCreatedBy` varchar(64),
 	`transferCreatedAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`transferCompletedAt` timestamp
+	`transferCompletedAt` timestamp,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `fingerprint_cache` (
@@ -3986,7 +4159,8 @@ CREATE TABLE `fingerprint_cache` (
 	`fc_fingerprinted_at` bigint NOT NULL,
 	`fc_expires_at` bigint NOT NULL,
 	`fc_engagement_id` varchar(64),
-	`fc_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`fc_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`fc_id`)
 );
 --> statement-breakpoint
 CREATE TABLE `fips_compliance_records` (
@@ -3997,7 +4171,8 @@ CREATE TABLE `fips_compliance_records` (
 	`details` json,
 	`opensslVersion` varchar(64),
 	`fipsProviderActive` tinyint DEFAULT 0,
-	`createdAt` bigint NOT NULL
+	`createdAt` bigint NOT NULL,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `forest_domains` (
@@ -4017,7 +4192,8 @@ CREATE TABLE `forest_domains` (
 	`forest_privileged_users` int DEFAULT 0,
 	`forest_last_enumerated_at` timestamp,
 	`forest_metadata` json,
-	`forest_domain_created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP'
+	`forest_domain_created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `forest_trusts` (
@@ -4033,7 +4209,8 @@ CREATE TABLE `forest_trusts` (
 	`trust_is_vulnerable` tinyint NOT NULL DEFAULT 0,
 	`trust_vulnerability_notes` text,
 	`trust_discovered_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
-	`forest_trust_created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP'
+	`forest_trust_created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `generated_detection_rules` (
@@ -4049,7 +4226,8 @@ CREATE TABLE `generated_detection_rules` (
 	`gdr_data_sources` json,
 	`gdr_validated` tinyint DEFAULT 0,
 	`gdr_validation_errors` json,
-	`gdr_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`gdr_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `generated_payloads` (
@@ -4074,7 +4252,8 @@ CREATE TABLE `generated_payloads` (
 	`file_sha256` varchar(64),
 	`created_by` int,
 	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`completed_at` timestamp
+	`completed_at` timestamp,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `guardrail_violations` (
@@ -4085,7 +4264,8 @@ CREATE TABLE `guardrail_violations` (
 	`guardrailAction` enum('blocked','sanitized','warned') NOT NULL,
 	`guardrailReason` text NOT NULL,
 	`promptSnippet` text,
-	`guardrailCreatedAt` bigint NOT NULL
+	`guardrailCreatedAt` bigint NOT NULL,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `hunt_hypotheses` (
@@ -4111,7 +4291,8 @@ CREATE TABLE `hunt_hypotheses` (
 	`investigated_at` timestamp,
 	`evaluated_at` timestamp,
 	`hyp_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`hyp_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`hyp_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `hunt_sessions` (
@@ -4138,7 +4319,8 @@ CREATE TABLE `hunt_sessions` (
 	`started_at` timestamp,
 	`completed_at` timestamp,
 	`hunt_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`hunt_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`hunt_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `iab_activity` (
@@ -4164,7 +4346,8 @@ CREATE TABLE `iab_activity` (
 	`iab_tags` json,
 	`iab_raw_data` json,
 	`iab_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`iab_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`iab_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `ics_assessments` (
@@ -4184,7 +4367,8 @@ CREATE TABLE `ics_assessments` (
 	`ica_status` enum('pending','running','completed','failed') DEFAULT 'pending',
 	`ica_started_at` timestamp,
 	`ica_completed_at` timestamp,
-	`ica_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`ica_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `ics_devices` (
@@ -4216,7 +4400,8 @@ CREATE TABLE `ics_devices` (
 	`icd_censys_data` json,
 	`icd_last_seen` timestamp,
 	`icd_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`icd_updated_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`icd_updated_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `ics_exploits` (
@@ -4243,7 +4428,8 @@ CREATE TABLE `ics_exploits` (
 	`ice_sector` json,
 	`ice_references` json,
 	`ice_mitigations` text,
-	`ice_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`ice_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `incident_reports` (
@@ -4272,7 +4458,8 @@ CREATE TABLE `incident_reports` (
 	`ir_status` enum('raw','extracted','enriched','training_ready') DEFAULT 'raw',
 	`ir_enriched_at` timestamp,
 	`ir_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`ir_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`ir_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `influence_operations` (
@@ -4297,7 +4484,8 @@ CREATE TABLE `influence_operations` (
 	`io_tags` json,
 	`io_raw_data` json,
 	`io_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`io_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`io_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `info_ops_campaigns` (
@@ -4335,7 +4523,8 @@ CREATE TABLE `info_ops_campaigns` (
 	`ioDataSource` varchar(128),
 	`ioLastEnriched` timestamp,
 	`ioCreatedAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`ioUpdatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`ioUpdatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `integration_execution_log` (
@@ -4347,7 +4536,8 @@ CREATE TABLE `integration_execution_log` (
 	`duration_ms` int,
 	`records_returned` int DEFAULT 0,
 	`error_message` text,
-	`executed_at` bigint NOT NULL
+	`executed_at` bigint NOT NULL,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `integration_health_checks` (
@@ -4410,7 +4600,8 @@ CREATE TABLE `ioc_feeds` (
 	`feedTags` json,
 	`rawData` json,
 	`fetchedAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `ioc_sync_logs` (
@@ -4422,7 +4613,8 @@ CREATE TABLE `ioc_sync_logs` (
 	`errorMessage` text,
 	`startedAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
 	`completedAt` timestamp,
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `ioc_ttp_mappings` (
@@ -4440,7 +4632,8 @@ CREATE TABLE `ioc_ttp_mappings` (
 	`itm_inference_confidence` int DEFAULT 60,
 	`itm_derivation_method` enum('pattern_match','llm_analysis','malware_analysis','behavioral_analysis','infrastructure_analysis','manual') NOT NULL,
 	`itm_context` json,
-	`itm_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`itm_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `ir_runbook_entries` (
@@ -4485,7 +4678,8 @@ CREATE TABLE `job_queue_entries` (
 	`duration_ms` int,
 	`error_message` text,
 	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `knowledge_entries` (
@@ -4514,7 +4708,8 @@ CREATE TABLE `knowledge_entries` (
 	`is_active` tinyint NOT NULL DEFAULT 1,
 	`created_by` varchar(255),
 	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`updated_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`updated_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `ksi_control_mappings` (
@@ -4527,7 +4722,8 @@ CREATE TABLE `ksi_control_mappings` (
 	`ace_c3_module` varchar(256),
 	`automation_level` enum('full','partial','manual') NOT NULL DEFAULT 'manual',
 	`notes` text,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `ksi_definitions` (
@@ -4545,7 +4741,8 @@ CREATE TABLE `ksi_definitions` (
 	`coverage_status` enum('direct','supporting','planned','not_applicable') NOT NULL DEFAULT 'planned',
 	`coverage_notes` text,
 	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `ksi_evidence` (
@@ -4571,7 +4768,8 @@ CREATE TABLE `ksi_evidence` (
 	`collected_by` int,
 	`collected_by_name` varchar(256),
 	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `ksi_evidence_chains` (
@@ -4589,7 +4787,8 @@ CREATE TABLE `ksi_evidence_chains` (
 	`created_by` int,
 	`created_by_name` varchar(256),
 	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `ksi_validation_runs` (
@@ -4610,7 +4809,8 @@ CREATE TABLE `ksi_validation_runs` (
 	`next_scheduled_at` timestamp,
 	`run_by` int,
 	`run_by_name` varchar(256),
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `ksi_validation_schedules` (
@@ -4630,7 +4830,8 @@ CREATE TABLE `ksi_validation_schedules` (
 	`config` json,
 	`created_by` int,
 	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `lateral_movement_paths` (
@@ -4650,7 +4851,8 @@ CREATE TABLE `lateral_movement_paths` (
 	`opsec_risk` int,
 	`attempted_at` bigint,
 	`lm_completed_at` bigint,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `license_usage_logs` (
@@ -4661,7 +4863,8 @@ CREATE TABLE `license_usage_logs` (
 	`resource_id` varchar(255),
 	`metadata` json,
 	`timestamp` bigint NOT NULL,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `licensed_organizations` (
@@ -4686,7 +4889,8 @@ CREATE TABLE `licensed_organizations` (
 	`deployment_domain` varchar(255),
 	`notes` text,
 	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`updated_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`updated_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `llm_accuracy_scores` (
@@ -4703,7 +4907,8 @@ CREATE TABLE `llm_accuracy_scores` (
 	`severity_accuracy` decimal(5,4) DEFAULT '0',
 	`overall_score` decimal(5,4) DEFAULT '0',
 	`scored_at` bigint NOT NULL,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `llm_decision_log` (
@@ -4721,7 +4926,8 @@ CREATE TABLE `llm_decision_log` (
 	`tokens_used` int,
 	`context_summary` text,
 	`knowledge_modules_used` json,
-	`dl_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`dl_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `llm_learning_entries` (
@@ -4740,7 +4946,8 @@ CREATE TABLE `llm_learning_entries` (
 	`operator_id` int,
 	`applied_count` int DEFAULT 0,
 	`last_applied_at` bigint,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `llm_telemetry` (
@@ -4757,7 +4964,8 @@ CREATE TABLE `llm_telemetry` (
 	`has_response_format` tinyint DEFAULT 0,
 	`error_message` text,
 	`engagement_id` int,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `llm_training_examples` (
@@ -4774,7 +4982,8 @@ CREATE TABLE `llm_training_examples` (
 	`te_review_status` enum('pending_review','approved','rejected','flagged') NOT NULL DEFAULT 'pending_review',
 	`te_reviewed_by` varchar(128),
 	`te_reviewed_at` timestamp,
-	`te_review_notes` text
+	`te_review_notes` text,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `lolbin_catalog` (
@@ -4789,7 +4998,8 @@ CREATE TABLE `lolbin_catalog` (
 	`detection_guidance` text,
 	`lolbin_references` json,
 	`is_built_in` tinyint DEFAULT 1,
-	`lolbin_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`lolbin_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `metasploit_servers` (
@@ -4820,7 +5030,8 @@ CREATE TABLE `metasploit_servers` (
 	`tunnelLocalPort` int,
 	`tunnelStatus` enum('disconnected','connecting','connected','reconnecting','error') DEFAULT 'disconnected',
 	`msfSshKeyPath` text,
-	`msfTunnelStatus` enum('connected','connecting','disconnected','reconnecting','error') DEFAULT 'disconnected'
+	`msfTunnelStatus` enum('connected','connecting','disconnected','reconnecting','error') DEFAULT 'disconnected',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `methodology_attempts` (
@@ -4839,7 +5050,8 @@ CREATE TABLE `methodology_attempts` (
 	`training_example_generated` tinyint DEFAULT 0,
 	`training_example_id` varchar(128),
 	`graduation_score_impact` double,
-	`created_at` bigint NOT NULL
+	`created_at` bigint NOT NULL,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `methodology_performance` (
@@ -4852,7 +5064,8 @@ CREATE TABLE `methodology_performance` (
 	`avg_execution_time_ms` int,
 	`last_attempt_at` bigint,
 	`last_success_at` bigint,
-	`updated_at` bigint NOT NULL
+	`updated_at` bigint NOT NULL,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `mtls_certificates` (
@@ -4893,7 +5106,8 @@ CREATE TABLE `network_events` (
 	`ne_tags` json,
 	`ne_raw_data` json,
 	`ne_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`ne_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`ne_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `nexus_pipeline_executions` (
@@ -4917,7 +5131,8 @@ CREATE TABLE `nexus_pipeline_executions` (
 	`npe_status` enum('running','completed','failed','rolled_back','paused') DEFAULT 'running',
 	`npe_error_message` text,
 	`npe_started_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`npe_completed_at` timestamp
+	`npe_completed_at` timestamp,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `nexus_quality_gates` (
@@ -4930,7 +5145,8 @@ CREATE TABLE `nexus_quality_gates` (
 	`nqg_max_score` int DEFAULT 100,
 	`nqg_evidence` json,
 	`nqg_retry_attempt` int DEFAULT 0,
-	`nqg_evaluated_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`nqg_evaluated_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `nexus_shadow_configs` (
@@ -4946,7 +5162,8 @@ CREATE TABLE `nexus_shadow_configs` (
 	`nsc_active_shadow_tests` int NOT NULL DEFAULT 0,
 	`nsc_total_runs` int NOT NULL DEFAULT 0,
 	`nsc_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`nsc_updated_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`nsc_updated_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `nexus_shadow_tests` (
@@ -4970,7 +5187,8 @@ CREATE TABLE `nexus_shadow_tests` (
 	`nst_status` enum('running','completed','error') DEFAULT 'running',
 	`nst_error_message` text,
 	`nst_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`nst_completed_at` timestamp
+	`nst_completed_at` timestamp,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `ngfw_validation_tests` (
@@ -4990,7 +5208,8 @@ CREATE TABLE `ngfw_validation_tests` (
 	`nvt_executed_at` timestamp,
 	`nvt_duration_ms` int,
 	`nvt_created_by` varchar(255),
-	`nvt_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`nvt_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `nuclei_findings` (
@@ -5023,7 +5242,8 @@ CREATE TABLE `nuclei_findings` (
 	`nuclei_command` text,
 	`finding_hash` varchar(64),
 	`port` int,
-	`nuclei_verified` tinyint DEFAULT 0
+	`nuclei_verified` tinyint DEFAULT 0,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `nuclei_scans` (
@@ -5054,7 +5274,8 @@ CREATE TABLE `nuclei_scans` (
 	`started_by` varchar(100),
 	`started_at` timestamp,
 	`completed_at` timestamp,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `nuclei_template_mappings` (
@@ -5066,7 +5287,8 @@ CREATE TABLE `nuclei_template_mappings` (
 	`success_count` int DEFAULT 1,
 	`last_used_at` bigint NOT NULL,
 	`discovered_from` enum('exploit_success','manual','knowledge_store') DEFAULT 'exploit_success',
-	`created_at` bigint NOT NULL
+	`created_at` bigint NOT NULL,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `observation_alert_history` (
@@ -5088,7 +5310,8 @@ CREATE TABLE `observation_alert_history` (
 	`obs_alert_ack_at` bigint,
 	`obs_alert_ack_by` varchar(255),
 	`obs_alert_dismissed_at` bigint,
-	`obs_alert_triggered_at` bigint NOT NULL
+	`obs_alert_triggered_at` bigint NOT NULL,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `observation_alert_rules` (
@@ -5105,7 +5328,8 @@ CREATE TABLE `observation_alert_rules` (
 	`obs_rule_trigger_count` int NOT NULL DEFAULT 0,
 	`obs_rule_created_by` varchar(255),
 	`obs_rule_created_at` bigint NOT NULL,
-	`obs_rule_updated_at` bigint NOT NULL
+	`obs_rule_updated_at` bigint NOT NULL,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `obtained_shells` (
@@ -5128,7 +5352,8 @@ CREATE TABLE `obtained_shells` (
 	`os_obtained_at` bigint NOT NULL,
 	`os_last_checked_at` bigint,
 	`os_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`os_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`os_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `oem_default_credentials` (
@@ -5145,7 +5370,8 @@ CREATE TABLE `oem_default_credentials` (
 	`cve_reference` varchar(64),
 	`source` varchar(256),
 	`tags` json,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `offensive_audit_log` (
@@ -5164,7 +5390,8 @@ CREATE TABLE `offensive_audit_log` (
 	`result_status` enum('success','failure','blocked','pending_approval') NOT NULL DEFAULT 'pending_approval',
 	`result_detail` text,
 	`ip_address` varchar(45),
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `opsec_events` (
@@ -5187,7 +5414,8 @@ CREATE TABLE `opsec_events` (
 	`opsec_operator_id` int,
 	`opsec_timestamp` bigint NOT NULL,
 	`opsec_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`opse_tenant_id` int
+	`opse_tenant_id` int,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `opsec_scores` (
@@ -5203,7 +5431,8 @@ CREATE TABLE `opsec_scores` (
 	`opsec_recommendations` json,
 	`opsec_last_updated_at` bigint NOT NULL,
 	`opsec_score_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`opsec_score_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`opsec_score_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `orchestration_plans` (
@@ -5234,7 +5463,8 @@ CREATE TABLE `orchestration_plans` (
 	`node_id` varchar(128),
 	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
 	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
-	`op_tenant_id` int
+	`op_tenant_id` int,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `oscal_exports` (
@@ -5255,7 +5485,8 @@ CREATE TABLE `oscal_exports` (
 	`generated_by` int,
 	`generated_by_name` varchar(256),
 	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`completed_at` timestamp
+	`completed_at` timestamp,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `osint_findings` (
@@ -5270,7 +5501,8 @@ CREATE TABLE `osint_findings` (
 	`source` varchar(255),
 	`campaignRelevance` text,
 	`usedInCampaign` tinyint DEFAULT 0,
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `osint_monitor_changes` (
@@ -5285,7 +5517,8 @@ CREATE TABLE `osint_monitor_changes` (
 	`acknowledged` tinyint DEFAULT 0,
 	`acknowledgedBy` int,
 	`acknowledgedAt` timestamp,
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `osint_monitors` (
@@ -5304,7 +5537,8 @@ CREATE TABLE `osint_monitors` (
 	`baselineSnapshot` json,
 	`createdBy` int,
 	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `ot_networks` (
@@ -5324,7 +5558,8 @@ CREATE TABLE `ot_networks` (
 	`otn_has_data_diode` tinyint DEFAULT 0,
 	`otn_has_ids` tinyint DEFAULT 0,
 	`otn_segmentation_score` double,
-	`otn_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`otn_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `parsed_policy_cache` (
@@ -5336,7 +5571,8 @@ CREATE TABLE `parsed_policy_cache` (
 	`parsed_result` json NOT NULL,
 	`expires_at` timestamp NOT NULL,
 	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `pentest_reports` (
@@ -5369,7 +5605,8 @@ CREATE TABLE `pentest_reports` (
 	`generated_at` timestamp,
 	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
 	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
-	`ptr_tenant_id` int
+	`ptr_tenant_id` int,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `phishing_drafts` (
@@ -5416,7 +5653,8 @@ CREATE TABLE `phishing_drafts` (
 	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	`phishingExploits` json,
 	`exploitEnhancedLandingPage` text,
-	`pd_tenant_id` int
+	`pd_tenant_id` int,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `pivot_hosts` (
@@ -5437,7 +5675,8 @@ CREATE TABLE `pivot_hosts` (
 	`obtained_at` bigint NOT NULL,
 	`last_seen_at` bigint,
 	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `platform_errors` (
@@ -5458,7 +5697,8 @@ CREATE TABLE `platform_errors` (
 	`retry_count` int DEFAULT 0,
 	`auto_recovered` tinyint DEFAULT 0,
 	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`perr_tenant_id` int
+	`perr_tenant_id` int,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `playbook_executions` (
@@ -5479,7 +5719,8 @@ CREATE TABLE `playbook_executions` (
 	`launchedBy` int,
 	`notes` text,
 	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `post_exploit_executions` (
@@ -5495,7 +5736,8 @@ CREATE TABLE `post_exploit_executions` (
 	`peStartedAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
 	`peCompletedAt` timestamp,
 	`peTriggeredBy` enum('manual','auto') NOT NULL DEFAULT 'manual',
-	`peCreatedBy` varchar(64)
+	`peCreatedBy` varchar(64),
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `post_exploit_playbooks` (
@@ -5511,7 +5753,8 @@ CREATE TABLE `post_exploit_playbooks` (
 	`playbookEnabled` tinyint NOT NULL DEFAULT 1,
 	`playbookCreatedBy` varchar(64),
 	`playbookCreatedAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`playbookUpdatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`playbookUpdatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `privesc_findings` (
@@ -5533,7 +5776,8 @@ CREATE TABLE `privesc_findings` (
 	`resulting_access` varchar(64),
 	`pe_evidence` json,
 	`pe_discovered_at` bigint NOT NULL,
-	`pe_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`pe_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `protocol_findings` (
@@ -5552,7 +5796,8 @@ CREATE TABLE `protocol_findings` (
 	`pf_compensating_controls` text,
 	`pf_relevant_apt_groups` json,
 	`pf_relevant_mitre_techniques` json,
-	`pf_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`pf_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `ransomware_affiliates` (
@@ -5577,7 +5822,8 @@ CREATE TABLE `ransomware_affiliates` (
 	`ra_tags` json,
 	`ra_raw_data` json,
 	`ra_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`ra_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`ra_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `ransomware_events` (
@@ -5591,7 +5837,8 @@ CREATE TABLE `ransomware_events` (
 	`publishedAt` timestamp,
 	`reSource` varchar(128),
 	`verified` tinyint DEFAULT 0,
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `ransomware_groups` (
@@ -5621,7 +5868,8 @@ CREATE TABLE `ransomware_groups` (
 	`rwConfidence` int DEFAULT 75,
 	`lastEnriched` timestamp,
 	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `recording_chunks` (
@@ -5631,7 +5879,8 @@ CREATE TABLE `recording_chunks` (
 	`chunkType` enum('input','output','system') NOT NULL DEFAULT 'output',
 	`chunkContent` text NOT NULL,
 	`timestampMs` int NOT NULL,
-	`chunkCreatedAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`chunkCreatedAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `redteam_campaign_logs` (
@@ -5642,7 +5891,8 @@ CREATE TABLE `redteam_campaign_logs` (
 	`title` varchar(255) NOT NULL,
 	`detail` text,
 	`metadata` json,
-	`created_at` bigint NOT NULL
+	`created_at` bigint NOT NULL,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `redteam_campaign_stages` (
@@ -5668,7 +5918,8 @@ CREATE TABLE `redteam_campaign_stages` (
 	`started_at` bigint,
 	`completed_at` bigint,
 	`created_at` bigint NOT NULL,
-	`updated_at` bigint NOT NULL
+	`updated_at` bigint NOT NULL,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `redteam_campaigns` (
@@ -5694,7 +5945,8 @@ CREATE TABLE `redteam_campaigns` (
 	`completed_at` bigint,
 	`paused_at` bigint,
 	`created_at` bigint NOT NULL,
-	`updated_at` bigint NOT NULL
+	`updated_at` bigint NOT NULL,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `regulatory_frameworks` (
@@ -5711,7 +5963,8 @@ CREATE TABLE `regulatory_frameworks` (
 	`rf_confirmed_by` int,
 	`rf_confirmed_at` timestamp,
 	`rf_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`rf_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`rf_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `remediation_tasks` (
@@ -5736,7 +5989,8 @@ CREATE TABLE `remediation_tasks` (
 	`affected_asset` varchar(255),
 	`remediation_guidance` text,
 	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `remediation_verifications` (
@@ -5758,7 +6012,8 @@ CREATE TABLE `remediation_verifications` (
 	`rv_verification_output` text,
 	`rv_attempt_count` int DEFAULT 0,
 	`rv_asset_name` varchar(255),
-	`rv_finding_title` varchar(512)
+	`rv_finding_title` varchar(512),
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `report_templates` (
@@ -5776,7 +6031,8 @@ CREATE TABLE `report_templates` (
 	`rt_is_default` tinyint DEFAULT 0,
 	`rt_created_by` varchar(255),
 	`rt_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`rt_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`rt_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `review_queue_items` (
@@ -5796,7 +6052,8 @@ CREATE TABLE `review_queue_items` (
 	`auto_approve_eligible` tinyint DEFAULT 0,
 	`expires_at` bigint,
 	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `risk_trend_snapshots` (
@@ -5812,7 +6069,8 @@ CREATE TABLE `risk_trend_snapshots` (
 	`rts_mttr_ms` int,
 	`rts_tactic_scores` json,
 	`rts_source` varchar(64),
-	`rts_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`rts_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `roe_acknowledgments` (
@@ -5827,7 +6085,8 @@ CREATE TABLE `roe_acknowledgments` (
 	`scan_profile` varchar(32) NOT NULL,
 	`session_id` varchar(128),
 	`ip_address` varchar(64),
-	`acknowledged_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`acknowledged_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `roe_documents` (
@@ -5913,7 +6172,8 @@ CREATE TABLE `roe_documents` (
 	`pdf_url` varchar(1024),
 	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
 	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
-	`roe_tenant_id` int
+	`roe_tenant_id` int,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `roe_personnel` (
@@ -5928,7 +6188,8 @@ CREATE TABLE `roe_personnel` (
 	`alternate_phone` varchar(32),
 	`clearance_level` varchar(64),
 	`is_primary` tinyint DEFAULT 0,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `roe_signatures` (
@@ -5941,7 +6202,8 @@ CREATE TABLE `roe_signatures` (
 	`signed_at` timestamp,
 	`signature_data` text,
 	`ip_address` varchar(45),
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `roe_versions` (
@@ -5955,7 +6217,8 @@ CREATE TABLE `roe_versions` (
 	`current_snapshot` json,
 	`changed_by` int,
 	`changed_by_name` varchar(256),
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `rule_robustness_results` (
@@ -5973,7 +6236,8 @@ CREATE TABLE `rule_robustness_results` (
 	`weakest_categories` json,
 	`hardening_tips` json,
 	`variant_details` json,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `saml_auth_events` (
@@ -5985,7 +6249,8 @@ CREATE TABLE `saml_auth_events` (
 	`saml_event_ip_address` varchar(45),
 	`saml_event_error_details` text,
 	`saml_event_assertion_id` varchar(256),
-	`saml_event_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`saml_event_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `saml_idp_configs` (
@@ -6007,7 +6272,8 @@ CREATE TABLE `saml_idp_configs` (
 	`saml_idp_want_response_signed` tinyint NOT NULL DEFAULT 1,
 	`saml_idp_created_by` int,
 	`saml_idp_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`saml_idp_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`saml_idp_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `scan_graduation_scores` (
@@ -6025,7 +6291,8 @@ CREATE TABLE `scan_graduation_scores` (
 	`supply_chain_analyst` int NOT NULL,
 	`overall_score` int NOT NULL,
 	`summary` text,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `scan_observations` (
@@ -6057,7 +6324,8 @@ CREATE TABLE `scan_observations` (
 	`rawDataHash` varchar(128),
 	`observedAt` bigint NOT NULL,
 	`ingestedAt` bigint NOT NULL,
-	`sobs_tenant_id` int
+	`sobs_tenant_id` int,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `scan_policies` (
@@ -6070,7 +6338,8 @@ CREATE TABLE `scan_policies` (
 	`escalationRules` json,
 	`policyCreatedAt` bigint NOT NULL,
 	`policyUpdatedAt` bigint NOT NULL,
-	`sp_tenant_id` int
+	`sp_tenant_id` int,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `scan_results` (
@@ -6089,7 +6358,8 @@ CREATE TABLE `scan_results` (
 	`severity_summary` json,
 	`phase` varchar(64),
 	`operator_id` int,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `scan_risk_cards` (
@@ -6107,7 +6377,8 @@ CREATE TABLE `scan_risk_cards` (
 	`recommendations` json NOT NULL,
 	`riskCardCreatedAt` bigint NOT NULL,
 	`signalIds` json,
-	`riskCardUpdatedAt` bigint
+	`riskCardUpdatedAt` bigint,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `scan_schedules` (
@@ -6124,7 +6395,8 @@ CREATE TABLE `scan_schedules` (
 	`total_runs` int NOT NULL DEFAULT 0,
 	`total_findings` int NOT NULL DEFAULT 0,
 	`ss_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`ss_updated_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`ss_updated_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `scan_signals` (
@@ -6140,7 +6412,8 @@ CREATE TABLE `scan_signals` (
 	`enrichmentCvss` double,
 	`enrichmentCve` varchar(32),
 	`enrichmentReferences` json,
-	`signalCreatedAt` bigint NOT NULL
+	`signalCreatedAt` bigint NOT NULL,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `scanforge_engagement_report` (
@@ -6162,7 +6435,8 @@ CREATE TABLE `scanforge_engagement_report` (
 	`template_improvements` json,
 	`coverage_gaps` json,
 	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`auth_context` json
+	`auth_context` json,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `scanforge_finding_log` (
@@ -6181,7 +6455,8 @@ CREATE TABLE `scanforge_finding_log` (
 	`finding_data` json,
 	`cross_tool_matches` json,
 	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`assessed_at` timestamp
+	`assessed_at` timestamp,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `scanforge_generated_templates` (
@@ -6196,7 +6471,8 @@ CREATE TABLE `scanforge_generated_templates` (
 	`review_notes` text,
 	`promoted_to_template_id` varchar(128),
 	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `scanforge_promotion_history` (
@@ -6211,7 +6487,8 @@ CREATE TABLE `scanforge_promotion_history` (
 	`previous_status` varchar(32) NOT NULL,
 	`new_status` varchar(32) NOT NULL,
 	`evaluated_by` varchar(64) NOT NULL DEFAULT 'auto',
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `scanforge_research_log` (
@@ -6222,7 +6499,8 @@ CREATE TABLE `scanforge_research_log` (
 	`analysis_result` json,
 	`generated_template_ids` json,
 	`actionable` tinyint DEFAULT 0,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `scanforge_template_metrics` (
@@ -6238,7 +6516,8 @@ CREATE TABLE `scanforge_template_metrics` (
 	`calibrated_confidence` float DEFAULT 0.5,
 	`effectiveness_score` float DEFAULT 50,
 	`engagement_window` json,
-	`last_updated` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`last_updated` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `scheduled_cspm_scans` (
@@ -6259,7 +6538,8 @@ CREATE TABLE `scheduled_cspm_scans` (
 	`total_runs` int DEFAULT 0,
 	`created_by` varchar(255),
 	`created_at` bigint NOT NULL,
-	`updated_at` bigint NOT NULL
+	`updated_at` bigint NOT NULL,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `scoring_audit_log` (
@@ -6283,7 +6563,8 @@ CREATE TABLE `scoring_audit_log` (
 	`delta` double,
 	`changeDescription` text,
 	`factorChanges` json,
-	`pipelinePhase` varchar(64)
+	`pipelinePhase` varchar(64),
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `scoring_profiles` (
@@ -6311,7 +6592,8 @@ CREATE TABLE `scoring_profiles` (
 	`mediumThreshold` int NOT NULL DEFAULT 40,
 	`createdBy` int NOT NULL,
 	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`updatedAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`updatedAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `server_configs` (
@@ -6326,7 +6608,8 @@ CREATE TABLE `server_configs` (
 	`status` enum('online','offline','unknown') NOT NULL DEFAULT 'unknown',
 	`lastHealthCheck` timestamp,
 	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `server_credentials` (
@@ -6338,7 +6621,8 @@ CREATE TABLE `server_credentials` (
 	`apiKey` text,
 	`sshKeyPath` text,
 	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `session_recordings` (
@@ -6356,7 +6640,8 @@ CREATE TABLE `session_recordings` (
 	`durationMs` int DEFAULT 0,
 	`recordingStartedAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
 	`recordingCompletedAt` timestamp,
-	`recordingCreatedBy` varchar(64)
+	`recordingCreatedBy` varchar(64),
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `siem_connections` (
@@ -6380,7 +6665,8 @@ CREATE TABLE `siem_connections` (
 	`error_message` text,
 	`created_by` int,
 	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `siem_integrations` (
@@ -6393,7 +6679,8 @@ CREATE TABLE `siem_integrations` (
 	`siem_query_template` text,
 	`siem_is_active` tinyint NOT NULL DEFAULT 1,
 	`siem_last_tested` timestamp,
-	`siem_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`siem_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `sliver_implants` (
@@ -6413,7 +6700,8 @@ CREATE TABLE `sliver_implants` (
 	`download_url` text,
 	`engagement_id` int,
 	`created_by` varchar(100),
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `sliver_sessions` (
@@ -6436,7 +6724,8 @@ CREATE TABLE `sliver_sessions` (
 	`last_checkin` timestamp,
 	`first_seen` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
 	`engagement_id` int,
-	`notes` text
+	`notes` text,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `sliver_tasks` (
@@ -6453,7 +6742,8 @@ CREATE TABLE `sliver_tasks` (
 	`executed_by` varchar(100),
 	`started_at` timestamp,
 	`completed_at` timestamp,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `soar_connectors` (
@@ -6469,7 +6759,8 @@ CREATE TABLE `soar_connectors` (
 	`soar_is_active` tinyint NOT NULL DEFAULT 1,
 	`soar_last_sync` timestamp,
 	`soar_created_by` varchar(255),
-	`soar_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`soar_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `soar_events` (
@@ -6482,7 +6773,8 @@ CREATE TABLE `soar_events` (
 	`soar_evt_status` enum('pending','delivered','failed') NOT NULL DEFAULT 'pending',
 	`soar_evt_response_code` int,
 	`soar_evt_error` text,
-	`soar_evt_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`soar_evt_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `ssh_keys` (
@@ -6499,7 +6791,8 @@ CREATE TABLE `ssh_keys` (
 	`createdBy` varchar(64),
 	`lastUsedAt` timestamp,
 	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `submission_history` (
@@ -6549,7 +6842,8 @@ CREATE TABLE `team_invitations` (
 	`accepted_by_user_id` int,
 	`invite_message` text,
 	`invite_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`invite_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`invite_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `telemetry_diagnostics` (
@@ -6599,7 +6893,8 @@ CREATE TABLE `tenant_memberships` (
 	`tm_tenant_id` int NOT NULL,
 	`tm_user_id` int NOT NULL,
 	`tm_role` enum('owner','admin','operator','viewer') NOT NULL DEFAULT 'viewer',
-	`tm_joined_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`tm_joined_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `tenants` (
@@ -6612,7 +6907,8 @@ CREATE TABLE `tenants` (
 	`tenant_max_users` int NOT NULL DEFAULT 50,
 	`tenant_plan` enum('free','pro','enterprise') NOT NULL DEFAULT 'free',
 	`tenant_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`tenant_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`tenant_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `test_lab_environments` (
@@ -6713,7 +7009,8 @@ CREATE TABLE `test_plans` (
 	`approved_at` timestamp,
 	`signature_hash` varchar(128),
 	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `threat_actor_abilities` (
@@ -6729,7 +7026,8 @@ CREATE TABLE `threat_actor_abilities` (
 	`singleton` tinyint DEFAULT 0,
 	`repeatable` tinyint DEFAULT 1,
 	`requirements` json,
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `threat_actor_iocs` (
@@ -6742,7 +7040,8 @@ CREATE TABLE `threat_actor_iocs` (
 	`iocFirstSeen` varchar(32),
 	`iocLastSeen` varchar(32),
 	`source` varchar(128),
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `threat_actors` (
@@ -6773,7 +7072,8 @@ CREATE TABLE `threat_actors` (
 	`ta_tenant_id` int,
 	`logoUrl` varchar(512),
 	`conflicts` text,
-	`enrichment_sources` json
+	`enrichment_sources` json,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `threat_group_events` (
@@ -6793,7 +7093,8 @@ CREATE TABLE `threat_group_events` (
 	`tgeConfidence` int DEFAULT 75,
 	`eventDate` timestamp,
 	`discoveredAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`tgeCreatedAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`tgeCreatedAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `threat_intel_updates` (
@@ -6810,7 +7111,8 @@ CREATE TABLE `threat_intel_updates` (
 	`tiuErrors` json,
 	`tiuStartedAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
 	`tiuCompletedAt` timestamp,
-	`durationMs` int
+	`durationMs` int,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `training_benchmark_runs` (
@@ -6839,7 +7141,8 @@ CREATE TABLE `training_benchmark_runs` (
 	`completed_at` bigint,
 	`duration_ms` int,
 	`error_message` text,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `training_ground_truth` (
@@ -6855,7 +7158,8 @@ CREATE TABLE `training_ground_truth` (
 	`detection_hint` text,
 	`is_active` tinyint DEFAULT 1,
 	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `training_lab_feedback` (
@@ -6867,7 +7171,8 @@ CREATE TABLE `training_lab_feedback` (
 	`expected_severity` varchar(32),
 	`expected_category` varchar(128),
 	`operator_id` int,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `training_lab_sessions` (
@@ -6893,7 +7198,8 @@ CREATE TABLE `training_lab_sessions` (
 	`duration_ms` int,
 	`error_message` text,
 	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `ttp_knowledge` (
@@ -6922,7 +7228,8 @@ CREATE TABLE `ttp_knowledge` (
 	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
 	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	`environmentalConstraints` json,
-	`expectedTelemetry` json
+	`expectedTelemetry` json,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `typosquat_domains` (
@@ -6944,7 +7251,8 @@ CREATE TABLE `typosquat_domains` (
 	`annualCost` varchar(32),
 	`notes` text,
 	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `underground_intel_events` (
@@ -6971,7 +7279,8 @@ CREATE TABLE `underground_intel_events` (
 	`uie_event_date` timestamp,
 	`uie_ingested_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
 	`uie_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`uie_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`uie_updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `unified_exploit_catalog` (
@@ -7017,7 +7326,8 @@ CREATE TABLE `unified_exploit_catalog` (
 	`exploitAuthor` varchar(255),
 	`exploitDatePublished` varchar(32),
 	`catalogCreatedAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`catalogUpdatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`catalogUpdatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `uploaded_roe_documents` (
@@ -7039,7 +7349,8 @@ CREATE TABLE `uploaded_roe_documents` (
 	`uploaded_by` int,
 	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
 	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
-	`urd_tenant_id` int
+	`urd_tenant_id` int,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `user_platform_credentials` (
@@ -7057,7 +7368,8 @@ CREATE TABLE `user_platform_credentials` (
 	`error_message` text,
 	`metadata` json,
 	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `user_sessions` (
@@ -7083,7 +7395,8 @@ CREATE TABLE `user_sessions` (
 	`session_status` enum('active','expired','revoked') NOT NULL DEFAULT 'active',
 	`session_last_activity_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
 	`session_expires_at` timestamp NOT NULL,
-	`session_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`session_created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `users` (
@@ -7104,7 +7417,8 @@ CREATE TABLE `users` (
 	`status` enum('active','inactive','suspended','pending') NOT NULL DEFAULT 'active',
 	`invited_by` int,
 	`last_password_change` timestamp,
-	`mfa_enabled` tinyint DEFAULT 0
+	`mfa_enabled` tinyint DEFAULT 0,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `validation_results` (
@@ -7126,7 +7440,8 @@ CREATE TABLE `validation_results` (
 	`validationResultError` text,
 	`validationResultCreatedAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
 	`evidenceUrl` text,
-	`evidenceArtifacts` json
+	`evidenceArtifacts` json,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `validation_runs` (
@@ -7151,7 +7466,8 @@ CREATE TABLE `validation_runs` (
 	`validationStartedAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
 	`validationCompletedAt` timestamp,
 	`totalDurationMs` int,
-	`validationRunError` text
+	`validationRunError` text,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `validation_schedules` (
@@ -7171,7 +7487,8 @@ CREATE TABLE `validation_schedules` (
 	`config` json,
 	`created_by` varchar(255),
 	`created_at` timestamp DEFAULT 'CURRENT_TIMESTAMP',
-	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`updated_at` timestamp DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `vendor_cached_data` (
@@ -7190,7 +7507,8 @@ CREATE TABLE `vendor_cached_data` (
 	`mitreAttackId` varchar(32),
 	`detectedAt` bigint,
 	`lastUpdatedAt` bigint,
-	`cachedAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`cachedAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `vendor_integrations` (
@@ -7208,7 +7526,8 @@ CREATE TABLE `vendor_integrations` (
 	`lastSyncAt` bigint,
 	`createdBy` varchar(64),
 	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `vendor_sync_events` (
@@ -7222,7 +7541,8 @@ CREATE TABLE `vendor_sync_events` (
 	`errorMessage` text,
 	`durationMs` int,
 	`triggeredBy` varchar(64),
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `vuln_scan_findings` (
@@ -7246,7 +7566,8 @@ CREATE TABLE `vuln_scan_findings` (
 	`vsf_corroboration_score` int,
 	`vsf_corroboration_verdict` varchar(32),
 	`vsf_corroboration_sources` int DEFAULT 0,
-	`vsf_suppress_recommended` tinyint DEFAULT 0
+	`vsf_suppress_recommended` tinyint DEFAULT 0,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `vuln_scan_imports` (
@@ -7261,7 +7582,8 @@ CREATE TABLE `vuln_scan_imports` (
 	`vsi_high` int NOT NULL DEFAULT 0,
 	`vsi_medium` int NOT NULL DEFAULT 0,
 	`vsi_low` int NOT NULL DEFAULT 0,
-	`vsi_imported_by` varchar(255)
+	`vsi_imported_by` varchar(255),
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `vuln_scan_snapshots` (
@@ -7282,7 +7604,8 @@ CREATE TABLE `vuln_scan_snapshots` (
 	`categories` json,
 	`asset_breakdown` json,
 	`metadata` json,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `vuln_trend_entries` (
@@ -7298,7 +7621,8 @@ CREATE TABLE `vuln_trend_entries` (
 	`tool` varchar(64),
 	`status` enum('new','existing','resolved','regressed') NOT NULL DEFAULT 'new',
 	`first_seen_snapshot_id` int,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `vuln_type_accuracy` (
@@ -7311,7 +7635,8 @@ CREATE TABLE `vuln_type_accuracy` (
 	`times_missed` int DEFAULT 0,
 	`times_false_positive` int DEFAULT 0,
 	`target_preset` varchar(128) NOT NULL,
-	`scored_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`scored_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `web_app_findings` (
@@ -7341,7 +7666,8 @@ CREATE TABLE `web_app_findings` (
 	`caldera_ability_id` varchar(100),
 	`ai_triage_verdict` varchar(50),
 	`ai_triage_reason` text,
-	`false_positive_score` double
+	`false_positive_score` double,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `web_app_scans` (
@@ -7376,7 +7702,8 @@ CREATE TABLE `web_app_scans` (
 	`was_tenant_id` int,
 	`auth_credential_source` varchar(50),
 	`auth_username` varchar(100),
-	`auth_method` varchar(30)
+	`auth_method` varchar(30),
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `web_crawl_jobs` (
@@ -7401,7 +7728,8 @@ CREATE TABLE `web_crawl_jobs` (
 	`startedBy` varchar(64),
 	`startedAt` bigint,
 	`completedAt` bigint,
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `web_crawl_results` (
@@ -7444,7 +7772,8 @@ CREATE TABLE `web_crawl_results` (
 	`crawledBy` varchar(64),
 	`startedAt` bigint,
 	`completedAt` bigint,
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `webhook_deliveries` (
@@ -7455,7 +7784,8 @@ CREATE TABLE `webhook_deliveries` (
 	`responseStatus` int,
 	`responseBody` text,
 	`success` tinyint DEFAULT 0,
-	`deliveredAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`deliveredAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `webhook_endpoints` (
@@ -7492,7 +7822,8 @@ CREATE TABLE `webhook_endpoints` (
 	`createdBy` int,
 	`tenant_id` varchar(64),
 	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `webhook_events` (
@@ -7516,7 +7847,8 @@ CREATE TABLE `webhook_events` (
 	`max_retries` int DEFAULT 3,
 	`next_retry_at` bigint,
 	`received_at` bigint NOT NULL,
-	`created_at` bigint NOT NULL
+	`created_at` bigint NOT NULL,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `workflow_sessions` (
@@ -7531,7 +7863,8 @@ CREATE TABLE `workflow_sessions` (
 	`context_data` json,
 	`started_at` bigint NOT NULL,
 	`last_activity_at` bigint NOT NULL,
-	`completed_at` bigint
+	`completed_at` bigint,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `workflow_step_history` (
@@ -7546,7 +7879,8 @@ CREATE TABLE `workflow_step_history` (
 	`linked_entity_type` varchar(64),
 	`linked_entity_id` varchar(255),
 	`started_at` bigint,
-	`completed_at` bigint
+	`completed_at` bigint,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `zap_proxy_sessions` (
@@ -7573,7 +7907,8 @@ CREATE TABLE `zap_proxy_sessions` (
 	`started_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
 	`completed_at` timestamp,
 	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
-	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP
+	`updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `zero_day_cache` (
@@ -7591,7 +7926,8 @@ CREATE TABLE `zero_day_cache` (
 	`reported_by` varchar(512),
 	`source` enum('project_zero','cisa_kev') NOT NULL DEFAULT 'project_zero',
 	`year` int,
-	`fetched_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`fetched_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `zero_day_scan_matches` (
@@ -7610,523 +7946,1040 @@ CREATE TABLE `zero_day_scan_matches` (
 	`zero_day_type` varchar(128),
 	`advisory_url` text,
 	`dismissed` tinyint NOT NULL DEFAULT 0,
-	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP'
+	`created_at` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	CONSTRAINT PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
-ALTER TABLE `agent_audit_log` ADD CONSTRAINT `agent_audit_log_agentId_agent_deployments_id_fk` FOREIGN KEY (`agentId`) REFERENCES `agent_deployments`(`id`) ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE `agent_tasks` ADD CONSTRAINT `agent_tasks_agentId_agent_deployments_id_fk` FOREIGN KEY (`agentId`) REFERENCES `agent_deployments`(`id`) ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE `campaign_engagements` ADD CONSTRAINT `campaign_engagements_engagementId_engagements_id_fk` FOREIGN KEY (`engagementId`) REFERENCES `engagements`(`id`) ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE `deployment_history` ADD CONSTRAINT `deployment_history_user_id_users_id_fk` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE `discovered_assets` ADD CONSTRAINT `discovered_assets_scanId_domain_intel_scans_id_fk` FOREIGN KEY (`scanId`) REFERENCES `domain_intel_scans`(`id`) ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE `domain_recon` ADD CONSTRAINT `domain_recon_engagementId_engagements_id_fk` FOREIGN KEY (`engagementId`) REFERENCES `engagements`(`id`) ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE `engagement_reports` ADD CONSTRAINT `engagement_reports_engagementId_engagements_id_fk` FOREIGN KEY (`engagementId`) REFERENCES `engagements`(`id`) ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE `entity_profile_overrides` ADD CONSTRAINT `entity_profile_overrides_scan_id_domain_intel_scans_id_fk` FOREIGN KEY (`scan_id`) REFERENCES `domain_intel_scans`(`id`) ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE `entity_profile_overrides` ADD CONSTRAINT `entity_profile_overrides_overridden_by_users_id_fk` FOREIGN KEY (`overridden_by`) REFERENCES `users`(`id`) ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE `evidence_chain_of_custody` ADD CONSTRAINT `evidence_chain_of_custody_evidenceId_evidence_items_evidenceId_fk` FOREIGN KEY (`evidenceId`) REFERENCES `evidence_items`(`evidenceId`) ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE `ir_runbook_entries` ADD CONSTRAINT `ir_runbook_entries_created_by_users_id_fk` FOREIGN KEY (`created_by`) REFERENCES `users`(`id`) ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE `osint_findings` ADD CONSTRAINT `osint_findings_engagementId_engagements_id_fk` FOREIGN KEY (`engagementId`) REFERENCES `engagements`(`id`) ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE `server_credentials` ADD CONSTRAINT `server_credentials_serverId_server_configs_id_fk` FOREIGN KEY (`serverId`) REFERENCES `server_configs`(`id`) ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE `submission_history` ADD CONSTRAINT `submission_history_user_id_users_id_fk` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-CREATE INDEX `ability_graph_edges_edge_id_unique` ON `ability_graph_edges` (`edge_id`);--> statement-breakpoint
-CREATE INDEX `ability_graph_nodes_node_id_unique` ON `ability_graph_nodes` (`node_id`);--> statement-breakpoint
-CREATE INDEX `ability_graphs_graph_id_unique` ON `ability_graphs` (`graph_id`);--> statement-breakpoint
-CREATE INDEX `art_report_idx` ON `ac3_report_artifacts` (`report_id`);--> statement-breakpoint
-CREATE INDEX `art_finding_idx` ON `ac3_report_artifacts` (`finding_id`);--> statement-breakpoint
-CREATE INDEX `art_label_idx` ON `ac3_report_artifacts` (`label`);--> statement-breakpoint
-CREATE INDEX `artifact_id` ON `ac3_report_artifacts` (`artifact_id`);--> statement-breakpoint
-CREATE INDEX `ac3_report_findings_rf_finding_id_unique` ON `ac3_report_findings` (`rf_finding_id`);--> statement-breakpoint
-CREATE INDEX `rf_report_id_idx` ON `ac3_report_findings` (`rf_report_id`);--> statement-breakpoint
-CREATE INDEX `rf_finding_id_idx` ON `ac3_report_findings` (`rf_finding_id`);--> statement-breakpoint
-CREATE INDEX `rf_severity_idx` ON `ac3_report_findings` (`rf_severity`);--> statement-breakpoint
-CREATE INDEX `ac3_reports_rpt_report_id_unique` ON `ac3_reports` (`rpt_report_id`);--> statement-breakpoint
-CREATE INDEX `rpt_report_id_idx` ON `ac3_reports` (`rpt_report_id`);--> statement-breakpoint
-CREATE INDEX `rpt_status_idx` ON `ac3_reports` (`rpt_status`);--> statement-breakpoint
-CREATE INDEX `rpt_campaign_idx` ON `ac3_reports` (`rpt_campaign_id`);--> statement-breakpoint
-CREATE INDEX `acc_comp_session_idx` ON `accuracy_comparisons` (`session_id`);--> statement-breakpoint
-CREATE INDEX `acc_comp_target_idx` ON `accuracy_comparisons` (`target_preset`);--> statement-breakpoint
-CREATE INDEX `acc_comp_engagement_idx` ON `accuracy_comparisons` (`engagement_id`);--> statement-breakpoint
-CREATE INDEX `acc_comp_scored_idx` ON `accuracy_comparisons` (`scored_at`);--> statement-breakpoint
-CREATE INDEX `active_sessions_session_token_unique` ON `active_sessions` (`session_token`);--> statement-breakpoint
-CREATE INDEX `ae_adj_type_idx` ON `adjustment_effectiveness` (`ae_adjustment_type`);--> statement-breakpoint
-CREATE INDEX `ae_fail_cat_idx` ON `adjustment_effectiveness` (`ae_failure_category`);--> statement-breakpoint
-CREATE INDEX `ae_service_idx` ON `adjustment_effectiveness` (`ae_service`);--> statement-breakpoint
-CREATE INDEX `ae_composite_idx` ON `adjustment_effectiveness` (`ae_adjustment_type`,`ae_failure_category`,`ae_service`);--> statement-breakpoint
-CREATE INDEX `ad_agent_id_idx` ON `agent_definitions` (`ad_agent_id`);--> statement-breakpoint
-CREATE INDEX `ad_category_idx` ON `agent_definitions` (`ad_category`);--> statement-breakpoint
-CREATE INDEX `ad_status_idx` ON `agent_definitions` (`ad_status`);--> statement-breakpoint
-CREATE INDEX `avrcs_session_idx` ON `ai_vuln_research_code_snippets` (`session_id`);--> statement-breakpoint
-CREATE INDEX `avrf_session_idx` ON `ai_vuln_research_findings` (`session_id`);--> statement-breakpoint
-CREATE INDEX `avrf_severity_idx` ON `ai_vuln_research_findings` (`severity`);--> statement-breakpoint
-CREATE INDEX `avrf_vuln_type_idx` ON `ai_vuln_research_findings` (`vuln_type`);--> statement-breakpoint
-CREATE INDEX `avrf_cwe_idx` ON `ai_vuln_research_findings` (`cwe_id`);--> statement-breakpoint
-CREATE INDEX `avrf_poc_status_idx` ON `ai_vuln_research_findings` (`poc_status`);--> statement-breakpoint
-CREATE INDEX `avrs_user_idx` ON `ai_vuln_research_sessions` (`user_id`);--> statement-breakpoint
-CREATE INDEX `avrs_status_idx` ON `ai_vuln_research_sessions` (`status`);--> statement-breakpoint
-CREATE INDEX `avrs_target_idx` ON `ai_vuln_research_sessions` (`target_type`);--> statement-breakpoint
-CREATE INDEX `avrs_program_idx` ON `ai_vuln_research_sessions` (`bug_bounty_program_id`);--> statement-breakpoint
-CREATE INDEX `aec_catalog_entry_id_unique` ON `approved_exploit_catalog` (`catalog_entry_id`);--> statement-breakpoint
-CREATE INDEX `aec_quarantine_id_idx` ON `approved_exploit_catalog` (`quarantine_id`);--> statement-breakpoint
-CREATE INDEX `idx_technique_id` ON `atomic_test_executions` (`technique_id`);--> statement-breakpoint
-CREATE INDEX `idx_status` ON `atomic_test_executions` (`status`);--> statement-breakpoint
-CREATE INDEX `idx_executed_by` ON `atomic_test_executions` (`executed_by`);--> statement-breakpoint
-CREATE INDEX `idx_attack_chain` ON `atomic_test_executions` (`attack_chain_id`);--> statement-breakpoint
-CREATE INDEX `idx_technique_id` ON `atomic_tests` (`technique_id`);--> statement-breakpoint
-CREATE INDEX `idx_mitre_tactic` ON `atomic_tests` (`mitre_tactic`);--> statement-breakpoint
-CREATE INDEX `idx_executor_type` ON `atomic_tests` (`executor_type`);--> statement-breakpoint
-CREATE INDEX `idx_supported_platforms` ON `atomic_tests` (`supported_platforms`);--> statement-breakpoint
-CREATE INDEX `guid` ON `atomic_tests` (`guid`);--> statement-breakpoint
-CREATE INDEX `acc_actor_idx` ON `attack_chains_catalog` (`acc_actor_id`);--> statement-breakpoint
-CREATE INDEX `acc_chain_name_idx` ON `attack_chains_catalog` (`acc_chain_name`);--> statement-breakpoint
-CREATE INDEX `pathId` ON `attack_paths` (`pathId`);--> statement-breakpoint
-CREATE INDEX `templateId` ON `attack_sequence_templates` (`templateId`);--> statement-breakpoint
-CREATE INDEX `bspr_rule_id_idx` ON `benchmark_scan_plan_rules` (`rule_id`);--> statement-breakpoint
-CREATE INDEX `bspr_lab_id_idx` ON `benchmark_scan_plan_rules` (`lab_id`);--> statement-breakpoint
-CREATE INDEX `bspr_active_idx` ON `benchmark_scan_plan_rules` (`is_active`);--> statement-breakpoint
-CREATE INDEX `btr_run_id_idx` ON `benchmark_tool_results` (`run_id`);--> statement-breakpoint
-CREATE INDEX `btr_lab_tool_idx` ON `benchmark_tool_results` (`lab_id`,`tool`);--> statement-breakpoint
-CREATE INDEX `bblts_category_idx` ON `bug_bounty_llm_training_samples` (`category`);--> statement-breakpoint
-CREATE INDEX `bblts_finding_idx` ON `bug_bounty_llm_training_samples` (`finding_id`);--> statement-breakpoint
-CREATE INDEX `bblts_quality_idx` ON `bug_bounty_llm_training_samples` (`quality_score`);--> statement-breakpoint
-CREATE INDEX `bblts_severity_idx` ON `bug_bounty_llm_training_samples` (`severity_rating`);--> statement-breakpoint
-CREATE INDEX `bblts_cwe_idx` ON `bug_bounty_llm_training_samples` (`cwe_id`);--> statement-breakpoint
-CREATE INDEX `bblts_program_idx` ON `bug_bounty_llm_training_samples` (`program_handle`);--> statement-breakpoint
-CREATE INDEX `bblts_enrichment_idx` ON `bug_bounty_llm_training_samples` (`enrichment_status`);--> statement-breakpoint
-CREATE INDEX `bblts_bounty_idx` ON `bug_bounty_llm_training_samples` (`bounty_amount`);--> statement-breakpoint
-CREATE INDEX `bbps_program_idx` ON `bug_bounty_program_scopes` (`program_handle`);--> statement-breakpoint
-CREATE INDEX `bbps_asset_type_idx` ON `bug_bounty_program_scopes` (`asset_type`);--> statement-breakpoint
-CREATE INDEX `bbpw_program_idx` ON `bug_bounty_program_weaknesses` (`program_handle`);--> statement-breakpoint
-CREATE INDEX `bbpw_cwe_idx` ON `bug_bounty_program_weaknesses` (`cwe_id`);--> statement-breakpoint
-CREATE INDEX `br_user_idx` ON `bug_reports` (`user_id`);--> statement-breakpoint
-CREATE INDEX `br_status_idx` ON `bug_reports` (`status`);--> statement-breakpoint
-CREATE INDEX `br_severity_idx` ON `bug_reports` (`severity`);--> statement-breakpoint
-CREATE INDEX `br_created_idx` ON `bug_reports` (`created_at`);--> statement-breakpoint
-CREATE INDEX `bsh_engagement_idx` ON `burp_scan_history` (`engagement_id`);--> statement-breakpoint
-CREATE INDEX `bsh_user_idx` ON `burp_scan_history` (`user_id`);--> statement-breakpoint
-CREATE INDEX `bsh_status_idx` ON `burp_scan_history` (`status`);--> statement-breakpoint
-CREATE INDEX `cel_technique_idx` ON `c2_execution_log` (`technique_id`);--> statement-breakpoint
-CREATE INDEX `cel_framework_idx` ON `c2_execution_log` (`cel_framework`);--> statement-breakpoint
-CREATE INDEX `cel_engagement_idx` ON `c2_execution_log` (`cel_engagement_id`);--> statement-breakpoint
-CREATE INDEX `caldera_accounts_email_unique` ON `caldera_accounts` (`email`);--> statement-breakpoint
-CREATE INDEX `campaign_archetypes_slug_unique` ON `campaign_archetypes` (`slug`);--> statement-breakpoint
-CREATE INDEX `crs_campaign_id_idx` ON `campaign_run_states` (`campaign_id`);--> statement-breakpoint
-CREATE INDEX `crs_is_running_idx` ON `campaign_run_states` (`is_running`);--> statement-breakpoint
-CREATE INDEX `chain_runs_chain_id_unique` ON `chain_runs` (`chain_id`);--> statement-breakpoint
-CREATE INDEX `idx_chain_stage_chain_id` ON `chain_stage_results` (`chain_id`);--> statement-breakpoint
-CREATE INDEX `cicd_bl_pipeline_idx` ON `cicd_baselines` (`pipeline_id`);--> statement-breakpoint
-CREATE INDEX `cicd_bl_commit_idx` ON `cicd_baselines` (`commit_sha`);--> statement-breakpoint
-CREATE INDEX `idx_pipeline_framework` ON `cicd_compliance_scores` (`pipeline_id`,`framework`);--> statement-breakpoint
-CREATE INDEX `idx_run_id` ON `cicd_compliance_scores` (`run_id`);--> statement-breakpoint
-CREATE INDEX `idx_created_at` ON `cicd_compliance_scores` (`created_at`);--> statement-breakpoint
-CREATE INDEX `uq_pipeline_user` ON `cicd_pipeline_access` (`pipeline_id`,`user_id`);--> statement-breakpoint
-CREATE INDEX `cicd_rf_run_idx` ON `cicd_run_findings` (`run_id`);--> statement-breakpoint
-CREATE INDEX `cicd_rf_pipeline_idx` ON `cicd_run_findings` (`pipeline_id`);--> statement-breakpoint
-CREATE INDEX `cicd_rf_hash_idx` ON `cicd_run_findings` (`title_hash`);--> statement-breakpoint
-CREATE INDEX `cicd_rf_severity_idx` ON `cicd_run_findings` (`severity`);--> statement-breakpoint
-CREATE INDEX `cicd_sbom_run_idx` ON `cicd_sbom_artifacts` (`run_id`);--> statement-breakpoint
-CREATE INDEX `cicd_sbom_pipeline_idx` ON `cicd_sbom_artifacts` (`pipeline_id`);--> statement-breakpoint
-CREATE INDEX `idx_pipeline_id` ON `cicd_webhook_deliveries` (`pipeline_id`);--> statement-breakpoint
-CREATE INDEX `idx_delivery_status` ON `cicd_webhook_deliveries` (`delivery_status`);--> statement-breakpoint
-CREATE INDEX `idx_next_retry` ON `cicd_webhook_deliveries` (`next_retry_at`);--> statement-breakpoint
-CREATE INDEX `cip_domain_idx` ON `company_intel_profiles` (`cip_domain`);--> statement-breakpoint
-CREATE INDEX `cip_tenant_idx` ON `company_intel_profiles` (`cip_tenant_id`);--> statement-breakpoint
-CREATE INDEX `baseline_id` ON `config_baselines` (`baseline_id`);--> statement-breakpoint
-CREATE INDEX `alert_id` ON `config_drift_alerts` (`alert_id`);--> statement-breakpoint
-CREATE INDEX `cph_connector_domain_idx` ON `connector_performance_history` (`connector`,`domain`);--> statement-breakpoint
-CREATE INDEX `cph_sector_idx` ON `connector_performance_history` (`sector`);--> statement-breakpoint
-CREATE INDEX `cph_scan_id_idx` ON `connector_performance_history` (`scan_id`);--> statement-breakpoint
-CREATE INDEX `cph_connector_sector_idx` ON `connector_performance_history` (`connector`,`sector`);--> statement-breakpoint
-CREATE INDEX `cph_created_at_idx` ON `connector_performance_history` (`created_at`);--> statement-breakpoint
-CREATE INDEX `cv_scan_run_idx` ON `container_vulnerabilities` (`scan_run_id`);--> statement-breakpoint
-CREATE INDEX `cv_severity_idx` ON `container_vulnerabilities` (`severity`);--> statement-breakpoint
-CREATE INDEX `cv_vuln_id_idx` ON `container_vulnerabilities` (`vuln_id`);--> statement-breakpoint
-CREATE INDEX `cv_image_idx` ON `container_vulnerabilities` (`image_name`);--> statement-breakpoint
-CREATE INDEX `cspmf_scan_run_idx` ON `cspm_findings` (`scan_run_id`);--> statement-breakpoint
-CREATE INDEX `cspmf_severity_idx` ON `cspm_findings` (`severity`);--> statement-breakpoint
-CREATE INDEX `cspmf_status_idx` ON `cspm_findings` (`status`);--> statement-breakpoint
-CREATE INDEX `cspmf_check_id_idx` ON `cspm_findings` (`check_id`);--> statement-breakpoint
-CREATE INDEX `cspmf_provider_idx` ON `cspm_findings` (`provider`);--> statement-breakpoint
-CREATE INDEX `cspm_scan_tool_idx` ON `cspm_scan_runs` (`scan_tool`);--> statement-breakpoint
-CREATE INDEX `cspm_scan_provider_idx` ON `cspm_scan_runs` (`scan_provider`);--> statement-breakpoint
-CREATE INDEX `cspm_scan_status_idx` ON `cspm_scan_runs` (`scan_status`);--> statement-breakpoint
-CREATE INDEX `cspm_credential_idx` ON `cspm_scan_runs` (`credential_id`);--> statement-breakpoint
-CREATE INDEX `cspm_created_idx` ON `cspm_scan_runs` (`created_at`);--> statement-breakpoint
-CREATE INDEX `cspm_engagement_idx` ON `cspm_scan_runs` (`engagement_id`);--> statement-breakpoint
-CREATE INDEX `ca_email_idx` ON `customer_accounts` (`ca_email`);--> statement-breakpoint
-CREATE INDEX `ca_tenant_idx` ON `customer_accounts` (`tenant_id`);--> statement-breakpoint
-CREATE INDEX `cal_customer_idx` ON `customer_audit_log` (`customer_account_id`);--> statement-breakpoint
-CREATE INDEX `cal_tenant_idx` ON `customer_audit_log` (`cal_tenant_id`);--> statement-breakpoint
-CREATE INDEX `cal_action_idx` ON `customer_audit_log` (`cal_action`);--> statement-breakpoint
-CREATE INDEX `ci_integration_id_unique` ON `customer_integrations` (`integration_id`);--> statement-breakpoint
-CREATE INDEX `ci_category_idx` ON `customer_integrations` (`category`);--> statement-breakpoint
-CREATE INDEX `ci_status_idx` ON `customer_integrations` (`status`);--> statement-breakpoint
-CREATE INDEX `ci_tenant_idx` ON `customer_integrations` (`tenant_id`);--> statement-breakpoint
-CREATE INDEX `cip_customer_id_idx` ON `customer_intelligence_profiles` (`customer_id`);--> statement-breakpoint
-CREATE INDEX `cip_customer_name_idx` ON `customer_intelligence_profiles` (`customer_name`);--> statement-breakpoint
-CREATE INDEX `csr_tenant_idx` ON `customer_shared_reports` (`csr_tenant_id`);--> statement-breakpoint
-CREATE INDEX `csr_report_type_idx` ON `customer_shared_reports` (`csr_report_type`);--> statement-breakpoint
-CREATE INDEX `csp_engagement_idx` ON `customer_stack_profiles` (`engagement_id`);--> statement-breakpoint
-CREATE INDEX `csp_customer_idx` ON `customer_stack_profiles` (`customer_name`);--> statement-breakpoint
-CREATE INDEX `cve_enrichment_cve_id_unique` ON `cve_enrichment` (`cve_id`);--> statement-breakpoint
-CREATE INDEX `dfr_feed_name` ON `darkweb_feed_registry` (`dfr_feed_name`);--> statement-breakpoint
-CREATE INDEX `defense_scores_score_id_unique` ON `defense_scores` (`score_id`);--> statement-breakpoint
-CREATE INDEX `dr_email_idx` ON `demo_requests` (`email`);--> statement-breakpoint
-CREATE INDEX `dr_status_idx` ON `demo_requests` (`status`);--> statement-breakpoint
-CREATE INDEX `dr_created_at_idx` ON `demo_requests` (`created_at`);--> statement-breakpoint
-CREATE INDEX `dh_deployment_id_idx` ON `deployment_history` (`deployment_id`);--> statement-breakpoint
-CREATE INDEX `dh_user_id_idx` ON `deployment_history` (`user_id`);--> statement-breakpoint
-CREATE INDEX `dh_environment_idx` ON `deployment_history` (`environment`);--> statement-breakpoint
-CREATE INDEX `dh_status_idx` ON `deployment_history` (`status`);--> statement-breakpoint
-CREATE INDEX `dh_created_at_idx` ON `deployment_history` (`created_at`);--> statement-breakpoint
-CREATE INDEX `update_org_idx` ON `deployment_update_history` (`org_id`);--> statement-breakpoint
-CREATE INDEX `update_status_idx` ON `deployment_update_history` (`status`);--> statement-breakpoint
-CREATE INDEX `version_idx` ON `deployment_versions` (`version`);--> statement-breakpoint
-CREATE INDEX `channel_idx` ON `deployment_versions` (`channel`);--> statement-breakpoint
-CREATE INDEX `testId` ON `detection_tests` (`testId`);--> statement-breakpoint
-CREATE INDEX `dfir_report_idx` ON `dfir_observations` (`dfir_report_id`);--> statement-breakpoint
-CREATE INDEX `dfir_actor_idx` ON `dfir_observations` (`dfir_actor_id`);--> statement-breakpoint
-CREATE INDEX `dfir_technique_idx` ON `dfir_observations` (`dfir_technique_id`);--> statement-breakpoint
-CREATE INDEX `dfir_type_idx` ON `dfir_observations` (`dfir_observation_type`);--> statement-breakpoint
-CREATE INDEX `ioc_report_idx` ON `dfir_report_iocs` (`report_id`);--> statement-breakpoint
-CREATE INDEX `ioc_type_idx` ON `dfir_report_iocs` (`ioc_type`);--> statement-breakpoint
-CREATE INDEX `ioc_value_idx` ON `dfir_report_iocs` (`ioc_value`);--> statement-breakpoint
-CREATE INDEX `dfir_source_idx` ON `dfir_reports` (`dfir_source`);--> statement-breakpoint
-CREATE INDEX `dfir_status_idx` ON `dfir_reports` (`dfir_status`);--> statement-breakpoint
-CREATE INDEX `dfir_external_id_idx` ON `dfir_reports` (`external_id`);--> statement-breakpoint
-CREATE INDEX `ditd_example_id_idx` ON `di_incident_training_data` (`example_id`);--> statement-breakpoint
-CREATE INDEX `ditd_scan_id_idx` ON `di_incident_training_data` (`scan_id`);--> statement-breakpoint
-CREATE INDEX `ditd_domain_idx` ON `di_incident_training_data` (`domain`);--> statement-breakpoint
-CREATE INDEX `ditd_sector_idx` ON `di_incident_training_data` (`sector`);--> statement-breakpoint
-CREATE INDEX `ditd_type_idx` ON `di_incident_training_data` (`example_type`);--> statement-breakpoint
-CREATE INDEX `ditd_quality_idx` ON `di_incident_training_data` (`quality_band`);--> statement-breakpoint
-CREATE INDEX `ditd_analyst_rating_idx` ON `di_incident_training_data` (`analyst_rating`);--> statement-breakpoint
-CREATE INDEX `dns_assess_domain_idx` ON `dns_security_assessments` (`domain`);--> statement-breakpoint
-CREATE INDEX `dns_assess_engagement_idx` ON `dns_security_assessments` (`engagement_id`);--> statement-breakpoint
-CREATE INDEX `dns_assess_scan_idx` ON `dns_security_assessments` (`scan_id`);--> statement-breakpoint
-CREATE INDEX `dns_assess_risk_idx` ON `dns_security_assessments` (`overall_risk`);--> statement-breakpoint
-CREATE INDEX `dns_assess_assessed_at_idx` ON `dns_security_assessments` (`assessed_at`);--> statement-breakpoint
-CREATE INDEX `dns_find_assessment_idx` ON `dns_security_findings` (`assessment_id`);--> statement-breakpoint
-CREATE INDEX `dns_find_severity_idx` ON `dns_security_findings` (`severity`);--> statement-breakpoint
-CREATE INDEX `dns_find_category_idx` ON `dns_security_findings` (`category`);--> statement-breakpoint
-CREATE INDEX `dns_find_status_idx` ON `dns_security_findings` (`status`);--> statement-breakpoint
-CREATE INDEX `dns_find_mitre_idx` ON `dns_security_findings` (`mitre_attack_id`);--> statement-breakpoint
-CREATE INDEX `dns_mon_domain_idx` ON `dns_security_monitoring_config` (`domain`);--> statement-breakpoint
-CREATE INDEX `dns_mon_enabled_idx` ON `dns_security_monitoring_config` (`enabled`);--> statement-breakpoint
-CREATE INDEX `ember_agent_id_idx` ON `ember_agents` (`agent_id`);--> statement-breakpoint
-CREATE INDEX `ember_engagement_idx` ON `ember_agents` (`engagement_id`);--> statement-breakpoint
-CREATE INDEX `ember_state_idx` ON `ember_agents` (`ember_state`);--> statement-breakpoint
-CREATE INDEX `ember_profile_idx` ON `ember_agents` (`ember_profile`);--> statement-breakpoint
-CREATE INDEX `ember_swarm_idx` ON `ember_agents` (`ember_swarm_id`);--> statement-breakpoint
-CREATE INDEX `eb_agent_idx` ON `ember_beacons` (`ember_beacon_agent_id`);--> statement-breakpoint
-CREATE INDEX `eb_received_idx` ON `ember_beacons` (`ember_beacon_received_at`);--> statement-breakpoint
-CREATE INDEX `ecl_campaign_id_idx` ON `ember_campaign_logs` (`ecl_campaign_id`);--> statement-breakpoint
-CREATE INDEX `ecl_level_idx` ON `ember_campaign_logs` (`ecl_level`);--> statement-breakpoint
-CREATE INDEX `ecph_phase_id_idx` ON `ember_campaign_phases` (`ecph_phase_id`);--> statement-breakpoint
-CREATE INDEX `ecph_campaign_id_idx` ON `ember_campaign_phases` (`ecph_campaign_id`);--> statement-breakpoint
-CREATE INDEX `ecph_status_idx` ON `ember_campaign_phases` (`ecph_status`);--> statement-breakpoint
-CREATE INDEX `ecmp_campaign_id_idx` ON `ember_campaigns` (`ecmp_campaign_id`);--> statement-breakpoint
-CREATE INDEX `ecmp_status_idx` ON `ember_campaigns` (`ecmp_status`);--> statement-breakpoint
-CREATE INDEX `ecmp_created_by_idx` ON `ember_campaigns` (`ecmp_created_by`);--> statement-breakpoint
-CREATE INDEX `ect_template_id_idx` ON `ember_custom_templates` (`ect_template_id`);--> statement-breakpoint
-CREATE INDEX `ect_category_idx` ON `ember_custom_templates` (`ect_category`);--> statement-breakpoint
-CREATE INDEX `ect_created_by_idx` ON `ember_custom_templates` (`ect_created_by`);--> statement-breakpoint
-CREATE INDEX `ei_agent_idx` ON `ember_intelligence` (`ember_intel_agent_id`);--> statement-breakpoint
-CREATE INDEX `ei_engagement_idx` ON `ember_intelligence` (`ember_intel_engagement_id`);--> statement-breakpoint
-CREATE INDEX `ei_type_idx` ON `ember_intelligence` (`ember_intel_type`);--> statement-breakpoint
-CREATE INDEX `ep_engagement_idx` ON `ember_payloads` (`ember_payload_engagement_id`);--> statement-breakpoint
-CREATE INDEX `ep_payload_id_idx` ON `ember_payloads` (`ember_payload_id`);--> statement-breakpoint
-CREATE INDEX `ep_token_idx` ON `ember_payloads` (`ember_payload_reg_token`);--> statement-breakpoint
-CREATE INDEX `es_swarm_id_idx` ON `ember_swarms` (`ember_swarm_sid`);--> statement-breakpoint
-CREATE INDEX `es_engagement_idx` ON `ember_swarms` (`ember_swarm_engagement_id`);--> statement-breakpoint
-CREATE INDEX `et_agent_idx` ON `ember_tasks` (`ember_task_agent_id`);--> statement-breakpoint
-CREATE INDEX `et_engagement_idx` ON `ember_tasks` (`ember_task_engagement_id`);--> statement-breakpoint
-CREATE INDEX `et_status_idx` ON `ember_tasks` (`ember_task_status`);--> statement-breakpoint
-CREATE INDEX `et_task_id_idx` ON `ember_tasks` (`ember_task_id`);--> statement-breakpoint
-CREATE INDEX `eat_engagement_idx` ON `engagement_approved_targets` (`engagement_id`);--> statement-breakpoint
-CREATE INDEX `eat_hostname_idx` ON `engagement_approved_targets` (`engagement_id`,`hostname`);--> statement-breakpoint
-CREATE INDEX `ecp_engagement_idx` ON `engagement_comms_protocols` (`engagement_id`);--> statement-breakpoint
-CREATE INDEX `ecp_roe_doc_idx` ON `engagement_comms_protocols` (`roe_document_id`);--> statement-breakpoint
-CREATE INDEX `ecl_engagement_idx` ON `engagement_credential_lists` (`ecl_engagement_id`);--> statement-breakpoint
-CREATE INDEX `ecl_source_idx` ON `engagement_credential_lists` (`ecl_source`);--> statement-breakpoint
-CREATE INDEX `ecl_domain_idx` ON `engagement_credential_lists` (`ecl_domain`);--> statement-breakpoint
-CREATE INDEX `ef_engagement_idx` ON `engagement_findings` (`engagement_id`);--> statement-breakpoint
-CREATE INDEX `ef_result_idx` ON `engagement_findings` (`result_id`);--> statement-breakpoint
-CREATE INDEX `ef_severity_idx` ON `engagement_findings` (`severity`);--> statement-breakpoint
-CREATE INDEX `ef_corroboration_idx` ON `engagement_findings` (`corroboration_tier`);--> statement-breakpoint
-CREATE INDEX `er_engagement_idx` ON `engagement_results` (`engagement_id`);--> statement-breakpoint
-CREATE INDEX `er_operator_idx` ON `engagement_results` (`operator_id`);--> statement-breakpoint
-CREATE INDEX `er_status_idx` ON `engagement_results` (`status`);--> statement-breakpoint
-CREATE INDEX `esc_engagement_idx` ON `engagement_scope_constraints` (`engagement_id`);--> statement-breakpoint
-CREATE INDEX `esc_roe_doc_idx` ON `engagement_scope_constraints` (`roe_document_id`);--> statement-breakpoint
-CREATE INDEX `engagement_shares_token_unique` ON `engagement_shares` (`token`);--> statement-breakpoint
-CREATE INDEX `et_engagement_idx` ON `engagement_telemetry` (`engagement_id`);--> statement-breakpoint
-CREATE INDEX `et_phase_idx` ON `engagement_telemetry` (`phase`);--> statement-breakpoint
-CREATE INDEX `et_event_type_idx` ON `engagement_telemetry` (`event_type`);--> statement-breakpoint
-CREATE INDEX `et_error_class_idx` ON `engagement_telemetry` (`error_class`);--> statement-breakpoint
-CREATE INDEX `et_correlation_idx` ON `engagement_telemetry` (`correlation_id`);--> statement-breakpoint
-CREATE INDEX `et_created_at_idx` ON `engagement_telemetry` (`created_at`);--> statement-breakpoint
-CREATE INDEX `et_success_idx` ON `engagement_telemetry` (`success`);--> statement-breakpoint
-CREATE INDEX `et_source_module_idx` ON `engagement_telemetry` (`source_module`);--> statement-breakpoint
-CREATE INDEX `eh_actor_id_idx` ON `enrichment_history` (`actor_id`);--> statement-breakpoint
-CREATE INDEX `eh_created_at_idx` ON `enrichment_history` (`created_at`);--> statement-breakpoint
-CREATE INDEX `eh_triggered_by_idx` ON `enrichment_history` (`triggered_by`);--> statement-breakpoint
-CREATE INDEX `epo_scan_id_idx` ON `entity_profile_overrides` (`scan_id`);--> statement-breakpoint
-CREATE INDEX `epo_domain_idx` ON `entity_profile_overrides` (`domain`);--> statement-breakpoint
-CREATE INDEX `idx_incident_id` ON `error_incidents` (`incidentId`);--> statement-breakpoint
-CREATE INDEX `idx_scope` ON `error_incidents` (`scope`);--> statement-breakpoint
-CREATE INDEX `idx_created` ON `error_incidents` (`createdAt`);--> statement-breakpoint
-CREATE INDEX `ega_engagement_idx` ON `evidence_guardrail_audit` (`ega_engagement_id`);--> statement-breakpoint
-CREATE INDEX `ega_specialist_idx` ON `evidence_guardrail_audit` (`ega_specialist`);--> statement-breakpoint
-CREATE INDEX `ega_passed_idx` ON `evidence_guardrail_audit` (`ega_passed`);--> statement-breakpoint
-CREATE INDEX `ega_recommendation_idx` ON `evidence_guardrail_audit` (`ega_recommendation`);--> statement-breakpoint
-CREATE INDEX `ega_created_at_idx` ON `evidence_guardrail_audit` (`ega_created_at`);--> statement-breakpoint
-CREATE INDEX `eia_engagement_idx` ON `evidence_integrity_anchors` (`eia_engagement_id`);--> statement-breakpoint
-CREATE INDEX `eia_status_idx` ON `evidence_integrity_anchors` (`eia_status`);--> statement-breakpoint
-CREATE INDEX `evidenceId` ON `evidence_items` (`evidenceId`);--> statement-breakpoint
-CREATE INDEX `idx_cveId` ON `exploit_intelligence` (`cveId`);--> statement-breakpoint
-CREATE INDEX `idx_ei_source` ON `exploit_intelligence` (`ei_source`);--> statement-breakpoint
-CREATE INDEX `elc_chain_name_idx` ON `exploit_learning_chains` (`chain_name`);--> statement-breakpoint
-CREATE INDEX `elc_engagement_idx` ON `exploit_learning_chains` (`engagement_id`);--> statement-breakpoint
-CREATE INDEX `elo_engagement_idx` ON `exploit_learning_outcomes` (`engagement_id`);--> statement-breakpoint
-CREATE INDEX `elo_vuln_class_idx` ON `exploit_learning_outcomes` (`vuln_class`);--> statement-breakpoint
-CREATE INDEX `elo_attempt_id_idx` ON `exploit_learning_outcomes` (`attempt_id`);--> statement-breakpoint
-CREATE INDEX `elo_target_idx` ON `exploit_learning_outcomes` (`target_hostname`);--> statement-breakpoint
-CREATE INDEX `elo_success_idx` ON `exploit_learning_outcomes` (`success`);--> statement-breakpoint
-CREATE INDEX `elp_pattern_key_idx` ON `exploit_learning_patterns` (`pattern_key`);--> statement-breakpoint
-CREATE INDEX `elp_vuln_class_idx` ON `exploit_learning_patterns` (`vuln_class`);--> statement-breakpoint
-CREATE INDEX `em_vuln_class_idx` ON `exploit_methodologies` (`vuln_class`);--> statement-breakpoint
-CREATE INDEX `em_source_idx` ON `exploit_methodologies` (`source`);--> statement-breakpoint
-CREATE INDEX `em_weight_idx` ON `exploit_methodologies` (`weight`);--> statement-breakpoint
-CREATE INDEX `idx_engagement` ON `exploit_plan_history` (`engagement_id`);--> statement-breakpoint
-CREATE INDEX `idx_gate` ON `exploit_plan_history` (`gate_id`);--> statement-breakpoint
-CREATE INDEX `ep_actor_idx` ON `exploit_playbooks` (`ep_actor_id`);--> statement-breakpoint
-CREATE INDEX `ep_technique_idx` ON `exploit_playbooks` (`ep_technique_id`);--> statement-breakpoint
-CREATE INDEX `ep_tool_idx` ON `exploit_playbooks` (`ep_tool_name`);--> statement-breakpoint
-CREATE INDEX `eqq_quarantine_id_unique` ON `exploit_quarantine_queue` (`quarantine_id`);--> statement-breakpoint
-CREATE INDEX `eqq_status_idx` ON `exploit_quarantine_queue` (`status`);--> statement-breakpoint
-CREATE INDEX `eqq_engagement_idx` ON `exploit_quarantine_queue` (`engagement_id`);--> statement-breakpoint
-CREATE INDEX `ess_snapshot_id_unique` ON `exploit_selection_snapshots` (`snapshot_id`);--> statement-breakpoint
-CREATE INDEX `ess_engagement_idx` ON `exploit_selection_snapshots` (`engagement_id`);--> statement-breakpoint
-CREATE INDEX `fc_host_port_idx` ON `fingerprint_cache` (`fc_host`,`fc_port`);--> statement-breakpoint
-CREATE INDEX `fc_expires_idx` ON `fingerprint_cache` (`fc_expires_at`);--> statement-breakpoint
-CREATE INDEX `violationId` ON `guardrail_violations` (`violationId`);--> statement-breakpoint
-CREATE INDEX `idx_source_sourceId` ON `incident_reports` (`source`,`sourceId`);--> statement-breakpoint
-CREATE INDEX `info_ops_campaigns_ioCampaignId_unique` ON `info_ops_campaigns` (`ioCampaignId`);--> statement-breakpoint
-CREATE INDEX `iel_integration_idx` ON `integration_execution_log` (`integration_id`);--> statement-breakpoint
-CREATE INDEX `iel_engagement_idx` ON `integration_execution_log` (`engagement_id`);--> statement-breakpoint
-CREATE INDEX `iel_stage_idx` ON `integration_execution_log` (`pipeline_stage`);--> statement-breakpoint
-CREATE INDEX `ihc_integration_idx` ON `integration_health_checks` (`integration_id`);--> statement-breakpoint
-CREATE INDEX `ihc_checked_at_idx` ON `integration_health_checks` (`checked_at`);--> statement-breakpoint
-CREATE INDEX `ig_engagement_idx` ON `intelligence_gaps` (`engagement_id`);--> statement-breakpoint
-CREATE INDEX `ig_scan_idx` ON `intelligence_gaps` (`scan_id`);--> statement-breakpoint
-CREATE INDEX `ig_customer_idx` ON `intelligence_gaps` (`customer_id`);--> statement-breakpoint
-CREATE INDEX `ig_status_idx` ON `intelligence_gaps` (`status`);--> statement-breakpoint
-CREATE INDEX `ig_category_idx` ON `intelligence_gaps` (`category`);--> statement-breakpoint
-CREATE INDEX `itm_actor_idx` ON `ioc_ttp_mappings` (`itm_actor_id`);--> statement-breakpoint
-CREATE INDEX `itm_technique_idx` ON `ioc_ttp_mappings` (`itm_technique_id`);--> statement-breakpoint
-CREATE INDEX `itm_ioc_type_idx` ON `ioc_ttp_mappings` (`itm_ioc_type`);--> statement-breakpoint
-CREATE INDEX `irr_entry_id_idx` ON `ir_runbook_entries` (`entry_id`);--> statement-breakpoint
-CREATE INDEX `irr_alarm_name_idx` ON `ir_runbook_entries` (`alarm_name`);--> statement-breakpoint
-CREATE INDEX `irr_severity_idx` ON `ir_runbook_entries` (`severity`);--> statement-breakpoint
-CREATE INDEX `irr_category_idx` ON `ir_runbook_entries` (`category`);--> statement-breakpoint
-CREATE INDEX `irr_is_active_idx` ON `ir_runbook_entries` (`is_active`);--> statement-breakpoint
-CREATE INDEX `ke_entry_id_unique` ON `knowledge_entries` (`entry_id`);--> statement-breakpoint
-CREATE INDEX `ke_category_idx` ON `knowledge_entries` (`category`);--> statement-breakpoint
-CREATE INDEX `ke_phase_idx` ON `knowledge_entries` (`phase`);--> statement-breakpoint
-CREATE INDEX `ksi_definitions_ksi_id_unique` ON `ksi_definitions` (`ksi_id`);--> statement-breakpoint
-CREATE INDEX `ksi_evidence_evidence_id_unique` ON `ksi_evidence` (`evidence_id`);--> statement-breakpoint
-CREATE INDEX `ksi_evidence_chains_chain_id_unique` ON `ksi_evidence_chains` (`chain_id`);--> statement-breakpoint
-CREATE INDEX `ksi_validation_runs_run_id_unique` ON `ksi_validation_runs` (`run_id`);--> statement-breakpoint
-CREATE INDEX `ksi_validation_schedules_schedule_id_unique` ON `ksi_validation_schedules` (`schedule_id`);--> statement-breakpoint
-CREATE INDEX `usage_org_id_idx` ON `license_usage_logs` (`org_id`);--> statement-breakpoint
-CREATE INDEX `usage_action_idx` ON `license_usage_logs` (`action`);--> statement-breakpoint
-CREATE INDEX `usage_timestamp_idx` ON `license_usage_logs` (`timestamp`);--> statement-breakpoint
-CREATE INDEX `licensed_org_id_idx` ON `licensed_organizations` (`org_id`);--> statement-breakpoint
-CREATE INDEX `licensed_status_idx` ON `licensed_organizations` (`status`);--> statement-breakpoint
-CREATE INDEX `licensed_tier_idx` ON `licensed_organizations` (`tier`);--> statement-breakpoint
-CREATE INDEX `idx_accuracy_target` ON `llm_accuracy_scores` (`target_preset`);--> statement-breakpoint
-CREATE INDEX `idx_accuracy_session` ON `llm_accuracy_scores` (`session_id`);--> statement-breakpoint
-CREATE INDEX `ldl_engagement_idx` ON `llm_decision_log` (`engagement_id`);--> statement-breakpoint
-CREATE INDEX `ldl_phase_idx` ON `llm_decision_log` (`dl_phase`);--> statement-breakpoint
-CREATE INDEX `ldl_caller_idx` ON `llm_decision_log` (`dl_caller`);--> statement-breakpoint
-CREATE INDEX `ldl_outcome_idx` ON `llm_decision_log` (`dl_outcome`);--> statement-breakpoint
-CREATE INDEX `idx_learning_target` ON `llm_learning_entries` (`target_preset`);--> statement-breakpoint
-CREATE INDEX `idx_learning_feedback` ON `llm_learning_entries` (`feedback_type`);--> statement-breakpoint
-CREATE INDEX `lte_model_idx` ON `llm_training_examples` (`te_model`);--> statement-breakpoint
-CREATE INDEX `lte_source_idx` ON `llm_training_examples` (`te_source`);--> statement-breakpoint
-CREATE INDEX `lte_quality_idx` ON `llm_training_examples` (`te_quality`);--> statement-breakpoint
-CREATE INDEX `lte_example_id_idx` ON `llm_training_examples` (`example_id`);--> statement-breakpoint
-CREATE INDEX `ma_methodology_idx` ON `methodology_attempts` (`methodology_id`);--> statement-breakpoint
-CREATE INDEX `ma_engagement_idx` ON `methodology_attempts` (`engagement_id`);--> statement-breakpoint
-CREATE INDEX `ma_vuln_class_idx` ON `methodology_attempts` (`vuln_class`);--> statement-breakpoint
-CREATE INDEX `ma_success_idx` ON `methodology_attempts` (`success`);--> statement-breakpoint
-CREATE INDEX `ma_created_at_idx` ON `methodology_attempts` (`created_at`);--> statement-breakpoint
-CREATE INDEX `mp_vuln_class_idx` ON `methodology_performance` (`vuln_class`);--> statement-breakpoint
-CREATE INDEX `mp_tech_stack_idx` ON `methodology_performance` (`tech_stack_key`);--> statement-breakpoint
-CREATE INDEX `mp_success_rate_idx` ON `methodology_performance` (`success_rate`);--> statement-breakpoint
-CREATE INDEX `idx_type_status` ON `mtls_certificates` (`type`,`status`);--> statement-breakpoint
-CREATE INDEX `idx_c2server` ON `mtls_certificates` (`c2ServerId`,`status`);--> statement-breakpoint
-CREATE INDEX `npe_execution_id_idx` ON `nexus_pipeline_executions` (`npe_execution_id`);--> statement-breakpoint
-CREATE INDEX `npe_caller_name_idx` ON `nexus_pipeline_executions` (`npe_caller_name`);--> statement-breakpoint
-CREATE INDEX `npe_status_idx` ON `nexus_pipeline_executions` (`npe_status`);--> statement-breakpoint
-CREATE INDEX `npe_tier_idx` ON `nexus_pipeline_executions` (`npe_graduation_tier`);--> statement-breakpoint
-CREATE INDEX `nqg_execution_id_idx` ON `nexus_quality_gates` (`nqg_execution_id`);--> statement-breakpoint
-CREATE INDEX `nqg_gate_type_idx` ON `nexus_quality_gates` (`nqg_gate_type`);--> statement-breakpoint
-CREATE INDEX `nsc_config_name_idx` ON `nexus_shadow_configs` (`nsc_config_name`);--> statement-breakpoint
-CREATE INDEX `nsc_enabled_idx` ON `nexus_shadow_configs` (`nsc_enabled`);--> statement-breakpoint
-CREATE INDEX `nst_config_id_idx` ON `nexus_shadow_tests` (`nst_config_id`);--> statement-breakpoint
-CREATE INDEX `nst_caller_idx` ON `nexus_shadow_tests` (`nst_caller`);--> statement-breakpoint
-CREATE INDEX `nst_verdict_idx` ON `nexus_shadow_tests` (`nst_judge_verdict`);--> statement-breakpoint
-CREATE INDEX `nst_status_idx` ON `nexus_shadow_tests` (`nst_status`);--> statement-breakpoint
-CREATE INDEX `nst_created_at_idx` ON `nexus_shadow_tests` (`nst_created_at`);--> statement-breakpoint
-CREATE INDEX `nf_engagement_idx` ON `nuclei_findings` (`engagement_id`);--> statement-breakpoint
-CREATE INDEX `nf_cve_idx` ON `nuclei_findings` (`cve_id`);--> statement-breakpoint
-CREATE INDEX `nf_template_idx` ON `nuclei_findings` (`template_id`);--> statement-breakpoint
-CREATE INDEX `nf_severity_idx` ON `nuclei_findings` (`severity`);--> statement-breakpoint
-CREATE INDEX `nf_host_idx` ON `nuclei_findings` (`host`);--> statement-breakpoint
-CREATE INDEX `nf_hash_idx` ON `nuclei_findings` (`finding_hash`);--> statement-breakpoint
-CREATE INDEX `ntm_cve_idx` ON `nuclei_template_mappings` (`cve_id`);--> statement-breakpoint
-CREATE INDEX `ntm_template_idx` ON `nuclei_template_mappings` (`template_path`);--> statement-breakpoint
-CREATE INDEX `ntm_vuln_class_idx` ON `nuclei_template_mappings` (`vuln_class`);--> statement-breakpoint
-CREATE INDEX `obs_alert_id` ON `observation_alert_history` (`obs_alert_id`);--> statement-breakpoint
-CREATE INDEX `obs_rule_id` ON `observation_alert_rules` (`obs_rule_id`);--> statement-breakpoint
-CREATE INDEX `idx_engagement` ON `offensive_audit_log` (`engagement_id`);--> statement-breakpoint
-CREATE INDEX `idx_operator` ON `offensive_audit_log` (`operator_id`);--> statement-breakpoint
-CREATE INDEX `idx_action_type` ON `offensive_audit_log` (`action_type`);--> statement-breakpoint
-CREATE INDEX `idx_risk_tier` ON `offensive_audit_log` (`risk_tier`);--> statement-breakpoint
-CREATE INDEX `idx_created_at` ON `offensive_audit_log` (`created_at`);--> statement-breakpoint
-CREATE INDEX `op_plan_id_idx` ON `orchestration_plans` (`plan_id`);--> statement-breakpoint
-CREATE INDEX `op_engagement_id_idx` ON `orchestration_plans` (`engagement_id`);--> statement-breakpoint
-CREATE INDEX `op_campaign_id_idx` ON `orchestration_plans` (`campaign_id`);--> statement-breakpoint
-CREATE INDEX `op_status_idx` ON `orchestration_plans` (`op_status`);--> statement-breakpoint
-CREATE INDEX `oscal_exports_export_id_unique` ON `oscal_exports` (`export_id`);--> statement-breakpoint
-CREATE INDEX `ppc_cache_key_idx` ON `parsed_policy_cache` (`cache_key`);--> statement-breakpoint
-CREATE INDEX `ppc_platform_slug_idx` ON `parsed_policy_cache` (`platform`,`program_slug`);--> statement-breakpoint
-CREATE INDEX `ransomware_groups_groupName_unique` ON `ransomware_groups` (`groupName`);--> statement-breakpoint
-CREATE INDEX `rtcl_campaign_id_idx` ON `redteam_campaign_logs` (`campaign_id`);--> statement-breakpoint
-CREATE INDEX `rtcl_stage_id_idx` ON `redteam_campaign_logs` (`stage_id`);--> statement-breakpoint
-CREATE INDEX `rtcl_log_type_idx` ON `redteam_campaign_logs` (`log_type`);--> statement-breakpoint
-CREATE INDEX `rtcs_campaign_id_idx` ON `redteam_campaign_stages` (`campaign_id`);--> statement-breakpoint
-CREATE INDEX `rtcs_stage_order_idx` ON `redteam_campaign_stages` (`stage_order`);--> statement-breakpoint
-CREATE INDEX `rtcs_status_idx` ON `redteam_campaign_stages` (`status`);--> statement-breakpoint
-CREATE INDEX `rtc_status_idx` ON `redteam_campaigns` (`status`);--> statement-breakpoint
-CREATE INDEX `rtc_created_by_idx` ON `redteam_campaigns` (`created_by`);--> statement-breakpoint
-CREATE INDEX `rf_domain_idx` ON `regulatory_frameworks` (`rf_domain`);--> statement-breakpoint
-CREATE INDEX `rf_tenant_idx` ON `regulatory_frameworks` (`rf_tenant_id`);--> statement-breakpoint
-CREATE INDEX `rf_framework_idx` ON `regulatory_frameworks` (`rf_framework`);--> statement-breakpoint
-CREATE INDEX `rt_engagement_idx` ON `remediation_tasks` (`engagement_id`);--> statement-breakpoint
-CREATE INDEX `rt_status_idx` ON `remediation_tasks` (`status`);--> statement-breakpoint
-CREATE INDEX `rt_severity_idx` ON `remediation_tasks` (`severity`);--> statement-breakpoint
-CREATE INDEX `rt_assigned_team_idx` ON `remediation_tasks` (`assigned_team`);--> statement-breakpoint
-CREATE INDEX `rt_sla_idx` ON `remediation_tasks` (`sla_deadline`);--> statement-breakpoint
-CREATE INDEX `roe_ack_operator_idx` ON `roe_acknowledgments` (`operator_id`);--> statement-breakpoint
-CREATE INDEX `roe_ack_target_idx` ON `roe_acknowledgments` (`target_id`);--> statement-breakpoint
-CREATE INDEX `roe_ack_time_idx` ON `roe_acknowledgments` (`acknowledged_at`);--> statement-breakpoint
-CREATE INDEX `sgs_domain_idx` ON `scan_graduation_scores` (`domain`);--> statement-breakpoint
-CREATE INDEX `sgs_sector_idx` ON `scan_graduation_scores` (`sector`);--> statement-breakpoint
-CREATE INDEX `sgs_scan_id_idx` ON `scan_graduation_scores` (`scan_id`);--> statement-breakpoint
-CREATE INDEX `sgs_created_at_idx` ON `scan_graduation_scores` (`created_at`);--> statement-breakpoint
-CREATE INDEX `observationId` ON `scan_observations` (`observationId`);--> statement-breakpoint
-CREATE INDEX `profileId` ON `scan_policies` (`profileId`);--> statement-breakpoint
-CREATE INDEX `riskId` ON `scan_risk_cards` (`riskId`);--> statement-breakpoint
-CREATE INDEX `ss_engagement_idx` ON `scan_schedules` (`engagement_id`);--> statement-breakpoint
-CREATE INDEX `ss_active_idx` ON `scan_schedules` (`is_active`);--> statement-breakpoint
-CREATE INDEX `signalId` ON `scan_signals` (`signalId`);--> statement-breakpoint
-CREATE INDEX `ser_engagement_unique` ON `scanforge_engagement_report` (`engagement_id`);--> statement-breakpoint
-CREATE INDEX `sfl_engagement_idx` ON `scanforge_finding_log` (`engagement_id`);--> statement-breakpoint
-CREATE INDEX `sfl_template_idx` ON `scanforge_finding_log` (`template_id`);--> statement-breakpoint
-CREATE INDEX `sfl_verdict_idx` ON `scanforge_finding_log` (`verdict`);--> statement-breakpoint
-CREATE INDEX `sgt_template_id_unique` ON `scanforge_generated_templates` (`template_id`);--> statement-breakpoint
-CREATE INDEX `sgt_status_idx` ON `scanforge_generated_templates` (`status`);--> statement-breakpoint
-CREATE INDEX `sgt_source_idx` ON `scanforge_generated_templates` (`generation_source`);--> statement-breakpoint
-CREATE INDEX `sph_template_idx` ON `scanforge_promotion_history` (`template_id`);--> statement-breakpoint
-CREATE INDEX `sph_decision_idx` ON `scanforge_promotion_history` (`decision`);--> statement-breakpoint
-CREATE INDEX `sph_trigger_idx` ON `scanforge_promotion_history` (`trigger_engagement_id`);--> statement-breakpoint
-CREATE INDEX `srl_feed_idx` ON `scanforge_research_log` (`feed_source`);--> statement-breakpoint
-CREATE INDEX `srl_subject_idx` ON `scanforge_research_log` (`research_subject`);--> statement-breakpoint
-CREATE INDEX `srl_type_idx` ON `scanforge_research_log` (`research_type`);--> statement-breakpoint
-CREATE INDEX `stm_template_unique` ON `scanforge_template_metrics` (`template_id`);--> statement-breakpoint
-CREATE INDEX `scs_credential_idx` ON `scheduled_cspm_scans` (`credential_id`);--> statement-breakpoint
-CREATE INDEX `scs_engagement_idx` ON `scheduled_cspm_scans` (`engagement_id`);--> statement-breakpoint
-CREATE INDEX `scs_active_idx` ON `scheduled_cspm_scans` (`is_active`);--> statement-breakpoint
-CREATE INDEX `scs_next_run_idx` ON `scheduled_cspm_scans` (`next_run_at`);--> statement-breakpoint
-CREATE INDEX `sh_engagement_id_idx` ON `submission_history` (`engagement_id`);--> statement-breakpoint
-CREATE INDEX `sh_user_id_idx` ON `submission_history` (`user_id`);--> statement-breakpoint
-CREATE INDEX `sh_platform_idx` ON `submission_history` (`platform`);--> statement-breakpoint
-CREATE INDEX `sh_status_idx` ON `submission_history` (`status`);--> statement-breakpoint
-CREATE INDEX `sh_vuln_class_idx` ON `submission_history` (`vuln_class`);--> statement-breakpoint
-CREATE INDEX `sh_severity_idx` ON `submission_history` (`severity`);--> statement-breakpoint
-CREATE INDEX `sh_created_at_idx` ON `submission_history` (`created_at`);--> statement-breakpoint
-CREATE INDEX `team_invitations_token_hash_unique` ON `team_invitations` (`token_hash`);--> statement-breakpoint
-CREATE INDEX `td_engagement_idx` ON `telemetry_diagnostics` (`engagement_id`);--> statement-breakpoint
-CREATE INDEX `td_report_type_idx` ON `telemetry_diagnostics` (`report_type`);--> statement-breakpoint
-CREATE INDEX `td_health_score_idx` ON `telemetry_diagnostics` (`health_score`);--> statement-breakpoint
-CREATE INDEX `td_created_at_idx` ON `telemetry_diagnostics` (`created_at`);--> statement-breakpoint
-CREATE INDEX `tlq_telemetry_event_idx` ON `telemetry_llm_quality` (`telemetry_event_id`);--> statement-breakpoint
-CREATE INDEX `tlq_engagement_idx` ON `telemetry_llm_quality` (`engagement_id`);--> statement-breakpoint
-CREATE INDEX `tlq_prompt_hash_idx` ON `telemetry_llm_quality` (`prompt_hash`);--> statement-breakpoint
-CREATE INDEX `tlq_knowledge_gap_idx` ON `telemetry_llm_quality` (`knowledge_gap`);--> statement-breakpoint
-CREATE INDEX `tlq_hallucination_idx` ON `telemetry_llm_quality` (`hallucination_detected`);--> statement-breakpoint
-CREATE INDEX `tlq_created_at_idx` ON `telemetry_llm_quality` (`created_at`);--> statement-breakpoint
-CREATE INDEX `tl_env_type_idx` ON `test_lab_environments` (`tl_env_type`);--> statement-breakpoint
-CREATE INDEX `tl_env_status_idx` ON `test_lab_environments` (`tl_env_status`);--> statement-breakpoint
-CREATE INDEX `tl_it_env_idx` ON `test_lab_implant_tests` (`tl_it_environment_id`);--> statement-breakpoint
-CREATE INDEX `tl_it_agent_idx` ON `test_lab_implant_tests` (`tl_it_agent_id`);--> statement-breakpoint
-CREATE INDEX `tl_it_status_idx` ON `test_lab_implant_tests` (`tl_it_status`);--> statement-breakpoint
-CREATE INDEX `tl_sr_scenario_idx` ON `test_lab_scenario_runs` (`tl_sr_scenario_id`);--> statement-breakpoint
-CREATE INDEX `tl_sr_model_idx` ON `test_lab_scenario_runs` (`tl_sr_specialist_model`);--> statement-breakpoint
-CREATE INDEX `tl_sr_status_idx` ON `test_lab_scenario_runs` (`tl_sr_status`);--> statement-breakpoint
-CREATE INDEX `tl_tr_model_idx` ON `test_lab_training_runs` (`tl_tr_specialist_model`);--> statement-breakpoint
-CREATE INDEX `tl_tr_status_idx` ON `test_lab_training_runs` (`tl_tr_status`);--> statement-breakpoint
-CREATE INDEX `test_plans_plan_id_unique` ON `test_plans` (`plan_id`);--> statement-breakpoint
-CREATE INDEX `test_plans_engagement_id_idx` ON `test_plans` (`engagement_id`);--> statement-breakpoint
-CREATE INDEX `test_plans_status_idx` ON `test_plans` (`status`);--> statement-breakpoint
-CREATE INDEX `threat_actors_actorId_unique` ON `threat_actors` (`actorId`);--> statement-breakpoint
-CREATE INDEX `tbr_run_id_idx` ON `training_benchmark_runs` (`run_id`);--> statement-breakpoint
-CREATE INDEX `tbr_lab_id_idx` ON `training_benchmark_runs` (`lab_id`);--> statement-breakpoint
-CREATE INDEX `tbr_status_idx` ON `training_benchmark_runs` (`status`);--> statement-breakpoint
-CREATE INDEX `idx_gt_target` ON `training_ground_truth` (`target_preset`);--> statement-breakpoint
-CREATE INDEX `idx_gt_unique` ON `training_ground_truth` (`target_preset`,`vuln_title`);--> statement-breakpoint
-CREATE INDEX `training_lab_sessions_session_id_unique` ON `training_lab_sessions` (`session_id`);--> statement-breakpoint
-CREATE INDEX `ttp_knowledge_techniqueId_unique` ON `ttp_knowledge` (`techniqueId`);--> statement-breakpoint
-CREATE INDEX `unified_exploit_catalog_catalogId_unique` ON `unified_exploit_catalog` (`catalogId`);--> statement-breakpoint
-CREATE INDEX `urd_engagement_idx` ON `uploaded_roe_documents` (`created_engagement_id`);--> statement-breakpoint
-CREATE INDEX `urd_roe_doc_idx` ON `uploaded_roe_documents` (`created_roe_document_id`);--> statement-breakpoint
-CREATE INDEX `urd_status_idx` ON `uploaded_roe_documents` (`parse_status`);--> statement-breakpoint
-CREATE INDEX `upc_user_idx` ON `user_platform_credentials` (`user_id`);--> statement-breakpoint
-CREATE INDEX `upc_platform_idx` ON `user_platform_credentials` (`platform`);--> statement-breakpoint
-CREATE INDEX `user_sessions_session_hash_unique` ON `user_sessions` (`session_hash`);--> statement-breakpoint
-CREATE INDEX `users_openId_unique` ON `users` (`openId`);--> statement-breakpoint
-CREATE INDEX `idx_vendor_cached_integration` ON `vendor_cached_data` (`integrationId`);--> statement-breakpoint
-CREATE INDEX `idx_vendor_cached_type` ON `vendor_cached_data` (`dataType`);--> statement-breakpoint
-CREATE INDEX `idx_vendor_cached_hostname` ON `vendor_cached_data` (`hostname`);--> statement-breakpoint
-CREATE INDEX `idx_vendor_cached_ip` ON `vendor_cached_data` (`ipAddress`);--> statement-breakpoint
-CREATE INDEX `idx_vendor_cached_mitre` ON `vendor_cached_data` (`mitreAttackId`);--> statement-breakpoint
-CREATE INDEX `vuln_snap_engagement_idx` ON `vuln_scan_snapshots` (`engagement_id`);--> statement-breakpoint
-CREATE INDEX `vuln_snap_created_idx` ON `vuln_scan_snapshots` (`created_at`);--> statement-breakpoint
-CREATE INDEX `vuln_trend_engagement_idx` ON `vuln_trend_entries` (`engagement_id`);--> statement-breakpoint
-CREATE INDEX `vuln_trend_snapshot_idx` ON `vuln_trend_entries` (`snapshot_id`);--> statement-breakpoint
-CREATE INDEX `vuln_trend_hostname_idx` ON `vuln_trend_entries` (`hostname`);--> statement-breakpoint
-CREATE INDEX `vta_comparison_idx` ON `vuln_type_accuracy` (`comparison_id`);--> statement-breakpoint
-CREATE INDEX `vta_vuln_type_idx` ON `vuln_type_accuracy` (`vuln_type`);--> statement-breakpoint
-CREATE INDEX `vta_target_idx` ON `vuln_type_accuracy` (`target_preset`);--> statement-breakpoint
-CREATE INDEX `web_crawl_jobs_jobId_unique` ON `web_crawl_jobs` (`jobId`);--> statement-breakpoint
-CREATE INDEX `webhookId` ON `webhook_endpoints` (`webhookId`);--> statement-breakpoint
-CREATE INDEX `wh_endpoint_id_idx` ON `webhook_endpoints` (`endpoint_id`);--> statement-breakpoint
-CREATE INDEX `wh_integration_idx` ON `webhook_endpoints` (`integration_id`);--> statement-breakpoint
-CREATE INDEX `wh_status_idx` ON `webhook_endpoints` (`status`);--> statement-breakpoint
-CREATE INDEX `wh_tenant_idx` ON `webhook_endpoints` (`tenant_id`);--> statement-breakpoint
-CREATE INDEX `we_endpoint_idx` ON `webhook_events` (`endpoint_id`);--> statement-breakpoint
-CREATE INDEX `we_event_id_idx` ON `webhook_events` (`event_id`);--> statement-breakpoint
-CREATE INDEX `we_status_idx` ON `webhook_events` (`status`);--> statement-breakpoint
-CREATE INDEX `we_received_idx` ON `webhook_events` (`received_at`);--> statement-breakpoint
-CREATE INDEX `zdc_cve_idx` ON `zero_day_cache` (`cve`);--> statement-breakpoint
-CREATE INDEX `zdc_vendor_idx` ON `zero_day_cache` (`vendor`);--> statement-breakpoint
-CREATE INDEX `zdc_product_idx` ON `zero_day_cache` (`product`);--> statement-breakpoint
-CREATE INDEX `zdc_year_idx` ON `zero_day_cache` (`year`);--> statement-breakpoint
-CREATE INDEX `zdc_source_idx` ON `zero_day_cache` (`source`);--> statement-breakpoint
-CREATE INDEX `zdsm_scan_id_idx` ON `zero_day_scan_matches` (`scan_id`);--> statement-breakpoint
-CREATE INDEX `zdsm_engagement_id_idx` ON `zero_day_scan_matches` (`engagement_id`);--> statement-breakpoint
-CREATE INDEX `zdsm_domain_idx` ON `zero_day_scan_matches` (`domain`);--> statement-breakpoint
-CREATE INDEX `zdsm_cve_idx` ON `zero_day_scan_matches` (`cve`);--> statement-breakpoint
-CREATE INDEX `zdsm_severity_idx` ON `zero_day_scan_matches` (`severity`);--> statement-breakpoint
+ALTER TABLE `agent_audit_log` ADD CONSTRAINT `agent_audit_log_agentId_agent_deployments_id_fk` FOREIGN KEY (`agentId`) REFERENCES `agent_deployments`(`id`) ON DELETE cascade ON UPDATE no action;
+--> statement-breakpoint
+ALTER TABLE `agent_tasks` ADD CONSTRAINT `agent_tasks_agentId_agent_deployments_id_fk` FOREIGN KEY (`agentId`) REFERENCES `agent_deployments`(`id`) ON DELETE cascade ON UPDATE no action;
+--> statement-breakpoint
+ALTER TABLE `campaign_engagements` ADD CONSTRAINT `campaign_engagements_engagementId_engagements_id_fk` FOREIGN KEY (`engagementId`) REFERENCES `engagements`(`id`) ON DELETE cascade ON UPDATE no action;
+--> statement-breakpoint
+ALTER TABLE `deployment_history` ADD CONSTRAINT `deployment_history_user_id_users_id_fk` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE no action ON UPDATE no action;
+--> statement-breakpoint
+ALTER TABLE `discovered_assets` ADD CONSTRAINT `discovered_assets_scanId_domain_intel_scans_id_fk` FOREIGN KEY (`scanId`) REFERENCES `domain_intel_scans`(`id`) ON DELETE cascade ON UPDATE no action;
+--> statement-breakpoint
+ALTER TABLE `domain_recon` ADD CONSTRAINT `domain_recon_engagementId_engagements_id_fk` FOREIGN KEY (`engagementId`) REFERENCES `engagements`(`id`) ON DELETE cascade ON UPDATE no action;
+--> statement-breakpoint
+ALTER TABLE `engagement_reports` ADD CONSTRAINT `engagement_reports_engagementId_engagements_id_fk` FOREIGN KEY (`engagementId`) REFERENCES `engagements`(`id`) ON DELETE cascade ON UPDATE no action;
+--> statement-breakpoint
+ALTER TABLE `entity_profile_overrides` ADD CONSTRAINT `entity_profile_overrides_scan_id_domain_intel_scans_id_fk` FOREIGN KEY (`scan_id`) REFERENCES `domain_intel_scans`(`id`) ON DELETE cascade ON UPDATE no action;
+--> statement-breakpoint
+ALTER TABLE `entity_profile_overrides` ADD CONSTRAINT `entity_profile_overrides_overridden_by_users_id_fk` FOREIGN KEY (`overridden_by`) REFERENCES `users`(`id`) ON DELETE no action ON UPDATE no action;
+--> statement-breakpoint
+ALTER TABLE `evidence_chain_of_custody` ADD CONSTRAINT `evidence_chain_of_custody_evidenceId_evidence_items_evidenceId_fk` FOREIGN KEY (`evidenceId`) REFERENCES `evidence_items`(`evidenceId`) ON DELETE cascade ON UPDATE no action;
+--> statement-breakpoint
+ALTER TABLE `ir_runbook_entries` ADD CONSTRAINT `ir_runbook_entries_created_by_users_id_fk` FOREIGN KEY (`created_by`) REFERENCES `users`(`id`) ON DELETE no action ON UPDATE no action;
+--> statement-breakpoint
+ALTER TABLE `osint_findings` ADD CONSTRAINT `osint_findings_engagementId_engagements_id_fk` FOREIGN KEY (`engagementId`) REFERENCES `engagements`(`id`) ON DELETE cascade ON UPDATE no action;
+--> statement-breakpoint
+ALTER TABLE `server_credentials` ADD CONSTRAINT `server_credentials_serverId_server_configs_id_fk` FOREIGN KEY (`serverId`) REFERENCES `server_configs`(`id`) ON DELETE cascade ON UPDATE no action;
+--> statement-breakpoint
+ALTER TABLE `submission_history` ADD CONSTRAINT `submission_history_user_id_users_id_fk` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE no action ON UPDATE no action;
+--> statement-breakpoint
+CREATE INDEX `ability_graph_edges_edge_id_unique` ON `ability_graph_edges` (`edge_id`);
+--> statement-breakpoint
+CREATE INDEX `ability_graph_nodes_node_id_unique` ON `ability_graph_nodes` (`node_id`);
+--> statement-breakpoint
+CREATE INDEX `ability_graphs_graph_id_unique` ON `ability_graphs` (`graph_id`);
+--> statement-breakpoint
+CREATE INDEX `art_report_idx` ON `ac3_report_artifacts` (`report_id`);
+--> statement-breakpoint
+CREATE INDEX `art_finding_idx` ON `ac3_report_artifacts` (`finding_id`);
+--> statement-breakpoint
+CREATE INDEX `art_label_idx` ON `ac3_report_artifacts` (`label`);
+--> statement-breakpoint
+CREATE INDEX `artifact_id` ON `ac3_report_artifacts` (`artifact_id`);
+--> statement-breakpoint
+CREATE INDEX `ac3_report_findings_rf_finding_id_unique` ON `ac3_report_findings` (`rf_finding_id`);
+--> statement-breakpoint
+CREATE INDEX `rf_report_id_idx` ON `ac3_report_findings` (`rf_report_id`);
+--> statement-breakpoint
+CREATE INDEX `rf_finding_id_idx` ON `ac3_report_findings` (`rf_finding_id`);
+--> statement-breakpoint
+CREATE INDEX `rf_severity_idx` ON `ac3_report_findings` (`rf_severity`);
+--> statement-breakpoint
+CREATE INDEX `ac3_reports_rpt_report_id_unique` ON `ac3_reports` (`rpt_report_id`);
+--> statement-breakpoint
+CREATE INDEX `rpt_report_id_idx` ON `ac3_reports` (`rpt_report_id`);
+--> statement-breakpoint
+CREATE INDEX `rpt_status_idx` ON `ac3_reports` (`rpt_status`);
+--> statement-breakpoint
+CREATE INDEX `rpt_campaign_idx` ON `ac3_reports` (`rpt_campaign_id`);
+--> statement-breakpoint
+CREATE INDEX `acc_comp_session_idx` ON `accuracy_comparisons` (`session_id`);
+--> statement-breakpoint
+CREATE INDEX `acc_comp_target_idx` ON `accuracy_comparisons` (`target_preset`);
+--> statement-breakpoint
+CREATE INDEX `acc_comp_engagement_idx` ON `accuracy_comparisons` (`engagement_id`);
+--> statement-breakpoint
+CREATE INDEX `acc_comp_scored_idx` ON `accuracy_comparisons` (`scored_at`);
+--> statement-breakpoint
+CREATE INDEX `active_sessions_session_token_unique` ON `active_sessions` (`session_token`);
+--> statement-breakpoint
+CREATE INDEX `ae_adj_type_idx` ON `adjustment_effectiveness` (`ae_adjustment_type`);
+--> statement-breakpoint
+CREATE INDEX `ae_fail_cat_idx` ON `adjustment_effectiveness` (`ae_failure_category`);
+--> statement-breakpoint
+CREATE INDEX `ae_service_idx` ON `adjustment_effectiveness` (`ae_service`);
+--> statement-breakpoint
+CREATE INDEX `ae_composite_idx` ON `adjustment_effectiveness` (`ae_adjustment_type`,`ae_failure_category`,`ae_service`);
+--> statement-breakpoint
+CREATE INDEX `ad_agent_id_idx` ON `agent_definitions` (`ad_agent_id`);
+--> statement-breakpoint
+CREATE INDEX `ad_category_idx` ON `agent_definitions` (`ad_category`);
+--> statement-breakpoint
+CREATE INDEX `ad_status_idx` ON `agent_definitions` (`ad_status`);
+--> statement-breakpoint
+CREATE INDEX `avrcs_session_idx` ON `ai_vuln_research_code_snippets` (`session_id`);
+--> statement-breakpoint
+CREATE INDEX `avrf_session_idx` ON `ai_vuln_research_findings` (`session_id`);
+--> statement-breakpoint
+CREATE INDEX `avrf_severity_idx` ON `ai_vuln_research_findings` (`severity`);
+--> statement-breakpoint
+CREATE INDEX `avrf_vuln_type_idx` ON `ai_vuln_research_findings` (`vuln_type`);
+--> statement-breakpoint
+CREATE INDEX `avrf_cwe_idx` ON `ai_vuln_research_findings` (`cwe_id`);
+--> statement-breakpoint
+CREATE INDEX `avrf_poc_status_idx` ON `ai_vuln_research_findings` (`poc_status`);
+--> statement-breakpoint
+CREATE INDEX `avrs_user_idx` ON `ai_vuln_research_sessions` (`user_id`);
+--> statement-breakpoint
+CREATE INDEX `avrs_status_idx` ON `ai_vuln_research_sessions` (`status`);
+--> statement-breakpoint
+CREATE INDEX `avrs_target_idx` ON `ai_vuln_research_sessions` (`target_type`);
+--> statement-breakpoint
+CREATE INDEX `avrs_program_idx` ON `ai_vuln_research_sessions` (`bug_bounty_program_id`);
+--> statement-breakpoint
+CREATE INDEX `aec_catalog_entry_id_unique` ON `approved_exploit_catalog` (`catalog_entry_id`);
+--> statement-breakpoint
+CREATE INDEX `aec_quarantine_id_idx` ON `approved_exploit_catalog` (`quarantine_id`);
+--> statement-breakpoint
+CREATE INDEX `idx_technique_id` ON `atomic_test_executions` (`technique_id`);
+--> statement-breakpoint
+CREATE INDEX `idx_status` ON `atomic_test_executions` (`status`);
+--> statement-breakpoint
+CREATE INDEX `idx_executed_by` ON `atomic_test_executions` (`executed_by`);
+--> statement-breakpoint
+CREATE INDEX `idx_attack_chain` ON `atomic_test_executions` (`attack_chain_id`);
+--> statement-breakpoint
+CREATE INDEX `idx_technique_id` ON `atomic_tests` (`technique_id`);
+--> statement-breakpoint
+CREATE INDEX `idx_mitre_tactic` ON `atomic_tests` (`mitre_tactic`);
+--> statement-breakpoint
+CREATE INDEX `idx_executor_type` ON `atomic_tests` (`executor_type`);
+--> statement-breakpoint
+CREATE INDEX `idx_supported_platforms` ON `atomic_tests` (`supported_platforms`);
+--> statement-breakpoint
+CREATE INDEX `guid` ON `atomic_tests` (`guid`);
+--> statement-breakpoint
+CREATE INDEX `acc_actor_idx` ON `attack_chains_catalog` (`acc_actor_id`);
+--> statement-breakpoint
+CREATE INDEX `acc_chain_name_idx` ON `attack_chains_catalog` (`acc_chain_name`);
+--> statement-breakpoint
+CREATE INDEX `pathId` ON `attack_paths` (`pathId`);
+--> statement-breakpoint
+CREATE INDEX `templateId` ON `attack_sequence_templates` (`templateId`);
+--> statement-breakpoint
+CREATE INDEX `bspr_rule_id_idx` ON `benchmark_scan_plan_rules` (`rule_id`);
+--> statement-breakpoint
+CREATE INDEX `bspr_lab_id_idx` ON `benchmark_scan_plan_rules` (`lab_id`);
+--> statement-breakpoint
+CREATE INDEX `bspr_active_idx` ON `benchmark_scan_plan_rules` (`is_active`);
+--> statement-breakpoint
+CREATE INDEX `btr_run_id_idx` ON `benchmark_tool_results` (`run_id`);
+--> statement-breakpoint
+CREATE INDEX `btr_lab_tool_idx` ON `benchmark_tool_results` (`lab_id`,`tool`);
+--> statement-breakpoint
+CREATE INDEX `bblts_category_idx` ON `bug_bounty_llm_training_samples` (`category`);
+--> statement-breakpoint
+CREATE INDEX `bblts_finding_idx` ON `bug_bounty_llm_training_samples` (`finding_id`);
+--> statement-breakpoint
+CREATE INDEX `bblts_quality_idx` ON `bug_bounty_llm_training_samples` (`quality_score`);
+--> statement-breakpoint
+CREATE INDEX `bblts_severity_idx` ON `bug_bounty_llm_training_samples` (`severity_rating`);
+--> statement-breakpoint
+CREATE INDEX `bblts_cwe_idx` ON `bug_bounty_llm_training_samples` (`cwe_id`);
+--> statement-breakpoint
+CREATE INDEX `bblts_program_idx` ON `bug_bounty_llm_training_samples` (`program_handle`);
+--> statement-breakpoint
+CREATE INDEX `bblts_enrichment_idx` ON `bug_bounty_llm_training_samples` (`enrichment_status`);
+--> statement-breakpoint
+CREATE INDEX `bblts_bounty_idx` ON `bug_bounty_llm_training_samples` (`bounty_amount`);
+--> statement-breakpoint
+CREATE INDEX `bbps_program_idx` ON `bug_bounty_program_scopes` (`program_handle`);
+--> statement-breakpoint
+CREATE INDEX `bbps_asset_type_idx` ON `bug_bounty_program_scopes` (`asset_type`);
+--> statement-breakpoint
+CREATE INDEX `bbpw_program_idx` ON `bug_bounty_program_weaknesses` (`program_handle`);
+--> statement-breakpoint
+CREATE INDEX `bbpw_cwe_idx` ON `bug_bounty_program_weaknesses` (`cwe_id`);
+--> statement-breakpoint
+CREATE INDEX `br_user_idx` ON `bug_reports` (`user_id`);
+--> statement-breakpoint
+CREATE INDEX `br_status_idx` ON `bug_reports` (`status`);
+--> statement-breakpoint
+CREATE INDEX `br_severity_idx` ON `bug_reports` (`severity`);
+--> statement-breakpoint
+CREATE INDEX `br_created_idx` ON `bug_reports` (`created_at`);
+--> statement-breakpoint
+CREATE INDEX `bsh_engagement_idx` ON `burp_scan_history` (`engagement_id`);
+--> statement-breakpoint
+CREATE INDEX `bsh_user_idx` ON `burp_scan_history` (`user_id`);
+--> statement-breakpoint
+CREATE INDEX `bsh_status_idx` ON `burp_scan_history` (`status`);
+--> statement-breakpoint
+CREATE INDEX `cel_technique_idx` ON `c2_execution_log` (`technique_id`);
+--> statement-breakpoint
+CREATE INDEX `cel_framework_idx` ON `c2_execution_log` (`cel_framework`);
+--> statement-breakpoint
+CREATE INDEX `cel_engagement_idx` ON `c2_execution_log` (`cel_engagement_id`);
+--> statement-breakpoint
+CREATE INDEX `caldera_accounts_email_unique` ON `caldera_accounts` (`email`);
+--> statement-breakpoint
+CREATE INDEX `campaign_archetypes_slug_unique` ON `campaign_archetypes` (`slug`);
+--> statement-breakpoint
+CREATE INDEX `crs_campaign_id_idx` ON `campaign_run_states` (`campaign_id`);
+--> statement-breakpoint
+CREATE INDEX `crs_is_running_idx` ON `campaign_run_states` (`is_running`);
+--> statement-breakpoint
+CREATE INDEX `chain_runs_chain_id_unique` ON `chain_runs` (`chain_id`);
+--> statement-breakpoint
+CREATE INDEX `idx_chain_stage_chain_id` ON `chain_stage_results` (`chain_id`);
+--> statement-breakpoint
+CREATE INDEX `cicd_bl_pipeline_idx` ON `cicd_baselines` (`pipeline_id`);
+--> statement-breakpoint
+CREATE INDEX `cicd_bl_commit_idx` ON `cicd_baselines` (`commit_sha`);
+--> statement-breakpoint
+CREATE INDEX `idx_pipeline_framework` ON `cicd_compliance_scores` (`pipeline_id`,`framework`);
+--> statement-breakpoint
+CREATE INDEX `idx_run_id` ON `cicd_compliance_scores` (`run_id`);
+--> statement-breakpoint
+CREATE INDEX `idx_created_at` ON `cicd_compliance_scores` (`created_at`);
+--> statement-breakpoint
+CREATE INDEX `uq_pipeline_user` ON `cicd_pipeline_access` (`pipeline_id`,`user_id`);
+--> statement-breakpoint
+CREATE INDEX `cicd_rf_run_idx` ON `cicd_run_findings` (`run_id`);
+--> statement-breakpoint
+CREATE INDEX `cicd_rf_pipeline_idx` ON `cicd_run_findings` (`pipeline_id`);
+--> statement-breakpoint
+CREATE INDEX `cicd_rf_hash_idx` ON `cicd_run_findings` (`title_hash`);
+--> statement-breakpoint
+CREATE INDEX `cicd_rf_severity_idx` ON `cicd_run_findings` (`severity`);
+--> statement-breakpoint
+CREATE INDEX `cicd_sbom_run_idx` ON `cicd_sbom_artifacts` (`run_id`);
+--> statement-breakpoint
+CREATE INDEX `cicd_sbom_pipeline_idx` ON `cicd_sbom_artifacts` (`pipeline_id`);
+--> statement-breakpoint
+CREATE INDEX `idx_pipeline_id` ON `cicd_webhook_deliveries` (`pipeline_id`);
+--> statement-breakpoint
+CREATE INDEX `idx_delivery_status` ON `cicd_webhook_deliveries` (`delivery_status`);
+--> statement-breakpoint
+CREATE INDEX `idx_next_retry` ON `cicd_webhook_deliveries` (`next_retry_at`);
+--> statement-breakpoint
+CREATE INDEX `cip_domain_idx` ON `company_intel_profiles` (`cip_domain`);
+--> statement-breakpoint
+CREATE INDEX `cip_tenant_idx` ON `company_intel_profiles` (`cip_tenant_id`);
+--> statement-breakpoint
+CREATE INDEX `baseline_id` ON `config_baselines` (`baseline_id`);
+--> statement-breakpoint
+CREATE INDEX `alert_id` ON `config_drift_alerts` (`alert_id`);
+--> statement-breakpoint
+CREATE INDEX `cph_connector_domain_idx` ON `connector_performance_history` (`connector`,`domain`);
+--> statement-breakpoint
+CREATE INDEX `cph_sector_idx` ON `connector_performance_history` (`sector`);
+--> statement-breakpoint
+CREATE INDEX `cph_scan_id_idx` ON `connector_performance_history` (`scan_id`);
+--> statement-breakpoint
+CREATE INDEX `cph_connector_sector_idx` ON `connector_performance_history` (`connector`,`sector`);
+--> statement-breakpoint
+CREATE INDEX `cph_created_at_idx` ON `connector_performance_history` (`created_at`);
+--> statement-breakpoint
+CREATE INDEX `cv_scan_run_idx` ON `container_vulnerabilities` (`scan_run_id`);
+--> statement-breakpoint
+CREATE INDEX `cv_severity_idx` ON `container_vulnerabilities` (`severity`);
+--> statement-breakpoint
+CREATE INDEX `cv_vuln_id_idx` ON `container_vulnerabilities` (`vuln_id`);
+--> statement-breakpoint
+CREATE INDEX `cv_image_idx` ON `container_vulnerabilities` (`image_name`);
+--> statement-breakpoint
+CREATE INDEX `cspmf_scan_run_idx` ON `cspm_findings` (`scan_run_id`);
+--> statement-breakpoint
+CREATE INDEX `cspmf_severity_idx` ON `cspm_findings` (`severity`);
+--> statement-breakpoint
+CREATE INDEX `cspmf_status_idx` ON `cspm_findings` (`status`);
+--> statement-breakpoint
+CREATE INDEX `cspmf_check_id_idx` ON `cspm_findings` (`check_id`);
+--> statement-breakpoint
+CREATE INDEX `cspmf_provider_idx` ON `cspm_findings` (`provider`);
+--> statement-breakpoint
+CREATE INDEX `cspm_scan_tool_idx` ON `cspm_scan_runs` (`scan_tool`);
+--> statement-breakpoint
+CREATE INDEX `cspm_scan_provider_idx` ON `cspm_scan_runs` (`scan_provider`);
+--> statement-breakpoint
+CREATE INDEX `cspm_scan_status_idx` ON `cspm_scan_runs` (`scan_status`);
+--> statement-breakpoint
+CREATE INDEX `cspm_credential_idx` ON `cspm_scan_runs` (`credential_id`);
+--> statement-breakpoint
+CREATE INDEX `cspm_created_idx` ON `cspm_scan_runs` (`created_at`);
+--> statement-breakpoint
+CREATE INDEX `cspm_engagement_idx` ON `cspm_scan_runs` (`engagement_id`);
+--> statement-breakpoint
+CREATE INDEX `ca_email_idx` ON `customer_accounts` (`ca_email`);
+--> statement-breakpoint
+CREATE INDEX `ca_tenant_idx` ON `customer_accounts` (`tenant_id`);
+--> statement-breakpoint
+CREATE INDEX `cal_customer_idx` ON `customer_audit_log` (`customer_account_id`);
+--> statement-breakpoint
+CREATE INDEX `cal_tenant_idx` ON `customer_audit_log` (`cal_tenant_id`);
+--> statement-breakpoint
+CREATE INDEX `cal_action_idx` ON `customer_audit_log` (`cal_action`);
+--> statement-breakpoint
+CREATE INDEX `ci_integration_id_unique` ON `customer_integrations` (`integration_id`);
+--> statement-breakpoint
+CREATE INDEX `ci_category_idx` ON `customer_integrations` (`category`);
+--> statement-breakpoint
+CREATE INDEX `ci_status_idx` ON `customer_integrations` (`status`);
+--> statement-breakpoint
+CREATE INDEX `ci_tenant_idx` ON `customer_integrations` (`tenant_id`);
+--> statement-breakpoint
+CREATE INDEX `cip_customer_id_idx` ON `customer_intelligence_profiles` (`customer_id`);
+--> statement-breakpoint
+CREATE INDEX `cip_customer_name_idx` ON `customer_intelligence_profiles` (`customer_name`);
+--> statement-breakpoint
+CREATE INDEX `csr_tenant_idx` ON `customer_shared_reports` (`csr_tenant_id`);
+--> statement-breakpoint
+CREATE INDEX `csr_report_type_idx` ON `customer_shared_reports` (`csr_report_type`);
+--> statement-breakpoint
+CREATE INDEX `csp_engagement_idx` ON `customer_stack_profiles` (`engagement_id`);
+--> statement-breakpoint
+CREATE INDEX `csp_customer_idx` ON `customer_stack_profiles` (`customer_name`);
+--> statement-breakpoint
+CREATE INDEX `cve_enrichment_cve_id_unique` ON `cve_enrichment` (`cve_id`);
+--> statement-breakpoint
+CREATE INDEX `dfr_feed_name` ON `darkweb_feed_registry` (`dfr_feed_name`);
+--> statement-breakpoint
+CREATE INDEX `defense_scores_score_id_unique` ON `defense_scores` (`score_id`);
+--> statement-breakpoint
+CREATE INDEX `dr_email_idx` ON `demo_requests` (`email`);
+--> statement-breakpoint
+CREATE INDEX `dr_status_idx` ON `demo_requests` (`status`);
+--> statement-breakpoint
+CREATE INDEX `dr_created_at_idx` ON `demo_requests` (`created_at`);
+--> statement-breakpoint
+CREATE INDEX `dh_deployment_id_idx` ON `deployment_history` (`deployment_id`);
+--> statement-breakpoint
+CREATE INDEX `dh_user_id_idx` ON `deployment_history` (`user_id`);
+--> statement-breakpoint
+CREATE INDEX `dh_environment_idx` ON `deployment_history` (`environment`);
+--> statement-breakpoint
+CREATE INDEX `dh_status_idx` ON `deployment_history` (`status`);
+--> statement-breakpoint
+CREATE INDEX `dh_created_at_idx` ON `deployment_history` (`created_at`);
+--> statement-breakpoint
+CREATE INDEX `update_org_idx` ON `deployment_update_history` (`org_id`);
+--> statement-breakpoint
+CREATE INDEX `update_status_idx` ON `deployment_update_history` (`status`);
+--> statement-breakpoint
+CREATE INDEX `version_idx` ON `deployment_versions` (`version`);
+--> statement-breakpoint
+CREATE INDEX `channel_idx` ON `deployment_versions` (`channel`);
+--> statement-breakpoint
+CREATE INDEX `testId` ON `detection_tests` (`testId`);
+--> statement-breakpoint
+CREATE INDEX `dfir_report_idx` ON `dfir_observations` (`dfir_report_id`);
+--> statement-breakpoint
+CREATE INDEX `dfir_actor_idx` ON `dfir_observations` (`dfir_actor_id`);
+--> statement-breakpoint
+CREATE INDEX `dfir_technique_idx` ON `dfir_observations` (`dfir_technique_id`);
+--> statement-breakpoint
+CREATE INDEX `dfir_type_idx` ON `dfir_observations` (`dfir_observation_type`);
+--> statement-breakpoint
+CREATE INDEX `ioc_report_idx` ON `dfir_report_iocs` (`report_id`);
+--> statement-breakpoint
+CREATE INDEX `ioc_type_idx` ON `dfir_report_iocs` (`ioc_type`);
+--> statement-breakpoint
+CREATE INDEX `ioc_value_idx` ON `dfir_report_iocs` (`ioc_value`);
+--> statement-breakpoint
+CREATE INDEX `dfir_source_idx` ON `dfir_reports` (`dfir_source`);
+--> statement-breakpoint
+CREATE INDEX `dfir_status_idx` ON `dfir_reports` (`dfir_status`);
+--> statement-breakpoint
+CREATE INDEX `dfir_external_id_idx` ON `dfir_reports` (`external_id`);
+--> statement-breakpoint
+CREATE INDEX `ditd_example_id_idx` ON `di_incident_training_data` (`example_id`);
+--> statement-breakpoint
+CREATE INDEX `ditd_scan_id_idx` ON `di_incident_training_data` (`scan_id`);
+--> statement-breakpoint
+CREATE INDEX `ditd_domain_idx` ON `di_incident_training_data` (`domain`);
+--> statement-breakpoint
+CREATE INDEX `ditd_sector_idx` ON `di_incident_training_data` (`sector`);
+--> statement-breakpoint
+CREATE INDEX `ditd_type_idx` ON `di_incident_training_data` (`example_type`);
+--> statement-breakpoint
+CREATE INDEX `ditd_quality_idx` ON `di_incident_training_data` (`quality_band`);
+--> statement-breakpoint
+CREATE INDEX `ditd_analyst_rating_idx` ON `di_incident_training_data` (`analyst_rating`);
+--> statement-breakpoint
+CREATE INDEX `dns_assess_domain_idx` ON `dns_security_assessments` (`domain`);
+--> statement-breakpoint
+CREATE INDEX `dns_assess_engagement_idx` ON `dns_security_assessments` (`engagement_id`);
+--> statement-breakpoint
+CREATE INDEX `dns_assess_scan_idx` ON `dns_security_assessments` (`scan_id`);
+--> statement-breakpoint
+CREATE INDEX `dns_assess_risk_idx` ON `dns_security_assessments` (`overall_risk`);
+--> statement-breakpoint
+CREATE INDEX `dns_assess_assessed_at_idx` ON `dns_security_assessments` (`assessed_at`);
+--> statement-breakpoint
+CREATE INDEX `dns_find_assessment_idx` ON `dns_security_findings` (`assessment_id`);
+--> statement-breakpoint
+CREATE INDEX `dns_find_severity_idx` ON `dns_security_findings` (`severity`);
+--> statement-breakpoint
+CREATE INDEX `dns_find_category_idx` ON `dns_security_findings` (`category`);
+--> statement-breakpoint
+CREATE INDEX `dns_find_status_idx` ON `dns_security_findings` (`status`);
+--> statement-breakpoint
+CREATE INDEX `dns_find_mitre_idx` ON `dns_security_findings` (`mitre_attack_id`);
+--> statement-breakpoint
+CREATE INDEX `dns_mon_domain_idx` ON `dns_security_monitoring_config` (`domain`);
+--> statement-breakpoint
+CREATE INDEX `dns_mon_enabled_idx` ON `dns_security_monitoring_config` (`enabled`);
+--> statement-breakpoint
+CREATE INDEX `ember_agent_id_idx` ON `ember_agents` (`agent_id`);
+--> statement-breakpoint
+CREATE INDEX `ember_engagement_idx` ON `ember_agents` (`engagement_id`);
+--> statement-breakpoint
+CREATE INDEX `ember_state_idx` ON `ember_agents` (`ember_state`);
+--> statement-breakpoint
+CREATE INDEX `ember_profile_idx` ON `ember_agents` (`ember_profile`);
+--> statement-breakpoint
+CREATE INDEX `ember_swarm_idx` ON `ember_agents` (`ember_swarm_id`);
+--> statement-breakpoint
+CREATE INDEX `eb_agent_idx` ON `ember_beacons` (`ember_beacon_agent_id`);
+--> statement-breakpoint
+CREATE INDEX `eb_received_idx` ON `ember_beacons` (`ember_beacon_received_at`);
+--> statement-breakpoint
+CREATE INDEX `ecl_campaign_id_idx` ON `ember_campaign_logs` (`ecl_campaign_id`);
+--> statement-breakpoint
+CREATE INDEX `ecl_level_idx` ON `ember_campaign_logs` (`ecl_level`);
+--> statement-breakpoint
+CREATE INDEX `ecph_phase_id_idx` ON `ember_campaign_phases` (`ecph_phase_id`);
+--> statement-breakpoint
+CREATE INDEX `ecph_campaign_id_idx` ON `ember_campaign_phases` (`ecph_campaign_id`);
+--> statement-breakpoint
+CREATE INDEX `ecph_status_idx` ON `ember_campaign_phases` (`ecph_status`);
+--> statement-breakpoint
+CREATE INDEX `ecmp_campaign_id_idx` ON `ember_campaigns` (`ecmp_campaign_id`);
+--> statement-breakpoint
+CREATE INDEX `ecmp_status_idx` ON `ember_campaigns` (`ecmp_status`);
+--> statement-breakpoint
+CREATE INDEX `ecmp_created_by_idx` ON `ember_campaigns` (`ecmp_created_by`);
+--> statement-breakpoint
+CREATE INDEX `ect_template_id_idx` ON `ember_custom_templates` (`ect_template_id`);
+--> statement-breakpoint
+CREATE INDEX `ect_category_idx` ON `ember_custom_templates` (`ect_category`);
+--> statement-breakpoint
+CREATE INDEX `ect_created_by_idx` ON `ember_custom_templates` (`ect_created_by`);
+--> statement-breakpoint
+CREATE INDEX `ei_agent_idx` ON `ember_intelligence` (`ember_intel_agent_id`);
+--> statement-breakpoint
+CREATE INDEX `ei_engagement_idx` ON `ember_intelligence` (`ember_intel_engagement_id`);
+--> statement-breakpoint
+CREATE INDEX `ei_type_idx` ON `ember_intelligence` (`ember_intel_type`);
+--> statement-breakpoint
+CREATE INDEX `ep_engagement_idx` ON `ember_payloads` (`ember_payload_engagement_id`);
+--> statement-breakpoint
+CREATE INDEX `ep_payload_id_idx` ON `ember_payloads` (`ember_payload_id`);
+--> statement-breakpoint
+CREATE INDEX `ep_token_idx` ON `ember_payloads` (`ember_payload_reg_token`);
+--> statement-breakpoint
+CREATE INDEX `es_swarm_id_idx` ON `ember_swarms` (`ember_swarm_sid`);
+--> statement-breakpoint
+CREATE INDEX `es_engagement_idx` ON `ember_swarms` (`ember_swarm_engagement_id`);
+--> statement-breakpoint
+CREATE INDEX `et_agent_idx` ON `ember_tasks` (`ember_task_agent_id`);
+--> statement-breakpoint
+CREATE INDEX `et_engagement_idx` ON `ember_tasks` (`ember_task_engagement_id`);
+--> statement-breakpoint
+CREATE INDEX `et_status_idx` ON `ember_tasks` (`ember_task_status`);
+--> statement-breakpoint
+CREATE INDEX `et_task_id_idx` ON `ember_tasks` (`ember_task_id`);
+--> statement-breakpoint
+CREATE INDEX `eat_engagement_idx` ON `engagement_approved_targets` (`engagement_id`);
+--> statement-breakpoint
+CREATE INDEX `eat_hostname_idx` ON `engagement_approved_targets` (`engagement_id`,`hostname`);
+--> statement-breakpoint
+CREATE INDEX `ecp_engagement_idx` ON `engagement_comms_protocols` (`engagement_id`);
+--> statement-breakpoint
+CREATE INDEX `ecp_roe_doc_idx` ON `engagement_comms_protocols` (`roe_document_id`);
+--> statement-breakpoint
+CREATE INDEX `ecl_engagement_idx` ON `engagement_credential_lists` (`ecl_engagement_id`);
+--> statement-breakpoint
+CREATE INDEX `ecl_source_idx` ON `engagement_credential_lists` (`ecl_source`);
+--> statement-breakpoint
+CREATE INDEX `ecl_domain_idx` ON `engagement_credential_lists` (`ecl_domain`);
+--> statement-breakpoint
+CREATE INDEX `ef_engagement_idx` ON `engagement_findings` (`engagement_id`);
+--> statement-breakpoint
+CREATE INDEX `ef_result_idx` ON `engagement_findings` (`result_id`);
+--> statement-breakpoint
+CREATE INDEX `ef_severity_idx` ON `engagement_findings` (`severity`);
+--> statement-breakpoint
+CREATE INDEX `ef_corroboration_idx` ON `engagement_findings` (`corroboration_tier`);
+--> statement-breakpoint
+CREATE INDEX `er_engagement_idx` ON `engagement_results` (`engagement_id`);
+--> statement-breakpoint
+CREATE INDEX `er_operator_idx` ON `engagement_results` (`operator_id`);
+--> statement-breakpoint
+CREATE INDEX `er_status_idx` ON `engagement_results` (`status`);
+--> statement-breakpoint
+CREATE INDEX `esc_engagement_idx` ON `engagement_scope_constraints` (`engagement_id`);
+--> statement-breakpoint
+CREATE INDEX `esc_roe_doc_idx` ON `engagement_scope_constraints` (`roe_document_id`);
+--> statement-breakpoint
+CREATE INDEX `engagement_shares_token_unique` ON `engagement_shares` (`token`);
+--> statement-breakpoint
+CREATE INDEX `et_engagement_idx` ON `engagement_telemetry` (`engagement_id`);
+--> statement-breakpoint
+CREATE INDEX `et_phase_idx` ON `engagement_telemetry` (`phase`);
+--> statement-breakpoint
+CREATE INDEX `et_event_type_idx` ON `engagement_telemetry` (`event_type`);
+--> statement-breakpoint
+CREATE INDEX `et_error_class_idx` ON `engagement_telemetry` (`error_class`);
+--> statement-breakpoint
+CREATE INDEX `et_correlation_idx` ON `engagement_telemetry` (`correlation_id`);
+--> statement-breakpoint
+CREATE INDEX `et_created_at_idx` ON `engagement_telemetry` (`created_at`);
+--> statement-breakpoint
+CREATE INDEX `et_success_idx` ON `engagement_telemetry` (`success`);
+--> statement-breakpoint
+CREATE INDEX `et_source_module_idx` ON `engagement_telemetry` (`source_module`);
+--> statement-breakpoint
+CREATE INDEX `eh_actor_id_idx` ON `enrichment_history` (`actor_id`);
+--> statement-breakpoint
+CREATE INDEX `eh_created_at_idx` ON `enrichment_history` (`created_at`);
+--> statement-breakpoint
+CREATE INDEX `eh_triggered_by_idx` ON `enrichment_history` (`triggered_by`);
+--> statement-breakpoint
+CREATE INDEX `epo_scan_id_idx` ON `entity_profile_overrides` (`scan_id`);
+--> statement-breakpoint
+CREATE INDEX `epo_domain_idx` ON `entity_profile_overrides` (`domain`);
+--> statement-breakpoint
+CREATE INDEX `idx_incident_id` ON `error_incidents` (`incidentId`);
+--> statement-breakpoint
+CREATE INDEX `idx_scope` ON `error_incidents` (`scope`);
+--> statement-breakpoint
+CREATE INDEX `idx_created` ON `error_incidents` (`createdAt`);
+--> statement-breakpoint
+CREATE INDEX `ega_engagement_idx` ON `evidence_guardrail_audit` (`ega_engagement_id`);
+--> statement-breakpoint
+CREATE INDEX `ega_specialist_idx` ON `evidence_guardrail_audit` (`ega_specialist`);
+--> statement-breakpoint
+CREATE INDEX `ega_passed_idx` ON `evidence_guardrail_audit` (`ega_passed`);
+--> statement-breakpoint
+CREATE INDEX `ega_recommendation_idx` ON `evidence_guardrail_audit` (`ega_recommendation`);
+--> statement-breakpoint
+CREATE INDEX `ega_created_at_idx` ON `evidence_guardrail_audit` (`ega_created_at`);
+--> statement-breakpoint
+CREATE INDEX `eia_engagement_idx` ON `evidence_integrity_anchors` (`eia_engagement_id`);
+--> statement-breakpoint
+CREATE INDEX `eia_status_idx` ON `evidence_integrity_anchors` (`eia_status`);
+--> statement-breakpoint
+CREATE INDEX `evidenceId` ON `evidence_items` (`evidenceId`);
+--> statement-breakpoint
+CREATE INDEX `idx_cveId` ON `exploit_intelligence` (`cveId`);
+--> statement-breakpoint
+CREATE INDEX `idx_ei_source` ON `exploit_intelligence` (`ei_source`);
+--> statement-breakpoint
+CREATE INDEX `elc_chain_name_idx` ON `exploit_learning_chains` (`chain_name`);
+--> statement-breakpoint
+CREATE INDEX `elc_engagement_idx` ON `exploit_learning_chains` (`engagement_id`);
+--> statement-breakpoint
+CREATE INDEX `elo_engagement_idx` ON `exploit_learning_outcomes` (`engagement_id`);
+--> statement-breakpoint
+CREATE INDEX `elo_vuln_class_idx` ON `exploit_learning_outcomes` (`vuln_class`);
+--> statement-breakpoint
+CREATE INDEX `elo_attempt_id_idx` ON `exploit_learning_outcomes` (`attempt_id`);
+--> statement-breakpoint
+CREATE INDEX `elo_target_idx` ON `exploit_learning_outcomes` (`target_hostname`);
+--> statement-breakpoint
+CREATE INDEX `elo_success_idx` ON `exploit_learning_outcomes` (`success`);
+--> statement-breakpoint
+CREATE INDEX `elp_pattern_key_idx` ON `exploit_learning_patterns` (`pattern_key`);
+--> statement-breakpoint
+CREATE INDEX `elp_vuln_class_idx` ON `exploit_learning_patterns` (`vuln_class`);
+--> statement-breakpoint
+CREATE INDEX `em_vuln_class_idx` ON `exploit_methodologies` (`vuln_class`);
+--> statement-breakpoint
+CREATE INDEX `em_source_idx` ON `exploit_methodologies` (`source`);
+--> statement-breakpoint
+CREATE INDEX `em_weight_idx` ON `exploit_methodologies` (`weight`);
+--> statement-breakpoint
+CREATE INDEX `idx_engagement` ON `exploit_plan_history` (`engagement_id`);
+--> statement-breakpoint
+CREATE INDEX `idx_gate` ON `exploit_plan_history` (`gate_id`);
+--> statement-breakpoint
+CREATE INDEX `ep_actor_idx` ON `exploit_playbooks` (`ep_actor_id`);
+--> statement-breakpoint
+CREATE INDEX `ep_technique_idx` ON `exploit_playbooks` (`ep_technique_id`);
+--> statement-breakpoint
+CREATE INDEX `ep_tool_idx` ON `exploit_playbooks` (`ep_tool_name`);
+--> statement-breakpoint
+CREATE INDEX `eqq_quarantine_id_unique` ON `exploit_quarantine_queue` (`quarantine_id`);
+--> statement-breakpoint
+CREATE INDEX `eqq_status_idx` ON `exploit_quarantine_queue` (`status`);
+--> statement-breakpoint
+CREATE INDEX `eqq_engagement_idx` ON `exploit_quarantine_queue` (`engagement_id`);
+--> statement-breakpoint
+CREATE INDEX `ess_snapshot_id_unique` ON `exploit_selection_snapshots` (`snapshot_id`);
+--> statement-breakpoint
+CREATE INDEX `ess_engagement_idx` ON `exploit_selection_snapshots` (`engagement_id`);
+--> statement-breakpoint
+CREATE INDEX `fc_host_port_idx` ON `fingerprint_cache` (`fc_host`,`fc_port`);
+--> statement-breakpoint
+CREATE INDEX `fc_expires_idx` ON `fingerprint_cache` (`fc_expires_at`);
+--> statement-breakpoint
+CREATE INDEX `violationId` ON `guardrail_violations` (`violationId`);
+--> statement-breakpoint
+CREATE INDEX `idx_source_sourceId` ON `incident_reports` (`source`,`sourceId`);
+--> statement-breakpoint
+CREATE INDEX `info_ops_campaigns_ioCampaignId_unique` ON `info_ops_campaigns` (`ioCampaignId`);
+--> statement-breakpoint
+CREATE INDEX `iel_integration_idx` ON `integration_execution_log` (`integration_id`);
+--> statement-breakpoint
+CREATE INDEX `iel_engagement_idx` ON `integration_execution_log` (`engagement_id`);
+--> statement-breakpoint
+CREATE INDEX `iel_stage_idx` ON `integration_execution_log` (`pipeline_stage`);
+--> statement-breakpoint
+CREATE INDEX `ihc_integration_idx` ON `integration_health_checks` (`integration_id`);
+--> statement-breakpoint
+CREATE INDEX `ihc_checked_at_idx` ON `integration_health_checks` (`checked_at`);
+--> statement-breakpoint
+CREATE INDEX `ig_engagement_idx` ON `intelligence_gaps` (`engagement_id`);
+--> statement-breakpoint
+CREATE INDEX `ig_scan_idx` ON `intelligence_gaps` (`scan_id`);
+--> statement-breakpoint
+CREATE INDEX `ig_customer_idx` ON `intelligence_gaps` (`customer_id`);
+--> statement-breakpoint
+CREATE INDEX `ig_status_idx` ON `intelligence_gaps` (`status`);
+--> statement-breakpoint
+CREATE INDEX `ig_category_idx` ON `intelligence_gaps` (`category`);
+--> statement-breakpoint
+CREATE INDEX `itm_actor_idx` ON `ioc_ttp_mappings` (`itm_actor_id`);
+--> statement-breakpoint
+CREATE INDEX `itm_technique_idx` ON `ioc_ttp_mappings` (`itm_technique_id`);
+--> statement-breakpoint
+CREATE INDEX `itm_ioc_type_idx` ON `ioc_ttp_mappings` (`itm_ioc_type`);
+--> statement-breakpoint
+CREATE INDEX `irr_entry_id_idx` ON `ir_runbook_entries` (`entry_id`);
+--> statement-breakpoint
+CREATE INDEX `irr_alarm_name_idx` ON `ir_runbook_entries` (`alarm_name`);
+--> statement-breakpoint
+CREATE INDEX `irr_severity_idx` ON `ir_runbook_entries` (`severity`);
+--> statement-breakpoint
+CREATE INDEX `irr_category_idx` ON `ir_runbook_entries` (`category`);
+--> statement-breakpoint
+CREATE INDEX `irr_is_active_idx` ON `ir_runbook_entries` (`is_active`);
+--> statement-breakpoint
+CREATE INDEX `ke_entry_id_unique` ON `knowledge_entries` (`entry_id`);
+--> statement-breakpoint
+CREATE INDEX `ke_category_idx` ON `knowledge_entries` (`category`);
+--> statement-breakpoint
+CREATE INDEX `ke_phase_idx` ON `knowledge_entries` (`phase`);
+--> statement-breakpoint
+CREATE INDEX `ksi_definitions_ksi_id_unique` ON `ksi_definitions` (`ksi_id`);
+--> statement-breakpoint
+CREATE INDEX `ksi_evidence_evidence_id_unique` ON `ksi_evidence` (`evidence_id`);
+--> statement-breakpoint
+CREATE INDEX `ksi_evidence_chains_chain_id_unique` ON `ksi_evidence_chains` (`chain_id`);
+--> statement-breakpoint
+CREATE INDEX `ksi_validation_runs_run_id_unique` ON `ksi_validation_runs` (`run_id`);
+--> statement-breakpoint
+CREATE INDEX `ksi_validation_schedules_schedule_id_unique` ON `ksi_validation_schedules` (`schedule_id`);
+--> statement-breakpoint
+CREATE INDEX `usage_org_id_idx` ON `license_usage_logs` (`org_id`);
+--> statement-breakpoint
+CREATE INDEX `usage_action_idx` ON `license_usage_logs` (`action`);
+--> statement-breakpoint
+CREATE INDEX `usage_timestamp_idx` ON `license_usage_logs` (`timestamp`);
+--> statement-breakpoint
+CREATE INDEX `licensed_org_id_idx` ON `licensed_organizations` (`org_id`);
+--> statement-breakpoint
+CREATE INDEX `licensed_status_idx` ON `licensed_organizations` (`status`);
+--> statement-breakpoint
+CREATE INDEX `licensed_tier_idx` ON `licensed_organizations` (`tier`);
+--> statement-breakpoint
+CREATE INDEX `idx_accuracy_target` ON `llm_accuracy_scores` (`target_preset`);
+--> statement-breakpoint
+CREATE INDEX `idx_accuracy_session` ON `llm_accuracy_scores` (`session_id`);
+--> statement-breakpoint
+CREATE INDEX `ldl_engagement_idx` ON `llm_decision_log` (`engagement_id`);
+--> statement-breakpoint
+CREATE INDEX `ldl_phase_idx` ON `llm_decision_log` (`dl_phase`);
+--> statement-breakpoint
+CREATE INDEX `ldl_caller_idx` ON `llm_decision_log` (`dl_caller`);
+--> statement-breakpoint
+CREATE INDEX `ldl_outcome_idx` ON `llm_decision_log` (`dl_outcome`);
+--> statement-breakpoint
+CREATE INDEX `idx_learning_target` ON `llm_learning_entries` (`target_preset`);
+--> statement-breakpoint
+CREATE INDEX `idx_learning_feedback` ON `llm_learning_entries` (`feedback_type`);
+--> statement-breakpoint
+CREATE INDEX `lte_model_idx` ON `llm_training_examples` (`te_model`);
+--> statement-breakpoint
+CREATE INDEX `lte_source_idx` ON `llm_training_examples` (`te_source`);
+--> statement-breakpoint
+CREATE INDEX `lte_quality_idx` ON `llm_training_examples` (`te_quality`);
+--> statement-breakpoint
+CREATE INDEX `lte_example_id_idx` ON `llm_training_examples` (`example_id`);
+--> statement-breakpoint
+CREATE INDEX `ma_methodology_idx` ON `methodology_attempts` (`methodology_id`);
+--> statement-breakpoint
+CREATE INDEX `ma_engagement_idx` ON `methodology_attempts` (`engagement_id`);
+--> statement-breakpoint
+CREATE INDEX `ma_vuln_class_idx` ON `methodology_attempts` (`vuln_class`);
+--> statement-breakpoint
+CREATE INDEX `ma_success_idx` ON `methodology_attempts` (`success`);
+--> statement-breakpoint
+CREATE INDEX `ma_created_at_idx` ON `methodology_attempts` (`created_at`);
+--> statement-breakpoint
+CREATE INDEX `mp_vuln_class_idx` ON `methodology_performance` (`vuln_class`);
+--> statement-breakpoint
+CREATE INDEX `mp_tech_stack_idx` ON `methodology_performance` (`tech_stack_key`);
+--> statement-breakpoint
+CREATE INDEX `mp_success_rate_idx` ON `methodology_performance` (`success_rate`);
+--> statement-breakpoint
+CREATE INDEX `idx_type_status` ON `mtls_certificates` (`type`,`status`);
+--> statement-breakpoint
+CREATE INDEX `idx_c2server` ON `mtls_certificates` (`c2ServerId`,`status`);
+--> statement-breakpoint
+CREATE INDEX `npe_execution_id_idx` ON `nexus_pipeline_executions` (`npe_execution_id`);
+--> statement-breakpoint
+CREATE INDEX `npe_caller_name_idx` ON `nexus_pipeline_executions` (`npe_caller_name`);
+--> statement-breakpoint
+CREATE INDEX `npe_status_idx` ON `nexus_pipeline_executions` (`npe_status`);
+--> statement-breakpoint
+CREATE INDEX `npe_tier_idx` ON `nexus_pipeline_executions` (`npe_graduation_tier`);
+--> statement-breakpoint
+CREATE INDEX `nqg_execution_id_idx` ON `nexus_quality_gates` (`nqg_execution_id`);
+--> statement-breakpoint
+CREATE INDEX `nqg_gate_type_idx` ON `nexus_quality_gates` (`nqg_gate_type`);
+--> statement-breakpoint
+CREATE INDEX `nsc_config_name_idx` ON `nexus_shadow_configs` (`nsc_config_name`);
+--> statement-breakpoint
+CREATE INDEX `nsc_enabled_idx` ON `nexus_shadow_configs` (`nsc_enabled`);
+--> statement-breakpoint
+CREATE INDEX `nst_config_id_idx` ON `nexus_shadow_tests` (`nst_config_id`);
+--> statement-breakpoint
+CREATE INDEX `nst_caller_idx` ON `nexus_shadow_tests` (`nst_caller`);
+--> statement-breakpoint
+CREATE INDEX `nst_verdict_idx` ON `nexus_shadow_tests` (`nst_judge_verdict`);
+--> statement-breakpoint
+CREATE INDEX `nst_status_idx` ON `nexus_shadow_tests` (`nst_status`);
+--> statement-breakpoint
+CREATE INDEX `nst_created_at_idx` ON `nexus_shadow_tests` (`nst_created_at`);
+--> statement-breakpoint
+CREATE INDEX `nf_engagement_idx` ON `nuclei_findings` (`engagement_id`);
+--> statement-breakpoint
+CREATE INDEX `nf_cve_idx` ON `nuclei_findings` (`cve_id`);
+--> statement-breakpoint
+CREATE INDEX `nf_template_idx` ON `nuclei_findings` (`template_id`);
+--> statement-breakpoint
+CREATE INDEX `nf_severity_idx` ON `nuclei_findings` (`severity`);
+--> statement-breakpoint
+CREATE INDEX `nf_host_idx` ON `nuclei_findings` (`host`);
+--> statement-breakpoint
+CREATE INDEX `nf_hash_idx` ON `nuclei_findings` (`finding_hash`);
+--> statement-breakpoint
+CREATE INDEX `ntm_cve_idx` ON `nuclei_template_mappings` (`cve_id`);
+--> statement-breakpoint
+CREATE INDEX `ntm_template_idx` ON `nuclei_template_mappings` (`template_path`);
+--> statement-breakpoint
+CREATE INDEX `ntm_vuln_class_idx` ON `nuclei_template_mappings` (`vuln_class`);
+--> statement-breakpoint
+CREATE INDEX `obs_alert_id` ON `observation_alert_history` (`obs_alert_id`);
+--> statement-breakpoint
+CREATE INDEX `obs_rule_id` ON `observation_alert_rules` (`obs_rule_id`);
+--> statement-breakpoint
+CREATE INDEX `idx_engagement` ON `offensive_audit_log` (`engagement_id`);
+--> statement-breakpoint
+CREATE INDEX `idx_operator` ON `offensive_audit_log` (`operator_id`);
+--> statement-breakpoint
+CREATE INDEX `idx_action_type` ON `offensive_audit_log` (`action_type`);
+--> statement-breakpoint
+CREATE INDEX `idx_risk_tier` ON `offensive_audit_log` (`risk_tier`);
+--> statement-breakpoint
+CREATE INDEX `idx_created_at` ON `offensive_audit_log` (`created_at`);
+--> statement-breakpoint
+CREATE INDEX `op_plan_id_idx` ON `orchestration_plans` (`plan_id`);
+--> statement-breakpoint
+CREATE INDEX `op_engagement_id_idx` ON `orchestration_plans` (`engagement_id`);
+--> statement-breakpoint
+CREATE INDEX `op_campaign_id_idx` ON `orchestration_plans` (`campaign_id`);
+--> statement-breakpoint
+CREATE INDEX `op_status_idx` ON `orchestration_plans` (`op_status`);
+--> statement-breakpoint
+CREATE INDEX `oscal_exports_export_id_unique` ON `oscal_exports` (`export_id`);
+--> statement-breakpoint
+CREATE INDEX `ppc_cache_key_idx` ON `parsed_policy_cache` (`cache_key`);
+--> statement-breakpoint
+CREATE INDEX `ppc_platform_slug_idx` ON `parsed_policy_cache` (`platform`,`program_slug`);
+--> statement-breakpoint
+CREATE INDEX `ransomware_groups_groupName_unique` ON `ransomware_groups` (`groupName`);
+--> statement-breakpoint
+CREATE INDEX `rtcl_campaign_id_idx` ON `redteam_campaign_logs` (`campaign_id`);
+--> statement-breakpoint
+CREATE INDEX `rtcl_stage_id_idx` ON `redteam_campaign_logs` (`stage_id`);
+--> statement-breakpoint
+CREATE INDEX `rtcl_log_type_idx` ON `redteam_campaign_logs` (`log_type`);
+--> statement-breakpoint
+CREATE INDEX `rtcs_campaign_id_idx` ON `redteam_campaign_stages` (`campaign_id`);
+--> statement-breakpoint
+CREATE INDEX `rtcs_stage_order_idx` ON `redteam_campaign_stages` (`stage_order`);
+--> statement-breakpoint
+CREATE INDEX `rtcs_status_idx` ON `redteam_campaign_stages` (`status`);
+--> statement-breakpoint
+CREATE INDEX `rtc_status_idx` ON `redteam_campaigns` (`status`);
+--> statement-breakpoint
+CREATE INDEX `rtc_created_by_idx` ON `redteam_campaigns` (`created_by`);
+--> statement-breakpoint
+CREATE INDEX `rf_domain_idx` ON `regulatory_frameworks` (`rf_domain`);
+--> statement-breakpoint
+CREATE INDEX `rf_tenant_idx` ON `regulatory_frameworks` (`rf_tenant_id`);
+--> statement-breakpoint
+CREATE INDEX `rf_framework_idx` ON `regulatory_frameworks` (`rf_framework`);
+--> statement-breakpoint
+CREATE INDEX `rt_engagement_idx` ON `remediation_tasks` (`engagement_id`);
+--> statement-breakpoint
+CREATE INDEX `rt_status_idx` ON `remediation_tasks` (`status`);
+--> statement-breakpoint
+CREATE INDEX `rt_severity_idx` ON `remediation_tasks` (`severity`);
+--> statement-breakpoint
+CREATE INDEX `rt_assigned_team_idx` ON `remediation_tasks` (`assigned_team`);
+--> statement-breakpoint
+CREATE INDEX `rt_sla_idx` ON `remediation_tasks` (`sla_deadline`);
+--> statement-breakpoint
+CREATE INDEX `roe_ack_operator_idx` ON `roe_acknowledgments` (`operator_id`);
+--> statement-breakpoint
+CREATE INDEX `roe_ack_target_idx` ON `roe_acknowledgments` (`target_id`);
+--> statement-breakpoint
+CREATE INDEX `roe_ack_time_idx` ON `roe_acknowledgments` (`acknowledged_at`);
+--> statement-breakpoint
+CREATE INDEX `sgs_domain_idx` ON `scan_graduation_scores` (`domain`);
+--> statement-breakpoint
+CREATE INDEX `sgs_sector_idx` ON `scan_graduation_scores` (`sector`);
+--> statement-breakpoint
+CREATE INDEX `sgs_scan_id_idx` ON `scan_graduation_scores` (`scan_id`);
+--> statement-breakpoint
+CREATE INDEX `sgs_created_at_idx` ON `scan_graduation_scores` (`created_at`);
+--> statement-breakpoint
+CREATE INDEX `observationId` ON `scan_observations` (`observationId`);
+--> statement-breakpoint
+CREATE INDEX `profileId` ON `scan_policies` (`profileId`);
+--> statement-breakpoint
+CREATE INDEX `riskId` ON `scan_risk_cards` (`riskId`);
+--> statement-breakpoint
+CREATE INDEX `ss_engagement_idx` ON `scan_schedules` (`engagement_id`);
+--> statement-breakpoint
+CREATE INDEX `ss_active_idx` ON `scan_schedules` (`is_active`);
+--> statement-breakpoint
+CREATE INDEX `signalId` ON `scan_signals` (`signalId`);
+--> statement-breakpoint
+CREATE INDEX `ser_engagement_unique` ON `scanforge_engagement_report` (`engagement_id`);
+--> statement-breakpoint
+CREATE INDEX `sfl_engagement_idx` ON `scanforge_finding_log` (`engagement_id`);
+--> statement-breakpoint
+CREATE INDEX `sfl_template_idx` ON `scanforge_finding_log` (`template_id`);
+--> statement-breakpoint
+CREATE INDEX `sfl_verdict_idx` ON `scanforge_finding_log` (`verdict`);
+--> statement-breakpoint
+CREATE INDEX `sgt_template_id_unique` ON `scanforge_generated_templates` (`template_id`);
+--> statement-breakpoint
+CREATE INDEX `sgt_status_idx` ON `scanforge_generated_templates` (`status`);
+--> statement-breakpoint
+CREATE INDEX `sgt_source_idx` ON `scanforge_generated_templates` (`generation_source`);
+--> statement-breakpoint
+CREATE INDEX `sph_template_idx` ON `scanforge_promotion_history` (`template_id`);
+--> statement-breakpoint
+CREATE INDEX `sph_decision_idx` ON `scanforge_promotion_history` (`decision`);
+--> statement-breakpoint
+CREATE INDEX `sph_trigger_idx` ON `scanforge_promotion_history` (`trigger_engagement_id`);
+--> statement-breakpoint
+CREATE INDEX `srl_feed_idx` ON `scanforge_research_log` (`feed_source`);
+--> statement-breakpoint
+CREATE INDEX `srl_subject_idx` ON `scanforge_research_log` (`research_subject`);
+--> statement-breakpoint
+CREATE INDEX `srl_type_idx` ON `scanforge_research_log` (`research_type`);
+--> statement-breakpoint
+CREATE INDEX `stm_template_unique` ON `scanforge_template_metrics` (`template_id`);
+--> statement-breakpoint
+CREATE INDEX `scs_credential_idx` ON `scheduled_cspm_scans` (`credential_id`);
+--> statement-breakpoint
+CREATE INDEX `scs_engagement_idx` ON `scheduled_cspm_scans` (`engagement_id`);
+--> statement-breakpoint
+CREATE INDEX `scs_active_idx` ON `scheduled_cspm_scans` (`is_active`);
+--> statement-breakpoint
+CREATE INDEX `scs_next_run_idx` ON `scheduled_cspm_scans` (`next_run_at`);
+--> statement-breakpoint
+CREATE INDEX `sh_engagement_id_idx` ON `submission_history` (`engagement_id`);
+--> statement-breakpoint
+CREATE INDEX `sh_user_id_idx` ON `submission_history` (`user_id`);
+--> statement-breakpoint
+CREATE INDEX `sh_platform_idx` ON `submission_history` (`platform`);
+--> statement-breakpoint
+CREATE INDEX `sh_status_idx` ON `submission_history` (`status`);
+--> statement-breakpoint
+CREATE INDEX `sh_vuln_class_idx` ON `submission_history` (`vuln_class`);
+--> statement-breakpoint
+CREATE INDEX `sh_severity_idx` ON `submission_history` (`severity`);
+--> statement-breakpoint
+CREATE INDEX `sh_created_at_idx` ON `submission_history` (`created_at`);
+--> statement-breakpoint
+CREATE INDEX `team_invitations_token_hash_unique` ON `team_invitations` (`token_hash`);
+--> statement-breakpoint
+CREATE INDEX `td_engagement_idx` ON `telemetry_diagnostics` (`engagement_id`);
+--> statement-breakpoint
+CREATE INDEX `td_report_type_idx` ON `telemetry_diagnostics` (`report_type`);
+--> statement-breakpoint
+CREATE INDEX `td_health_score_idx` ON `telemetry_diagnostics` (`health_score`);
+--> statement-breakpoint
+CREATE INDEX `td_created_at_idx` ON `telemetry_diagnostics` (`created_at`);
+--> statement-breakpoint
+CREATE INDEX `tlq_telemetry_event_idx` ON `telemetry_llm_quality` (`telemetry_event_id`);
+--> statement-breakpoint
+CREATE INDEX `tlq_engagement_idx` ON `telemetry_llm_quality` (`engagement_id`);
+--> statement-breakpoint
+CREATE INDEX `tlq_prompt_hash_idx` ON `telemetry_llm_quality` (`prompt_hash`);
+--> statement-breakpoint
+CREATE INDEX `tlq_knowledge_gap_idx` ON `telemetry_llm_quality` (`knowledge_gap`);
+--> statement-breakpoint
+CREATE INDEX `tlq_hallucination_idx` ON `telemetry_llm_quality` (`hallucination_detected`);
+--> statement-breakpoint
+CREATE INDEX `tlq_created_at_idx` ON `telemetry_llm_quality` (`created_at`);
+--> statement-breakpoint
+CREATE INDEX `tl_env_type_idx` ON `test_lab_environments` (`tl_env_type`);
+--> statement-breakpoint
+CREATE INDEX `tl_env_status_idx` ON `test_lab_environments` (`tl_env_status`);
+--> statement-breakpoint
+CREATE INDEX `tl_it_env_idx` ON `test_lab_implant_tests` (`tl_it_environment_id`);
+--> statement-breakpoint
+CREATE INDEX `tl_it_agent_idx` ON `test_lab_implant_tests` (`tl_it_agent_id`);
+--> statement-breakpoint
+CREATE INDEX `tl_it_status_idx` ON `test_lab_implant_tests` (`tl_it_status`);
+--> statement-breakpoint
+CREATE INDEX `tl_sr_scenario_idx` ON `test_lab_scenario_runs` (`tl_sr_scenario_id`);
+--> statement-breakpoint
+CREATE INDEX `tl_sr_model_idx` ON `test_lab_scenario_runs` (`tl_sr_specialist_model`);
+--> statement-breakpoint
+CREATE INDEX `tl_sr_status_idx` ON `test_lab_scenario_runs` (`tl_sr_status`);
+--> statement-breakpoint
+CREATE INDEX `tl_tr_model_idx` ON `test_lab_training_runs` (`tl_tr_specialist_model`);
+--> statement-breakpoint
+CREATE INDEX `tl_tr_status_idx` ON `test_lab_training_runs` (`tl_tr_status`);
+--> statement-breakpoint
+CREATE INDEX `test_plans_plan_id_unique` ON `test_plans` (`plan_id`);
+--> statement-breakpoint
+CREATE INDEX `test_plans_engagement_id_idx` ON `test_plans` (`engagement_id`);
+--> statement-breakpoint
+CREATE INDEX `test_plans_status_idx` ON `test_plans` (`status`);
+--> statement-breakpoint
+CREATE INDEX `threat_actors_actorId_unique` ON `threat_actors` (`actorId`);
+--> statement-breakpoint
+CREATE INDEX `tbr_run_id_idx` ON `training_benchmark_runs` (`run_id`);
+--> statement-breakpoint
+CREATE INDEX `tbr_lab_id_idx` ON `training_benchmark_runs` (`lab_id`);
+--> statement-breakpoint
+CREATE INDEX `tbr_status_idx` ON `training_benchmark_runs` (`status`);
+--> statement-breakpoint
+CREATE INDEX `idx_gt_target` ON `training_ground_truth` (`target_preset`);
+--> statement-breakpoint
+CREATE INDEX `idx_gt_unique` ON `training_ground_truth` (`target_preset`,`vuln_title`);
+--> statement-breakpoint
+CREATE INDEX `training_lab_sessions_session_id_unique` ON `training_lab_sessions` (`session_id`);
+--> statement-breakpoint
+CREATE INDEX `ttp_knowledge_techniqueId_unique` ON `ttp_knowledge` (`techniqueId`);
+--> statement-breakpoint
+CREATE INDEX `unified_exploit_catalog_catalogId_unique` ON `unified_exploit_catalog` (`catalogId`);
+--> statement-breakpoint
+CREATE INDEX `urd_engagement_idx` ON `uploaded_roe_documents` (`created_engagement_id`);
+--> statement-breakpoint
+CREATE INDEX `urd_roe_doc_idx` ON `uploaded_roe_documents` (`created_roe_document_id`);
+--> statement-breakpoint
+CREATE INDEX `urd_status_idx` ON `uploaded_roe_documents` (`parse_status`);
+--> statement-breakpoint
+CREATE INDEX `upc_user_idx` ON `user_platform_credentials` (`user_id`);
+--> statement-breakpoint
+CREATE INDEX `upc_platform_idx` ON `user_platform_credentials` (`platform`);
+--> statement-breakpoint
+CREATE INDEX `user_sessions_session_hash_unique` ON `user_sessions` (`session_hash`);
+--> statement-breakpoint
+CREATE INDEX `users_openId_unique` ON `users` (`openId`);
+--> statement-breakpoint
+CREATE INDEX `idx_vendor_cached_integration` ON `vendor_cached_data` (`integrationId`);
+--> statement-breakpoint
+CREATE INDEX `idx_vendor_cached_type` ON `vendor_cached_data` (`dataType`);
+--> statement-breakpoint
+CREATE INDEX `idx_vendor_cached_hostname` ON `vendor_cached_data` (`hostname`);
+--> statement-breakpoint
+CREATE INDEX `idx_vendor_cached_ip` ON `vendor_cached_data` (`ipAddress`);
+--> statement-breakpoint
+CREATE INDEX `idx_vendor_cached_mitre` ON `vendor_cached_data` (`mitreAttackId`);
+--> statement-breakpoint
+CREATE INDEX `vuln_snap_engagement_idx` ON `vuln_scan_snapshots` (`engagement_id`);
+--> statement-breakpoint
+CREATE INDEX `vuln_snap_created_idx` ON `vuln_scan_snapshots` (`created_at`);
+--> statement-breakpoint
+CREATE INDEX `vuln_trend_engagement_idx` ON `vuln_trend_entries` (`engagement_id`);
+--> statement-breakpoint
+CREATE INDEX `vuln_trend_snapshot_idx` ON `vuln_trend_entries` (`snapshot_id`);
+--> statement-breakpoint
+CREATE INDEX `vuln_trend_hostname_idx` ON `vuln_trend_entries` (`hostname`);
+--> statement-breakpoint
+CREATE INDEX `vta_comparison_idx` ON `vuln_type_accuracy` (`comparison_id`);
+--> statement-breakpoint
+CREATE INDEX `vta_vuln_type_idx` ON `vuln_type_accuracy` (`vuln_type`);
+--> statement-breakpoint
+CREATE INDEX `vta_target_idx` ON `vuln_type_accuracy` (`target_preset`);
+--> statement-breakpoint
+CREATE INDEX `web_crawl_jobs_jobId_unique` ON `web_crawl_jobs` (`jobId`);
+--> statement-breakpoint
+CREATE INDEX `webhookId` ON `webhook_endpoints` (`webhookId`);
+--> statement-breakpoint
+CREATE INDEX `wh_endpoint_id_idx` ON `webhook_endpoints` (`endpoint_id`);
+--> statement-breakpoint
+CREATE INDEX `wh_integration_idx` ON `webhook_endpoints` (`integration_id`);
+--> statement-breakpoint
+CREATE INDEX `wh_status_idx` ON `webhook_endpoints` (`status`);
+--> statement-breakpoint
+CREATE INDEX `wh_tenant_idx` ON `webhook_endpoints` (`tenant_id`);
+--> statement-breakpoint
+CREATE INDEX `we_endpoint_idx` ON `webhook_events` (`endpoint_id`);
+--> statement-breakpoint
+CREATE INDEX `we_event_id_idx` ON `webhook_events` (`event_id`);
+--> statement-breakpoint
+CREATE INDEX `we_status_idx` ON `webhook_events` (`status`);
+--> statement-breakpoint
+CREATE INDEX `we_received_idx` ON `webhook_events` (`received_at`);
+--> statement-breakpoint
+CREATE INDEX `zdc_cve_idx` ON `zero_day_cache` (`cve`);
+--> statement-breakpoint
+CREATE INDEX `zdc_vendor_idx` ON `zero_day_cache` (`vendor`);
+--> statement-breakpoint
+CREATE INDEX `zdc_product_idx` ON `zero_day_cache` (`product`);
+--> statement-breakpoint
+CREATE INDEX `zdc_year_idx` ON `zero_day_cache` (`year`);
+--> statement-breakpoint
+CREATE INDEX `zdc_source_idx` ON `zero_day_cache` (`source`);
+--> statement-breakpoint
+CREATE INDEX `zdsm_scan_id_idx` ON `zero_day_scan_matches` (`scan_id`);
+--> statement-breakpoint
+CREATE INDEX `zdsm_engagement_id_idx` ON `zero_day_scan_matches` (`engagement_id`);
+--> statement-breakpoint
+CREATE INDEX `zdsm_domain_idx` ON `zero_day_scan_matches` (`domain`);
+--> statement-breakpoint
+CREATE INDEX `zdsm_cve_idx` ON `zero_day_scan_matches` (`cve`);
+--> statement-breakpoint
+CREATE INDEX `zdsm_severity_idx` ON `zero_day_scan_matches` (`severity`);
+--> statement-breakpoint
 CREATE INDEX `zdsm_created_at_idx` ON `zero_day_scan_matches` (`created_at`);
