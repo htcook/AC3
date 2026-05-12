@@ -2292,3 +2292,11 @@
 - [ ] Rebuild Docker image and push to ECR
 - [ ] Update ECS service with new task definition
 - [ ] Verify site loads correctly on ac3.aceofcloud.io
+
+### User Migration + AWS Cognito Auth
+- [ ] Connect to DO production database and list all user accounts
+- [ ] Set up AWS Cognito user pool for ac3.aceofcloud.io
+- [ ] Integrate Cognito auth into the AC3 app (replace Manus OAuth for AWS build)
+- [ ] Migrate all DO production users to Cognito
+- [ ] Test login flow on AWS-hosted build
+- [ ] Checkpoint and push to GitHub
