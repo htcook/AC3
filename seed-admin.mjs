@@ -46,7 +46,7 @@ async function seed() {
     user: url.username,
     password: decodeURIComponent(url.password),
     database: url.pathname.slice(1),
-    ssl: { rejectUnauthorized: true },
+    ssl: { rejectUnauthorized: false },
   });
 
   try {
