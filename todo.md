@@ -2285,3 +2285,10 @@
 - [x] Add Google Dorking to sidebar navigation and App.tsx routing
 - [x] Write vitest tests for Google Dorking module (30 tests passing)
 - [ ] Checkpoint and push to GitHub
+
+### Bug Fix: Blank Page on AWS ECS (CSP Nonce)
+- [x] Diagnose blank page on https://ac3.aceofcloud.io — CSP nonce not applied to inline scripts
+- [x] Fix serveStatic in server/_core/vite.ts to inject nonce into inline script tags
+- [ ] Rebuild Docker image and push to ECR
+- [ ] Update ECS service with new task definition
+- [ ] Verify site loads correctly on ac3.aceofcloud.io

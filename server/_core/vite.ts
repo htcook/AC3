@@ -94,8 +94,20 @@ export function serveStatic(app: Express) {
   });
 
   // fall through to index.html if the file doesn't exist (SPA routing)
-  app.use("*", (_req, res) => {
+  // Inject CSP nonce into inline script tags so they pass the Content-Security-Policy
+  app.use("*", (req, res) => {
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-    res.sendFile(path.resolve(distPath, "index.html"));
+    const indexPath = path.resolve(distPath, "index.html");
+    const nonce = (req as any).cspNonce;
+    if (nonce) {
+      let html = fs.readFileSync(indexPath, "utf-8");
+      // Add nonce to all inline script tags (those without src attribute)
+      html = html.replace(/<script(?![^>]*\bsrc\b)([^>]*)>/g, `<script nonce="${nonce}"$1>`);
+      // Also add nonce to module script tags with src (for CSP compliance)
+      html = html.replace(/<script(\s+type="module"\s+crossorigin\s+src=)/g, `<script nonce="${nonce}"$1`);
+      res.status(200).set({ "Content-Type": "text/html" }).end(html);
+    } else {
+      res.sendFile(indexPath);
+    }
   });
 }
