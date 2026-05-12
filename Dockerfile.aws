@@ -122,6 +122,7 @@ RUN chmod +x /usr/src/app/docker-entrypoint.sh && \
     chown -R ac3:ac3 /usr/src/app && \
     chmod -R 550 /usr/src/app && \
     chmod -R 770 /usr/src/app/dist && \
+    chmod -R 770 /usr/src/app/drizzle && \
     chmod 550 /usr/src/app/docker-entrypoint.sh
 
 # FedRAMP: SC-28 — Prevent writing to filesystem (except /tmp)
