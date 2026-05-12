@@ -1,0 +1,62 @@
+{
+  "family": "ac3-dev-app",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "2048",
+  "memory": "4096",
+  "executionRoleArn": "arn:aws:iam::808038814732:role/ac3-dev-ecs-execution-role",
+  "taskRoleArn": "arn:aws:iam::808038814732:role/ac3-dev-app-task-role",
+  "containerDefinitions": [
+    {
+      "name": "ac3-app",
+      "image": "808038814732.dkr.ecr.us-east-1.amazonaws.com/ac3/caldera-dashboard:latest",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 8080,
+          "protocol": "tcp"
+        }
+      ],
+      "healthCheck": {
+        "command": ["CMD-SHELL", "curl -f http://localhost:8080/api/health || exit 1"],
+        "interval": 30,
+        "timeout": 10,
+        "retries": 3,
+        "startPeriod": 120
+      },
+      "environment": [
+        { "name": "NODE_ENV", "value": "production" },
+        { "name": "PORT", "value": "8080" }
+      ],
+      "secrets": [
+        {
+          "name": "DATABASE_URL",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:808038814732:secret:ac3/dev/app-WlvTEQ:DATABASE_URL::"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/ac3-dev",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "app"
+        }
+      },
+      "linuxParameters": {
+        "initProcessEnabled": true
+      },
+      "ulimits": [
+        {
+          "name": "nofile",
+          "softLimit": 65536,
+          "hardLimit": 65536
+        }
+      ]
+    }
+  ],
+  "tags": [
+    { "key": "Project", "value": "AC3" },
+    { "key": "Environment", "value": "dev" },
+    { "key": "ManagedBy", "value": "manual" }
+  ]
+}

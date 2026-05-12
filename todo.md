@@ -2192,3 +2192,21 @@
 - [ ] Re-run blind test engagement against live lab targets (pending deployment)
 - [ ] Validate full kill chain: exploit → session → post-exploit → privesc → lateral movement
 - [x] Save checkpoint and push to GitHub
+
+### AWS Deployment (May 12)
+- [x] Build Docker image and push to ECR (GitHub Actions workflow build-push-ecr.yml — run 25736643488 succeeded, image tagged latest+6ea23249)
+- [x] Fix ALB target group health check port (changed from 3000 to 8080 to match container)
+- [x] Add port 8080 inbound rule to app security group from ALB SG
+- [x] Create Secrets Manager secret ac3/dev/app with DATABASE_URL (placeholder for remaining env vars)
+- [x] Create ECS task definition JSON (infrastructure/ecs-task-definition.json)
+- [x] Create ECS deployment script (infrastructure/deploy-ecs.sh) with full secrets injection
+- [x] Create secrets population script (infrastructure/populate-secrets.sh)
+- [x] Create PassRole inline policy JSON (infrastructure/passrole-inline-policy.json)
+- [ ] BLOCKED: Get iam:PassRole permission added to PowerUserAccess SSO permission set (boss action)
+- [ ] Populate ac3/dev/app secret with all app env vars (JWT_SECRET, VITE_APP_ID, OAUTH_SERVER_URL, etc.)
+- [ ] Run DB migrations against Aurora MySQL (automatic via docker-entrypoint.sh on first deploy)
+- [ ] Register ECS task definition (requires PassRole)
+- [ ] Create ECS service and verify health (requires PassRole)
+- [ ] Fix ACM certificate for aceofcloud.io (DNS validation records needed)
+- [ ] Add HTTPS listener to ALB (requires valid ACM cert)
+- [ ] Verify full app accessible on AWS via ALB DNS

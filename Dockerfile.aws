@@ -111,11 +111,17 @@ COPY --from=builder /usr/src/app/.client-assets/ ./.client-assets/
 # Copy necessary source files that the server references at runtime
 COPY --from=builder /usr/src/app/drizzle/ ./drizzle/
 COPY --from=builder /usr/src/app/shared/ ./shared/
+COPY --from=builder /usr/src/app/drizzle.config.ts ./drizzle.config.ts
+
+# Copy entrypoint script
+COPY docker-entrypoint.sh ./docker-entrypoint.sh
 
 # FedRAMP: Set secure file permissions
-RUN chown -R ac3:ac3 /usr/src/app && \
+RUN chmod +x /usr/src/app/docker-entrypoint.sh && \
+    chown -R ac3:ac3 /usr/src/app && \
     chmod -R 550 /usr/src/app && \
-    chmod -R 770 /usr/src/app/dist
+    chmod -R 770 /usr/src/app/dist && \
+    chmod 550 /usr/src/app/docker-entrypoint.sh
 
 # FedRAMP: SC-28 — Prevent writing to filesystem (except /tmp)
 # The app should use S3 for all file storage
@@ -152,4 +158,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
 
 # Use dumb-init to handle PID 1 responsibilities (signal forwarding, zombie reaping)
 ENTRYPOINT ["dumb-init", "--"]
-CMD ["node", "dist/index.js"]
+CMD ["sh", "docker-entrypoint.sh"]
