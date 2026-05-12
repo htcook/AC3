@@ -82,5 +82,5 @@ server/lib/knowledge/attack_chains_300.json
 server/lib/knowledge/asset_role_ontology.json
 server/threatActorSeed2.ts
 
-# Drizzle snapshots (only _journal.json needed, not full snapshots)
-drizzle/meta/*_snapshot.json
+# Drizzle snapshots — keep latest for drizzle-kit migrate
+# drizzle/meta/*_snapshot.json
