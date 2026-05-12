@@ -45,6 +45,7 @@ fix-*.py
 fix-*.sh
 *.mjs
 !seed-admin.mjs
+!run-migrations.mjs
 *.cjs
 !build.cjs
 !postinstall.cjs
