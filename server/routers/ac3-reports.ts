@@ -2876,6 +2876,161 @@ export const ac3ReportsRouter = {
         );
       }
 
+      // ── FedRAMP Risk Exposure Table (RET) Appendix ──
+      const retSection: docx.Paragraph[] = [];
+      if (isFedRAMP && findings.length > 0) {
+        retSection.push(new Paragraph({ children: [new PageBreak()] }));
+        retSection.push(new Paragraph({
+          heading: HeadingLevel.HEADING_1,
+          spacing: { after: 200 },
+          children: [new TextRun({ text: 'Appendix — FedRAMP Risk Exposure Table (RET)', bold: true })],
+        }));
+        retSection.push(new Paragraph({
+          spacing: { after: 200 },
+          children: [new TextRun({
+            text: 'This appendix presents findings in the FedRAMP Risk Exposure Table (RET) format per SAR Appendix A requirements. ' +
+              'Identifiers use the PT-XXX convention for penetration test findings and align with the Plan of Actions and Milestones (POA&M) template. ' +
+              'Risk ratings follow the FedRAMP risk rating scale mapped from CVSS v3.1 scores.',
+            size: 20,
+          })],
+        }));
+
+        // Helper: map AC3 severity to FedRAMP risk rating
+        const mapSeverityToFedRAMP = (sev: string, cvss?: string | null): string => {
+          if (cvss) {
+            const score = parseFloat(cvss);
+            if (score >= 9.0) return 'Critical';
+            if (score >= 7.0) return 'High';
+            if (score >= 4.0) return 'Moderate';
+            if (score > 0) return 'Low';
+          }
+          switch (sev) {
+            case 'critical': return 'Critical';
+            case 'high': return 'High';
+            case 'moderate': return 'Moderate';
+            case 'low': return 'Low';
+            case 'informational': return 'Warning';
+            default: return 'Moderate';
+          }
+        };
+
+        // Helper: determine weakness type from finding data
+        const classifyWeaknessType = (f: any): string => {
+          const title = (f.rfTitle || '').toLowerCase();
+          const techniques = (f.rfAttackTechniques as any[] || []);
+          if (title.includes('config') || title.includes('header') || title.includes('tls') || title.includes('ssl')) return 'Misconfiguration';
+          if (title.includes('patch') || title.includes('outdated') || title.includes('version')) return 'Software Flaw';
+          if (title.includes('injection') || title.includes('xss') || title.includes('sqli')) return 'Vulnerability';
+          if (title.includes('credential') || title.includes('password') || title.includes('auth')) return 'Vulnerability';
+          if (techniques.length > 0) return 'Vulnerability';
+          return 'Vulnerability';
+        };
+
+        // Helper: determine source of discovery
+        const getSourceOfDiscovery = (f: any): string => {
+          const module = f.rfSourceModule || '';
+          if (module.includes('nuclei')) return 'Nuclei (Automated Scanner)';
+          if (module.includes('zap')) return 'OWASP ZAP (DAST)';
+          if (module.includes('sqlmap')) return 'SQLMap (Injection Testing)';
+          if (module.includes('nmap') || module.includes('rustscan')) return 'Port Scanner (Nmap/RustScan)';
+          if (module.includes('nikto')) return 'Nikto (Web Scanner)';
+          if (module.includes('testssl')) return 'testssl.sh (TLS Analysis)';
+          if (module.includes('caldera')) return 'CALDERA (Adversary Emulation)';
+          if (module.includes('manual') || module.includes('operator')) return 'Manual Penetration Testing';
+          if (module.includes('full-report')) return 'AC3 Automated Assessment';
+          return 'Penetration Testing (AC3)';
+        };
+
+        // RET Header row
+        const retHeaders = ['ID', 'Control(s)', 'Type', 'Weakness Description', 'Source', 'Asset', 'Detection Date', 'Risk Rating'];
+        const retHeaderRow = new TableRow({
+          tableHeader: true,
+          children: retHeaders.map(text => new TableCell({
+            shading: { type: ShadingType.SOLID, color: '1a1a2e' },
+            children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text, bold: true, color: 'FFFFFF', size: 16 })] })],
+          })),
+        });
+
+        // RET Data rows
+        const retDataRows = findings.map((f, idx) => {
+          const ptId = `PT-${String(idx + 1).padStart(3, '0')}`;
+          const controls = (f.rfControls as any[] || []);
+          const controlStr = controls.length > 0
+            ? controls.map((c: any) => c.id).join(', ')
+            : 'RA-5';
+          const assets = (f.rfAssets as string[] || []);
+          const assetStr = assets.length > 0 ? assets[0] : (report.rptScopeDomains as string[] || [])[0] || 'N/A';
+          const detectionDate = f.rfCreatedAt
+            ? new Date(f.rfCreatedAt).toISOString().split('T')[0]
+            : new Date().toISOString().split('T')[0];
+          const riskRating = mapSeverityToFedRAMP(f.rfSeverity, f.rfCvssScore);
+          const riskColor = riskRating === 'Critical' ? 'FF0000' : riskRating === 'High' ? 'FF6600' : riskRating === 'Moderate' ? 'FFAA00' : riskRating === 'Low' ? '3399FF' : '999999';
+
+          return new TableRow({
+            children: [
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: ptId, bold: true, size: 16 })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: controlStr, size: 16 })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: classifyWeaknessType(f), size: 16 })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: f.rfTitle || 'Unnamed Finding', size: 16 })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: getSourceOfDiscovery(f), size: 16 })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: assetStr, size: 16 })] })] }),
+              new TableCell({ children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: detectionDate, size: 16 })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: riskRating, bold: true, color: riskColor, size: 16 })] })] }),
+            ],
+          });
+        });
+
+        retSection.push(new Table({
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          rows: [retHeaderRow, ...retDataRows],
+        }));
+
+        // RET Summary Statistics
+        const retStats = findings.reduce((acc, f) => {
+          const rating = mapSeverityToFedRAMP(f.rfSeverity, f.rfCvssScore);
+          acc[rating] = (acc[rating] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>);
+
+        retSection.push(new Paragraph({
+          spacing: { before: 300, after: 100 },
+          children: [new TextRun({ text: 'RET Summary', bold: true, size: 22 })],
+        }));
+        retSection.push(new Paragraph({
+          spacing: { after: 100 },
+          children: [new TextRun({
+            text: `Total Findings: ${findings.length} | ` +
+              `Critical: ${retStats['Critical'] || 0} | High: ${retStats['High'] || 0} | ` +
+              `Moderate: ${retStats['Moderate'] || 0} | Low: ${retStats['Low'] || 0} | ` +
+              `Warning: ${retStats['Warning'] || 0}`,
+            size: 20,
+          })],
+        }));
+
+        // NIST Control Coverage note
+        const allControls = new Set<string>();
+        findings.forEach(f => {
+          (f.rfControls as any[] || []).forEach((c: any) => allControls.add(c.id));
+        });
+        retSection.push(new Paragraph({
+          spacing: { after: 100 },
+          children: [new TextRun({
+            text: `NIST SP 800-53 Controls Impacted: ${allControls.size > 0 ? Array.from(allControls).sort().join(', ') : 'RA-5 (default — controls pending enrichment)'}`,
+            size: 20, color: '444444',
+          })],
+        }));
+
+        // Deviation & False Positive note
+        retSection.push(new Paragraph({
+          spacing: { after: 200 },
+          children: [new TextRun({
+            text: 'Note: Deviation Requests, Vendor Dependencies, False Positive determinations, and Operational Requirements ' +
+              'are to be completed by the CSP in coordination with the 3PAO during the POA&M development phase.',
+            size: 18, italics: true, color: '666666',
+          })],
+        }));
+      }
+
       // Assemble document
       const frameworkDesc = isFedRAMP
         ? `FedRAMP ${report.fedrampImpactLevel || 'Moderate'} Assessment Report`
@@ -2898,6 +3053,7 @@ export const ac3ReportsRouter = {
             ...findingsSection,
             ...intelligenceGapsSection,
             ...appendixSection,
+            ...retSection,
             ...chainOfCustodySealSection,
           ],
         }],

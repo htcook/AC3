@@ -2324,5 +2324,15 @@
 
 ### DAST nucleiTargetUrls Bug Fix (May 13)
 - [x] Fix "nucleiTargetUrls is not defined" error in DAST phase (moved URL construction outside try block)
-- [ ] Deploy fix to AWS ECS
+- [x] Deploy fix to AWS ECS (built on scan server, pushed to ECR, ECS force-new-deployment)
 - [ ] Verify DAST (ZAP) runs successfully in pipeline
+
+### FedRAMP RET (Risk Exposure Table) Report Appendix (May 13)
+- [x] Research FedRAMP RET template and requirements
+- [x] Research NIST guidance on RET (NIST SP 800-53 control mappings, SAR Appendix A format)
+- [x] Design RET appendix structure for AC3 pentest reports
+- [x] Implement RET generation in the report engine (ac3-reports.ts)
+- [x] Write 27 vitest tests for RET helper functions (all passing)
+- [x] Add retSection to document assembly children array
+- [ ] Deploy RET to AWS ECS production
+- [ ] Test report generation with RET appendix on live data
