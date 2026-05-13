@@ -2320,4 +2320,9 @@
 - [x] Update dashboard scan-service-url.ts to use https://scanforge.aceofcloud.io:4443
 - [x] Verify end-to-end: health check, tool execution, raw commands all work over HTTPS
 - [x] TLS cert verified: Let's Encrypt E7, valid until Aug 11 2026
-- [ ] Redeploy dashboard to production
+- [x] Redeploy dashboard to production (built on scan server, pushed to ECR, ECS updated)
+
+### DAST nucleiTargetUrls Bug Fix (May 13)
+- [x] Fix "nucleiTargetUrls is not defined" error in DAST phase (moved URL construction outside try block)
+- [ ] Deploy fix to AWS ECS
+- [ ] Verify DAST (ZAP) runs successfully in pipeline

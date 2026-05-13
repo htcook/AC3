@@ -2309,21 +2309,23 @@ export const engagementOpsRouter = router({
                     ? Object.entries(nucleiCfg.customHeaders).map(([k, v]: [string, any]) => `-H "${k}: ${v}"`).join(' ')
                     : '';
 
+                  // Build target URLs from discovered ports, fallback to both http+https
+                  // (Defined outside try block so DAST can use it even if nuclei scan fails)
+                  const NUCLEI_INFRA_PORTS = new Set([1337, 31337, 8834, 9392, 5432, 3306, 27017, 6379]);
+                  const webPorts = (asset.ports || []).filter((p: any) =>
+                    (['http', 'https', 'http-proxy', 'http-alt'].includes(p.service) ||
+                    [80, 443, 8080, 8443, 8000, 3000, 5000].includes(p.port))
+                    && !NUCLEI_INFRA_PORTS.has(p.port)
+                  );
+                  const nucleiTargetUrls = webPorts.length > 0
+                    ? webPorts.map((p: any) => {
+                        const scheme = p.port === 443 || p.port === 8443 ? 'https' : 'http';
+                        return `${scheme}://${asset.hostname}:${p.port}`;
+                      })
+                    : [`http://${asset.hostname}`, `https://${asset.hostname}`];
+
                   addLog(state!, { phase: 'scanning', type: 'info', title: `\u{1f50d} Nuclei: ${asset.hostname}`, detail: nucleiCfg ? `Handoff config: ${nucleiCfg.rationale}` : 'Vulnerability templates (default config)...' });
                   try {
-                    // Build target URLs from discovered ports, fallback to both http+https
-                    const NUCLEI_INFRA_PORTS = new Set([1337, 31337, 8834, 9392, 5432, 3306, 27017, 6379]);
-                    const webPorts = (asset.ports || []).filter((p: any) =>
-                      (['http', 'https', 'http-proxy', 'http-alt'].includes(p.service) ||
-                      [80, 443, 8080, 8443, 8000, 3000, 5000].includes(p.port))
-                      && !NUCLEI_INFRA_PORTS.has(p.port)
-                    );
-                    const nucleiTargetUrls = webPorts.length > 0
-                      ? webPorts.map((p: any) => {
-                          const scheme = p.port === 443 || p.port === 8443 ? 'https' : 'http';
-                          return `${scheme}://${asset.hostname}:${p.port}`;
-                        })
-                      : [`http://${asset.hostname}`, `https://${asset.hostname}`];
                     // Use stdin piping to avoid nuclei hanging on PDCP TTY auth prompt
                     const nucleiInput = nucleiTargetUrls.join('\n');
                     const nucleiResult = await executeRawCommand(`echo "${nucleiInput}" | nuclei -severity ${nucleiSeverity} -jsonl -nc -duc -ni -timeout 20 -retries 2 -rate-limit ${nucleiRateLimit} -tags ${nucleiTags} ${nucleiCustomHeaders} 2>&1`, 300);
