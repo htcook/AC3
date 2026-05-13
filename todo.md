@@ -2309,3 +2309,15 @@
 - [x] Verify fix: bash, uptime, cat, feroxbuster, katana all execute successfully via HTTP API
 - [x] Update dashboard scan-server-executor.ts ALLOWED_TOOLS to include uptime, df, free for health checks
 - [ ] Redeploy dashboard to ac3.aceofcloud.io to apply code changes
+
+### HTTPS/TLS for Scan Server (May 12)
+- [x] Create DNS A record: scanforge.aceofcloud.io -> 137.184.71.192
+- [x] Install certbot (snap) on scan server
+- [x] Obtain Let's Encrypt TLS certificate for scanforge.aceofcloud.io
+- [x] Add HTTPS server (port 4443) to scanforge-service with Let's Encrypt cert
+- [x] Set up certbot renewal hook to auto-restart pm2 on cert renewal
+- [x] Open port 4443 in UFW
+- [x] Update dashboard scan-service-url.ts to use https://scanforge.aceofcloud.io:4443
+- [x] Verify end-to-end: health check, tool execution, raw commands all work over HTTPS
+- [x] TLS cert verified: Let's Encrypt E7, valid until Aug 11 2026
+- [ ] Redeploy dashboard to production

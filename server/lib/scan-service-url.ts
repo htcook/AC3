@@ -4,7 +4,8 @@
  * Routes scan tool execution to the dedicated ScanForge droplet (primary).
  *
  * Architecture:
- *   Primary:  scanforge-dedicated (137.184.71.192) — CPU-optimized 4vCPU/8GB, scan tools only
+ *   Primary:  scanforge.aceofcloud.io (137.184.71.192) — CPU-optimized 4vCPU/8GB, scan tools only
+ *             HTTPS on port 4443 with Let's Encrypt TLS certificate
  *   Legacy:   scan.aceofcloud.io (137.184.211.238) — shared server with lab containers + ZAP
  *
  * IMPORTANT: The legacy server is perpetually at memory capacity (~15.5GB/16GB used)
@@ -19,7 +20,10 @@ const SCAN_HOST_RAW = process.env.SCAN_SERVER_HOST || "";
 
 // ─── Dedicated ScanForge Droplet ────────────────────────────────────────────
 export const SCANFORGE_DEDICATED_IP = "137.184.71.192";
-export const SCANFORGE_DEDICATED_URL = `http://${SCANFORGE_DEDICATED_IP}:4000`;
+export const SCANFORGE_DEDICATED_DOMAIN = "scanforge.aceofcloud.io";
+export const SCANFORGE_DEDICATED_URL = `https://${SCANFORGE_DEDICATED_DOMAIN}:4443`;
+// Legacy HTTP fallback (kept for reference, not used in production)
+export const SCANFORGE_DEDICATED_URL_HTTP = `http://${SCANFORGE_DEDICATED_IP}:4000`;
 
 // ─── Legacy Shared Scan Server (also hosts ZAP + lab containers) ────────────
 export const LEGACY_SCAN_URL = "https://scan.aceofcloud.io";
