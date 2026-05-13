@@ -5794,7 +5794,8 @@ export async function exportDiReport(
       }
     }
     // From email security
-    if (email.dmarc?.policy === 'none') {
+    const _emailSec = domainHealth.emailSecurity;
+    if (_emailSec?.dmarc?.policy === 'none') {
       autoRecs.push({ recommendation: 'Upgrade DMARC policy from "none" to "quarantine" or "reject" to prevent email spoofing.', title: 'Enforce DMARC Policy', category: 'Email Security', effort: 'Short-term' });
     }
     // From blacklist
