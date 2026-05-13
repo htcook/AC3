@@ -3338,7 +3338,7 @@ export default function EngagementOps() {
                   {(() => {
                     const assets = ops?.assets || [];
                     const allToolResults = assets.flatMap((a: any) => (a.toolResults || []).map((tr: any) => ({ ...tr, assetHostname: a.hostname })));
-                    const portScanResults = allToolResults.filter((tr: any) => tr.tool === 'nmap' || tr.tool === 'nmap-discovery' || tr.tool === 'nerva' || tr.tool === 'naabu');
+                    const portScanResults = allToolResults.filter((tr: any) => tr.tool === 'nmap' || tr.tool === 'nmap-discovery' || tr.tool === 'nerva' || tr.tool === 'naabu' || tr.tool === 'scanforge-discovery' || tr.tool === 'masscan' || tr.tool === 'rustscan' || tr.phase === 'discovery');
                     const nucleiResults = allToolResults.filter((tr: any) => tr.tool === 'nuclei');
                     const httpxResults = allToolResults.filter((tr: any) => tr.tool === 'httpx');
 

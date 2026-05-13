@@ -2283,19 +2283,50 @@ export const engagementOpsRouter = router({
 
                   addLog(state!, { phase: 'scanning', type: 'info', title: `\u{1f50d} ScanForge: ${asset.hostname}`, detail: scanCfg ? `Handoff config: ${scanCfg.rationale}` : 'Service detection and version scan (default config)...' });
                   try {
+                    const sfStartTime = Date.now();
                     const discoveryResult = await executeTool({ tool: 'scanforge-discovery', args: discoveryArgs, timeoutSeconds: discoveryTimeout });
                     const portRegex = /(\d+)\/tcp\s+open\s+(\S+)\s*(.*)/g;
                     let match;
+                    const discoveredPorts: Array<{port: number; service: string; version: string}> = [];
                     while ((match = portRegex.exec(discoveryResult.stdout)) !== null) {
                       const port = parseInt(match[1]);
                       if (!asset.ports.find((p: any) => p.port === port)) {
-                        asset.ports.push({ port, service: match[2], version: match[3]?.trim() || '' } as any);
+                        const portEntry = { port, service: match[2], version: match[3]?.trim() || '' };
+                        asset.ports.push(portEntry as any);
+                        discoveredPorts.push(portEntry);
                       }
                     }
+                    // Push toolResult so Discovery tab shows accurate run counts
+                    if (!asset.toolResults) asset.toolResults = [];
+                    asset.toolResults.push({
+                      tool: 'scanforge-discovery',
+                      command: `scanforge-discovery ${discoveryArgs}`,
+                      exitCode: discoveryResult.exitCode ?? 0,
+                      durationMs: Date.now() - sfStartTime,
+                      timedOut: discoveryResult.timedOut || false,
+                      findingCount: discoveredPorts.length,
+                      findings: discoveredPorts.map(p => ({ severity: 'info', title: `${p.port}/tcp ${p.service}${p.version ? ` (${p.version})` : ''}` })),
+                      outputPreview: (discoveryResult.stdout || '').slice(0, 512),
+                      executedAt: Date.now(),
+                      phase: 'discovery',
+                    } as any);
                     asset.status = 'scanned' as any;
                     addLog(state!, { phase: 'scanning', type: 'success', title: `\u2705 ScanForge: ${asset.hostname}`, detail: `${asset.ports.length} open ports` });
                   } catch (err: any) {
                     // Even if ScanForge discovery fails, mark as scanned (attempted) so it doesn't stay 'pending'
+                    if (!asset.toolResults) asset.toolResults = [];
+                    asset.toolResults.push({
+                      tool: 'scanforge-discovery',
+                      command: `scanforge-discovery ${discoveryArgs}`,
+                      exitCode: 1,
+                      durationMs: 0,
+                      timedOut: false,
+                      findingCount: 0,
+                      findings: [],
+                      outputPreview: (err as any).message?.slice(0, 512) || 'Scan failed',
+                      executedAt: Date.now(),
+                      phase: 'discovery',
+                    } as any);
                     asset.status = 'scanned' as any;
                     addLog(state!, { phase: 'scanning', type: 'error', title: `\u274c ScanForge failed: ${asset.hostname}`, detail: err.message });
                   }
@@ -2305,9 +2336,112 @@ export const engagementOpsRouter = router({
                   const nucleiTags = nucleiCfg ? nucleiCfg.tags.join(',') : 'cve,sqli,xss,lfi,rce,ssrf,ssti,crlf,traversal';
                   const nucleiSeverity = nucleiCfg?.severityFilter || 'critical,high,medium';
                   const nucleiRateLimit = nucleiCfg?.rateLimit || 100;
-                  const nucleiCustomHeaders = nucleiCfg?.customHeaders
+                  let nucleiCustomHeaders = nucleiCfg?.customHeaders
                     ? Object.entries(nucleiCfg.customHeaders).map(([k, v]: [string, any]) => `-H "${k}: ${v}"`).join(' ')
                     : '';
+
+                  // ── Authenticated Scanning: Auto-login for known training targets ──
+                  // For login-protected targets (DVWA, etc.), attempt to obtain a session cookie
+                  // before running nuclei/DAST so scanners can access authenticated pages.
+                  let authSessionCookie = '';
+                  const confirmedCreds = (asset.confirmedCredentials || []).filter(
+                    (c: any) => c.protocol === 'http' || c.protocol === 'https' || c.service === 'http-form'
+                  );
+                  // Check for known training lab credentials
+                  const { TRAINING_TARGETS } = await import('./training-lab');
+                  const matchedLab = TRAINING_TARGETS.find(t => {
+                    try {
+                      const tHost = new URL(t.liveInstanceUrl || t.url).hostname;
+                      return asset.hostname.includes(tHost) || tHost.includes(asset.hostname) ||
+                             (t.liveInstanceUrl && new URL(t.liveInstanceUrl).hostname === asset.hostname);
+                    } catch { return false; }
+                  });
+
+                  // DVWA-specific auto-login
+                  if (matchedLab?.id === 'dvwa' || asset.hostname.includes('dvwa')) {
+                    try {
+                      const dvwaBase = nucleiTargetUrls[0] || `http://${asset.hostname}`;
+                      addLog(state!, { phase: 'scanning', type: 'info', title: `\u{1f511} Auth: ${asset.hostname}`, detail: 'Attempting DVWA auto-login (admin/password)...' });
+                      // Step 1: Get login page to extract CSRF token and session cookie
+                      const loginPageResult = await executeRawCommand(
+                        `curl -sD - -o /tmp/dvwa_login.html -c /tmp/dvwa_cookies.txt '${dvwaBase}/login.php' 2>&1`,
+                        15
+                      );
+                      // Extract user_token from login form
+                      const tokenMatch = (loginPageResult.stdout || '').match(/user_token.*?value=["']([^"']+)["']/i);
+                      const userToken = tokenMatch ? tokenMatch[1] : '';
+                      // Step 2: POST login credentials
+                      const loginResult = await executeRawCommand(
+                        `curl -sD - -b /tmp/dvwa_cookies.txt -c /tmp/dvwa_cookies.txt -L ` +
+                        `--data-urlencode 'username=admin' --data-urlencode 'password=password' ` +
+                        `--data-urlencode 'Login=Login' --data-urlencode 'user_token=${userToken}' ` +
+                        `'${dvwaBase}/login.php' 2>&1`,
+                        15
+                      );
+                      // Step 3: Set security level to low for maximum vuln exposure
+                      await executeRawCommand(
+                        `curl -s -b /tmp/dvwa_cookies.txt -c /tmp/dvwa_cookies.txt ` +
+                        `--data-urlencode 'security=low' --data-urlencode 'seclev_submit=Submit' ` +
+                        `'${dvwaBase}/security.php' 2>&1`,
+                        10
+                      );
+                      // Extract session cookie from cookie jar
+                      const cookieJar = await executeRawCommand('cat /tmp/dvwa_cookies.txt 2>/dev/null', 5);
+                      const phpSessMatch = (cookieJar.stdout || '').match(/PHPSESSID\s+(\S+)/);
+                      const secMatch = (cookieJar.stdout || '').match(/security\s+(\S+)/);
+                      if (phpSessMatch) {
+                        authSessionCookie = `PHPSESSID=${phpSessMatch[1]}`;
+                        if (secMatch) authSessionCookie += `; security=${secMatch[1]}`;
+                        else authSessionCookie += '; security=low';
+                        nucleiCustomHeaders += ` -H "Cookie: ${authSessionCookie}"`;
+                        addLog(state!, { phase: 'scanning', type: 'success', title: `\u2705 Auth: ${asset.hostname}`, detail: `DVWA session obtained. Security level: ${secMatch?.[1] || 'low'}. Injecting into nuclei/DAST.` });
+                        // Store confirmed credentials on asset
+                        if (!asset.confirmedCredentials) asset.confirmedCredentials = [] as any;
+                        const credExists = (asset.confirmedCredentials as any[]).some((c: any) => c.username === 'admin' && c.source === 'auto-login');
+                        if (!credExists) {
+                          (asset.confirmedCredentials as any[]).push({
+                            username: 'admin', password: 'password', service: 'http-form',
+                            port: 80, protocol: 'http', accessLevel: 'admin',
+                            source: 'auto-login', loginPath: '/login.php',
+                            confirmedAt: Date.now(),
+                          });
+                        }
+                      } else {
+                        addLog(state!, { phase: 'scanning', type: 'info', title: `\u26a0\ufe0f Auth: ${asset.hostname}`, detail: 'DVWA login attempt did not return a session cookie' });
+                      }
+                    } catch (authErr: any) {
+                      addLog(state!, { phase: 'scanning', type: 'info', title: `\u26a0\ufe0f Auth skipped: ${asset.hostname}`, detail: authErr.message?.slice(0, 100) || 'Auto-login failed' });
+                    }
+                  }
+                  // Generic form-based auto-login for targets with confirmed HTTP credentials
+                  else if (confirmedCreds.length > 0 && !authSessionCookie) {
+                    const cred = confirmedCreds[0];
+                    if (cred.loginPath) {
+                      try {
+                        const loginBase = nucleiTargetUrls[0] || `http://${asset.hostname}`;
+                        addLog(state!, { phase: 'scanning', type: 'info', title: `\u{1f511} Auth: ${asset.hostname}`, detail: `Attempting login with confirmed creds (${cred.username}) at ${cred.loginPath}` });
+                        const loginResult = await executeRawCommand(
+                          `curl -sD - -c /tmp/auth_cookies_${asset.hostname.replace(/[^a-z0-9]/gi, '_')}.txt -L ` +
+                          `--data-urlencode 'username=${cred.username}' --data-urlencode 'password=${cred.password}' ` +
+                          `'${loginBase}${cred.loginPath}' 2>&1`,
+                          15
+                        );
+                        // Extract Set-Cookie headers
+                        const setCookies = (loginResult.stdout || '').match(/Set-Cookie:\s*([^\n]+)/gi);
+                        if (setCookies && setCookies.length > 0) {
+                          const cookies = setCookies.map((sc: string) => {
+                            const val = sc.replace(/^Set-Cookie:\s*/i, '').split(';')[0];
+                            return val;
+                          }).join('; ');
+                          authSessionCookie = cookies;
+                          nucleiCustomHeaders += ` -H "Cookie: ${authSessionCookie}"`;
+                          addLog(state!, { phase: 'scanning', type: 'success', title: `\u2705 Auth: ${asset.hostname}`, detail: `Session obtained via ${cred.loginPath}. Injecting into nuclei/DAST.` });
+                        }
+                      } catch (authErr: any) {
+                        addLog(state!, { phase: 'scanning', type: 'info', title: `\u26a0\ufe0f Auth skipped: ${asset.hostname}`, detail: authErr.message?.slice(0, 100) || 'Login failed' });
+                      }
+                    }
+                  }
 
                   // Build target URLs from discovered ports, fallback to both http+https
                   // (Defined outside try block so DAST can use it even if nuclei scan fails)
@@ -2325,8 +2459,10 @@ export const engagementOpsRouter = router({
                     : [`http://${asset.hostname}`, `https://${asset.hostname}`];
 
                   addLog(state!, { phase: 'scanning', type: 'info', title: `\u{1f50d} Nuclei: ${asset.hostname}`, detail: nucleiCfg ? `Handoff config: ${nucleiCfg.rationale}` : 'Vulnerability templates (default config)...' });
+                  const nucleiCmd = `echo "${nucleiTargetUrls.join('\n')}" | nuclei -severity ${nucleiSeverity} -jsonl -nc -duc -ni -timeout 20 -retries 2 -rate-limit ${nucleiRateLimit} -tags ${nucleiTags} ${nucleiCustomHeaders} 2>&1`;
                   try {
                     // Use stdin piping to avoid nuclei hanging on PDCP TTY auth prompt
+                    const nucleiStartTime = Date.now();
                     const nucleiInput = nucleiTargetUrls.join('\n');
                     const nucleiResult = await executeRawCommand(`echo "${nucleiInput}" | nuclei -severity ${nucleiSeverity} -jsonl -nc -duc -ni -timeout 20 -retries 2 -rate-limit ${nucleiRateLimit} -tags ${nucleiTags} ${nucleiCustomHeaders} 2>&1`, 300);
                     const findings = nucleiResult.stdout.split('\n').filter(Boolean).map((line: string) => {
@@ -2345,8 +2481,36 @@ export const engagementOpsRouter = router({
                         rawOutput: JSON.stringify(f).slice(0, 500),
                       } as any);
                     }
+                    // Push nuclei toolResult so Discovery tab shows accurate run counts
+                    if (!asset.toolResults) asset.toolResults = [];
+                    asset.toolResults.push({
+                      tool: 'nuclei',
+                      command: nucleiCmd.slice(0, 500),
+                      exitCode: nucleiResult.exitCode ?? 0,
+                      durationMs: Date.now() - nucleiStartTime,
+                      timedOut: nucleiResult.timedOut || false,
+                      findingCount: findings.length,
+                      findings: findings.map((f: any) => ({ severity: f.info?.severity || 'medium', title: f.info?.name || f['template-id'] || 'Unknown' })),
+                      outputPreview: (nucleiResult.stdout || '').slice(0, 512),
+                      executedAt: Date.now(),
+                      phase: 'scanning',
+                    } as any);
                     addLog(state!, { phase: 'scanning', type: 'success', title: `\u2705 Nuclei: ${asset.hostname}`, detail: `${findings.length} vulnerabilities` });
                   } catch (err: any) {
+                    // Push failed nuclei toolResult
+                    if (!asset.toolResults) asset.toolResults = [];
+                    asset.toolResults.push({
+                      tool: 'nuclei',
+                      command: nucleiCmd.slice(0, 500),
+                      exitCode: 1,
+                      durationMs: 0,
+                      timedOut: false,
+                      findingCount: 0,
+                      findings: [],
+                      outputPreview: (err as any).message?.slice(0, 512) || 'Nuclei scan failed',
+                      executedAt: Date.now(),
+                      phase: 'scanning',
+                    } as any);
                     addLog(state!, { phase: 'scanning', type: 'error', title: `\u274c Nuclei failed: ${asset.hostname}`, detail: err.message });
                   }
 
@@ -2357,7 +2521,11 @@ export const engagementOpsRouter = router({
                   try {
                     const scopeFlag = dc.crawlScope === 'strict' ? '' : dc.crawlScope === 'subdomain' ? `-cs ${asset.hostname}` : `-cs ${asset.hostname.split('.').slice(-2).join('.')}`;
                     const headlessFlag = dc.headless ? '-headless' : '';
-                    const customHeaderFlags = dc.customHeaders ? Object.entries(dc.customHeaders).map(([k, v]) => `-H "${k}: ${v}"`).join(' ') : '';
+                    let customHeaderFlags = dc.customHeaders ? Object.entries(dc.customHeaders).map(([k, v]) => `-H "${k}: ${v}"`).join(' ') : '';
+                    // Inject auth session cookie into DAST if obtained during pre-scan login
+                    if (authSessionCookie && !customHeaderFlags.includes('Cookie:')) {
+                      customHeaderFlags += ` -H "Cookie: ${authSessionCookie}"`;
+                    }
                     const dastInput = nucleiTargetUrls.join('\n');
                     const dastCmd = `echo "${dastInput}" | nuclei -dast ${headlessFlag} -crawl-depth ${dc.crawlDepth} -crawl-duration ${dc.timeout * 2} -severity critical,high,medium -jsonl -nc -duc -ni -timeout ${dc.timeout} -rate-limit ${dc.rateLimit} -max-host-error 10 ${scopeFlag} ${customHeaderFlags} -system-resolvers 2>&1`;
                     const dastResult = await executeRawCommand(
@@ -2437,6 +2605,71 @@ export const engagementOpsRouter = router({
                   } catch (err: any) {
                     // Header probe is non-critical, just log
                     addLog(state!, { phase: 'scanning', type: 'info', title: `Header probe skipped: ${asset.hostname}`, detail: err.message });
+                  }
+
+                  // ── httpx HTTP probing (tech detection, CDN/WAF, TLS) ──
+                  try {
+                    const httpxWebPorts = (asset.ports || []).filter((p: any) =>
+                      ['http', 'https', 'http-proxy', 'http-alt'].includes(p.service) ||
+                      [80, 443, 8080, 8443, 8000, 3000, 5000].includes(p.port)
+                    );
+                    const httpxTargetUrls = httpxWebPorts.length > 0
+                      ? httpxWebPorts.map((p: any) => {
+                          const scheme = p.port === 443 || p.port === 8443 ? 'https' : 'http';
+                          return `${scheme}://${asset.hostname}:${p.port}`;
+                        })
+                      : [`http://${asset.hostname}`, `https://${asset.hostname}`];
+                    const httpxFlags = '-json -tech-detect -status-code -title -cdn -tls-grab -follow-redirects -content-length -web-server -silent';
+                    const httpxInput = httpxTargetUrls.join('\\n');
+                    const httpxCmd = `echo -e '${httpxInput}' | httpx ${httpxFlags}`;
+                    addLog(state!, { phase: 'scanning', type: 'info', title: `🌐 httpx: ${asset.hostname}`, detail: `HTTP probing ${httpxTargetUrls.length} web ports` });
+                    const httpxStartTime = Date.now();
+                    const httpxResult = await executeRawCommand(httpxCmd, 120);
+                    const httpxDuration = Date.now() - httpxStartTime;
+                    // Parse httpx JSON output for tech detection
+                    const httpxFindings: Array<{severity: string; title: string}> = [];
+                    const techDetected: string[] = [];
+                    if (httpxResult.stdout) {
+                      for (const line of httpxResult.stdout.split('\n')) {
+                        const trimmed = line.trim();
+                        if (!trimmed) continue;
+                        try {
+                          const obj = JSON.parse(trimmed);
+                          if (obj.tech && Array.isArray(obj.tech)) {
+                            for (const tech of obj.tech) {
+                              if (!techDetected.includes(tech)) techDetected.push(tech);
+                              httpxFindings.push({ severity: 'info', title: `[httpx] Technology: ${tech}` });
+                            }
+                          }
+                          if (obj.cdn_name) httpxFindings.push({ severity: 'info', title: `[httpx] CDN/WAF: ${obj.cdn_name}` });
+                          if (obj.webserver) httpxFindings.push({ severity: 'info', title: `[httpx] Web Server: ${obj.webserver}` });
+                          if (obj.status_code) httpxFindings.push({ severity: 'info', title: `[httpx] ${obj.url || ''}: ${obj.status_code} ${obj.title || ''}`.trim() });
+                        } catch { /* not JSON */ }
+                      }
+                    }
+                    // Enrich asset with detected technologies
+                    if (techDetected.length > 0 && asset.passiveRecon) {
+                      asset.passiveRecon.technologies = Array.from(
+                        new Set([...(asset.passiveRecon.technologies || []), ...techDetected])
+                      );
+                    }
+                    // Push httpx toolResult
+                    if (!asset.toolResults) asset.toolResults = [];
+                    asset.toolResults.push({
+                      tool: 'httpx',
+                      command: httpxCmd.slice(0, 500),
+                      exitCode: httpxResult.exitCode ?? 0,
+                      durationMs: httpxDuration,
+                      timedOut: httpxResult.timedOut || false,
+                      findingCount: httpxFindings.length,
+                      findings: httpxFindings,
+                      outputPreview: (httpxResult.stdout || '').slice(0, 1024),
+                      executedAt: Date.now(),
+                      phase: 'discovery',
+                    } as any);
+                    addLog(state!, { phase: 'scanning', type: 'success', title: `✅ httpx: ${asset.hostname}`, detail: `${httpxFindings.length} findings${techDetected.length > 0 ? `, Tech: ${techDetected.join(', ')}` : ''}` });
+                  } catch (httpxErr: any) {
+                    addLog(state!, { phase: 'scanning', type: 'info', title: `⚠️ httpx skipped: ${asset.hostname}`, detail: httpxErr.message?.slice(0, 100) || 'Timeout or unavailable' });
                   }
 
                   // ── Persist after each asset scan (crash-resilient checkpoint) ──

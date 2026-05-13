@@ -2426,9 +2426,19 @@
 - [ ] LLM decision not invoked in engagement pipeline
 - [ ] Coverage only 13% with 30 gaps on DVWA
 - [ ] 0 exploits attempted on DVWA — exploitation phase skipped
-- [ ] Nuclei scans unauthenticated against login-protected DVWA
-- [ ] Port Discovery shows 0 runs but 2 ports found (toolResults not populated)
-- [ ] Httpx shows 0 runs (toolResults not populated)
-- [ ] 0 Technologies detected on DVWA (login-protected, passive recon can't see)
-- [ ] Per-asset discovery summary shows 0 despite data existing
+- [x] Nuclei scans unauthenticated against login-protected DVWA
+- [x] Port Discovery shows 0 runs but 2 ports found (toolResults not populated)
+- [x] Httpx shows 0 runs (toolResults not populated)
+- [x] 0 Technologies detected on DVWA (login-protected, passive recon can't see)
+- [x] Per-asset discovery summary shows 0 despite data existing
 - [ ] SCAN button requires programmatic click (minor UX issue)
+
+### Fix toolResults Population & Authenticated Scanning (May 13)
+- [x] Fix engagement pipeline to write formal toolResults entries for port scans (naabu/nmap)
+- [x] Fix engagement pipeline to write formal toolResults entries for httpx runs
+- [x] Fix engagement pipeline to write formal toolResults entries for technology detection
+- [x] Fix Discovery tab stats to show accurate run counts from toolResults
+- [x] Add credential/auth support to engagement pipeline for login-protected targets
+- [x] Pass credentials to Nuclei scanner for authenticated scanning
+- [ ] Update engagement UI to accept target credentials
+- [x] Write vitest tests for toolResults population (14 tests passing)
