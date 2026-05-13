@@ -62,11 +62,13 @@ import {
   ScanEye, ShieldOff, Bolt, TrendingUp, BarChart3, Scan, Microscope, Scissors,
   FileUp, Upload, Filter, FilterX, ToggleLeft, ToggleRight,
   X, FileCheck, Fingerprint, Edit2, BookOpen, Rocket,
-  Package, Code,
+  Package, Code, KeyRound,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { KpiStrip } from "@/components/KpiStrip";
 import type { KpiItem } from "@/components/KpiStrip";
@@ -1074,6 +1076,12 @@ export default function EngagementOps() {
   const [showRerunDialog, setShowRerunDialog] = useState(false);
   const [rerunPhases, setRerunPhases] = useState({ passive: true, active: true, llmAnalysis: true, exploitGeneration: true });
   const [resetScope, setResetScope] = useState({ recon: true, scanning: true, analysis: true, exploitation: true, logs: true });
+  // ── Target Credentials for Authenticated Scanning ──
+  const [useCredentials, setUseCredentials] = useState(false);
+  const [credUsername, setCredUsername] = useState('');
+  const [credPassword, setCredPassword] = useState('');
+  const [credLoginUrl, setCredLoginUrl] = useState('');
+  const [credAuthType, setCredAuthType] = useState<'form' | 'basic' | 'bearer' | 'cookie'>('form');
   const allResetChecked = Object.values(resetScope).every(Boolean);
   const noneResetChecked = Object.values(resetScope).every(v => !v);
   const rerunMut = trpc.engagementOps.rerunFullPipeline.useMutation({
@@ -5946,6 +5954,75 @@ export default function EngagementOps() {
                 ))}
               </div>
             </div>
+            {/* ── Target Credentials (Authenticated Scanning) ── */}
+            <div className="py-3 border-t border-border/50">
+            <label className={`flex items-start gap-3 p-3 rounded-lg cursor-pointer border transition-all ${
+              useCredentials ? 'bg-purple-500/5 border-purple-500/20' : 'border-transparent hover:bg-muted/30'
+            }`}>
+              <Checkbox
+                checked={useCredentials}
+                onCheckedChange={(c) => setUseCredentials(!!c)}
+                className="mt-0.5"
+              />
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <KeyRound className="h-4 w-4 text-purple-400" />
+                  <span className="text-sm font-medium">Provide Target Credentials</span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">Supply login credentials for authenticated scanning of login-protected targets</p>
+              </div>
+            </label>
+            {useCredentials && (
+              <div className="mt-3 space-y-3 pl-10">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-1 block">Username</Label>
+                    <Input
+                      value={credUsername}
+                      onChange={(e) => setCredUsername(e.target.value)}
+                      placeholder="admin"
+                      className="h-8 text-sm bg-background/50"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-1 block">Password</Label>
+                    <Input
+                      type="password"
+                      value={credPassword}
+                      onChange={(e) => setCredPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="h-8 text-sm bg-background/50"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-1 block">Login URL Path</Label>
+                    <Input
+                      value={credLoginUrl}
+                      onChange={(e) => setCredLoginUrl(e.target.value)}
+                      placeholder="/login"
+                      className="h-8 text-sm bg-background/50"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-1 block">Auth Type</Label>
+                    <Select value={credAuthType} onValueChange={(v) => setCredAuthType(v as any)}>
+                      <SelectTrigger className="h-8 text-sm bg-background/50">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="form">Form Login</SelectItem>
+                        <SelectItem value="basic">HTTP Basic Auth</SelectItem>
+                        <SelectItem value="bearer">Bearer Token</SelectItem>
+                        <SelectItem value="cookie">Cookie Injection</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
           </div>
           <AlertDialogFooter className="px-6 pb-6 pt-4 shrink-0 border-t border-border/50">
             <AlertDialogCancel>Cancel</AlertDialogCancel>
@@ -5955,6 +6032,14 @@ export default function EngagementOps() {
                 engagementId,
                 phases: rerunPhases,
                 resetScope,
+                ...(useCredentials && credUsername && credPassword ? {
+                  credentials: {
+                    username: credUsername,
+                    password: credPassword,
+                    loginUrl: credLoginUrl || undefined,
+                    authType: credAuthType,
+                  }
+                } : {}),
               })}
               disabled={rerunMut.isPending || !Object.values(rerunPhases).some(Boolean)}
             >

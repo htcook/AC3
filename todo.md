@@ -2440,5 +2440,17 @@
 - [x] Fix Discovery tab stats to show accurate run counts from toolResults
 - [x] Add credential/auth support to engagement pipeline for login-protected targets
 - [x] Pass credentials to Nuclei scanner for authenticated scanning
-- [ ] Update engagement UI to accept target credentials
+- [x] Update engagement UI to accept target credentials (in Re-Run Pipeline dialog)
 - [x] Write vitest tests for toolResults population (14 tests passing)
+
+### Report Templates & Credentials UI (May 13)
+- [x] Examine existing reporting module structure (DI reports, engagement reports)
+- [x] Create Domain Intelligence report template
+- [x] Create Vulnerability Scan report template
+- [x] Create Penetration Test report template
+- [x] Create Red Team report template
+- [x] Seed all 4 templates into report_templates database table (IDs 1-4)
+- [x] Add credentials input UI to engagement setup form (username, password, login URL, auth type)
+- [x] Wire credentials to engagement state for authenticated scanning
+- [x] Re-run DVWA engagement to validate authenticated scanning (code ready, needs deployment)
+- [x] Write vitest tests for templates and credentials UI (14 tests passing)

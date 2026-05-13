@@ -1769,6 +1769,13 @@ export const engagementOpsRouter = router({
           exploitation: z.boolean().default(true),   // Exploits: attempts, plans, chains
           logs: z.boolean().default(true),            // Timeline events, ops log, approval gates
         }).default({}),
+        // Target credentials for authenticated scanning
+        credentials: z.object({
+          username: z.string(),
+          password: z.string(),
+          loginUrl: z.string().optional(),
+          authType: z.enum(['form', 'basic', 'bearer', 'cookie']).default('form'),
+        }).optional(),
       }))
       .mutation(async ({ input, ctx }) => {
         const {
@@ -2344,6 +2351,21 @@ export const engagementOpsRouter = router({
                   // For login-protected targets (DVWA, etc.), attempt to obtain a session cookie
                   // before running nuclei/DAST so scanners can access authenticated pages.
                   let authSessionCookie = '';
+
+                  // If user provided credentials via the UI, inject them as confirmed creds on first asset
+                  if (input.credentials && !asset.confirmedCredentials?.length) {
+                    if (!asset.confirmedCredentials) asset.confirmedCredentials = [] as any;
+                    (asset.confirmedCredentials as any[]).push({
+                      protocol: 'http',
+                      service: 'http-form',
+                      username: input.credentials.username,
+                      password: input.credentials.password,
+                      loginPath: input.credentials.loginUrl || '/login',
+                      authType: input.credentials.authType || 'form',
+                      source: 'user-provided',
+                    });
+                  }
+
                   const confirmedCreds = (asset.confirmedCredentials || []).filter(
                     (c: any) => c.protocol === 'http' || c.protocol === 'https' || c.service === 'http-form'
                   );
