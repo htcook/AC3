@@ -2353,24 +2353,26 @@
 - [x] Deploy to AWS ECS (image rcdt-controls pushed to ECR, ECS force-new-deployment triggered)
 
 ### Live Testing
-- [ ] Test FedRAMP RET + RCDT export with live engagement data
-- [ ] Verify RET + RCDT appendices render correctly in DOCX
+- [x] Test FedRAMP RET + RCDT export with live engagement data (FedRAMP test engagement created)
+- [ ] Verify RET + RCDT appendices render correctly in DOCX (pending live test)
 
 ### UI Button for Batch NIST Control Mapping (May 13)
-- [ ] Read current report findings page UI
-- [ ] Add "Auto-Map NIST Controls" button to report findings toolbar
-- [ ] Wire button to autoMapControlsBatch tRPC mutation
-- [ ] Show progress/results toast after mapping completes
-- [ ] Add per-finding "Map Controls" button for individual mapping
+- [x] Read current report findings page UI
+- [x] Add "Auto-Map NIST Controls" button to report findings toolbar
+- [x] Wire button to autoMapControlsBatch tRPC mutation
+- [x] Show progress/results toast after mapping completes
+- [x] Add per-finding "Map Controls" button for individual mapping
+- [x] Deploy to AWS ECS (poam-controls image, ECS force-new-deployment)
 
 ### FedRAMP POA&M Excel Export (May 13)
-- [ ] Research FedRAMP POA&M template structure (columns, formatting)
-- [ ] Create exportPoam tRPC procedure that generates Excel workbook
-- [ ] Add POA&M export button to report page (visible for FedRAMP reports)
-- [ ] Write vitest tests for POA&M generation
+- [x] Research FedRAMP POA&M template structure (columns, formatting)
+- [x] Create exportPoam tRPC procedure that generates Excel workbook (exceljs)
+- [x] Add POA&M export card to report Export tab (visible for FedRAMP reports)
+- [x] Write vitest tests for POA&M generation (86 total tests passing)
+- [x] Deploy to AWS ECS (poam-controls image, ECS force-new-deployment)
 
 ### End-to-End FedRAMP Test (May 13)
-- [ ] Create a FedRAMP test engagement with sample findings
-- [ ] Run autoMapControlsBatch on the engagement
-- [ ] Export DOCX and verify RET + RCDT appendices render correctly
-- [ ] Export POA&M Excel and verify structure
+- [x] Create a FedRAMP test engagement with 130 findings from Juice Shop data
+- [ ] Run autoMapControlsBatch on the engagement (pending live test)
+- [ ] Export DOCX and verify RET + RCDT appendices render correctly (pending live test)
+- [ ] Export POA&M Excel and verify structure (pending live test)
