@@ -4918,4 +4918,167 @@ Return ONLY a JSON object with vulnerabilities array.`;
         })),
       };
     }),
+
+  /** Test credentials against a target before running a full pipeline */
+  testCredentials: protectedProcedure
+    .input(z.object({
+      targetUrl: z.string(),
+      username: z.string(),
+      password: z.string(),
+      authType: z.enum(['form', 'basic', 'bearer', 'cookie']).default('form'),
+      loginPath: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const startTime = Date.now();
+      try {
+        const targetUrl = input.targetUrl.startsWith('http') ? input.targetUrl : `http://${input.targetUrl}`;
+        const loginUrl = input.loginPath ? `${targetUrl.replace(/\/$/, '')}${input.loginPath}` : targetUrl;
+
+        if (input.authType === 'basic') {
+          // Test HTTP Basic auth
+          const basicAuth = Buffer.from(`${input.username}:${input.password}`).toString('base64');
+          const response = await fetch(loginUrl, {
+            method: 'GET',
+            headers: { 'Authorization': `Basic ${basicAuth}` },
+            redirect: 'manual',
+          });
+          const duration = Date.now() - startTime;
+          const success = response.status >= 200 && response.status < 400;
+          return {
+            success,
+            statusCode: response.status,
+            message: success ? 'HTTP Basic authentication successful' : `Authentication failed with status ${response.status}`,
+            duration,
+            responseHeaders: Object.fromEntries(response.headers.entries()),
+          };
+        }
+
+        if (input.authType === 'bearer') {
+          // Test Bearer token (password field used as token)
+          const response = await fetch(loginUrl, {
+            method: 'GET',
+            headers: { 'Authorization': `Bearer ${input.password}` },
+            redirect: 'manual',
+          });
+          const duration = Date.now() - startTime;
+          const success = response.status >= 200 && response.status < 400;
+          return {
+            success,
+            statusCode: response.status,
+            message: success ? 'Bearer token authentication successful' : `Authentication failed with status ${response.status}`,
+            duration,
+            responseHeaders: Object.fromEntries(response.headers.entries()),
+          };
+        }
+
+        if (input.authType === 'cookie') {
+          // Test cookie injection
+          const response = await fetch(loginUrl, {
+            method: 'GET',
+            headers: { 'Cookie': input.password }, // password field contains cookie string
+            redirect: 'manual',
+          });
+          const duration = Date.now() - startTime;
+          const success = response.status >= 200 && response.status < 400;
+          const body = await response.text();
+          const hasLoginForm = body.includes('login') || body.includes('sign in') || body.includes('password');
+          return {
+            success: success && !hasLoginForm,
+            statusCode: response.status,
+            message: success && !hasLoginForm ? 'Cookie authentication successful' : 'Cookie may be invalid (login form detected)',
+            duration,
+            responseHeaders: Object.fromEntries(response.headers.entries()),
+          };
+        }
+
+        // Form-based login (default)
+        // Step 1: GET login page to extract CSRF token
+        const getResp = await fetch(loginUrl, { redirect: 'follow' });
+        const pageHtml = await getResp.text();
+        
+        // Extract CSRF token from common patterns
+        let csrfToken = '';
+        const csrfPatterns = [
+          /name=["'](?:csrf|_token|user_token|csrfmiddlewaretoken|_csrf_token|authenticity_token)["']\s+value=["']([^"']+)["']/i,
+          /value=["']([^"']+)["']\s+name=["'](?:csrf|_token|user_token|csrfmiddlewaretoken|_csrf_token|authenticity_token)["']/i,
+          /meta\s+name=["']csrf-token["']\s+content=["']([^"']+)["']/i,
+        ];
+        for (const pattern of csrfPatterns) {
+          const match = pageHtml.match(pattern);
+          if (match) { csrfToken = match[1]; break; }
+        }
+
+        // Extract form action
+        const formAction = pageHtml.match(/form[^>]*action=["']([^"']*)["']/i)?.[1] || loginUrl;
+        const postUrl = formAction.startsWith('http') ? formAction : `${new URL(loginUrl).origin}${formAction}`;
+
+        // Detect username/password field names
+        const usernameField = pageHtml.match(/name=["'](username|user|email|login|user_login)["']/i)?.[1] || 'username';
+        const passwordField = pageHtml.match(/name=["'](password|pass|passwd|user_password)["']/i)?.[1] || 'password';
+
+        // Extract cookies from GET response
+        const setCookies = getResp.headers.getSetCookie?.() || [];
+        const cookieStr = setCookies.map(c => c.split(';')[0]).join('; ');
+
+        // Step 2: POST credentials
+        const formData = new URLSearchParams();
+        formData.set(usernameField, input.username);
+        formData.set(passwordField, input.password);
+        if (csrfToken) {
+          const csrfFieldName = pageHtml.match(/name=["'](csrf|_token|user_token|csrfmiddlewaretoken|_csrf_token|authenticity_token)["']/i)?.[1] || 'user_token';
+          formData.set(csrfFieldName, csrfToken);
+        }
+        formData.set('Login', 'Login'); // Common submit button name
+
+        const postResp = await fetch(postUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Cookie': cookieStr,
+          },
+          body: formData.toString(),
+          redirect: 'manual',
+        });
+
+        const duration = Date.now() - startTime;
+        const postStatus = postResp.status;
+        const postBody = postStatus < 400 ? await postResp.text().catch(() => '') : '';
+        
+        // Determine success: redirect (302/303) or 200 without login form
+        const isRedirect = postStatus >= 300 && postStatus < 400;
+        const hasLoginFormInResponse = postBody.toLowerCase().includes('login failed') || 
+          postBody.toLowerCase().includes('invalid') || 
+          postBody.toLowerCase().includes('incorrect');
+        const newCookies = postResp.headers.getSetCookie?.() || [];
+        const gotSessionCookie = newCookies.some(c => /session|PHPSESSID|token|auth/i.test(c));
+
+        const success = (isRedirect || (postStatus === 200 && !hasLoginFormInResponse)) && (gotSessionCookie || isRedirect);
+
+        return {
+          success,
+          statusCode: postStatus,
+          message: success 
+            ? `Form login successful${gotSessionCookie ? ' (session cookie received)' : ' (redirect detected)'}` 
+            : `Form login failed (status: ${postStatus}${hasLoginFormInResponse ? ', error message detected' : ''})`,
+          duration,
+          responseHeaders: Object.fromEntries(postResp.headers.entries()),
+          details: {
+            csrfTokenFound: !!csrfToken,
+            formAction: postUrl,
+            usernameField,
+            passwordField,
+            sessionCookieReceived: gotSessionCookie,
+            redirectLocation: postResp.headers.get('location') || undefined,
+          },
+        };
+      } catch (err: any) {
+        return {
+          success: false,
+          statusCode: 0,
+          message: `Connection failed: ${err.message}`,
+          duration: Date.now() - startTime,
+          responseHeaders: {},
+        };
+      }
+    }),
 });

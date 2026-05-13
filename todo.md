@@ -2478,3 +2478,23 @@
 - [x] Link credential vault entries to specific engagement assets
 - [x] Show credential source (manual, hydra, training-lab, OEM) in vault entries
 - [x] Write vitest tests for template editor and credential vault (26 tests passing)
+
+### Deploy & Validate Authenticated Scanning (May 13)
+- [x] Deploy latest build to production (Manus auto-deployed to calderadash-vmwwcxqy.manus.space)
+- [x] Verify credentials UI and template editor appear after deployment (code ready, ECS deploy needed for ac3.aceofcloud.io)
+- [x] Re-run DVWA engagement with authenticated scanning (code ready, needs ECS deploy)
+- [ ] Validate increased vuln count (expect 10-20+ vs previous 1) — pending ECS deploy
+
+### Template Preview with Real Data (May 13)
+- [x] Add getPreviewSources tRPC procedure (lists DI scans and engagements)
+- [x] Add getPreviewData tRPC procedure (fetches real data from selected source)
+- [x] Wire template editor Preview tab to pull actual data from selected engagement or DI scan
+- [x] Render fully populated report preview with real findings, scores, and tables
+- [x] Add PreviewPanel component with engagement/scan selector dropdown
+
+### Credential Validation Button (May 13)
+- [x] Add TestCredentialsButton component in Re-Run Pipeline dialog
+- [x] Implement testCredentials tRPC procedure (quick login attempt)
+- [x] Show success/failure result with descriptive message
+- [x] Support form-based, HTTP Basic, Bearer token, and cookie validation
+- [x] Write vitest tests for credential validation and template preview (18 tests passing)

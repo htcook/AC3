@@ -113,6 +113,8 @@ export default function ReportTemplateEditor() {
   const [activeTab, setActiveTab] = useState("content");
   const [showPreview, setShowPreview] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [previewSource, setPreviewSource] = useState<string>("sample");
+  const [realData, setRealData] = useState<Record<string, string> | null>(null);
 
   // Load template data
   const templateQuery = trpc.reportTemplates.get.useQuery(
@@ -223,8 +225,8 @@ export default function ReportTemplateEditor() {
   // Generate preview HTML
   const previewHtml = useMemo(() => {
     let html = templateContent;
-    // Replace variables with sample data
-    const sampleData: Record<string, string> = {
+    // Replace variables with real data or sample data
+    const sampleData: Record<string, string> = realData || {
       client_name: "AceofCloud Security",
       report_date: new Date().toLocaleDateString(),
       report_title: `${name || "Sample Report"}`,
@@ -294,7 +296,7 @@ export default function ReportTemplateEditor() {
       </html>
     `;
     return fullHtml;
-  }, [templateContent, headerHtml, footerHtml, cssOverrides, primaryColor, name]);
+  }, [templateContent, headerHtml, footerHtml, cssOverrides, primaryColor, name, realData]);
 
   if (templateId && templateQuery.isLoading) {
     return (
@@ -645,27 +647,140 @@ export default function ReportTemplateEditor() {
 
           {/* Preview Panel */}
           {showPreview && (
-            <div className="sticky top-4">
-              <Card className="bg-white border-border/50 h-[calc(100vh-120px)]">
-                <CardHeader className="pb-2 border-b">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-sm text-gray-900">Live Preview</CardTitle>
-                    <Badge variant="outline" className="text-[10px]">Sample Data</Badge>
-                  </div>
-                </CardHeader>
-                <CardContent className="p-0 h-[calc(100%-60px)]">
-                  <iframe
-                    srcDoc={previewHtml}
-                    className="w-full h-full border-0"
-                    title="Template Preview"
-                    sandbox="allow-same-origin"
-                  />
-                </CardContent>
-              </Card>
-            </div>
+            <PreviewPanel
+              previewHtml={previewHtml}
+              previewSource={previewSource}
+              setPreviewSource={setPreviewSource}
+              templateContent={templateContent}
+              headerHtml={headerHtml}
+              footerHtml={footerHtml}
+              cssOverrides={cssOverrides}
+              primaryColor={primaryColor}
+              setRealData={setRealData}
+            />
           )}
         </div>
       </div>
     </AppShell>
+  );
+}
+
+// Preview Panel with data source selector
+function PreviewPanel({
+  previewHtml,
+  previewSource,
+  setPreviewSource,
+  templateContent,
+  headerHtml,
+  footerHtml,
+  cssOverrides,
+  primaryColor,
+  setRealData,
+}: {
+  previewHtml: string;
+  previewSource: string;
+  setPreviewSource: (v: string) => void;
+  templateContent: string;
+  headerHtml: string;
+  footerHtml: string;
+  cssOverrides: string;
+  primaryColor: string;
+  setRealData: (data: Record<string, string> | null) => void;
+}) {
+  const [selectedSourceId, setSelectedSourceId] = useState<number | null>(null);
+  const [selectedSourceType, setSelectedSourceType] = useState<"di" | "engagement">("di");
+  const [isLoadingData, setIsLoadingData] = useState(false);
+
+  // Fetch available data sources
+  const sourcesQuery = trpc.reportTemplates.getPreviewSources.useQuery(undefined, {
+    enabled: previewSource !== "sample",
+  });
+
+  // Fetch real data when a source is selected
+  const previewDataQuery = trpc.reportTemplates.getPreviewData.useQuery(
+    { sourceType: selectedSourceType, sourceId: selectedSourceId! },
+    { enabled: !!selectedSourceId && previewSource !== "sample" }
+  );
+
+  // Update real data when query resolves
+  useEffect(() => {
+    if (previewDataQuery.data) {
+      setRealData(previewDataQuery.data as Record<string, string>);
+      setIsLoadingData(false);
+    }
+  }, [previewDataQuery.data, setRealData]);
+
+  const handleSourceChange = (value: string) => {
+    setPreviewSource(value);
+    if (value === "sample") {
+      setRealData(null);
+      setSelectedSourceId(null);
+    }
+  };
+
+  const handleDataSourceSelect = (value: string) => {
+    const [type, id] = value.split(":");
+    setSelectedSourceType(type as "di" | "engagement");
+    setSelectedSourceId(parseInt(id));
+    setIsLoadingData(true);
+  };
+
+  return (
+    <div className="sticky top-4">
+      <Card className="bg-white border-border/50 h-[calc(100vh-120px)]">
+        <CardHeader className="pb-2 border-b">
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle className="text-sm text-gray-900">Live Preview</CardTitle>
+            <div className="flex items-center gap-2">
+              <Select value={previewSource} onValueChange={handleSourceChange}>
+                <SelectTrigger className="h-7 text-[11px] w-[120px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="sample">Sample Data</SelectItem>
+                  <SelectItem value="real">Real Data</SelectItem>
+                </SelectContent>
+              </Select>
+              {previewSource === "real" && (
+                <Select onValueChange={handleDataSourceSelect}>
+                  <SelectTrigger className="h-7 text-[11px] w-[200px]">
+                    <SelectValue placeholder="Select source..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sourcesQuery.data?.diScans.map((s) => (
+                      <SelectItem key={`di:${s.id}`} value={`di:${s.id}`}>
+                        <span className="text-[11px]">{s.label}</span>
+                      </SelectItem>
+                    ))}
+                    {sourcesQuery.data?.engagements.map((e) => (
+                      <SelectItem key={`engagement:${e.id}`} value={`engagement:${e.id}`}>
+                        <span className="text-[11px]">{e.label}</span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              <Badge variant="outline" className="text-[10px]">
+                {previewSource === "sample" ? "Sample" : isLoadingData ? "Loading..." : "Live"}
+              </Badge>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0 h-[calc(100%-60px)]">
+          {isLoadingData ? (
+            <div className="flex items-center justify-center h-full">
+              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <iframe
+              srcDoc={previewHtml}
+              className="w-full h-full border-0"
+              title="Template Preview"
+              sandbox="allow-same-origin"
+            />
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }

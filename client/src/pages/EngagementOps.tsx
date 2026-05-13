@@ -947,6 +947,77 @@ function CredentialVaultPopulator({ targetHost, engagementId, onSelect }: {
   );
 }
 
+// ─── Test Credentials Button ─────────────────────────────────────────────────────────
+
+function TestCredentialsButton({ targetUrl, username, password, authType, loginPath }: {
+  targetUrl: string;
+  username: string;
+  password: string;
+  authType: string;
+  loginPath: string;
+}) {
+  const [status, setStatus] = useState<'idle' | 'testing' | 'success' | 'failed'>('idle');
+  const [resultMessage, setResultMessage] = useState('');
+
+  const testMut = trpc.engagementOps.testCredentials.useMutation({
+    onSuccess: (data) => {
+      if (data.success) {
+        setStatus('success');
+        setResultMessage(data.message || 'Authentication successful');
+      } else {
+        setStatus('failed');
+        setResultMessage(data.message || 'Authentication failed');
+      }
+    },
+    onError: (err) => {
+      setStatus('failed');
+      setResultMessage(err.message || 'Test failed');
+    },
+  });
+
+  const handleTest = () => {
+    if (!username || !password || !targetUrl) return;
+    setStatus('testing');
+    setResultMessage('');
+    testMut.mutate({
+      targetUrl: targetUrl.startsWith('http') ? targetUrl : `https://${targetUrl}`,
+      username,
+      password,
+      authType: authType as any,
+      loginPath: loginPath || undefined,
+    });
+  };
+
+  return (
+    <div className="flex items-center gap-2 pt-2">
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={handleTest}
+        disabled={!username || !password || !targetUrl || status === 'testing'}
+        className="h-7 text-xs"
+      >
+        {status === 'testing' ? (
+          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+        ) : status === 'success' ? (
+          <Shield className="h-3 w-3 mr-1 text-green-500" />
+        ) : status === 'failed' ? (
+          <Shield className="h-3 w-3 mr-1 text-red-500" />
+        ) : (
+          <Shield className="h-3 w-3 mr-1" />
+        )}
+        Test Credentials
+      </Button>
+      {resultMessage && (
+        <span className={`text-[11px] ${status === 'success' ? 'text-green-400' : 'text-red-400'}`}>
+          {resultMessage}
+        </span>
+      )}
+    </div>
+  );
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────────────
 
 export default function EngagementOps() {
@@ -6141,6 +6212,14 @@ export default function EngagementOps() {
                     </Select>
                   </div>
                 </div>
+                {/* Test Credentials Button */}
+                <TestCredentialsButton
+                  targetUrl={engagement?.targetDomain || ''}
+                  username={credUsername}
+                  password={credPassword}
+                  authType={credAuthType}
+                  loginPath={credLoginUrl}
+                />
               </div>
             )}
           </div>
