@@ -62,7 +62,7 @@ import {
   ScanEye, ShieldOff, Bolt, TrendingUp, BarChart3, Scan, Microscope, Scissors,
   FileUp, Upload, Filter, FilterX, ToggleLeft, ToggleRight,
   X, FileCheck, Fingerprint, Edit2, BookOpen, Rocket,
-  Package, Code, KeyRound,
+  Package, Code,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -835,6 +835,115 @@ function renderFeedEntry(entry: OpsLogEntry) {
         )}
       </div>
     </Collapsible>
+  );
+}
+
+// ─── Credential Vault Populator ───────────────────────────────────────────────────────
+
+function CredentialVaultPopulator({ targetHost, engagementId, onSelect }: {
+  targetHost: string;
+  engagementId: number;
+  onSelect: (cred: { username: string; password: string; loginUrl?: string; authType?: string; source: string }) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const credVaultQ = trpc.engagementOps.getKnownCredentials.useQuery(
+    { targetHost, engagementId },
+    { enabled: expanded && !!targetHost }
+  );
+
+  if (!targetHost) {
+    return (
+      <div className="flex items-center gap-2 p-2 rounded-md bg-muted/30 border border-border/50">
+        <Database className="h-3.5 w-3.5 text-muted-foreground" />
+        <span className="text-xs text-muted-foreground">No target domain configured — enter credentials manually</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-md border border-border/50 overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center justify-between p-2.5 hover:bg-muted/30 transition-colors"
+      >
+        <div className="flex items-center gap-2">
+          <Database className="h-3.5 w-3.5 text-purple-400" />
+          <span className="text-xs font-medium">Auto-populate from Credential Vault</span>
+          <Badge variant="outline" className="text-[9px] px-1.5 py-0">{targetHost}</Badge>
+        </div>
+        {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+      </button>
+      {expanded && (
+        <div className="border-t border-border/50 p-2.5 space-y-2 bg-muted/10">
+          {credVaultQ.isLoading && (
+            <div className="flex items-center gap-2 py-2">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              <span className="text-xs text-muted-foreground">Searching credential vault...</span>
+            </div>
+          )}
+          {credVaultQ.data && (
+            <>
+              {/* Confirmed credentials from previous scans */}
+              {(credVaultQ.data.credentials?.length || 0) > 0 && (
+                <div>
+                  <div className="text-[10px] font-semibold text-muted-foreground uppercase mb-1.5">Confirmed Credentials</div>
+                  <div className="space-y-1">
+                    {credVaultQ.data.credentials.slice(0, 5).map((c: any) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => onSelect({ username: c.username, password: c.password, source: `Vault (${c.source})` })}
+                        className="w-full flex items-center justify-between p-2 rounded text-left hover:bg-purple-500/10 border border-transparent hover:border-purple-500/20 transition-colors"
+                      >
+                        <div className="flex items-center gap-2">
+                          <KeyRound className="h-3 w-3 text-purple-400" />
+                          <span className="text-xs font-mono">{c.username}</span>
+                          <span className="text-[10px] text-muted-foreground">:{c.port}/{c.protocol}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          {c.verified && <Badge className="bg-green-500/10 text-green-400 border-green-500/20 text-[9px] px-1">Verified</Badge>}
+                          <Badge variant="outline" className="text-[9px] px-1">{c.accessLevel}</Badge>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {/* OEM default credentials */}
+              {(credVaultQ.data.oemDefaults?.length || 0) > 0 && (
+                <div>
+                  <div className="text-[10px] font-semibold text-muted-foreground uppercase mb-1.5">OEM Default Credentials</div>
+                  <div className="space-y-1">
+                    {credVaultQ.data.oemDefaults.slice(0, 5).map((c: any, i: number) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => onSelect({ username: c.username, password: c.password, source: `OEM (${c.vendor} ${c.product})` })}
+                        className="w-full flex items-center justify-between p-2 rounded text-left hover:bg-orange-500/10 border border-transparent hover:border-orange-500/20 transition-colors"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Shield className="h-3 w-3 text-orange-400" />
+                          <span className="text-xs font-mono">{c.username}:{c.password}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <Badge variant="outline" className="text-[9px] px-1">{c.vendor} {c.product}</Badge>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {(credVaultQ.data.credentials?.length || 0) === 0 && (credVaultQ.data.oemDefaults?.length || 0) === 0 && (
+                <div className="text-xs text-muted-foreground py-2 text-center">
+                  No known credentials found for {targetHost}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -5974,6 +6083,18 @@ export default function EngagementOps() {
             </label>
             {useCredentials && (
               <div className="mt-3 space-y-3 pl-10">
+                {/* Auto-populate from credential vault */}
+                <CredentialVaultPopulator
+                  targetHost={engagement?.targetDomain || ''}
+                  engagementId={engagementId}
+                  onSelect={(cred) => {
+                    setCredUsername(cred.username);
+                    setCredPassword(cred.password);
+                    if (cred.loginUrl) setCredLoginUrl(cred.loginUrl);
+                    if (cred.authType) setCredAuthType(cred.authType);
+                    toast.success(`Credentials loaded: ${cred.username} (${cred.source})`);
+                  }}
+                />
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <Label className="text-xs text-muted-foreground mb-1 block">Username</Label>

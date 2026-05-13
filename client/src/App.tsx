@@ -170,6 +170,7 @@ const RiskTrending = lazyWithRetry(() => import("./pages/RiskTrending"));
 const AgentlessBAS = lazyWithRetry(() => import("./pages/AgentlessBAS"));
 const AttackPathDiscovery = lazyWithRetry(() => import("./pages/AttackPathDiscovery"));
 const ReportTemplates = lazyWithRetry(() => import("./pages/ReportTemplates"));
+const ReportTemplateEditor = lazyWithRetry(() => import("./pages/ReportTemplateEditor"));
 const Ac3Reports = lazyWithRetry(() => import("./pages/Ac3Reports"));
 const EmailSecurity = lazyWithRetry(() => import("./pages/EmailSecurity"));
 const NgfwValidation = lazyWithRetry(() => import("./pages/NgfwValidation"));
@@ -882,6 +883,12 @@ function Router() {
         </Route>
         <Route path="/report-templates">
           <ProtectedRoute component={ReportTemplates} />
+        </Route>
+        <Route path="/report-templates/:id/edit">
+          <ProtectedRoute component={ReportTemplateEditor} />
+        </Route>
+        <Route path="/report-templates/new">
+          <ProtectedRoute component={ReportTemplateEditor} />
         </Route>
         <Route path="/email-security">
           <ProtectedRoute component={EmailSecurity} />

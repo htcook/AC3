@@ -2454,3 +2454,27 @@
 - [x] Wire credentials to engagement state for authenticated scanning
 - [x] Re-run DVWA engagement to validate authenticated scanning (code ready, needs deployment)
 - [x] Write vitest tests for templates and credentials UI (14 tests passing)
+
+### Deploy & Re-Run DVWA (May 13)
+- [ ] Deploy latest build to production (ac3.aceofcloud.io)
+- [ ] Verify credentials UI appears in Re-Run Pipeline dialog
+- [ ] Re-run DVWA engagement with authenticated scanning
+- [ ] Validate increased vuln count (expect 10-20+ vs previous 1)
+
+### Report Template Editor UI (May 13)
+- [x] Add template editor page accessible from Report Templates
+- [x] Visual editor for template content (HTML with live preview)
+- [x] Branding customization (logo URL, primary color, company name)
+- [x] Section management (add/remove/reorder report sections)
+- [x] CSS overrides editor with syntax highlighting
+- [x] Header/footer HTML editors
+- [x] Save template changes to database via tRPC mutation
+- [x] Template preview with sample data
+
+### Credential Vault Integration (May 13)
+- [x] Store confirmed credentials from engagement scans to OEM Credentials table
+- [x] Auto-populate Re-Run dialog from previously discovered credentials for target
+- [x] Add CredentialVaultPopulator component in Re-Run Pipeline dialog
+- [x] Link credential vault entries to specific engagement assets
+- [x] Show credential source (manual, hydra, training-lab, OEM) in vault entries
+- [x] Write vitest tests for template editor and credential vault (26 tests passing)

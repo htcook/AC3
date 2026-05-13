@@ -4851,4 +4851,71 @@ Return ONLY a JSON object with vulnerabilities array.`;
         const analysis = analyzeHotPaths(rawTelemetry, { topN: 20, minCallsForAnalysis: 5 });
         return { available: true as const, reason: null, analysis };
       }),
-  });
+
+  /** Get known/confirmed credentials for a target host from credential vault */
+  getKnownCredentials: protectedProcedure
+    .input(z.object({ targetHost: z.string(), engagementId: z.number().optional() }))
+    .query(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const { credentialFindings } = await import("../../drizzle/schema");
+      const db = await getDb();
+      if (!db) return { credentials: [], sources: [] };
+      const { eq, like, or, desc } = await import("drizzle-orm");
+
+      // Query credential_findings for the target host (exact match or wildcard)
+      const host = input.targetHost.replace(/^https?:\/\//, "").replace(/[\/:].*$/, "");
+      const results = await db.select({
+        id: credentialFindings.id,
+        targetHost: credentialFindings.targetHost,
+        targetPort: credentialFindings.targetPort,
+        protocol: credentialFindings.protocol,
+        username: credentialFindings.username,
+        password: credentialFindings.password,
+        accessLevel: credentialFindings.accessLevel,
+        vendor: credentialFindings.vendor,
+        product: credentialFindings.product,
+        verified: credentialFindings.verified,
+        tool: credentialFindings.tool,
+        discoveredAt: credentialFindings.discoveredAt,
+        validationStatus: credentialFindings.validationStatus,
+      }).from(credentialFindings).where(
+        or(
+          eq(credentialFindings.targetHost, host),
+          like(credentialFindings.targetHost, `%${host}%`)
+        )
+      ).orderBy(desc(credentialFindings.discoveredAt)).limit(50);
+
+      // Also get OEM default credentials for known services on this host
+      const { getCredentialsForService } = await import("../lib/credential-tester");
+      const oemCreds = await getCredentialsForService({
+        host,
+        port: 80,
+        protocol: "http",
+        technologies: [{ name: "http" }],
+      });
+
+      return {
+        credentials: results.map(r => ({
+          id: r.id,
+          host: r.targetHost,
+          port: r.targetPort,
+          protocol: r.protocol,
+          username: r.username,
+          password: r.password,
+          accessLevel: r.accessLevel || "unknown",
+          source: r.tool || "scan",
+          verified: r.verified === 1,
+          validationStatus: r.validationStatus || "unvalidated",
+          discoveredAt: r.discoveredAt,
+        })),
+        oemDefaults: oemCreds.slice(0, 10).map(c => ({
+          username: c.username,
+          password: c.password,
+          protocol: c.protocol,
+          vendor: c.vendor,
+          product: c.product,
+          source: c.source || "OEM database",
+        })),
+      };
+    }),
+});
