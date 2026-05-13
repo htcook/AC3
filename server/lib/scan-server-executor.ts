@@ -94,7 +94,7 @@ const ALLOWED_TOOLS = new Set([
   // Screenshot capture
   "chromium", "chromium-browser", "google-chrome", "puppeteer",
   // Allow reading tool manifest and health check
-  "bash", "sh",
+  "bash", "sh", "uptime", "df", "free",
 ]);
 
 // Characters that could indicate command injection

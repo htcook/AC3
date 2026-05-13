@@ -2300,3 +2300,12 @@
 - [ ] Migrate all DO production users to Cognito
 - [ ] Test login flow on AWS-hosted build
 - [ ] Checkpoint and push to GitHub
+
+### Scan Server Tool Whitelist Fix (May 12)
+- [x] Diagnose pentest pipeline 83% tool failure rate on deployed AC3 server
+- [x] Identify root cause: scan server HTTP API ALLOWED_TOOLS missing bash, uptime, df, free, katana, etc.
+- [x] Update scan server (137.184.71.192) ALLOWED_TOOLS whitelist with all required tools
+- [x] Restart scanforge-service via pm2 on dedicated scan server
+- [x] Verify fix: bash, uptime, cat, feroxbuster, katana all execute successfully via HTTP API
+- [x] Update dashboard scan-server-executor.ts ALLOWED_TOOLS to include uptime, df, free for health checks
+- [ ] Redeploy dashboard to ac3.aceofcloud.io to apply code changes
