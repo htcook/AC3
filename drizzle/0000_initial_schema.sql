@@ -466,7 +466,8 @@ CREATE TABLE `agent_deployments` (
 	`lastHeartbeat` bigint,
 	`terminatedAt` bigint,
 	`createdAt` bigint NOT NULL,
-	`updatedAt` bigint NOT NULL
+	`updatedAt` bigint NOT NULL,
+	CONSTRAINT `agent_deployments_pk` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `agent_tasks` (
@@ -489,7 +490,8 @@ CREATE TABLE `agent_tasks` (
 	`startedAt` bigint,
 	`completedAt` bigint,
 	`assignedBy` int NOT NULL,
-	`roeVerified` tinyint DEFAULT 0
+	`roeVerified` tinyint DEFAULT 0,
+	CONSTRAINT `agent_tasks_pk` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `agentless_bas_tests` (
@@ -887,7 +889,8 @@ CREATE TABLE `attack_playbook_executions` (
 	`started_at` bigint NOT NULL,
 	`completed_at` bigint,
 	`executed_by` varchar(64),
-	`status` enum('running','paused','completed','failed','aborted') NOT NULL DEFAULT 'running'
+	`status` enum('running','paused','completed','failed','aborted') NOT NULL DEFAULT 'running',
+	CONSTRAINT `attack_playbook_executions_pk` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `attack_playbooks` (
@@ -911,7 +914,8 @@ CREATE TABLE `attack_playbooks` (
 	`status` enum('draft','approved','executing','completed','aborted') NOT NULL DEFAULT 'draft',
 	`created_by` varchar(64),
 	`created_at` bigint NOT NULL,
-	`updated_at` bigint NOT NULL
+	`updated_at` bigint NOT NULL,
+	CONSTRAINT `attack_playbooks_pk` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `attack_sequence_templates` (
@@ -950,7 +954,8 @@ CREATE TABLE `attack_vector_evidence` (
 	`source_title` varchar(512),
 	`relevance_score` double NOT NULL DEFAULT 0.5,
 	`evidence_detail` text,
-	`created_at` bigint NOT NULL
+	`created_at` bigint NOT NULL,
+	CONSTRAINT `attack_vector_evidence_pk` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `attack_vectors` (
@@ -976,7 +981,8 @@ CREATE TABLE `attack_vectors` (
 	`evidence_summary` text,
 	`created_by` varchar(64),
 	`created_at` bigint NOT NULL,
-	`updated_at` bigint NOT NULL
+	`updated_at` bigint NOT NULL,
+	CONSTRAINT `attack_vectors_pk` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `benchmark_scan_plan_rules` (
@@ -1234,7 +1240,8 @@ CREATE TABLE `c2_servers` (
 	`version` varchar(64),
 	`capabilities` json,
 	`createdAt` bigint NOT NULL,
-	`updatedAt` bigint NOT NULL
+	`updatedAt` bigint NOT NULL,
+	CONSTRAINT `c2_servers_pk` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `caldera_accounts` (
@@ -1746,7 +1753,8 @@ CREATE TABLE `collection_job_history` (
 	`evidence_collected` int DEFAULT 0,
 	`error_message` text,
 	`duration_ms` int,
-	`triggered_by` varchar(255) DEFAULT 'manual'
+	`triggered_by` varchar(255) DEFAULT 'manual',
+	CONSTRAINT `collection_job_history_pk` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `collection_schedules` (
@@ -1763,7 +1771,8 @@ CREATE TABLE `collection_schedules` (
 	`total_runs` int DEFAULT 0,
 	`total_evidence_collected` int DEFAULT 0,
 	`created_at` bigint NOT NULL,
-	`updated_at` bigint NOT NULL
+	`updated_at` bigint NOT NULL,
+	CONSTRAINT `collection_schedules_pk` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `company_intel_profiles` (
@@ -3921,7 +3930,8 @@ CREATE TABLE `exploit_methodologies` (
 	`success_count` int NOT NULL DEFAULT 0,
 	`attempt_count` int NOT NULL DEFAULT 0,
 	`created_at` bigint NOT NULL,
-	`updated_at` bigint NOT NULL
+	`updated_at` bigint NOT NULL,
+	CONSTRAINT `exploit_methodologies_pk` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `exploit_plan_history` (
@@ -5082,7 +5092,8 @@ CREATE TABLE `mtls_certificates` (
 	`encryptedPrivateKey` text NOT NULL,
 	`c2ServerId` varchar(36),
 	`status` enum('active','revoked','expired') NOT NULL DEFAULT 'active',
-	`createdAt` bigint NOT NULL
+	`createdAt` bigint NOT NULL,
+	CONSTRAINT `mtls_certificates_pk` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `network_events` (
@@ -6826,7 +6837,8 @@ CREATE TABLE `submission_history` (
 CREATE TABLE `system_settings` (
 	`setting_key` varchar(255) NOT NULL,
 	`setting_value` longtext,
-	`updated_at` timestamp DEFAULT CURRENT_TIMESTAMP
+	`updated_at` timestamp DEFAULT CURRENT_TIMESTAMP,
+	CONSTRAINT `system_settings_pk` PRIMARY KEY(`setting_key`)
 );
 --> statement-breakpoint
 CREATE TABLE `team_invitations` (
@@ -6926,7 +6938,8 @@ CREATE TABLE `test_lab_environments` (
 	`tl_env_config` json,
 	`tl_env_created_at` bigint NOT NULL,
 	`tl_env_destroyed_at` bigint,
-	`tl_env_cost_cents` int DEFAULT 0
+	`tl_env_cost_cents` int DEFAULT 0,
+	CONSTRAINT `test_lab_environments_pk` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `test_lab_implant_tests` (
@@ -6946,7 +6959,8 @@ CREATE TABLE `test_lab_implant_tests` (
 	`tl_it_opsec_score` int,
 	`tl_it_detection_events` json,
 	`tl_it_created_at` bigint NOT NULL,
-	`tl_it_completed_at` bigint
+	`tl_it_completed_at` bigint,
+	CONSTRAINT `test_lab_implant_tests_pk` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `test_lab_scenario_runs` (
@@ -6964,7 +6978,8 @@ CREATE TABLE `test_lab_scenario_runs` (
 	`tl_sr_training_data` tinyint DEFAULT 0,
 	`tl_sr_started_at` bigint,
 	`tl_sr_completed_at` bigint,
-	`tl_sr_created_at` bigint NOT NULL
+	`tl_sr_created_at` bigint NOT NULL,
+	CONSTRAINT `test_lab_scenario_runs_pk` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `test_lab_training_runs` (
@@ -6984,7 +6999,8 @@ CREATE TABLE `test_lab_training_runs` (
 	`tl_tr_promoted` tinyint DEFAULT 0,
 	`tl_tr_started_at` bigint,
 	`tl_tr_completed_at` bigint,
-	`tl_tr_created_at` bigint NOT NULL
+	`tl_tr_created_at` bigint NOT NULL,
+	CONSTRAINT `test_lab_training_runs_pk` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `test_plans` (
@@ -7968,7 +7984,7 @@ ALTER TABLE `entity_profile_overrides` ADD CONSTRAINT `entity_profile_overrides_
 --> statement-breakpoint
 ALTER TABLE `entity_profile_overrides` ADD CONSTRAINT `entity_profile_overrides_overridden_by_users_id_fk` FOREIGN KEY (`overridden_by`) REFERENCES `users`(`id`) ON DELETE no action ON UPDATE no action;
 --> statement-breakpoint
-ALTER TABLE `evidence_chain_of_custody` ADD CONSTRAINT `evidence_chain_of_custody_evidenceId_evidence_items_evidenceId_fk` FOREIGN KEY (`evidenceId`) REFERENCES `evidence_items`(`evidenceId`) ON DELETE cascade ON UPDATE no action;
+ALTER TABLE `evidence_chain_of_custody` ADD CONSTRAINT `evidence_chain_of_custody_evidenceId_evidence_items_evidence_fk` FOREIGN KEY (`evidenceId`) REFERENCES `evidence_items`(`evidenceId`) ON DELETE cascade ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE `ir_runbook_entries` ADD CONSTRAINT `ir_runbook_entries_created_by_users_id_fk` FOREIGN KEY (`created_by`) REFERENCES `users`(`id`) ON DELETE no action ON UPDATE no action;
 --> statement-breakpoint
