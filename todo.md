@@ -2334,5 +2334,24 @@
 - [x] Implement RET generation in the report engine (ac3-reports.ts)
 - [x] Write 27 vitest tests for RET helper functions (all passing)
 - [x] Add retSection to document assembly children array
-- [ ] Deploy RET to AWS ECS production
-- [ ] Test report generation with RET appendix on live data
+- [x] Deploy RET to AWS ECS production (image pushed to ECR, ECS force-new-deployment triggered)
+- [x] Test report generation with RET appendix (verified via dev server, DB set to FedRAMP)
+
+### LLM-Based NIST Control Auto-Mapping (May 13)
+- [x] Implement LLM-based control mapper (autoMapControls + autoMapControlsBatch procedures)
+- [x] Integrate control mapper into report generation pipeline (single + batch endpoints)
+- [x] Write vitest tests for control mapping logic (36 tests passing)
+- [ ] Deploy to AWS ECS
+
+### RCDT (Risk Condition Decision Table) Appendix (May 13)
+- [x] Research RCDT structure from FedRAMP SAR template (DR form, POA&M, ConMon SLAs)
+- [x] Implement RCDT appendix in ac3-reports.ts (disposition, timeline, compensating controls, POA&M refs)
+- [x] Add RCDT to document assembly (conditional on isFedRAMP)
+- [x] Write vitest tests for RCDT generation (36 tests passing)
+- [x] Add FedRAMP ConMon SLA reference table to RCDT
+- [x] Add disposition legend (Mitigate/Accept/Transfer/Avoid)
+- [ ] Deploy to AWS ECS
+
+### Live Testing
+- [ ] Test FedRAMP RET + RCDT export with live engagement data
+- [ ] Verify RET + RCDT appendices render correctly in DOCX

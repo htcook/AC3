@@ -603,6 +603,229 @@ export const ac3ReportsRouter = {
       return { deleted: true };
     }),
 
+  // ─── LLM-Powered NIST SP 800-53 Control Auto-Mapping ─────────────────────
+
+  /** Auto-map NIST SP 800-53 controls to a single finding using LLM analysis */
+  autoMapControls: protectedProcedure
+    .input(z.object({
+      findingId: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDbRequired();
+      const [finding] = await db.select().from(ac3ReportFindings)
+        .where(eq(ac3ReportFindings.rfFindingId, input.findingId));
+      if (!finding) throw new Error('Finding not found');
+
+      const [report] = await db.select().from(ac3Reports)
+        .where(eq(ac3Reports.rptReportId, finding.rfReportId));
+
+      const isFedRAMP = report?.complianceFramework === 'fedramp';
+      const baselineLevel = report?.rptFedrampLevel || 'moderate';
+
+      const response = await invokeLLM({
+        _caller: 'ac3-reports.autoMapControls',
+        messages: [
+          {
+            role: 'system',
+            content: `You are a NIST SP 800-53 Rev 5 control mapping specialist. Your task is to map security findings from penetration tests to the most relevant NIST SP 800-53 Rev 5 controls.
+
+Rules:
+- Return 1-5 controls per finding, ordered by relevance.
+- Each control must have a valid NIST SP 800-53 Rev 5 identifier (e.g., AC-2, SI-10, SC-7).
+- Include the control family name and a brief rationale for the mapping.
+- Consider the finding title, severity, ATT&CK techniques, and technical context.
+- For FedRAMP assessments, prioritize controls from the ${baselineLevel.toUpperCase()} baseline.
+- Common mappings reference:
+  * Injection flaws (SQLi, XSS, command injection) → SI-10 (Information Input Validation)
+  * Authentication/credential issues → IA-2, IA-5, AC-7
+  * Authorization/access control → AC-2, AC-3, AC-6
+  * Configuration weaknesses → CM-6, CM-7
+  * Patch management / outdated software → SI-2, RA-5
+  * Cryptographic issues → SC-12, SC-13, SC-28
+  * Network exposure / segmentation → SC-7, AC-17
+  * Logging/monitoring gaps → AU-2, AU-6, SI-4
+  * Session management → AC-12, SC-23
+  * Information disclosure → SI-11, AC-4
+  * Privilege escalation → AC-6, CM-5`,
+          },
+          {
+            role: 'user',
+            content: `Map the following security finding to NIST SP 800-53 Rev 5 controls.
+
+Finding Title: ${finding.rfTitle || 'Unknown'}
+Severity: ${finding.rfSeverity}
+ATT&CK Techniques: ${JSON.stringify(finding.rfAttackTechniques || [])}
+CVSS Score: ${finding.rfCvssScore || 'N/A'}
+Summary: ${finding.rfSummary || 'N/A'}
+Technical Details: ${(finding.rfTechnicalDetails || '').slice(0, 500)}
+Affected Assets: ${JSON.stringify(finding.rfAssets || [])}
+Compliance Framework: ${isFedRAMP ? `FedRAMP ${baselineLevel.toUpperCase()}` : 'NIST SP 800-53 Rev 5'}
+
+Return strict JSON.`,
+          },
+        ],
+        response_format: {
+          type: 'json_schema',
+          json_schema: {
+            name: 'nist_control_mapping',
+            strict: true,
+            schema: {
+              type: 'object',
+              properties: {
+                controls: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      id: { type: 'string', description: 'NIST SP 800-53 control ID, e.g. SI-10' },
+                      family: { type: 'string', description: 'Control family name, e.g. System and Information Integrity' },
+                      title: { type: 'string', description: 'Control title, e.g. Information Input Validation' },
+                      rationale: { type: 'string', description: 'Brief rationale for why this control maps to the finding' },
+                    },
+                    required: ['id', 'family', 'title', 'rationale'],
+                    additionalProperties: false,
+                  },
+                },
+                confidence: { type: 'string', description: 'Overall confidence: high, medium, or low' },
+              },
+              required: ['controls', 'confidence'],
+              additionalProperties: false,
+            },
+          },
+        },
+      });
+
+      const content = response.choices?.[0]?.message?.content;
+      if (!content) throw new Error('LLM returned empty response');
+      const result = JSON.parse(content);
+
+      // Validate control IDs match NIST pattern
+      const validControls = (result.controls || []).filter((c: any) => /^[A-Z]{2}-\d+/.test(c.id));
+
+      // Merge with existing controls (don't overwrite manual ones)
+      const existingControls = (finding.rfControls as any[] || []);
+      const existingIds = new Set(existingControls.map((c: any) => c.id));
+      const newControls = validControls.filter((c: any) => !existingIds.has(c.id));
+      const mergedControls = [...existingControls, ...newControls.map((c: any) => ({
+        id: c.id,
+        family: c.family || NIST_CONTROL_FAMILIES[c.id.split('-')[0]] || undefined,
+        title: c.title,
+        rationale: c.rationale,
+        source: 'llm-auto-mapped',
+      }))];
+
+      await db.update(ac3ReportFindings).set({
+        rfControls: mergedControls,
+        rfUpdatedAt: Date.now(),
+      }).where(eq(ac3ReportFindings.rfFindingId, input.findingId));
+
+      return {
+        findingId: input.findingId,
+        mapped: newControls.length,
+        total: mergedControls.length,
+        confidence: result.confidence,
+        controls: mergedControls,
+      };
+    }),
+
+  /** Auto-map NIST controls for ALL findings in a report */
+  autoMapControlsBatch: protectedProcedure
+    .input(z.object({
+      reportId: z.string(),
+      overwriteExisting: z.boolean().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDbRequired();
+      const findings = await db.select().from(ac3ReportFindings)
+        .where(eq(ac3ReportFindings.rfReportId, input.reportId));
+
+      if (findings.length === 0) return { processed: 0, mapped: 0 };
+
+      const [report] = await db.select().from(ac3Reports)
+        .where(eq(ac3Reports.rptReportId, input.reportId));
+
+      const isFedRAMP = report?.complianceFramework === 'fedramp';
+      const baselineLevel = report?.rptFedrampLevel || 'moderate';
+
+      let totalMapped = 0;
+      const results: Array<{ findingId: string; mapped: number; error?: string }> = [];
+
+      for (const finding of findings) {
+        // Skip findings that already have controls unless overwrite is requested
+        const existingControls = (finding.rfControls as any[] || []);
+        if (existingControls.length > 0 && !input.overwriteExisting) {
+          results.push({ findingId: finding.rfFindingId, mapped: 0 });
+          continue;
+        }
+
+        try {
+          const response = await invokeLLM({
+            _caller: 'ac3-reports.autoMapControlsBatch',
+            messages: [
+              {
+                role: 'system',
+                content: `You are a NIST SP 800-53 Rev 5 control mapping specialist. Map the finding to 1-5 relevant controls. Return strict JSON with controls array containing {id, family, title, rationale} objects and a confidence field.`,
+              },
+              {
+                role: 'user',
+                content: `Finding: "${finding.rfTitle}" | Severity: ${finding.rfSeverity} | ATT&CK: ${JSON.stringify(finding.rfAttackTechniques || [])} | CVSS: ${finding.rfCvssScore || 'N/A'} | Framework: ${isFedRAMP ? `FedRAMP ${baselineLevel}` : 'NIST 800-53 Rev 5'}`,
+              },
+            ],
+            response_format: {
+              type: 'json_schema',
+              json_schema: {
+                name: 'nist_control_mapping',
+                strict: true,
+                schema: {
+                  type: 'object',
+                  properties: {
+                    controls: {
+                      type: 'array',
+                      items: {
+                        type: 'object',
+                        properties: {
+                          id: { type: 'string' },
+                          family: { type: 'string' },
+                          title: { type: 'string' },
+                          rationale: { type: 'string' },
+                        },
+                        required: ['id', 'family', 'title', 'rationale'],
+                        additionalProperties: false,
+                      },
+                    },
+                    confidence: { type: 'string' },
+                  },
+                  required: ['controls', 'confidence'],
+                  additionalProperties: false,
+                },
+              },
+            },
+          });
+
+          const content = response.choices?.[0]?.message?.content;
+          if (!content) throw new Error('Empty LLM response');
+          const parsed = JSON.parse(content);
+          const validControls = (parsed.controls || []).filter((c: any) => /^[A-Z]{2}-\d+/.test(c.id));
+
+          const mergedControls = input.overwriteExisting
+            ? validControls.map((c: any) => ({ id: c.id, family: c.family || NIST_CONTROL_FAMILIES[c.id.split('-')[0]], title: c.title, rationale: c.rationale, source: 'llm-auto-mapped' }))
+            : [...existingControls, ...validControls.filter((c: any) => !new Set(existingControls.map((e: any) => e.id)).has(c.id)).map((c: any) => ({ id: c.id, family: c.family || NIST_CONTROL_FAMILIES[c.id.split('-')[0]], title: c.title, rationale: c.rationale, source: 'llm-auto-mapped' }))];
+
+          await db.update(ac3ReportFindings).set({
+            rfControls: mergedControls,
+            rfUpdatedAt: Date.now(),
+          }).where(eq(ac3ReportFindings.rfFindingId, finding.rfFindingId));
+
+          totalMapped += validControls.length;
+          results.push({ findingId: finding.rfFindingId, mapped: validControls.length });
+        } catch (err: any) {
+          results.push({ findingId: finding.rfFindingId, mapped: 0, error: err.message?.slice(0, 200) });
+        }
+      }
+
+      return { processed: findings.length, mapped: totalMapped, results };
+    }),
+
   // ─── LLM-Powered Narrative Generation ─────────────────────────────────────
 
   // Generate narrative for a single finding
@@ -3031,6 +3254,178 @@ export const ac3ReportsRouter = {
         }));
       }
 
+      // ── Risk Condition Decision Table (RCDT) Appendix ──
+      const rcdtSection: docx.Paragraph[] = [];
+      if (isFedRAMP && findings.length > 0) {
+        rcdtSection.push(new Paragraph({ children: [new PageBreak()] }));
+        rcdtSection.push(new Paragraph({
+          heading: HeadingLevel.HEADING_1,
+          spacing: { after: 200 },
+          children: [new TextRun({ text: 'Appendix — Risk Condition Decision Table (RCDT)', bold: true })],
+        }));
+        rcdtSection.push(new Paragraph({
+          spacing: { after: 200 },
+          children: [new TextRun({
+            text: 'This appendix presents the Risk Condition Decision Table (RCDT) per FedRAMP SAR requirements. ' +
+              'The RCDT captures the risk disposition for each finding, including recommended remediation actions, ' +
+              'compensating controls, and timelines aligned with FedRAMP Continuous Monitoring (ConMon) SLAs. ' +
+              'Final disposition decisions are to be completed by the CSP in coordination with the Authorizing Official (AO).',
+            size: 20,
+          })],
+        }));
+
+        // Helper: determine remediation timeline based on FedRAMP ConMon SLAs
+        const getRemediationTimeline = (sev: string, cvss?: string | null): string => {
+          if (cvss) {
+            const score = parseFloat(cvss);
+            if (score >= 9.0) return '30 days (Critical)';
+            if (score >= 7.0) return '30 days (High)';
+            if (score >= 4.0) return '90 days (Moderate)';
+            if (score > 0) return '180 days (Low)';
+          }
+          switch (sev) {
+            case 'critical': return '30 days (Critical)';
+            case 'high': return '30 days (High)';
+            case 'moderate': return '90 days (Moderate)';
+            case 'low': return '180 days (Low)';
+            case 'informational': return 'N/A (Advisory)';
+            default: return '90 days';
+          }
+        };
+
+        // Helper: recommend disposition based on severity and context
+        const getRecommendedDisposition = (f: any): string => {
+          const sev = f.rfSeverity;
+          if (sev === 'informational') return 'Accept';
+          if (sev === 'critical' || sev === 'high') return 'Mitigate';
+          // Check if it's a config issue that might have compensating controls
+          const title = (f.rfTitle || '').toLowerCase();
+          if (title.includes('header') || title.includes('cookie') || title.includes('disclosure')) return 'Mitigate';
+          return 'Mitigate';
+        };
+
+        // Helper: suggest compensating controls
+        const getCompensatingControls = (f: any): string => {
+          const title = (f.rfTitle || '').toLowerCase();
+          if (title.includes('xss') || title.includes('injection')) return 'WAF rules, input validation, CSP headers';
+          if (title.includes('auth') || title.includes('credential') || title.includes('password')) return 'MFA enforcement, account lockout policies';
+          if (title.includes('tls') || title.includes('ssl') || title.includes('crypto')) return 'TLS 1.2+ enforcement, HSTS preloading';
+          if (title.includes('header') || title.includes('cookie')) return 'Security header enforcement via reverse proxy';
+          if (title.includes('patch') || title.includes('outdated') || title.includes('version')) return 'Vulnerability management program, virtual patching';
+          if (title.includes('config') || title.includes('misconfiguration')) return 'Configuration baseline enforcement, CIS benchmarks';
+          if (title.includes('network') || title.includes('port') || title.includes('exposure')) return 'Network segmentation, firewall rules, zero-trust architecture';
+          const controls = (f.rfControls as any[] || []);
+          if (controls.length > 0) return `Compensating controls for ${controls.map((c: any) => c.id).join(', ')}`;
+          return 'To be determined by CSP';
+        };
+
+        // RCDT Header row
+        const rcdtHeaders = ['ID', 'Risk Rating', 'Disposition', 'Remediation Timeline', 'Compensating Controls', 'Responsible Party', 'POA&M Ref', 'Status'];
+        const rcdtHeaderRow = new TableRow({
+          tableHeader: true,
+          children: rcdtHeaders.map(text => new TableCell({
+            shading: { type: ShadingType.SOLID, color: '1a1a2e' },
+            children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text, bold: true, color: 'FFFFFF', size: 16 })] })],
+          })),
+        });
+
+        // RCDT Data rows
+        const rcdtDataRows = findings.map((f, idx) => {
+          const ptId = `PT-${String(idx + 1).padStart(3, '0')}`;
+          const riskRating = mapSeverityToFedRAMP(f.rfSeverity, f.rfCvssScore);
+          const riskColor = riskRating === 'Critical' ? 'FF0000' : riskRating === 'High' ? 'FF6600' : riskRating === 'Moderate' ? 'FFAA00' : riskRating === 'Low' ? '3399FF' : '999999';
+          const disposition = getRecommendedDisposition(f);
+          const timeline = getRemediationTimeline(f.rfSeverity, f.rfCvssScore);
+          const compensating = getCompensatingControls(f);
+          const poamRef = `POAM-${String(idx + 1).padStart(3, '0')}`;
+
+          return new TableRow({
+            children: [
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: ptId, bold: true, size: 16 })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: riskRating, bold: true, color: riskColor, size: 16 })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: disposition, size: 16 })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: timeline, size: 16 })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: compensating, size: 14 })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'CSP / 3PAO', size: 16 })] })] }),
+              new TableCell({ children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: poamRef, size: 16 })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'Open', size: 16, color: 'FF6600' })] })] }),
+            ],
+          });
+        });
+
+        rcdtSection.push(new Table({
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          rows: [rcdtHeaderRow, ...rcdtDataRows],
+        }));
+
+        // RCDT Disposition Legend
+        rcdtSection.push(new Paragraph({
+          spacing: { before: 300, after: 100 },
+          children: [new TextRun({ text: 'Disposition Legend', bold: true, size: 22 })],
+        }));
+
+        const dispositionLegend = [
+          { term: 'Mitigate', desc: 'CSP will remediate the finding within the specified timeline and track in POA&M.' },
+          { term: 'Accept', desc: 'Risk is accepted by the AO with documented justification and compensating controls.' },
+          { term: 'Transfer', desc: 'Risk is transferred to a third party (e.g., insurance, vendor responsibility).' },
+          { term: 'Avoid', desc: 'The vulnerable component or functionality is removed from the authorization boundary.' },
+        ];
+        for (const item of dispositionLegend) {
+          rcdtSection.push(new Paragraph({
+            spacing: { after: 60 },
+            children: [
+              new TextRun({ text: `${item.term}: `, bold: true, size: 18 }),
+              new TextRun({ text: item.desc, size: 18 }),
+            ],
+          }));
+        }
+
+        // FedRAMP ConMon SLA Reference
+        rcdtSection.push(new Paragraph({
+          spacing: { before: 200, after: 100 },
+          children: [new TextRun({ text: 'FedRAMP Continuous Monitoring SLA Reference', bold: true, size: 22 })],
+        }));
+
+        const slaHeaders = ['Risk Rating', 'Remediation SLA', 'POA&M Requirement', 'Deviation Request'];
+        const slaHeaderRow = new TableRow({
+          tableHeader: true,
+          children: slaHeaders.map(text => new TableCell({
+            shading: { type: ShadingType.SOLID, color: '2d2d4e' },
+            children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text, bold: true, color: 'FFFFFF', size: 16 })] })],
+          })),
+        });
+
+        const slaData = [
+          ['Critical', '30 calendar days', 'Required — immediate POA&M entry', 'Risk Adjustment (RA) only'],
+          ['High', '30 calendar days', 'Required — immediate POA&M entry', 'Risk Adjustment (RA) only'],
+          ['Moderate', '90 calendar days', 'Required', 'Vendor Dependency (VD) or Operational Requirement (OR)'],
+          ['Low', '180 calendar days', 'Recommended', 'VD, OR, or False Positive (FP)'],
+          ['Warning/Advisory', 'N/A', 'Optional', 'N/A'],
+        ];
+        const slaColors = ['FF0000', 'FF6600', 'FFAA00', '3399FF', '999999'];
+        const slaDataRows = slaData.map((row, i) => new TableRow({
+          children: row.map((text, j) => new TableCell({
+            children: [new Paragraph({ children: [new TextRun({ text, size: 16, bold: j === 0, color: j === 0 ? slaColors[i] : undefined })] })],
+          })),
+        }));
+
+        rcdtSection.push(new Table({
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          rows: [slaHeaderRow, ...slaDataRows],
+        }));
+
+        // RCDT Notes
+        rcdtSection.push(new Paragraph({
+          spacing: { before: 200, after: 200 },
+          children: [new TextRun({
+            text: 'Note: All disposition decisions must be documented and approved by the Authorizing Official (AO). ' +
+              'Deviation Requests (DR) must be submitted through the FedRAMP PMO for Critical and High findings. ' +
+              'CSPs must maintain evidence of compensating controls and remediation progress in the POA&M.',
+            size: 18, italics: true, color: '666666',
+          })],
+        }));
+      }
+
       // Assemble document
       const frameworkDesc = isFedRAMP
         ? `FedRAMP ${report.fedrampImpactLevel || 'Moderate'} Assessment Report`
@@ -3054,6 +3449,7 @@ export const ac3ReportsRouter = {
             ...intelligenceGapsSection,
             ...appendixSection,
             ...retSection,
+            ...rcdtSection,
             ...chainOfCustodySealSection,
           ],
         }],
