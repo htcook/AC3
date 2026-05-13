@@ -2390,3 +2390,45 @@
 - [ ] Configure M365 SMTP credentials (waiting on boss)
 - [ ] Deploy to AWS ECS
 - [ ] Send test email to verify end-to-end delivery
+
+### End-to-End DI Scan & Pentest/Red Team Testing (May 13)
+- [ ] Test DI scan pipeline end-to-end (initiation → tool execution → finding ingestion → report)
+- [ ] Test Pentest/Red Team engagement pipeline end-to-end (creation → targets → scans → findings → narratives → DOCX)
+- [ ] Test FedRAMP features in pentest flow (RET, RCDT, POA&M export, auto-map controls)
+- [ ] Log all issues found during testing
+- [ ] Fix all issues found during testing
+
+### Production Migration - Due Tomorrow Morning (May 14)
+- [ ] Get Production account (184974284696) credentials
+- [ ] Set up ECR repo in Production account
+- [ ] Set up ECS cluster/service in Production account
+- [ ] Configure Production database
+- [ ] Configure Production environment variables and secrets
+- [ ] Push Docker image to Production ECR
+- [ ] Deploy to Production ECS
+- [ ] Update DNS for ac3.aceofcloud.io to point to Production
+- [ ] Verify Production deployment is healthy
+- [ ] Run smoke tests on Production
+
+### E2E Testing Results (May 13)
+- [x] DI scan: shopify.com — scan complete, 396 assets, Risk 26
+- [x] DI scan: juiceshop.lab.aceofcloud.io — scan complete, 1 asset, Risk 17
+- [x] DI scan: aceofcloud.io — scan complete, 14 assets, Risk 65
+- [x] DI scan: target.com — scan complete, 94 assets, Risk 65, 33 findings
+- [x] Engagement Report Generator: DVWA report generated successfully
+- [x] Reports page: Domain Intelligence tab shows all scans with scores
+- [x] AC3 Reports page: loads and shows existing report
+
+### Bugs Found During E2E Testing (May 13)
+- [x] Fix AC3 Reports field mapping (listReports and getReport return raw Drizzle column names instead of mapped names)
+- [ ] Report Templates table has 0 rows (needs seed data)
+- [ ] DVWA engagement: only 1 vuln found (should have more — login-protected target issue)
+- [ ] LLM decision not invoked in engagement pipeline
+- [ ] Coverage only 13% with 30 gaps on DVWA
+- [ ] 0 exploits attempted on DVWA — exploitation phase skipped
+- [ ] Nuclei scans unauthenticated against login-protected DVWA
+- [ ] Port Discovery shows 0 runs but 2 ports found (toolResults not populated)
+- [ ] Httpx shows 0 runs (toolResults not populated)
+- [ ] 0 Technologies detected on DVWA (login-protected, passive recon can't see)
+- [ ] Per-asset discovery summary shows 0 despite data existing
+- [ ] SCAN button requires programmatic click (minor UX issue)

@@ -351,11 +351,24 @@ export const ac3ReportsRouter = {
   // List all reports
   listReports: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDbRequired();
-    // TODO: ac3Reports doesn't have a direct createdBy/engagementId link yet.
-    // For now, all authenticated users can list reports. Full scoping requires
-    // linking reports to engagements and filtering by engagement ownership.
     const rows = await db.select().from(ac3Reports).orderBy(desc(ac3Reports.rptUpdatedAt));
-    return rows;
+    return rows.map(r => ({
+      reportId: r.rptReportId,
+      name: r.rptName,
+      status: r.rptStatus,
+      clientName: r.rptClientName,
+      systemName: r.rptSystemName,
+      assessmentType: r.rptAssessmentType,
+      fedrampImpactLevel: r.rptFedrampLevel,
+      cloudProvider: r.rptCloudProvider,
+      serviceModel: r.rptServiceModel,
+      qaStatus: r.rptQaStatus || 'pending',
+      complianceFramework: r.complianceFramework,
+      createdBy: r.rptCreatedBy,
+      createdAt: r.rptCreatedAt,
+      updatedAt: r.rptUpdatedAt,
+      engagementId: r.engagementId,
+    }));
   }),
 
   // Get a single report with findings
@@ -374,7 +387,75 @@ export const ac3ReportsRouter = {
       const artifacts = await db.select().from(ac3ReportArtifacts)
         .where(eq(ac3ReportArtifacts.reportId, input.reportId));
 
-      return { ...report, findings, artifacts };
+      // Map findings to frontend-expected field names
+      const mappedFindings = findings.map(f => ({
+        findingId: f.rfFindingId,
+        reportId: f.rfReportId,
+        title: f.rfTitle,
+        severity: f.rfSeverity,
+        cvssScore: f.rfCvssScore,
+        cvssVector: f.rfCvssVector,
+        cweId: f.rfCweId,
+        attackTechniques: f.rfAttackTechniques,
+        affectedAssets: f.rfAffectedAssets,
+        evidence: f.rfEvidence,
+        summary: f.rfSummary,
+        businessImpact: f.rfBusinessImpact,
+        technicalDetails: f.rfTechnicalDetails,
+        remediation: f.rfRemediation,
+        narrativeStatus: f.rfNarrativeStatus,
+        reviewedBy: f.rfReviewedBy,
+        reviewedAt: f.rfReviewedAt,
+        sortOrder: f.rfSortOrder,
+        rfControls: f.rfControls,
+        rfControlMappingStatus: f.rfControlMappingStatus,
+        // Keep raw fields too for backward compat
+        ...f,
+      }));
+
+      return {
+        reportId: report.rptReportId,
+        name: report.rptName,
+        status: report.rptStatus,
+        clientName: report.rptClientName,
+        systemName: report.rptSystemName,
+        assessmentType: report.rptAssessmentType,
+        fedrampImpactLevel: report.rptFedrampLevel,
+        cloudProvider: report.rptCloudProvider,
+        serviceModel: report.rptServiceModel,
+        qaStatus: report.rptQaStatus || 'pending',
+        qaIssues: report.rptQaIssues,
+        qaReviewedAt: report.rptQaReviewedAt,
+        complianceFramework: report.complianceFramework,
+        createdBy: report.rptCreatedBy,
+        createdAt: report.rptCreatedAt,
+        updatedAt: report.rptUpdatedAt,
+        execRiskStatement: report.rptExecRiskStatement,
+        execRating: report.rptExecRating,
+        execStrengths: report.rptExecStrengths,
+        execGaps: report.rptExecGaps,
+        execNarrative: report.rptExecNarrative,
+        scopeDomains: report.rptScopeDomains,
+        scopeAssets: report.rptScopeAssets,
+        approvedVectors: report.rptApprovedVectors,
+        outOfScope: report.rptOutOfScope,
+        scopeExclusions: report.rptScopeExclusions,
+        toolsUsed: report.rptToolsUsed,
+        testPhases: report.rptTestPhases,
+        intelligenceGaps: report.rptIntelligenceGaps,
+        outputUrl: report.rptOutputUrl,
+        outputFormat: report.rptOutputFormat,
+        docxUrl: report.rptDocxUrl,
+        campaignId: report.rptCampaignId,
+        engagementId: report.engagementId,
+        version: report.rptVersion,
+        windowStart: report.rptWindowStart,
+        windowEnd: report.rptWindowEnd,
+        // Keep raw fields for backward compat
+        ...report,
+        findings: mappedFindings,
+        artifacts,
+      };
     }),
 
   // Create a new report
