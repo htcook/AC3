@@ -3469,6 +3469,150 @@ Return strict JSON.`,
       return { url, fileName };
     }),
 
+  /** Export FedRAMP POA&M as Excel workbook */
+  exportPoam: protectedProcedure
+    .input(z.object({ reportId: z.string() }))
+    .mutation(async ({ input }) => {
+      const db = await getDbRequired();
+      const [report] = await db.select().from(ac3Reports)
+        .where(eq(ac3Reports.rptReportId, input.reportId));
+      if (!report) throw new Error('Report not found');
+
+      const findings = await db.select().from(ac3ReportFindings)
+        .where(eq(ac3ReportFindings.rfReportId, input.reportId))
+        .orderBy(ac3ReportFindings.rfSortOrder);
+
+      const ExcelJS = await import('exceljs');
+      const workbook = new ExcelJS.default.Workbook();
+      workbook.creator = 'AC3 - AceofCloud';
+      workbook.created = new Date();
+
+      // ── POA&M Sheet ──
+      const ws = workbook.addWorksheet('POA&M', {
+        properties: { tabColor: { argb: 'FF2E7D32' } },
+      });
+
+      // Header row
+      ws.columns = [
+        { header: 'POA&M ID', key: 'poamId', width: 14 },
+        { header: 'Weakness Name', key: 'weakness', width: 40 },
+        { header: 'Weakness Description', key: 'description', width: 50 },
+        { header: 'Detector / Source', key: 'detector', width: 22 },
+        { header: 'Point of Contact', key: 'poc', width: 20 },
+        { header: 'Risk Rating', key: 'risk', width: 14 },
+        { header: 'CVSS Score', key: 'cvss', width: 12 },
+        { header: 'NIST Controls', key: 'controls', width: 30 },
+        { header: 'Remediation Plan', key: 'remediation', width: 50 },
+        { header: 'Scheduled Completion', key: 'dueDate', width: 20 },
+        { header: 'Milestones', key: 'milestones', width: 35 },
+        { header: 'Milestone Changes', key: 'changes', width: 25 },
+        { header: 'Status', key: 'status', width: 14 },
+        { header: 'Comments', key: 'comments', width: 30 },
+      ];
+
+      // Style header
+      const headerRow = ws.getRow(1);
+      headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 };
+      headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1B5E20' } };
+      headerRow.alignment = { vertical: 'middle', wrapText: true };
+      headerRow.height = 30;
+
+      const FEDRAMP_SLA: Record<string, number> = {
+        critical: 30, high: 30, moderate: 90, low: 180, informational: 365,
+      };
+
+      const RISK_LABELS: Record<string, string> = {
+        critical: 'Very High', high: 'High', moderate: 'Moderate', low: 'Low', informational: 'Very Low',
+      };
+
+      findings.forEach((f, idx) => {
+        const controls = (f.rfControls as any[] || []).map((c: any) => c.id).join(', ');
+        const slaDays = FEDRAMP_SLA[f.rfSeverity] || 180;
+        const createdAt = f.rfCreatedAt ? new Date(Number(f.rfCreatedAt)) : new Date();
+        const dueDate = new Date(createdAt);
+        dueDate.setDate(dueDate.getDate() + slaDays);
+
+        const row = ws.addRow({
+          poamId: `V-${String(idx + 1).padStart(5, '0')}`,
+          weakness: f.rfTitle,
+          description: (f.rfSummary || '').slice(0, 500),
+          detector: f.rfSourceAgentId ? 'Automated Scan' : 'Manual Penetration Test',
+          poc: report.rptAuthorName || 'Security Team',
+          risk: RISK_LABELS[f.rfSeverity] || 'Moderate',
+          cvss: f.rfCvssScore || 'N/A',
+          controls: controls || 'RA-5',
+          remediation: (f.rfRemediation || 'Pending remediation plan').slice(0, 500),
+          dueDate: dueDate.toISOString().split('T')[0],
+          milestones: `M1: Identify fix (${Math.round(slaDays * 0.25)}d) | M2: Implement (${Math.round(slaDays * 0.6)}d) | M3: Verify (${slaDays}d)`,
+          changes: 'Initial entry',
+          status: 'Open',
+          comments: '',
+        });
+
+        // Color-code risk column
+        const riskColors: Record<string, string> = {
+          critical: 'FFFF1744', high: 'FFFF6D00', moderate: 'FFFFAB00', low: 'FF00C853', informational: 'FF2979FF',
+        };
+        const riskCell = row.getCell('risk');
+        riskCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: riskColors[f.rfSeverity] || 'FFFFAB00' } };
+        riskCell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 };
+
+        row.alignment = { vertical: 'top', wrapText: true };
+      });
+
+      // ── Summary Sheet ──
+      const summaryWs = workbook.addWorksheet('Summary', {
+        properties: { tabColor: { argb: 'FF1565C0' } },
+      });
+      summaryWs.columns = [
+        { header: 'Metric', key: 'metric', width: 35 },
+        { header: 'Value', key: 'value', width: 25 },
+      ];
+      const summaryHeader = summaryWs.getRow(1);
+      summaryHeader.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 };
+      summaryHeader.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0D47A1' } };
+
+      const sevCounts: Record<string, number> = {};
+      findings.forEach(f => { sevCounts[f.rfSeverity] = (sevCounts[f.rfSeverity] || 0) + 1; });
+
+      summaryWs.addRow({ metric: 'Report Name', value: report.rptName });
+      summaryWs.addRow({ metric: 'Client', value: report.rptClientName });
+      summaryWs.addRow({ metric: 'Compliance Framework', value: report.complianceFramework === 'fedramp' ? `FedRAMP ${(report.rptFedrampLevel || 'moderate').toUpperCase()}` : 'NIST 800-53 Rev 5' });
+      summaryWs.addRow({ metric: 'Total POA&M Items', value: findings.length });
+      summaryWs.addRow({ metric: 'Critical / Very High', value: sevCounts['critical'] || 0 });
+      summaryWs.addRow({ metric: 'High', value: sevCounts['high'] || 0 });
+      summaryWs.addRow({ metric: 'Moderate', value: sevCounts['moderate'] || 0 });
+      summaryWs.addRow({ metric: 'Low', value: sevCounts['low'] || 0 });
+      summaryWs.addRow({ metric: 'Informational / Very Low', value: sevCounts['informational'] || 0 });
+      summaryWs.addRow({ metric: 'Generated', value: new Date().toISOString() });
+      summaryWs.addRow({ metric: 'Generated By', value: 'AC3 - AceofCloud Cybersecurity Command Center' });
+
+      // ── ConMon SLA Reference Sheet ──
+      const slaWs = workbook.addWorksheet('ConMon SLAs', {
+        properties: { tabColor: { argb: 'FFFF6F00' } },
+      });
+      slaWs.columns = [
+        { header: 'Risk Level', key: 'risk', width: 20 },
+        { header: 'Remediation Deadline', key: 'deadline', width: 25 },
+        { header: 'ConMon Reporting', key: 'reporting', width: 30 },
+        { header: 'Reference', key: 'ref', width: 40 },
+      ];
+      const slaHeader = slaWs.getRow(1);
+      slaHeader.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 };
+      slaHeader.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE65100' } };
+      slaWs.addRow({ risk: 'Critical / Very High', deadline: '30 calendar days', reporting: 'Monthly ConMon report', ref: 'FedRAMP ConMon Guide v3.x' });
+      slaWs.addRow({ risk: 'High', deadline: '30 calendar days', reporting: 'Monthly ConMon report', ref: 'FedRAMP ConMon Guide v3.x' });
+      slaWs.addRow({ risk: 'Moderate', deadline: '90 calendar days', reporting: 'Monthly ConMon report', ref: 'FedRAMP ConMon Guide v3.x' });
+      slaWs.addRow({ risk: 'Low', deadline: '180 calendar days', reporting: 'Monthly ConMon report', ref: 'FedRAMP ConMon Guide v3.x' });
+      slaWs.addRow({ risk: 'Informational', deadline: '365 calendar days (recommended)', reporting: 'Annual assessment', ref: 'NIST SP 800-53 Rev 5' });
+
+      const xlsxBuffer = await workbook.xlsx.writeBuffer();
+      const poamFileName = `ac3-reports/${input.reportId}-poam-${Date.now()}.xlsx`;
+      const { url } = await doStoragePut(poamFileName, Buffer.from(xlsxBuffer as ArrayBuffer), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+
+      return { url, fileName: poamFileName, totalItems: findings.length };
+    }),
+
   // ─── Artifact Management ─────────────────────────────────────────────────
 
   /** Add an artifact to a report (optionally linked to a finding) */

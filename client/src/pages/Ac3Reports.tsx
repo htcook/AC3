@@ -53,6 +53,7 @@ import {
   FileDown,
   Server,
   Target,
+  Table2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -405,6 +406,14 @@ function ReportDetail({ reportId, onBack }: { reportId: string; onBack: () => vo
     onError: (err) => toast.error("Error", { description: err.message }),
   });
 
+  const autoMapControlsBatchMutation = trpc.ac3Reports.autoMapControlsBatch.useMutation({
+    onSuccess: (data) => {
+      utils.ac3Reports.getReport.invalidate({ reportId });
+      toast.success("NIST Controls Mapped", { description: `${data.mapped} controls mapped across ${data.processed} findings.` });
+    },
+    onError: (err) => toast.error("Control Mapping Failed", { description: err.message }),
+  });
+
   const generateExecMutation = trpc.ac3Reports.generateExecSummary.useMutation({
     onSuccess: () => {
       utils.ac3Reports.getReport.invalidate({ reportId });
@@ -570,6 +579,20 @@ function ReportDetail({ reportId, onBack }: { reportId: string; onBack: () => vo
               variant="outline"
               size="sm"
               className="gap-2"
+              onClick={() => autoMapControlsBatchMutation.mutate({ reportId })}
+              disabled={autoMapControlsBatchMutation.isPending || findings.length === 0}
+            >
+              {autoMapControlsBatchMutation.isPending ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Shield className="h-3.5 w-3.5" />
+              )}
+              {autoMapControlsBatchMutation.isPending ? "Mapping Controls..." : "Auto-Map NIST Controls"}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2"
               onClick={() => qaReviewMutation.mutate({ reportId })}
               disabled={qaReviewMutation.isPending}
             >
@@ -705,6 +728,14 @@ function FindingsTab({ reportId, findings }: { reportId: string; findings: any[]
       utils.ac3Reports.getReport.invalidate({ reportId });
       toast("Finding deleted");
     },
+  });
+
+  const autoMapControls = trpc.ac3Reports.autoMapControls.useMutation({
+    onSuccess: (data) => {
+      utils.ac3Reports.getReport.invalidate({ reportId });
+      toast.success("Controls Mapped", { description: `${data.mapped} new controls mapped (${data.total} total). Confidence: ${data.confidence}` });
+    },
+    onError: (err) => toast.error("Mapping Failed", { description: err.message }),
   });
 
   const updateFinding = trpc.ac3Reports.updateFinding.useMutation({
@@ -977,6 +1008,16 @@ function FindingsTab({ reportId, findings }: { reportId: string; findings: any[]
 
                   {/* Actions */}
                   <div className="flex items-center gap-2 pt-2 border-t border-border/50">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1 text-xs text-cyan-400"
+                      onClick={(e) => { e.stopPropagation(); autoMapControls.mutate({ findingId: finding.findingId }); }}
+                      disabled={autoMapControls.isPending}
+                    >
+                      {autoMapControls.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Shield className="h-3 w-3" />}
+                      Map Controls
+                    </Button>
                     {finding.narrativeStatus !== "pending" && (
                       <>
                         <Button
@@ -1745,6 +1786,16 @@ function ExportTab({ reportId }: { reportId: string }) {
     },
   });
 
+  const exportPoamMutation = trpc.ac3Reports.exportPoam.useMutation({
+    onSuccess: (data) => {
+      toast.success("POA&M Generated", { description: "Your POA&M workbook is ready for download." });
+      window.open(data.url, "_blank");
+    },
+    onError: (err) => {
+      toast.error("POA&M Export Failed", { description: err.message });
+    },
+  });
+
   const handleCopy = () => {
     if (exportData) {
       navigator.clipboard.writeText(JSON.stringify(exportData, null, 2));
@@ -1803,6 +1854,41 @@ function ExportTab({ reportId }: { reportId: string }) {
           <div className="mt-3 text-xs text-muted-foreground">
             <p>The DOCX includes: Title Page, Executive Summary, Scope & Methodology, Findings Summary Table, and Detailed Findings.</p>
             <p className="mt-1">Author: Harrison Cook — AceofCloud</p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* POA&M Export */}
+      <Card className="border-emerald-500/20">
+        <CardHeader>
+          <CardTitle className="text-sm flex items-center gap-2">
+            <Table2 className="h-4 w-4 text-emerald-400" />
+            FedRAMP POA&M Export
+          </CardTitle>
+          <CardDescription>
+            Generate a Plan of Action & Milestones (POA&M) Excel workbook from report findings.
+            Includes weakness identifiers, risk ratings, remediation timelines per ConMon SLAs,
+            responsible parties, and NIST SP 800-53 control mappings.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-3">
+            <Button
+              onClick={() => exportPoamMutation.mutate({ reportId })}
+              disabled={exportPoamMutation.isPending}
+              className="gap-2 bg-emerald-600 hover:bg-emerald-700"
+            >
+              {exportPoamMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Table2 className="h-4 w-4" />
+              )}
+              {exportPoamMutation.isPending ? "Generating POA&M..." : "Generate & Download POA&M"}
+            </Button>
+          </div>
+          <div className="mt-3 text-xs text-muted-foreground">
+            <p>Columns: POA&M ID, Weakness, Detector Source, Risk Rating, NIST Controls, Remediation Plan, Scheduled Completion, Milestones, Status</p>
+            <p className="mt-1">Format: XLSX (compatible with FedRAMP POA&M template)</p>
           </div>
         </CardContent>
       </Card>

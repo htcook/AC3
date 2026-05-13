@@ -2341,7 +2341,7 @@
 - [x] Implement LLM-based control mapper (autoMapControls + autoMapControlsBatch procedures)
 - [x] Integrate control mapper into report generation pipeline (single + batch endpoints)
 - [x] Write vitest tests for control mapping logic (36 tests passing)
-- [ ] Deploy to AWS ECS
+- [x] Deploy to AWS ECS (image rcdt-controls pushed to ECR, ECS force-new-deployment triggered)
 
 ### RCDT (Risk Condition Decision Table) Appendix (May 13)
 - [x] Research RCDT structure from FedRAMP SAR template (DR form, POA&M, ConMon SLAs)
@@ -2350,8 +2350,27 @@
 - [x] Write vitest tests for RCDT generation (36 tests passing)
 - [x] Add FedRAMP ConMon SLA reference table to RCDT
 - [x] Add disposition legend (Mitigate/Accept/Transfer/Avoid)
-- [ ] Deploy to AWS ECS
+- [x] Deploy to AWS ECS (image rcdt-controls pushed to ECR, ECS force-new-deployment triggered)
 
 ### Live Testing
 - [ ] Test FedRAMP RET + RCDT export with live engagement data
 - [ ] Verify RET + RCDT appendices render correctly in DOCX
+
+### UI Button for Batch NIST Control Mapping (May 13)
+- [ ] Read current report findings page UI
+- [ ] Add "Auto-Map NIST Controls" button to report findings toolbar
+- [ ] Wire button to autoMapControlsBatch tRPC mutation
+- [ ] Show progress/results toast after mapping completes
+- [ ] Add per-finding "Map Controls" button for individual mapping
+
+### FedRAMP POA&M Excel Export (May 13)
+- [ ] Research FedRAMP POA&M template structure (columns, formatting)
+- [ ] Create exportPoam tRPC procedure that generates Excel workbook
+- [ ] Add POA&M export button to report page (visible for FedRAMP reports)
+- [ ] Write vitest tests for POA&M generation
+
+### End-to-End FedRAMP Test (May 13)
+- [ ] Create a FedRAMP test engagement with sample findings
+- [ ] Run autoMapControlsBatch on the engagement
+- [ ] Export DOCX and verify RET + RCDT appendices render correctly
+- [ ] Export POA&M Excel and verify structure
