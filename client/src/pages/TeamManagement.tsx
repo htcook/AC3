@@ -101,9 +101,13 @@ export default function TeamManagement() {
   const invites = trpc.account.listInvites.useQuery({ includeExpired: false }, { enabled: canManage });
 
   const createInvite = trpc.account.createInvite.useMutation({
-    onSuccess: (data) => {
+    onSuccess: (data: any) => {
       setGeneratedToken(data.inviteToken);
-      toast.success(`Invitation sent to ${data.email}`);
+      if (data.emailSent) {
+        toast.success(`Invitation emailed to ${data.email}`);
+      } else {
+        toast.success(`Invitation created for ${data.email} (email not configured — share the token manually)`);
+      }
       utils.account.listInvites.invalidate();
       utils.account.teamStats.invalidate();
     },
@@ -147,9 +151,13 @@ export default function TeamManagement() {
   });
 
   const resendInvite = trpc.account.resendInvite.useMutation({
-    onSuccess: (data) => {
+    onSuccess: (data: any) => {
       setGeneratedToken(data.inviteToken);
-      toast.success(`New invite token generated for ${data.email}`);
+      if (data.emailSent) {
+        toast.success(`Invitation re-sent to ${data.email}`);
+      } else {
+        toast.success(`New invite token generated for ${data.email} (share manually)`);
+      }
       utils.account.listInvites.invalidate();
     },
     onError: (err) => toast.error(err.message),

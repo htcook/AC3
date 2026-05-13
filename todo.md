@@ -2376,3 +2376,17 @@
 - [ ] Run autoMapControlsBatch on the engagement (pending live test)
 - [ ] Export DOCX and verify RET + RCDT appendices render correctly (pending live test)
 - [ ] Export POA&M Excel and verify structure (pending live test)
+
+### Email Integration - ac3@aceofcloud.com (May 13)
+- [x] Build email service module with SMTP + Microsoft Graph API dual support (server/lib/email-service.ts)
+- [x] Create HTML email templates — invite, password reset, activation, security alerts, daily summary (server/lib/email-templates.ts)
+- [x] Integrate email sending into createInvite procedure (auto-sends invite email when configured)
+- [x] Integrate email sending into resendInvite procedure (auto-sends on resend)
+- [x] Integrate email into acceptInvite — sends activation confirmation + admin notification
+- [x] Add admin notification emails (new registrations, security alerts, daily summary)
+- [x] Add verifyEmailConfig, sendTestEmail, sendSecurityAlert admin procedures
+- [x] Update TeamManagement UI to show email delivery status on invite
+- [x] Write vitest tests for email service (42 tests passing)
+- [ ] Configure M365 SMTP credentials (waiting on boss)
+- [ ] Deploy to AWS ECS
+- [ ] Send test email to verify end-to-end delivery

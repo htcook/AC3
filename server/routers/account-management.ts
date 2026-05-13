@@ -19,6 +19,8 @@ import { eq, desc, and, ne, count as drizzleCount, sql } from "drizzle-orm";
 import { getFIPSCrypto } from "../lib/fips-crypto";
 import { auditTLSConfiguration } from "../lib/fips-tls";
 import { isFIPSTLSEnforced } from "../lib/fips-tls-global";
+import { sendEmail, isEmailConfigured, verifyEmailTransport } from "../lib/email-service";
+import { teamInviteEmail, accountActivatedEmail, newRegistrationAlertEmail, securityAlertEmail } from "../lib/email-templates";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -297,6 +299,31 @@ export const accountRouter = router({
         ipAddress: ctx.req.ip || null,
       });
 
+      // Send invitation email
+      let emailSent = false;
+      if (isEmailConfigured()) {
+        const baseUrl = process.env.AC3_BASE_URL || "https://ac3.aceofcloud.io";
+        const emailContent = teamInviteEmail({
+          recipientEmail: input.email,
+          inviterName: ctx.user!.name || "Admin",
+          role: input.role,
+          inviteToken: rawToken,
+          baseUrl,
+          expiresInHours: INVITE_EXPIRY_HOURS,
+          personalMessage: input.message,
+        });
+        const result = await sendEmail({
+          to: input.email,
+          subject: emailContent.subject,
+          html: emailContent.html,
+          text: emailContent.text,
+        });
+        emailSent = result.success;
+        if (!result.success) {
+          console.error(`[AccountMgmt] Failed to send invite email to ${input.email}: ${result.error}`);
+        }
+      }
+
       return {
         success: true,
         inviteToken: rawToken,
@@ -304,6 +331,7 @@ export const accountRouter = router({
         role: input.role,
         expiresAt: expiresAt.toISOString(),
         expiresInHours: INVITE_EXPIRY_HOURS,
+        emailSent,
       };
     }),
 
@@ -409,6 +437,44 @@ export const accountRouter = router({
         ipAddress: ctx.req.ip || null,
       });
 
+      // Send activation confirmation to the new user
+      if (isEmailConfigured()) {
+        const baseUrl = process.env.AC3_BASE_URL || "https://ac3.aceofcloud.io";
+        const activationEmail = accountActivatedEmail({
+          recipientEmail: invite.email,
+          recipientName: ctx.user!.name || invite.email,
+          role: invite.role,
+          baseUrl,
+        });
+        sendEmail({
+          to: invite.email,
+          subject: activationEmail.subject,
+          html: activationEmail.html,
+          text: activationEmail.text,
+        }).catch((err) => console.error(`[AccountMgmt] Activation email failed: ${err}`));
+
+        // Notify admins of new registration
+        const admins = await db.select({ email: users.email }).from(users)
+          .where(eq(users.role, "admin"));
+        if (admins.length > 0) {
+          const alertEmail = newRegistrationAlertEmail({
+            newUserEmail: invite.email,
+            newUserName: ctx.user!.name || invite.email,
+            newUserRole: invite.role,
+            invitedBy: invite.invitedByName || undefined,
+            registrationTime: new Date(),
+            ipAddress: ctx.req.ip || undefined,
+            baseUrl,
+          });
+          sendEmail({
+            to: admins.map((a) => a.email).filter(Boolean) as string[],
+            subject: alertEmail.subject,
+            html: alertEmail.html,
+            text: alertEmail.text,
+          }).catch((err) => console.error(`[AccountMgmt] Admin notification failed: ${err}`));
+        }
+      }
+
       return { success: true, role: invite.role };
     }),
 
@@ -437,11 +503,36 @@ export const accountRouter = router({
         ipAddress: ctx.req.ip || null,
       });
 
+      // Resend invitation email
+      let emailSent = false;
+      if (isEmailConfigured()) {
+        const baseUrl = process.env.AC3_BASE_URL || "https://ac3.aceofcloud.io";
+        const emailContent = teamInviteEmail({
+          recipientEmail: invite.email,
+          inviterName: ctx.user!.name || "Admin",
+          role: invite.role,
+          inviteToken: rawToken,
+          baseUrl,
+          expiresInHours: INVITE_EXPIRY_HOURS,
+        });
+        const result = await sendEmail({
+          to: invite.email,
+          subject: emailContent.subject,
+          html: emailContent.html,
+          text: emailContent.text,
+        });
+        emailSent = result.success;
+        if (!result.success) {
+          console.error(`[AccountMgmt] Failed to resend invite email to ${invite.email}: ${result.error}`);
+        }
+      }
+
       return {
         success: true,
         inviteToken: rawToken,
         email: invite.email,
         expiresAt: expiresAt.toISOString(),
+        emailSent,
       };
     }),
 
@@ -514,5 +605,115 @@ export const accountRouter = router({
         .orderBy(desc(activityLogs.createdAt))
         .limit(input?.limit || 50);
       return logs;
+    }),
+
+  // ═══ Email Configuration ═══════════════════════════════════════════════════
+
+  /** Verify email transport configuration */
+  verifyEmailConfig: adminProcedure.query(async () => {
+    const configured = isEmailConfigured();
+    if (!configured) {
+      return {
+        configured: false,
+        provider: process.env.EMAIL_PROVIDER || "smtp",
+        from: process.env.EMAIL_FROM || "ac3@aceofcloud.com",
+        verified: false,
+        error: "Email credentials not configured. Set SMTP_PASSWORD (for SMTP) or AZURE_TENANT_ID/AZURE_CLIENT_ID/AZURE_CLIENT_SECRET (for Graph API).",
+      };
+    }
+
+    const verification = await verifyEmailTransport();
+    return {
+      configured: true,
+      provider: verification.provider,
+      from: process.env.EMAIL_FROM || "ac3@aceofcloud.com",
+      verified: verification.ok,
+      error: verification.error,
+    };
+  }),
+
+  /** Send a test email to verify the email configuration works */
+  sendTestEmail: adminProcedure
+    .input(z.object({ to: z.string().email() }))
+    .mutation(async ({ input, ctx }) => {
+      if (!isEmailConfigured()) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Email is not configured. Please set the required environment variables first.",
+        });
+      }
+
+      const result = await sendEmail({
+        to: input.to,
+        subject: "[AC3] Test Email — Configuration Verified",
+        html: `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+          <h2 style="color: #0ea5e9;">AC3 Email Configuration Test</h2>
+          <p>This is a test email from the AC3 platform to verify that email sending is working correctly.</p>
+          <p><strong>Provider:</strong> ${process.env.EMAIL_PROVIDER || "smtp"}</p>
+          <p><strong>From:</strong> ${process.env.EMAIL_FROM || "ac3@aceofcloud.com"}</p>
+          <p><strong>Sent by:</strong> ${ctx.user!.name || ctx.user!.email || "Admin"}</p>
+          <p><strong>Timestamp:</strong> ${new Date().toUTCString()}</p>
+          <hr style="border: 1px solid #334155; margin: 24px 0;">
+          <p style="color: #94a3b8; font-size: 12px;">AceofCloud — AC3 Platform</p>
+        </div>`,
+        text: `AC3 Email Configuration Test\n\nProvider: ${process.env.EMAIL_PROVIDER || "smtp"}\nFrom: ${process.env.EMAIL_FROM || "ac3@aceofcloud.com"}\nSent by: ${ctx.user!.name || "Admin"}\nTimestamp: ${new Date().toUTCString()}`,
+      });
+
+      if (!result.success) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: `Failed to send test email: ${result.error}`,
+        });
+      }
+
+      const db = (await getDb())!;
+      await db.insert(activityLogs).values({
+        userId: ctx.user!.id,
+        action: "test_email_sent",
+        details: `Test email sent to ${input.to}`,
+        ipAddress: ctx.req.ip || null,
+      });
+
+      return { success: true, messageId: result.messageId };
+    }),
+
+  /** Send a security alert email to all admins */
+  sendSecurityAlert: adminProcedure
+    .input(z.object({
+      alertType: z.enum(["lockout", "mfa_failure", "suspicious_login", "password_change", "role_change", "deactivation"]),
+      severity: z.enum(["critical", "high", "medium", "low"]),
+      userEmail: z.string().email(),
+      userName: z.string().optional(),
+      details: z.string(),
+      ipAddress: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      if (!isEmailConfigured()) {
+        return { success: false, error: "Email not configured" };
+      }
+
+      const db = (await getDb())!;
+      const admins = await db.select({ email: users.email }).from(users)
+        .where(eq(users.role, "admin"));
+
+      if (admins.length === 0) {
+        return { success: false, error: "No admin users found" };
+      }
+
+      const baseUrl = process.env.AC3_BASE_URL || "https://ac3.aceofcloud.io";
+      const emailContent = securityAlertEmail({
+        ...input,
+        timestamp: new Date(),
+        baseUrl,
+      });
+
+      const result = await sendEmail({
+        to: admins.map((a) => a.email).filter(Boolean) as string[],
+        subject: emailContent.subject,
+        html: emailContent.html,
+        text: emailContent.text,
+      });
+
+      return { success: result.success, error: result.error };
     }),
 });
