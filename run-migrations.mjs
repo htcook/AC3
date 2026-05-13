@@ -124,6 +124,9 @@ async function run() {
           skipped++;
         } else if (err.code === 'ER_DUP_KEYNAME' || err.errno === 1061) {
           skipped++;
+        } else if (err.errno === 1826 || err.errno === 1022 || err.message.includes('Duplicate foreign key constraint name')) {
+          // Duplicate FK constraint name - already exists from previous partial run
+          skipped++;
         } else if (err.errno === 1822 || err.message.includes('Missing index for constraint')) {
           // FK missing index - non-critical, table still created
           fkWarnings++;
