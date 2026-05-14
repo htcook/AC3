@@ -2708,3 +2708,31 @@
 - [x] Added budget-aware fallback path with FALLBACK_MAX_CHARS (40K)
 - [x] Added prompt size logging for observability
 - [x] 12 vitest tests passing (prompt capping, no asset duplication, compact context, budget enforcement)
+
+### Configure Alert Thresholds for Active Engagements (May 14)
+- [x] Query active engagements with domain intel scans
+- [x] Set up default alert thresholds (relevance score > 80) for each active scan
+- [x] Wire alerts to notification bell for real-time escalation
+- [x] Make alert items clickable to navigate to threat briefing detail
+- [x] Add dismiss/clear functionality to notification bell alerts
+- [x] Add seedAlertThresholds and recentAlerts tRPC procedures
+- [x] Add dismissed column to threatAlertHistory schema
+- [x] Create NotificationBell component with unread count, dismiss, and navigation
+- [x] Add NotificationBell to DashboardLayout (rail, expanded, and mobile modes)
+- [x] Add scheduled alert sweep endpoint (/api/scheduled/alert-sweep)
+- [x] Add seed alert thresholds endpoint (/api/scheduled/seed-alert-thresholds)
+- [x] Create seed-alert-thresholds.ts library with risk-based threshold logic
+- [x] Create threat-alert-engine.ts with 24h dedup and owner notifications
+- [x] Write 35 vitest tests for alert notifications (all passing)
+
+### Dependabot Vulnerability Fixes (May 14)
+- [x] Audit all 20 vulnerabilities (6 high, 14 moderate)
+- [x] Update vulnerable dependencies to patched versions
+- [x] protobufjs: 8.0.1 → 8.3.0 (fixes 7 alerts: 4 high, 3 medium)
+- [x] mermaid: 11.12.0 → 11.15.0 (fixes 8 medium alerts)
+- [x] basic-ftp: override >=5.3.1 (fixes 1 high alert)
+- [x] fast-xml-builder: override >=1.1.7 (fixes 2 alerts: 1 high, 1 medium)
+- [x] ip-address: override >=10.1.1 (fixes 1 medium alert)
+- [x] @protobufjs/utf8: override >=1.1.1 (fixes 1 medium alert)
+- [x] Verify no breaking changes from dependency updates
+- [x] Run vitest tests to confirm nothing is broken (35 tests passing)

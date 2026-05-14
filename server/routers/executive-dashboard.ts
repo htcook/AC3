@@ -438,6 +438,83 @@ export const executiveDashboardRouter = router({
       return getAlertHistory(input || {});
     }),
 
+  // ── Seed Default Alert Thresholds ─────────────────────────────────────
+  seedAlertThresholds: protectedProcedure.mutation(async () => {
+    const { seedDefaultAlertThresholds } = await import("../lib/seed-alert-thresholds");
+    return seedDefaultAlertThresholds();
+  }),
+
+  // ── Recent Alerts for Notification Bell ─────────────────────────────────
+  recentAlerts: protectedProcedure
+    .input(z.object({ limit: z.number().min(1).max(100).default(20) }).optional())
+    .query(async ({ input }) => {
+      const drizzleDb = await getDb();
+      if (!drizzleDb) return { alerts: [], unreadCount: 0 };
+
+      const { threatAlertHistory } = await import("../../drizzle/schema");
+      const limit = input?.limit || 20;
+
+      // Get recent alerts (last 7 days) — createdAt is bigint (ms epoch)
+      const cutoff7d = Date.now() - 7 * 24 * 60 * 60 * 1000;
+      const alerts = await drizzleDb.select().from(threatAlertHistory)
+        .where(gte(threatAlertHistory.createdAt, cutoff7d))
+        .orderBy(desc(threatAlertHistory.createdAt))
+        .limit(limit);
+
+      // Count unread (not dismissed) — alerts in last 24h that haven't been dismissed
+      const cutoff24h = Date.now() - 24 * 60 * 60 * 1000;
+      const [unreadRow] = await drizzleDb.select({ cnt: count() })
+        .from(threatAlertHistory)
+        .where(and(
+          gte(threatAlertHistory.createdAt, cutoff24h),
+          eq(threatAlertHistory.dismissed, 0),
+        ));
+
+      return {
+        alerts: alerts.map(a => ({
+          id: a.id,
+          actorId: a.actorId,
+          actorName: a.actorName,
+          relevanceScore: a.relevanceScore,
+          threatLevel: a.threatLevel,
+          triggerReason: a.triggerReason,
+          notificationSent: a.notificationSent === 1,
+          scanId: a.scanId,
+          dismissed: a.dismissed === 1,
+          createdAt: a.createdAt,
+        })),
+        unreadCount: unreadRow?.cnt || 0,
+      };
+    }),
+
+  // ── Dismiss Alert ───────────────────────────────────────────────────────
+  dismissAlert: protectedProcedure
+    .input(z.object({ alertId: z.number() }))
+    .mutation(async ({ input }) => {
+      const drizzleDb = await getDb();
+      if (!drizzleDb) throw new Error("Database not available");
+      const { threatAlertHistory } = await import("../../drizzle/schema");
+      await drizzleDb.update(threatAlertHistory)
+        .set({ dismissed: 1 })
+        .where(eq(threatAlertHistory.id, input.alertId));
+      return { success: true };
+    }),
+
+  // ── Dismiss All Alerts ──────────────────────────────────────────────────
+  dismissAllAlerts: protectedProcedure.mutation(async () => {
+    const drizzleDb = await getDb();
+    if (!drizzleDb) throw new Error("Database not available");
+    const { threatAlertHistory } = await import("../../drizzle/schema");
+    const cutoff24h = Date.now() - 24 * 60 * 60 * 1000;
+    await drizzleDb.update(threatAlertHistory)
+      .set({ dismissed: 1 })
+      .where(and(
+        gte(threatAlertHistory.createdAt, cutoff24h),
+        eq(threatAlertHistory.dismissed, 0),
+      ));
+    return { success: true };
+  }),
+
   // ── Engagement Summary for Executives ────────────────────────────────────
   engagementSummary: protectedProcedure.query(async () => {
     const drizzleDb = await getDb();

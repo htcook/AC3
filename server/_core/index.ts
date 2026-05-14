@@ -1906,6 +1906,111 @@ async function startServer() {
     }
   });
 
+  // ─── Scheduled Alert Sweep ─────────────────────────────────────────────
+  app.post('/api/scheduled/alert-sweep', async (req, res) => {
+    try {
+      let user: any = null;
+      try { user = await scheduledSdk.authenticateRequest(req); } catch {}
+      if (!user) {
+        const token = req.cookies?.['caldera_session'];
+        if (token) {
+          try {
+            const jwt = await import('jsonwebtoken');
+            user = jwt.default.verify(token, process.env.JWT_SECRET || 'dev-secret');
+          } catch {}
+        }
+      }
+      if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+      console.log('[AlertSweep] Starting scheduled alert sweep...');
+
+      const { computeExecutiveThreatBriefing, getRecentScansForBriefing } = await import("../lib/executive-threat-briefing");
+      const { computeIocOverlap } = await import("../lib/ioc-overlap-detector");
+      const { checkAlertThresholds } = await import("../lib/threat-alert-engine");
+
+      // Get all completed scans
+      const scans = await getRecentScansForBriefing();
+      let totalAlertsFired = 0;
+      const scanResults: Array<{ scanId: number; alertsFired: number }> = [];
+
+      for (const scan of scans) {
+        try {
+          const briefing = await computeExecutiveThreatBriefing({ scanId: scan.id });
+          if (!briefing.matchedActors || briefing.matchedActors.length === 0) continue;
+
+          // Get IOC overlaps for this scan
+          let iocOverlapActors = new Set<string>();
+          try {
+            const overlap = await computeIocOverlap(scan.id);
+            if (overlap?.actorOverlaps) {
+              for (const ao of overlap.actorOverlaps) {
+                if (ao.matchedIocs > 0) iocOverlapActors.add(ao.actorId);
+              }
+            }
+          } catch {}
+
+          // Determine rising actors (momentum > 0)
+          const risingActors = new Set<string>();
+          for (const actor of briefing.matchedActors) {
+            if ((actor as any).momentum > 0) risingActors.add(actor.actorId);
+          }
+
+          const result = await checkAlertThresholds({
+            scanId: scan.id,
+            matchedActors: briefing.matchedActors.map(a => ({
+              actorId: a.actorId,
+              name: a.name,
+              relevanceScore: a.relevanceScore,
+              threatLevel: (a as any).threatLevel || null,
+              iocCount: (a as any).iocCount || 0,
+              matchedSectors: (a as any).matchedSectors || [],
+              attackVectors: (a as any).attackVectors || [],
+            })),
+            iocOverlapActors,
+            risingActors,
+          });
+
+          totalAlertsFired += result.alertsFired;
+          scanResults.push({ scanId: scan.id, alertsFired: result.alertsFired });
+        } catch (err: any) {
+          console.error(`[AlertSweep] Error processing scan ${scan.id}:`, err.message);
+        }
+      }
+
+      console.log(`[AlertSweep] Complete: ${totalAlertsFired} alerts fired across ${scans.length} scans`);
+      return res.json({ success: true, totalAlertsFired, scansProcessed: scans.length, scanResults });
+    } catch (err: any) {
+      console.error('[AlertSweep] Error:', err.message);
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ─── Seed Alert Thresholds (one-time) ─────────────────────────────────
+  app.post('/api/scheduled/seed-alert-thresholds', async (req, res) => {
+    try {
+      let user: any = null;
+      try { user = await scheduledSdk.authenticateRequest(req); } catch {}
+      if (!user) {
+        const token = req.cookies?.['caldera_session'];
+        if (token) {
+          try {
+            const jwt = await import('jsonwebtoken');
+            user = jwt.default.verify(token, process.env.JWT_SECRET || 'dev-secret');
+          } catch {}
+        }
+      }
+      if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+      const { seedDefaultAlertThresholds } = await import("../lib/seed-alert-thresholds");
+      const result = await seedDefaultAlertThresholds();
+      console.log(`[AlertSeed] Seeded ${result.created} thresholds (${result.skipped} skipped)`);
+      return res.json({ success: true, ...result });
+    } catch (err: any) {
+      console.error('[AlertSeed] Error:', err.message);
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
   // ─── Rate Limiting ────────────────────────────────────────────────────
   const { apiRateLimiter, trpcAuthRateLimiter } = await import("../lib/rate-limiter");
 

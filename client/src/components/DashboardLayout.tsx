@@ -30,6 +30,7 @@ import {
   TooltipTrigger,
 } from "./ui/tooltip";
 import { sidebarNavGroups, getFilteredNavGroups, type NavGroup, type UserRole } from "@/lib/sidebar-nav";
+import { NotificationBell } from "./NotificationBell";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -198,6 +199,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
             <span className="font-semibold text-sm tracking-tight truncate">{activeLabel}</span>
           </div>
           <div className="flex items-center gap-1">
+            <NotificationBell collapsed />
             <CommandPaletteTrigger collapsed />
           </div>
         </div>
@@ -275,6 +277,11 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
           {/* Search trigger */}
           <div className="py-2 flex justify-center shrink-0">
             <CommandPaletteTrigger collapsed />
+          </div>
+
+          {/* Notification bell */}
+          <div className="py-1 flex justify-center shrink-0">
+            <NotificationBell collapsed />
           </div>
 
           {/* Engagement indicator */}
@@ -370,6 +377,11 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
         {/* Search trigger */}
         <div className="px-3 py-2 border-b border-border/30 shrink-0">
           <CommandPaletteTrigger />
+        </div>
+
+        {/* Notification bell */}
+        <div className="px-3 py-1 shrink-0">
+          <NotificationBell />
         </div>
 
         {/* Engagement switcher */}

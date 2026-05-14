@@ -8704,6 +8704,7 @@ export const threatAlertHistory = mysqlTable("threat_alert_history", {
 	triggerReason: varchar("trigger_reason", { length: 255 }).notNull(),
 	notificationSent: tinyint("notification_sent").default(0).notNull(),
 	notificationError: text("notification_error"),
+	dismissed: tinyint("dismissed").default(0).notNull(),
 	createdAt: bigint("created_at", { mode: "number" }).notNull().$defaultFn(() => Date.now()),
 }, (table) => [
 	index("tah_threshold_idx").on(table.thresholdId),
