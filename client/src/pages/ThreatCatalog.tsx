@@ -36,6 +36,10 @@ import {
   Pause,
   Save,
   Radar,
+  Wand2,
+  Brain,
+  CheckCircle2,
+  XCircle,
 } from "lucide-react";
 
 type GroupType = "all" | "apt" | "ransomware" | "cybercrime" | "hacktivist" | "access_broker" | "influence_ops" | "unknown";
@@ -148,6 +152,9 @@ export default function ThreatCatalog() {
   const [exportingCsv, setExportingCsv] = useState(false);
   const [exportingStix, setExportingStix] = useState(false);
   const [showBulkEnrich, setShowBulkEnrich] = useState(false);
+  const [showClassifier, setShowClassifier] = useState(false);
+  const [classifierAutoApply, setClassifierAutoApply] = useState(75);
+  const [classifierBatchSize, setClassifierBatchSize] = useState(5);
   const [bulkEnriching, setBulkEnriching] = useState(false);
   const [bulkProgress, setBulkProgress] = useState<{ current: number; total: number; results: any[] } | null>(null);
   const [batchSize, setBatchSize] = useState(50);
@@ -558,6 +565,13 @@ export default function ThreatCatalog() {
             >
               <Radar className="w-3 h-3" />
               DISCOVER
+            </button>
+            <button
+              onClick={() => setShowClassifier(true)}
+              className="flex items-center gap-2 px-3 py-2 bg-violet-500/10 border border-violet-500/20 text-violet-400 text-xs font-display tracking-wider hover:bg-violet-500/20 transition-colors"
+            >
+              <Brain className="w-3 h-3" />
+              CLASSIFY
             </button>
           </div>
         </div>
@@ -1329,6 +1343,178 @@ export default function ThreatCatalog() {
           </div>
         </div>
       )}
+      {/* Auto-Classification Dialog */}
+      {showClassifier && <ClassifierDialog
+        onClose={() => setShowClassifier(false)}
+        autoApplyThreshold={classifierAutoApply}
+        setAutoApplyThreshold={setClassifierAutoApply}
+        batchSize={classifierBatchSize}
+        setBatchSize={setClassifierBatchSize}
+        onComplete={() => { refetch(); }}
+      />}
     </AppShell>
+  );
+}
+
+/** Classification Dialog Component */
+function ClassifierDialog({ onClose, autoApplyThreshold, setAutoApplyThreshold, batchSize, setBatchSize, onComplete }: {
+  onClose: () => void;
+  autoApplyThreshold: number;
+  setAutoApplyThreshold: (v: number) => void;
+  batchSize: number;
+  setBatchSize: (v: number) => void;
+  onComplete: () => void;
+}) {
+  const progressQuery = trpc.threatIntel.classifyProgress.useQuery(undefined, { refetchInterval: 2000 });
+  const startMutation = trpc.threatIntel.classifyBatchStart.useMutation({
+    onSuccess: (data) => {
+      if (data.started) toast.success(data.message);
+      else toast.info(data.message);
+    },
+    onError: (err: any) => toast.error(`Classification failed: ${err.message}`),
+  });
+  const cancelMutation = trpc.threatIntel.classifyCancel.useMutation({
+    onSuccess: () => toast.info("Classification cancelled"),
+  });
+  const applyMutation = trpc.threatIntel.classifyApply.useMutation({
+    onSuccess: () => { toast.success("Classification applied"); onComplete(); },
+  });
+  const reviewQuery = trpc.threatIntel.classifyReview.useQuery(undefined, { refetchInterval: 5000 });
+
+  const progress = progressQuery.data;
+  const isRunning = progress?.status === "running";
+  const pct = progress && progress.total > 0 ? Math.round((progress.processed / progress.total) * 100) : 0;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-card border border-border rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <Brain className="w-5 h-5 text-violet-400" />
+            <h2 className="text-lg font-display tracking-wider text-foreground">AI THREAT ACTOR CLASSIFIER</h2>
+          </div>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground text-xl">&times;</button>
+        </div>
+
+        <p className="text-sm text-muted-foreground mb-4">
+          Uses LLM structured output to classify "unknown" threat actors into proper categories
+          (APT, Ransomware, Cybercrime, Hacktivist, Access Broker, Influence Ops) based on their
+          descriptions, TTPs, tools, and target sectors.
+        </p>
+
+        {/* Configuration */}
+        <div className="grid grid-cols-2 gap-4 mb-4">
+          <div>
+            <label className="text-xs text-muted-foreground font-display tracking-wider">AUTO-APPLY THRESHOLD</label>
+            <div className="flex items-center gap-2 mt-1">
+              <input type="range" min={50} max={95} value={autoApplyThreshold}
+                onChange={e => setAutoApplyThreshold(Number(e.target.value))}
+                className="flex-1 accent-violet-500" />
+              <span className="text-sm font-mono text-violet-400 w-10">{autoApplyThreshold}%</span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">Classifications above this confidence are auto-applied</p>
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground font-display tracking-wider">BATCH SIZE</label>
+            <select value={batchSize} onChange={e => setBatchSize(Number(e.target.value))}
+              className="mt-1 w-full bg-background border border-border rounded px-3 py-2 text-sm">
+              {[3, 5, 10, 15, 20].map(s => <option key={s} value={s}>{s} actors/batch</option>)}
+            </select>
+            <p className="text-xs text-muted-foreground mt-1">Concurrent LLM calls per batch</p>
+          </div>
+        </div>
+
+        {/* Progress */}
+        {progress && progress.status !== "idle" && (
+          <div className="mb-4 p-3 bg-violet-500/5 border border-violet-500/20 rounded">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-display tracking-wider text-violet-400">
+                {progress.status === "running" ? "CLASSIFYING..." : progress.status === "completed" ? "COMPLETED" : "CANCELLED"}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {progress.processed}/{progress.total} ({pct}%)
+              </span>
+            </div>
+            <div className="w-full h-2 bg-violet-500/10 rounded-full overflow-hidden">
+              <div className="h-full bg-violet-500 transition-all duration-300" style={{ width: `${pct}%` }} />
+            </div>
+            <div className="flex gap-4 mt-2 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1"><CheckCircle2 className="w-3 h-3 text-green-400" />{progress.succeeded} classified</span>
+              <span className="flex items-center gap-1"><XCircle className="w-3 h-3 text-red-400" />{progress.failed} failed</span>
+            </div>
+          </div>
+        )}
+
+        {/* Actions */}
+        <div className="flex gap-3 mb-4">
+          {!isRunning ? (
+            <button
+              onClick={() => startMutation.mutate({ targetType: "unknown", batchSize, autoApplyThreshold, limit: 928 })}
+              disabled={startMutation.isPending}
+              className="flex items-center gap-2 px-4 py-2 bg-violet-500/20 border border-violet-500/30 text-violet-400 text-xs font-display tracking-wider hover:bg-violet-500/30 transition-colors disabled:opacity-50"
+            >
+              {startMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Wand2 className="w-3 h-3" />}
+              CLASSIFY UNKNOWN ACTORS
+            </button>
+          ) : (
+            <button
+              onClick={() => cancelMutation.mutate()}
+              className="flex items-center gap-2 px-4 py-2 bg-red-500/20 border border-red-500/30 text-red-400 text-xs font-display tracking-wider hover:bg-red-500/30 transition-colors"
+            >
+              <XCircle className="w-3 h-3" />
+              CANCEL
+            </button>
+          )}
+        </div>
+
+        {/* Results Summary */}
+        {progress && progress.results.length > 0 && (
+          <div className="mb-4">
+            <h3 className="text-xs font-display tracking-wider text-muted-foreground mb-2">CLASSIFICATION RESULTS</h3>
+            <div className="grid grid-cols-3 gap-2 mb-3">
+              {Object.entries(
+                progress.results.reduce((acc, r) => {
+                  acc[r.classifiedType] = (acc[r.classifiedType] || 0) + 1;
+                  return acc;
+                }, {} as Record<string, number>)
+              ).sort((a, b) => b[1] - a[1]).map(([type, count]) => (
+                <div key={type} className="p-2 bg-background border border-border rounded text-center">
+                  <div className="text-lg font-mono text-foreground">{count}</div>
+                  <div className="text-xs text-muted-foreground uppercase">{type.replace("_", " ")}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Low-Confidence Review */}
+        {reviewQuery.data && reviewQuery.data.items.length > 0 && (
+          <div>
+            <h3 className="text-xs font-display tracking-wider text-muted-foreground mb-2">
+              NEEDS REVIEW ({reviewQuery.data.items.length} low-confidence)
+            </h3>
+            <div className="max-h-48 overflow-y-auto space-y-2">
+              {reviewQuery.data.items.slice(0, 20).map(item => (
+                <div key={item.actorId} className="flex items-center justify-between p-2 bg-background border border-border rounded text-xs">
+                  <div className="flex-1">
+                    <span className="text-foreground font-medium">{item.name}</span>
+                    <span className="text-muted-foreground ml-2">→ {item.classifiedType} ({item.confidence}%)</span>
+                    <p className="text-muted-foreground mt-0.5 line-clamp-1">{item.reasoning}</p>
+                  </div>
+                  <div className="flex gap-1 ml-2">
+                    <button
+                      onClick={() => applyMutation.mutate({ actorId: item.actorId, classifiedType: item.classifiedType })}
+                      className="p-1 text-green-400 hover:bg-green-500/10 rounded" title="Accept"
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }

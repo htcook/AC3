@@ -1285,11 +1285,161 @@ export const threatIntelRouter = router({
         severity: e.tgeSeverity,
         date: e.eventDate,
       })),
-    };
+      };
   }),
 
-});
+  // ─── Auto-Classification Engine ─────────────────────────────────────────────
 
+  classifyProgress: protectedProcedure.query(async () => {
+    const { getProgress } = await import("../lib/threat-actor-classifier");
+    return getProgress();
+  }),
+
+  classifySingle: protectedProcedure
+    .input(z.object({ actorId: z.string() }))
+    .mutation(async ({ input }) => {
+      const db = await requireDb();
+      const { classifyActor } = await import("../lib/threat-actor-classifier");
+
+      const [actor] = await db.select().from(threatActors)
+        .where(eq(threatActors.actorId, input.actorId)).limit(1);
+      if (!actor) throw new TRPCError({ code: "NOT_FOUND", message: "Actor not found" });
+
+      const result = await classifyActor({
+        actorId: actor.actorId,
+        name: actor.name,
+        description: actor.description,
+        aliases: safeParseArr(actor.aliases),
+        origin: actor.origin,
+        motivation: actor.motivation,
+        targetSectors: safeParseArr(actor.targetSectors),
+        targetRegions: safeParseArr(actor.targetRegions),
+        techniques: safeParseArr(actor.techniques),
+        tools: safeParseArr(actor.tools),
+        malware: safeParseArr(actor.malware),
+        firstSeen: actor.firstSeen,
+        lastActive: actor.lastActive,
+        sophistication: actor.sophistication,
+      });
+
+      return result;
+    }),
+
+  classifyApply: protectedProcedure
+    .input(z.object({ actorId: z.string(), classifiedType: z.enum(["apt", "ransomware", "cybercrime", "hacktivist", "access_broker", "influence_ops"]) }))
+    .mutation(async ({ input }) => {
+      const db = await requireDb();
+      await db.update(threatActors)
+        .set({ actorType: input.classifiedType })
+        .where(eq(threatActors.actorId, input.actorId));
+      return { success: true };
+    }),
+
+  classifyBatchStart: protectedProcedure
+    .input(z.object({
+      targetType: z.enum(["unknown", "all"]).default("unknown"),
+      batchSize: z.number().min(1).max(20).default(5),
+      autoApplyThreshold: z.number().min(0).max(100).default(75),
+      limit: z.number().min(1).max(2000).default(928),
+    }).optional())
+    .mutation(async ({ input }) => {
+      const db = await requireDb();
+      const { classifyBatch, resetProgress } = await import("../lib/threat-actor-classifier");
+      const opts = input || { targetType: "unknown", batchSize: 5, autoApplyThreshold: 75, limit: 928 };
+
+      // Get actors to classify
+      const condition = opts.targetType === "unknown"
+        ? eq(threatActors.actorType, "unknown")
+        : undefined;
+
+      const actors = await db.select().from(threatActors)
+        .where(condition)
+        .limit(opts.limit);
+
+      if (actors.length === 0) {
+        return { started: false, message: "No actors to classify" };
+      }
+
+      // Reset progress and start batch (non-blocking)
+      resetProgress();
+
+      const actorInputs = actors.map(a => ({
+        actorId: a.actorId,
+        name: a.name,
+        description: a.description,
+        aliases: safeParseArr(a.aliases),
+        origin: a.origin,
+        motivation: a.motivation,
+        targetSectors: safeParseArr(a.targetSectors),
+        targetRegions: safeParseArr(a.targetRegions),
+        techniques: safeParseArr(a.techniques),
+        tools: safeParseArr(a.tools),
+        malware: safeParseArr(a.malware),
+        firstSeen: a.firstSeen,
+        lastActive: a.lastActive,
+        sophistication: a.sophistication,
+      }));
+
+      // Fire and forget — progress tracked via classifyProgress
+      classifyBatch(actorInputs, {
+        batchSize: opts.batchSize,
+        delayMs: 1500,
+        autoApplyThreshold: opts.autoApplyThreshold,
+        onResult: async (result) => {
+          // Auto-apply high-confidence classifications
+          if (result.confidence >= opts.autoApplyThreshold) {
+            const db2 = await requireDb();
+            await db2.update(threatActors)
+              .set({ actorType: result.classifiedType as any })
+              .where(eq(threatActors.actorId, result.actorId));
+          }
+        },
+      }).catch(err => {
+        console.error("[Classifier] Batch failed:", err);
+      });
+
+      return { started: true, total: actorInputs.length, message: `Classification started for ${actorInputs.length} actors` };
+    }),
+
+  classifyCancel: protectedProcedure.mutation(async () => {
+    const { cancelBatch } = await import("../lib/threat-actor-classifier");
+    cancelBatch();
+    return { cancelled: true };
+  }),
+
+  classifyReview: protectedProcedure
+    .input(z.object({ minConfidence: z.number().default(0), maxConfidence: z.number().default(74) }).optional())
+    .query(async () => {
+      const { getProgress } = await import("../lib/threat-actor-classifier");
+      const progress = getProgress();
+      // Return low-confidence results that need manual review
+      const reviewItems = progress.results.filter(r => r.confidence < 75);
+      return {
+        items: reviewItems,
+        total: reviewItems.length,
+        batchStatus: progress.status,
+      };
+    }),
+
+  classifyBulkApply: protectedProcedure
+    .input(z.object({
+      classifications: z.array(z.object({
+        actorId: z.string(),
+        classifiedType: z.enum(["apt", "ransomware", "cybercrime", "hacktivist", "access_broker", "influence_ops"]),
+      }))
+    }))
+    .mutation(async ({ input }) => {
+      const db = await requireDb();
+      let applied = 0;
+      for (const c of input.classifications) {
+        await db.update(threatActors)
+          .set({ actorType: c.classifiedType as any })
+          .where(eq(threatActors.actorId, c.actorId));
+        applied++;
+      }
+      return { applied };
+    }),
+});
 // Helper: compute completeness percentage for an actor
 function computeCompleteness(actor: any): number {
   if (!actor) return 0;

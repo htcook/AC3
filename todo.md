@@ -2539,3 +2539,14 @@
 - [x] Auto-populates risk register with POA&M entries (configurable toggle)
 - [x] Add E2E Pipeline trigger button with scan selector dialog
 - [x] Write vitest tests for e2e pipeline procedures (5 tests)
+
+### Threat Actor Auto-Classification Engine (May 14)
+- [x] Build LLM-powered classification engine (server/lib/threat-actor-classifier.ts)
+- [x] Classify 928 "unknown" actors into proper categories using structured JSON output
+- [x] Support batch processing with rate limiting and progress tracking
+- [x] Add confidence scoring and reasoning for each classification
+- [x] Add tRPC procedures: classifyBatchStart, classifySingle, classifyProgress, classifyCancel, classifyReview, classifyApply, classifyBulkApply
+- [x] Build frontend UI: CLASSIFY button on Threat Catalog page with dialog
+- [x] Add progress indicator showing batch classification status (real-time polling)
+- [x] Add review panel for low-confidence classifications with accept buttons
+- [x] Write vitest tests for classification engine (21 tests passing)
