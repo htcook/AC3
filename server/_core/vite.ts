@@ -1,12 +1,21 @@
 import express, { type Express } from "express";
 import fs from "fs";
 import { type Server } from "http";
-import { nanoid } from "nanoid";
 import path from "path";
-import { createServer as createViteServer } from "vite";
-import viteConfig from "../../vite.config";
+
+// NOTE: vite and vite.config are imported DYNAMICALLY inside setupVite()
+// so they are NOT required at runtime in production. This allows the Docker
+// runner stage to use `pnpm install --prod` (saving ~400MB).
 
 export async function setupVite(app: Express, server: Server) {
+  // Dynamic imports — only loaded in development mode
+  const viteModule = await import("vite");
+  const createViteServer = viteModule.createServer;
+  const viteConfigModule = await import("../../vite.config");
+  const viteConfig = viteConfigModule.default;
+  const nanoidModule = await import("nanoid");
+  const nanoid = nanoidModule.nanoid;
+
   // Respect hmr setting from vite.config.ts — if hmr is explicitly false,
   // don't override it (needed when running behind a proxy that doesn't support WebSocket)
   const configHmr = (viteConfig as any).server?.hmr;

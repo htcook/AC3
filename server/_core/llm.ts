@@ -268,7 +268,25 @@ function getForgeConfig(): { apiUrl: string; apiKey: string; model: string; prov
   };
 }
 
+function getAzureOpenAIConfig(): { apiUrl: string; apiKey: string; model: string; provider: string } | null {
+  if (ENV.azureOpenaiEndpoint && ENV.azureOpenaiKey) {
+    const endpoint = ENV.azureOpenaiEndpoint.replace(/\/$/, '');
+    const deployment = ENV.azureOpenaiDeployment;
+    const apiVersion = ENV.azureOpenaiApiVersion;
+    return {
+      apiUrl: `${endpoint}/openai/deployments/${deployment}/chat/completions?api-version=${apiVersion}`,
+      apiKey: ENV.azureOpenaiKey,
+      model: deployment,
+      provider: 'azure-openai',
+    };
+  }
+  return null;
+}
+
 function getOpenAIConfig(): { apiUrl: string; apiKey: string; model: string; provider: string } | null {
+  // Prefer Azure OpenAI if configured (for GovCloud/FedRAMP deployments)
+  const azure = getAzureOpenAIConfig();
+  if (azure) return azure;
   if (ENV.openaiApiKey && ENV.openaiApiKey.trim().length > 0) {
     return {
       apiUrl: 'https://api.openai.com/v1/chat/completions',
@@ -407,6 +425,22 @@ export function getLLMAnomalies() {
 }
 
 export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
+  // ─── LLM Feature Gate ──────────────────────────────────────────────────────
+  // When LLM_ENABLED=false, return a graceful "disabled" response instead of
+  // throwing errors. This allows the platform to run without any LLM provider.
+  if (!ENV.llmEnabled) {
+    return {
+      id: 'llm-disabled',
+      created: Math.floor(Date.now() / 1000),
+      model: 'disabled',
+      choices: [{
+        index: 0,
+        message: { role: 'assistant' as const, content: '[AI features are disabled in this deployment]' },
+        finish_reason: 'stop',
+      }],
+      usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+    } as InvokeResult;
+  }
   const {
     messages,
     tools,
@@ -506,12 +540,18 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     const timeoutId = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
 
     try {
+      const headers: Record<string, string> = {
+        "content-type": "application/json",
+      };
+      // Azure OpenAI uses "api-key" header; all others use Bearer token
+      if (provider === 'azure-openai') {
+        headers["api-key"] = apiKey;
+      } else {
+        headers["authorization"] = `Bearer ${apiKey}`;
+      }
       const response = await fetch(apiUrl, {
         method: "POST",
-        headers: {
-          "content-type": "application/json",
-          authorization: `Bearer ${apiKey}`,
-        },
+        headers,
         body: bodyStr,
         signal: controller.signal,
       });

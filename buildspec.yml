@@ -132,6 +132,11 @@ phases:
         EOF
       - cat build-manifest.json
 
+      # Trigger ECS rolling deployment
+      - echo "Triggering ECS rolling deployment..."
+      - aws ecs update-service --cluster ac3-dev --service ac3-dev-app --force-new-deployment --region $AWS_DEFAULT_REGION
+      - echo "ECS deployment triggered. New task will pull $IMAGE_URI:$IMAGE_TAG"
+
       - export BUILD_STATUS="SUCCESS"
       - echo "Build pipeline complete. Image: $IMAGE_URI:$IMAGE_TAG"
 

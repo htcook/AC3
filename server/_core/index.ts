@@ -548,7 +548,7 @@ async function startServer() {
   app.get('/api/auth/caldera-login', async (req, res) => {
     const token = req.cookies?.['caldera_session'];
     if (!token) {
-      return res.redirect('https://dashboard.aceofcloud.io/login');
+      return res.redirect(ENV.ac3DashboardUrl || ENV.ac3BaseUrl + '/login');
     }
     try {
       jwt.verify(token, AUTH_SECRET);
@@ -564,13 +564,13 @@ async function startServer() {
       for (const cookie of setCookies) {
         // Rewrite cookie domain for the subdomain
         const rewritten = cookie
-          .replace(/domain=[^;]*/gi, 'Domain=.aceofcloud.io')
+          .replace(/domain=[^;]*/gi, `Domain=.${ENV.ac3DeploymentDomain}`)
           .replace(/path=[^;]*/gi, 'Path=/');
         res.append('Set-Cookie', rewritten);
       }
-      return res.redirect('https://caldera.aceofcloud.io');
+      return res.redirect(ENV.ac3CalderaUrl || ENV.calderaBaseUrl);
     } catch {
-      return res.redirect('https://dashboard.aceofcloud.io/login');
+      return res.redirect(ENV.ac3DashboardUrl || ENV.ac3BaseUrl + '/login');
     }
   });
 
@@ -578,7 +578,7 @@ async function startServer() {
   app.get('/api/auth/gophish-login', async (req, res) => {
     const token = req.cookies?.['caldera_session'];
     if (!token) {
-      return res.redirect('https://dashboard.aceofcloud.io/login');
+      return res.redirect(ENV.ac3DashboardUrl || ENV.ac3BaseUrl + '/login');
     }
     try {
       jwt.verify(token, AUTH_SECRET);
@@ -593,7 +593,7 @@ async function startServer() {
       const csrfMatch = loginHtml.match(/csrf_token.*?value="(.*?)"/);
       if (!csrfMatch) {
         console.error('[GoPhish Auto-Login] Could not find CSRF token');
-        return res.redirect('https://gophish.aceofcloud.io');
+        return res.redirect(ENV.ac3GophishUrl || ENV.gophishBaseUrl);
       }
       // Decode HTML entities
       const csrfToken = csrfMatch[1].replace(/&#43;/g, '+').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"');
@@ -627,7 +627,7 @@ async function startServer() {
         
         if (name.trim() === 'gophish' || name.trim() === '_gorilla_csrf') {
           res.cookie(name.trim(), value, {
-            domain: '.aceofcloud.io',
+            domain: '.' + ENV.ac3DeploymentDomain,
             path: '/',
             httpOnly: true,
             secure: true,
@@ -638,10 +638,10 @@ async function startServer() {
       }
       
       console.log(`[GoPhish Auto-Login] Login status: ${loginResp.status}, cookies set: ${sessionCookies.length}`);
-      return res.redirect('https://gophish.aceofcloud.io');
+      return res.redirect(ENV.ac3GophishUrl || ENV.gophishBaseUrl);
     } catch (err) {
       console.error('[GoPhish Auto-Login] Error:', err);
-      return res.redirect('https://dashboard.aceofcloud.io/login');
+      return res.redirect(ENV.ac3DashboardUrl || ENV.ac3BaseUrl + '/login');
     }
   });
   // Detection Rules ZIP Download

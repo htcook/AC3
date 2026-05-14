@@ -2498,3 +2498,10 @@
 - [x] Show success/failure result with descriptive message
 - [x] Support form-based, HTTP Basic, Bearer token, and cookie validation
 - [x] Write vitest tests for credential validation and template preview (18 tests passing)
+
+### PBS Deployment Readiness Fixes (May 14)
+- [ ] Gap 2: Parameterize hardcoded aceofcloud.io domain references with APP_BASE_URL env var
+- [ ] Gap 1: Add public REST endpoint for CI/CD run status polling (GET /api/cicd/run/:runId/status)
+- [ ] Gap 5: Add LLM graceful degradation (LLM_ENABLED flag + Azure OpenAI support)
+- [ ] Gap 4: Dedicated Risk Register module (Week 1 deliverable)
+- [ ] Gap 6: API key authentication for server-to-server integrations

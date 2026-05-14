@@ -107,7 +107,7 @@ export const liveTriggerTempRouter = router({
       // gate auto-approves red-tier exploit plans instead of timing out and denying.
       const isTrainingLab = !!(engagement as any).labName ||
         engagement.engagementType === 'pentest' && (
-          (engagement.targetDomain || '').includes('aceofcloud.io') ||
+          (engagement.targetDomain || '').includes(process.env.AC3_DEPLOYMENT_DOMAIN || 'aceofcloud.io') ||
           (engagement.targetDomain || '').includes('aceofcloud.com')
         );
 
