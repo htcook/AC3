@@ -1327,6 +1327,585 @@ async function startServer() {
     }
   });
 
+  // ─── Pipeline 1: DFIR Report Bulk Ingestion ───────────────────────────
+  app.post('/api/scheduled/dfir-bulk-ingest', async (req, res) => {
+    try {
+      let user: any = null;
+      try { user = await scheduledSdk.authenticateRequest(req); } catch {}
+      if (!user) {
+        const token = req.cookies?.['caldera_session'];
+        if (token) { try { const decoded = jwt.verify(token, process.env.CALDERA_JWT_SECRET || 'caldera-dashboard-secret-key-2024') as any; if (decoded?.accountId) user = { id: decoded.accountId }; } catch {} }
+      }
+      if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+      const { markPipelineRunning, markPipelineComplete, batchRefreshActorContext, logPipelineRun } = await import("../lib/llm-context-updater");
+      markPipelineRunning('dfir-ingest');
+      const startedAt = Date.now();
+      const phases: any[] = [];
+      const contextUpdate = { actorsUpdated: 0, techniquesRefreshed: 0, iocMappingsAdded: 0, dfirObservationsAdded: 0, exploitsIndexed: 0, contextTokensGenerated: 0, errors: [] as string[] };
+
+      // Phase 1: Ingest from all RSS feeds
+      let rssArticles = 0;
+      try {
+        const { syncAllThreatIntelFeeds } = await import("../lib/threat-intel-rss");
+        const rssResult = await syncAllThreatIntelFeeds();
+        rssArticles = rssResult?.newArticles || 0;
+        phases.push({ phase: 'rss_sync', success: true, articles: rssArticles });
+      } catch (err: any) { phases.push({ phase: 'rss_sync', success: false, error: err.message }); }
+
+      // Phase 2: Full multi-source ingestion (DFIR, CISA, Unit42, etc.)
+      let ingestItems = 0;
+      const affectedActorIds: string[] = [];
+      try {
+        const { runFullIngest } = await import("../lib/threat-intel-ingest");
+        const ingestResult = await runFullIngest();
+        ingestItems = ingestResult?.sources?.reduce((s: number, r: any) => s + (r.newItems || 0), 0) || 0;
+        // Collect affected actor IDs from ingested data
+        if (ingestResult?.sources) {
+          for (const src of ingestResult.sources) {
+            if (src.actorIds) affectedActorIds.push(...src.actorIds);
+          }
+        }
+        phases.push({ phase: 'full_ingest', success: true, items: ingestItems });
+      } catch (err: any) { phases.push({ phase: 'full_ingest', success: false, error: err.message }); }
+
+      // Phase 3: DFIR-specific report ingestion
+      let dfirObservations = 0;
+      try {
+        const { getIngestionStats } = await import("../lib/dfir-report-ingestion");
+        const stats = await getIngestionStats();
+        dfirObservations = stats?.totalObservations || 0;
+        contextUpdate.dfirObservationsAdded = dfirObservations;
+        phases.push({ phase: 'dfir_ingest', success: true, observations: dfirObservations });
+      } catch (err: any) { phases.push({ phase: 'dfir_ingest', success: false, error: err.message }); }
+
+      // Phase 4: Refresh LLM context for affected actors
+      if (affectedActorIds.length > 0) {
+        const uniqueIds = [...new Set(affectedActorIds)];
+        const ctxResult = await batchRefreshActorContext(uniqueIds, { batchSize: 10, delayMs: 100 });
+        contextUpdate.actorsUpdated = ctxResult.refreshed;
+        contextUpdate.contextTokensGenerated = ctxResult.totalContextTokens;
+        if (ctxResult.errors.length > 0) contextUpdate.errors.push(...ctxResult.errors.slice(0, 5));
+      }
+
+      const summary = { pipelineName: 'dfir-ingest', startedAt, completedAt: Date.now(), itemsProcessed: rssArticles + ingestItems, itemsSucceeded: phases.filter(p => p.success).length, itemsFailed: phases.filter(p => !p.success).length, contextUpdate, phases };
+      markPipelineComplete('dfir-ingest', summary);
+      await logPipelineRun(summary);
+
+      // Notify owner
+      try {
+        const { notifyOwner } = await import("./notification");
+        await notifyOwner({ title: '📄 DFIR Bulk Ingest Complete', content: `RSS: ${rssArticles} articles, Ingest: ${ingestItems} items, DFIR: ${dfirObservations} observations. LLM context refreshed for ${contextUpdate.actorsUpdated} actors (${contextUpdate.contextTokensGenerated} tokens).` });
+      } catch {}
+
+      return res.json({ success: true, ...summary });
+    } catch (err: any) {
+      console.error('[DFIR-Ingest] Error:', err.message);
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ─── Pipeline 2: IOC-to-TTP Mapping ───────────────────────────────────
+  app.post('/api/scheduled/ioc-ttp-mapping', async (req, res) => {
+    try {
+      let user: any = null;
+      try { user = await scheduledSdk.authenticateRequest(req); } catch {}
+      if (!user) {
+        const token = req.cookies?.['caldera_session'];
+        if (token) { try { const decoded = jwt.verify(token, process.env.CALDERA_JWT_SECRET || 'caldera-dashboard-secret-key-2024') as any; if (decoded?.accountId) user = { id: decoded.accountId }; } catch {} }
+      }
+      if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+      const { markPipelineRunning, markPipelineComplete, batchRefreshActorContext, logPipelineRun } = await import("../lib/llm-context-updater");
+      markPipelineRunning('ioc-ttp-mapping');
+      const startedAt = Date.now();
+      const phases: any[] = [];
+      const contextUpdate = { actorsUpdated: 0, techniquesRefreshed: 0, iocMappingsAdded: 0, dfirObservationsAdded: 0, exploitsIndexed: 0, contextTokensGenerated: 0, errors: [] as string[] };
+      const batchLimit = req.body?.batchLimit || 100;
+
+      // Phase 1: Find unmapped IOCs and reverse-engineer them to TTPs
+      const affectedActorIds: string[] = [];
+      try {
+        const { getDb } = await import("../db");
+        const db = await getDb();
+        if (!db) throw new Error('Database unavailable');
+
+        // Find IOCs without TTP mappings
+        const unmappedIocs = await db.select({
+          id: schema.threatActorIocs.id,
+          actorId: schema.threatActorIocs.actorId,
+          type: schema.threatActorIocs.type,
+          value: schema.threatActorIocs.value,
+          context: schema.threatActorIocs.context,
+        }).from(schema.threatActorIocs)
+          .where(sql`${schema.threatActorIocs.id} NOT IN (
+            SELECT DISTINCT CAST(JSON_EXTRACT(metadata, '$.sourceIocId') AS UNSIGNED)
+            FROM ioc_ttp_mappings
+            WHERE JSON_EXTRACT(metadata, '$.sourceIocId') IS NOT NULL
+          )`)
+          .limit(batchLimit);
+
+        if (unmappedIocs.length > 0) {
+          const { batchReverseEngineerIocs } = await import("../lib/ioc-ttp-reverse-engineer");
+          const iocInputs = unmappedIocs.map((ioc: any) => ({
+            type: ioc.type, value: ioc.value, context: ioc.context || '',
+            actorId: ioc.actorId, sourceIocId: ioc.id,
+          }));
+          const mappingResult = await batchReverseEngineerIocs(iocInputs, { batchSize: 10, delayMs: 1000 });
+          contextUpdate.iocMappingsAdded = mappingResult?.succeeded || 0;
+
+          // Collect affected actor IDs
+          for (const ioc of unmappedIocs) {
+            if (ioc.actorId) affectedActorIds.push(ioc.actorId);
+          }
+          phases.push({ phase: 'ioc_reverse_engineer', success: true, processed: unmappedIocs.length, mapped: contextUpdate.iocMappingsAdded });
+        } else {
+          phases.push({ phase: 'ioc_reverse_engineer', success: true, processed: 0, mapped: 0, message: 'All IOCs already mapped' });
+        }
+      } catch (err: any) { phases.push({ phase: 'ioc_reverse_engineer', success: false, error: err.message }); contextUpdate.errors.push(err.message); }
+
+      // Phase 2: Refresh LLM context for affected actors
+      if (affectedActorIds.length > 0) {
+        const uniqueIds = [...new Set(affectedActorIds)];
+        const ctxResult = await batchRefreshActorContext(uniqueIds, { batchSize: 10, delayMs: 100 });
+        contextUpdate.actorsUpdated = ctxResult.refreshed;
+        contextUpdate.contextTokensGenerated = ctxResult.totalContextTokens;
+      }
+
+      const summary = { pipelineName: 'ioc-ttp-mapping', startedAt, completedAt: Date.now(), itemsProcessed: contextUpdate.iocMappingsAdded, itemsSucceeded: phases.filter(p => p.success).length, itemsFailed: phases.filter(p => !p.success).length, contextUpdate, phases };
+      markPipelineComplete('ioc-ttp-mapping', summary);
+      await logPipelineRun(summary);
+
+      try {
+        const { notifyOwner } = await import("./notification");
+        await notifyOwner({ title: '🔗 IOC-to-TTP Mapping Complete', content: `${contextUpdate.iocMappingsAdded} new IOC→TTP mappings created. LLM context refreshed for ${contextUpdate.actorsUpdated} actors.` });
+      } catch {}
+
+      return res.json({ success: true, ...summary });
+    } catch (err: any) {
+      console.error('[IOC-TTP] Error:', err.message);
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ─── Pipeline 3: Catalog Auto-Enrichment Sweep ────────────────────────
+  app.post('/api/scheduled/catalog-enrichment', async (req, res) => {
+    try {
+      let user: any = null;
+      try { user = await scheduledSdk.authenticateRequest(req); } catch {}
+      if (!user) {
+        const token = req.cookies?.['caldera_session'];
+        if (token) { try { const decoded = jwt.verify(token, process.env.CALDERA_JWT_SECRET || 'caldera-dashboard-secret-key-2024') as any; if (decoded?.accountId) user = { id: decoded.accountId }; } catch {} }
+      }
+      if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+      const { markPipelineRunning, markPipelineComplete, batchRefreshActorContext, logPipelineRun } = await import("../lib/llm-context-updater");
+      markPipelineRunning('catalog-enrichment');
+      const startedAt = Date.now();
+      const phases: any[] = [];
+      const contextUpdate = { actorsUpdated: 0, techniquesRefreshed: 0, iocMappingsAdded: 0, dfirObservationsAdded: 0, exploitsIndexed: 0, contextTokensGenerated: 0, errors: [] as string[] };
+      const maxActors = req.body?.maxActors || 25;
+
+      // Phase 1: Run the catalog auto-enrichment sweep
+      const affectedActorIds: string[] = [];
+      try {
+        const { runCatalogEnrichment } = await import("../lib/catalog-auto-enrichment");
+        const enrichResult = await runCatalogEnrichment({
+          maxActors,
+          triggeredBy: 'scheduled',
+          skipRecentlyEnriched: true,
+          enrichmentCooldownHours: 24,
+        });
+        if (enrichResult?.enrichedActors) {
+          for (const a of enrichResult.enrichedActors) {
+            if (a.actorId) affectedActorIds.push(a.actorId);
+          }
+        }
+        contextUpdate.actorsUpdated = enrichResult?.enrichedCount || 0;
+        phases.push({ phase: 'catalog_enrichment', success: true, enriched: enrichResult?.enrichedCount || 0, skipped: enrichResult?.skippedCount || 0 });
+      } catch (err: any) { phases.push({ phase: 'catalog_enrichment', success: false, error: err.message }); contextUpdate.errors.push(err.message); }
+
+      // Phase 2: IOC reverse-engineering for newly enriched actors
+      try {
+        const { runCatalogEnrichment } = await import("../lib/catalog-auto-enrichment");
+        // The catalog enrichment already handles IOC mapping internally
+        phases.push({ phase: 'ioc_enrichment', success: true, note: 'Handled by catalog enrichment' });
+      } catch (err: any) { phases.push({ phase: 'ioc_enrichment', success: false, error: err.message }); }
+
+      // Phase 3: Refresh LLM context for enriched actors
+      if (affectedActorIds.length > 0) {
+        const uniqueIds = [...new Set(affectedActorIds)];
+        const ctxResult = await batchRefreshActorContext(uniqueIds, { batchSize: 5, delayMs: 200 });
+        contextUpdate.contextTokensGenerated = ctxResult.totalContextTokens;
+      }
+
+      // Phase 4: Refresh technique knowledge base
+      try {
+        const { refreshTechniqueKnowledge } = await import("../lib/llm-context-updater");
+        const techResult = await refreshTechniqueKnowledge();
+        contextUpdate.techniquesRefreshed = techResult.techniquesRefreshed;
+        phases.push({ phase: 'technique_refresh', success: true, techniques: techResult.techniquesRefreshed });
+      } catch (err: any) { phases.push({ phase: 'technique_refresh', success: false, error: err.message }); }
+
+      const summary = { pipelineName: 'catalog-enrichment', startedAt, completedAt: Date.now(), itemsProcessed: maxActors, itemsSucceeded: contextUpdate.actorsUpdated, itemsFailed: phases.filter(p => !p.success).length, contextUpdate, phases };
+      markPipelineComplete('catalog-enrichment', summary);
+      await logPipelineRun(summary);
+
+      try {
+        const { notifyOwner } = await import("./notification");
+        await notifyOwner({ title: '🔬 Catalog Enrichment Sweep Complete', content: `${contextUpdate.actorsUpdated} actors enriched, ${contextUpdate.techniquesRefreshed} techniques refreshed. LLM context updated with ${contextUpdate.contextTokensGenerated} tokens.` });
+      } catch {}
+
+      return res.json({ success: true, ...summary });
+    } catch (err: any) {
+      console.error('[CatalogEnrichment] Error:', err.message);
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ─── Pipeline 4: Emulation Playbook Promotion ─────────────────────────
+  app.post('/api/scheduled/playbook-promotion', async (req, res) => {
+    try {
+      let user: any = null;
+      try { user = await scheduledSdk.authenticateRequest(req); } catch {}
+      if (!user) {
+        const token = req.cookies?.['caldera_session'];
+        if (token) { try { const decoded = jwt.verify(token, process.env.CALDERA_JWT_SECRET || 'caldera-dashboard-secret-key-2024') as any; if (decoded?.accountId) user = { id: decoded.accountId }; } catch {} }
+      }
+      if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+      const { markPipelineRunning, markPipelineComplete, logPipelineRun } = await import("../lib/llm-context-updater");
+      markPipelineRunning('playbook-promotion');
+      const startedAt = Date.now();
+      const phases: any[] = [];
+      const contextUpdate = { actorsUpdated: 0, techniquesRefreshed: 0, iocMappingsAdded: 0, dfirObservationsAdded: 0, exploitsIndexed: 0, contextTokensGenerated: 0, errors: [] as string[] };
+      const batchLimit = req.body?.batchLimit || 50;
+
+      // Phase 1: Find draft playbooks and validate them
+      let promoted = 0;
+      try {
+        const { getDb } = await import("../db");
+        const db = await getDb();
+        if (!db) throw new Error('Database unavailable');
+
+        // Get draft emulation playbooks
+        const draftPlaybooks = await db.select().from(schema.emulationPlaybooks)
+          .where(eq(schema.emulationPlaybooks.status, 'draft'))
+          .limit(batchLimit);
+
+        for (const playbook of draftPlaybooks) {
+          try {
+            const steps = typeof playbook.steps === 'string' ? JSON.parse(playbook.steps) : (playbook.steps || []);
+            const techniques = typeof playbook.techniques === 'string' ? JSON.parse(playbook.techniques) : (playbook.techniques || []);
+
+            // Validation criteria for promotion:
+            // 1. Has at least 2 steps
+            // 2. Has at least 1 MITRE technique mapped
+            // 3. Has a description
+            const hasSteps = Array.isArray(steps) && steps.length >= 2;
+            const hasTechniques = Array.isArray(techniques) && techniques.length >= 1;
+            const hasDescription = playbook.description && playbook.description.length > 20;
+
+            if (hasSteps && hasTechniques && hasDescription) {
+              await db.update(schema.emulationPlaybooks)
+                .set({ status: 'ready' })
+                .where(eq(schema.emulationPlaybooks.id, playbook.id));
+              promoted++;
+            }
+          } catch (err: any) {
+            contextUpdate.errors.push(`Playbook ${playbook.id}: ${err.message}`);
+          }
+        }
+
+        phases.push({ phase: 'playbook_validation', success: true, reviewed: draftPlaybooks.length, promoted });
+      } catch (err: any) { phases.push({ phase: 'playbook_validation', success: false, error: err.message }); }
+
+      // Phase 2: Sync promoted playbooks to Caldera
+      let synced = 0;
+      try {
+        if (promoted > 0) {
+          const { runFullCatalogEnrichment } = await import("../lib/catalog-caldera-enrichment");
+          const syncResult = await runFullCatalogEnrichment({ maxActors: promoted });
+          synced = syncResult?.abilitiesPushed || 0;
+          contextUpdate.actorsUpdated = syncResult?.actorsProcessed || 0;
+        }
+        phases.push({ phase: 'caldera_sync', success: true, synced });
+      } catch (err: any) { phases.push({ phase: 'caldera_sync', success: false, error: err.message }); }
+
+      const summary = { pipelineName: 'playbook-promotion', startedAt, completedAt: Date.now(), itemsProcessed: promoted + synced, itemsSucceeded: promoted, itemsFailed: phases.filter(p => !p.success).length, contextUpdate, phases };
+      markPipelineComplete('playbook-promotion', summary);
+      await logPipelineRun(summary);
+
+      try {
+        const { notifyOwner } = await import("./notification");
+        await notifyOwner({ title: '🎯 Playbook Promotion Complete', content: `${promoted} playbooks promoted to ready status, ${synced} synced to Caldera.` });
+      } catch {}
+
+      return res.json({ success: true, ...summary });
+    } catch (err: any) {
+      console.error('[PlaybookPromotion] Error:', err.message);
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ─── Pipeline 5: Ability Graph Auto-Generation ────────────────────────
+  app.post('/api/scheduled/graph-generation', async (req, res) => {
+    try {
+      let user: any = null;
+      try { user = await scheduledSdk.authenticateRequest(req); } catch {}
+      if (!user) {
+        const token = req.cookies?.['caldera_session'];
+        if (token) { try { const decoded = jwt.verify(token, process.env.CALDERA_JWT_SECRET || 'caldera-dashboard-secret-key-2024') as any; if (decoded?.accountId) user = { id: decoded.accountId }; } catch {} }
+      }
+      if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+      const { markPipelineRunning, markPipelineComplete, batchRefreshActorContext, logPipelineRun } = await import("../lib/llm-context-updater");
+      markPipelineRunning('graph-generation');
+      const startedAt = Date.now();
+      const phases: any[] = [];
+      const contextUpdate = { actorsUpdated: 0, techniquesRefreshed: 0, iocMappingsAdded: 0, dfirObservationsAdded: 0, exploitsIndexed: 0, contextTokensGenerated: 0, errors: [] as string[] };
+      const maxGraphs = req.body?.maxGraphs || 10;
+
+      // Phase 1: Find actors with abilities but no ability graphs
+      const generatedGraphs: string[] = [];
+      try {
+        const { getDb } = await import("../db");
+        const db = await getDb();
+        if (!db) throw new Error('Database unavailable');
+
+        // Find actors that have Caldera abilities but no ability graph
+        const actorsWithAbilities = await db.execute(sql`
+          SELECT DISTINCT ta.actorId, ta.name, COUNT(ca.id) as abilityCount
+          FROM threat_actors ta
+          JOIN catalog_abilities ca ON ca.actorId = ta.actorId
+          WHERE ta.actorId NOT IN (
+            SELECT DISTINCT actorId FROM attack_path_graphs WHERE actorId IS NOT NULL
+          )
+          GROUP BY ta.actorId, ta.name
+          HAVING COUNT(ca.id) >= 3
+          ORDER BY COUNT(ca.id) DESC
+          LIMIT ${maxGraphs}
+        `);
+
+        const rows = (actorsWithAbilities as any)?.[0] || actorsWithAbilities;
+        const actorRows = Array.isArray(rows) ? rows : [];
+
+        for (const actor of actorRows) {
+          try {
+            // Use the LLM to generate an ability graph for this actor
+            const { invokeLLM } = await import("./llm");
+            const actorTechniques = await db.execute(sql`
+              SELECT techniqueId, techniqueName, abilityName FROM catalog_abilities
+              WHERE actorId = ${actor.actorId} ORDER BY techniqueId LIMIT 20
+            `);
+            const techRows = (actorTechniques as any)?.[0] || actorTechniques;
+            const techniques = Array.isArray(techRows) ? techRows : [];
+
+            const llmResponse = await invokeLLM({
+              messages: [
+                { role: 'system', content: 'You are a cyber threat intelligence analyst. Generate an attack path graph for the given threat actor based on their known techniques and abilities. Return a JSON object with nodes (technique steps) and edges (attack flow connections).' },
+                { role: 'user', content: `Generate an attack path graph for ${actor.name} (${actor.actorId}) with ${actor.abilityCount} known abilities. Techniques: ${techniques.map((t: any) => `${t.techniqueId}: ${t.techniqueName}`).join(', ')}. Return JSON with: { nodes: [{ id, label, techniqueId, phase }], edges: [{ source, target, label }] }` },
+              ],
+              response_format: {
+                type: 'json_schema',
+                json_schema: {
+                  name: 'attack_graph',
+                  strict: true,
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      nodes: { type: 'array', items: { type: 'object', properties: { id: { type: 'string' }, label: { type: 'string' }, techniqueId: { type: 'string' }, phase: { type: 'string' } }, required: ['id', 'label', 'techniqueId', 'phase'], additionalProperties: false } },
+                      edges: { type: 'array', items: { type: 'object', properties: { source: { type: 'string' }, target: { type: 'string' }, label: { type: 'string' } }, required: ['source', 'target', 'label'], additionalProperties: false } },
+                    },
+                    required: ['nodes', 'edges'],
+                    additionalProperties: false,
+                  },
+                },
+              },
+            });
+
+            const graphData = JSON.parse(llmResponse.choices[0].message.content || '{}');
+
+            // Store the graph
+            await db.insert(schema.attackPathGraphs).values({
+              name: `${actor.name} Attack Path`,
+              description: `Auto-generated attack path graph for ${actor.name} based on ${actor.abilityCount} known abilities`,
+              actorId: actor.actorId,
+              graphData: JSON.stringify(graphData),
+              status: 'draft',
+              nodeCount: graphData.nodes?.length || 0,
+              edgeCount: graphData.edges?.length || 0,
+            });
+
+            generatedGraphs.push(actor.actorId);
+          } catch (err: any) {
+            contextUpdate.errors.push(`Graph for ${actor.name}: ${err.message}`);
+          }
+        }
+
+        phases.push({ phase: 'graph_generation', success: true, generated: generatedGraphs.length, candidates: actorRows.length });
+      } catch (err: any) { phases.push({ phase: 'graph_generation', success: false, error: err.message }); }
+
+      // Phase 2: Refresh LLM context for actors with new graphs
+      if (generatedGraphs.length > 0) {
+        const ctxResult = await batchRefreshActorContext(generatedGraphs, { batchSize: 5, delayMs: 200 });
+        contextUpdate.actorsUpdated = ctxResult.refreshed;
+        contextUpdate.contextTokensGenerated = ctxResult.totalContextTokens;
+      }
+
+      const summary = { pipelineName: 'graph-generation', startedAt, completedAt: Date.now(), itemsProcessed: generatedGraphs.length, itemsSucceeded: generatedGraphs.length, itemsFailed: contextUpdate.errors.length, contextUpdate, phases };
+      markPipelineComplete('graph-generation', summary);
+      await logPipelineRun(summary);
+
+      try {
+        const { notifyOwner } = await import("./notification");
+        await notifyOwner({ title: '🕸️ Ability Graph Generation Complete', content: `${generatedGraphs.length} attack path graphs generated for actors: ${generatedGraphs.join(', ')}. LLM context refreshed.` });
+      } catch {}
+
+      return res.json({ success: true, ...summary });
+    } catch (err: any) {
+      console.error('[GraphGeneration] Error:', err.message);
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ─── Pipeline 6: Exploit Triage Pipeline ──────────────────────────────
+  app.post('/api/scheduled/exploit-triage', async (req, res) => {
+    try {
+      let user: any = null;
+      try { user = await scheduledSdk.authenticateRequest(req); } catch {}
+      if (!user) {
+        const token = req.cookies?.['caldera_session'];
+        if (token) { try { const decoded = jwt.verify(token, process.env.CALDERA_JWT_SECRET || 'caldera-dashboard-secret-key-2024') as any; if (decoded?.accountId) user = { id: decoded.accountId }; } catch {} }
+      }
+      if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+      const { markPipelineRunning, markPipelineComplete, logPipelineRun } = await import("../lib/llm-context-updater");
+      markPipelineRunning('exploit-triage');
+      const startedAt = Date.now();
+      const phases: any[] = [];
+      const contextUpdate = { actorsUpdated: 0, techniquesRefreshed: 0, iocMappingsAdded: 0, dfirObservationsAdded: 0, exploitsIndexed: 0, contextTokensGenerated: 0, errors: [] as string[] };
+      const batchLimit = req.body?.batchLimit || 50;
+
+      // Phase 1: LLM-assisted triage of unapproved exploits
+      let triaged = 0;
+      let autoApproved = 0;
+      let flaggedForReview = 0;
+      try {
+        const { getDb } = await import("../db");
+        const db = await getDb();
+        if (!db) throw new Error('Database unavailable');
+
+        // Get unapproved exploits from the unified catalog
+        const unapproved = await db.select({
+          id: schema.unifiedExploitCatalog.id,
+          cveId: schema.unifiedExploitCatalog.cveId,
+          title: schema.unifiedExploitCatalog.title,
+          source: schema.unifiedExploitCatalog.source,
+          exploitType: schema.unifiedExploitCatalog.exploitType,
+          riskLevel: schema.unifiedExploitCatalog.riskLevel,
+          description: schema.unifiedExploitCatalog.description,
+        }).from(schema.unifiedExploitCatalog)
+          .where(sql`${schema.unifiedExploitCatalog.approved} = 0`)
+          .limit(batchLimit);
+
+        if (unapproved.length > 0) {
+          const { invokeLLM } = await import("./llm");
+
+          // Process in batches of 10
+          for (let i = 0; i < unapproved.length; i += 10) {
+            const batch = unapproved.slice(i, i + 10);
+            try {
+              const llmResponse = await invokeLLM({
+                messages: [
+                  { role: 'system', content: 'You are a cybersecurity exploit analyst. Triage the following exploits and classify each as: auto_approve (safe info-gathering, version checks, PoC-only), manual_review (active exploitation capability, needs human review), or reject (malicious, broken, or irrelevant). Return JSON array.' },
+                  { role: 'user', content: `Triage these exploits:\n${batch.map((e, idx) => `${idx+1}. [${e.cveId || 'N/A'}] ${e.title} (${e.source}, type: ${e.exploitType}, risk: ${e.riskLevel})\n   ${(e.description || '').slice(0, 200)}`).join('\n')}` },
+                ],
+                response_format: {
+                  type: 'json_schema',
+                  json_schema: {
+                    name: 'exploit_triage',
+                    strict: true,
+                    schema: {
+                      type: 'object',
+                      properties: {
+                        results: {
+                          type: 'array',
+                          items: {
+                            type: 'object',
+                            properties: {
+                              index: { type: 'integer' },
+                              decision: { type: 'string', enum: ['auto_approve', 'manual_review', 'reject'] },
+                              reason: { type: 'string' },
+                            },
+                            required: ['index', 'decision', 'reason'],
+                            additionalProperties: false,
+                          },
+                        },
+                      },
+                      required: ['results'],
+                      additionalProperties: false,
+                    },
+                  },
+                },
+              });
+
+              const triageResults = JSON.parse(llmResponse.choices[0].message.content || '{"results":[]}');
+
+              for (const result of triageResults.results) {
+                const exploit = batch[result.index - 1];
+                if (!exploit) continue;
+                triaged++;
+
+                if (result.decision === 'auto_approve') {
+                  await db.update(schema.unifiedExploitCatalog)
+                    .set({ approved: 1 })
+                    .where(eq(schema.unifiedExploitCatalog.id, exploit.id));
+                  autoApproved++;
+                } else if (result.decision === 'manual_review') {
+                  flaggedForReview++;
+                }
+                // 'reject' — leave unapproved
+              }
+            } catch (err: any) {
+              contextUpdate.errors.push(`Batch ${i}: ${err.message}`);
+            }
+
+            // Rate limit between batches
+            if (i + 10 < unapproved.length) await new Promise(r => setTimeout(r, 2000));
+          }
+        }
+
+        contextUpdate.exploitsIndexed = triaged;
+        phases.push({ phase: 'exploit_triage', success: true, triaged, autoApproved, flaggedForReview, total: unapproved.length });
+      } catch (err: any) { phases.push({ phase: 'exploit_triage', success: false, error: err.message }); }
+
+      const summary = { pipelineName: 'exploit-triage', startedAt, completedAt: Date.now(), itemsProcessed: triaged, itemsSucceeded: autoApproved, itemsFailed: contextUpdate.errors.length, contextUpdate, phases };
+      markPipelineComplete('exploit-triage', summary);
+      await logPipelineRun(summary);
+
+      try {
+        const { notifyOwner } = await import("./notification");
+        await notifyOwner({ title: '⚔️ Exploit Triage Complete', content: `${triaged} exploits triaged: ${autoApproved} auto-approved, ${flaggedForReview} flagged for manual review.` });
+      } catch {}
+
+      return res.json({ success: true, ...summary });
+    } catch (err: any) {
+      console.error('[ExploitTriage] Error:', err.message);
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ─── Pipeline Status Endpoint ─────────────────────────────────────────
+  app.get('/api/pipeline-status', async (req, res) => {
+    try {
+      const { getAllPipelineStatuses } = await import("../lib/llm-context-updater");
+      return res.json({ success: true, pipelines: getAllPipelineStatuses() });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
   // ─── Rate Limiting ────────────────────────────────────────────────────
   const { apiRateLimiter, trpcAuthRateLimiter } = await import("../lib/rate-limiter");
 

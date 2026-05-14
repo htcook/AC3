@@ -554,6 +554,7 @@ export const sidebarNavGroups: NavGroup[] = [
       { label: "ROE Builder", path: "/roe-builder", icon: ScrollText },
       { label: "Attack Vector Engine", path: "/attack-vector-engine", icon: Target },
       { label: "Unified Pipeline", path: "/unified-pipeline", icon: Workflow, roles: ["admin"] },
+      { label: "Pipeline Dashboard", path: "/pipeline-dashboard", icon: Activity, roles: ["admin", "team_lead"] },
       { label: "License Management", path: "/admin/licenses", icon: Key, roles: ["admin"] },
       { label: "Update Manager", path: "/admin/updates", icon: Package, roles: ["admin"] },
       { label: "Version Thresholds", path: "/admin/version-thresholds", icon: Shield, roles: ["admin"] },

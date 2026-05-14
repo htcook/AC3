@@ -2563,3 +2563,75 @@
 - [x] Sends owner notification with breakdown when actors are classified
 - [x] Supports both Manus OAuth and caldera_session cookie auth
 - [x] Write vitest tests for scheduled classification (19 tests passing)
+
+### Scheduled Task: Threat Actor Classification Every 6 Hours (May 14)
+- [x] Review existing scheduled task patterns in the codebase
+- [x] Replaced paused Priceline engagement monitor with classification task
+- [x] Configured 6-hour interval (21600s), lite mode, run-as-new-task, active status
+- [x] Task authenticates via AC3 email login, calls /api/scheduled/threat-actor-classify
+
+### Classification Audit Log (May 14)
+- [ ] Design audit_log table schema (actorId, previousType, newType, confidence, reasoning, source, timestamp)
+- [ ] Push schema migration
+- [ ] Integrate audit logging into classifier engine and scheduled endpoint
+- [ ] Add audit log view to Threat Catalog page (filterable, sortable)
+- [ ] Write vitest tests for audit log
+
+### Pipeline 1: Bulk DFIR Report Ingestion (May 14)
+- [ ] Build /api/scheduled/dfir-ingest endpoint that triggers DFIR report ingestion from RSS feeds
+- [ ] Process The DFIR Report, CISA advisories, Unit 42, Hacker News feeds
+- [ ] Extract observations, exploit playbooks, and attack chains from reports
+- [ ] Wire into scheduled task system
+
+### Pipeline 2: IOC-to-TTP Mapping Engine (May 14)
+- [ ] Build /api/scheduled/ioc-ttp-mapping endpoint
+- [ ] Process all 3,790 IOCs to create technique mappings
+- [ ] Reverse-engineer IOCs into actionable MITRE technique attributions
+- [ ] Wire into scheduled task system
+
+### Pipeline 3: Catalog Auto-Enrichment Sweep (May 14)
+- [ ] Build /api/scheduled/catalog-enrichment endpoint
+- [ ] Run full enrichment pipeline across actors with gaps
+- [ ] Orchestrate DFIR → IOC-TTP → exploit learning → attack chain generation
+- [ ] Wire into scheduled task system
+
+### Pipeline 4: Emulation Playbook Promotion (May 14)
+- [ ] Build /api/scheduled/playbook-promotion endpoint
+- [ ] Auto-validate draft playbooks against Caldera ability catalog
+- [ ] Map techniques to Caldera stockpile abilities
+- [ ] Promote validated playbooks to ready status
+
+### Pipeline 5: Ability Graph Auto-Generation (May 14)
+- [ ] Build /api/scheduled/graph-generation endpoint
+- [ ] Auto-generate ability graphs for top actors using LLM + technique profiles
+- [ ] Map graph nodes to Caldera abilities
+- [ ] Wire into scheduled task system
+
+### Pipeline 6: Exploit Triage Pipeline (May 14)
+- [ ] Build /api/scheduled/exploit-triage endpoint
+- [ ] LLM-assisted review of unified exploit catalog (16,126 exploits)
+- [ ] Auto-approve low-risk exploits, queue high-impact for manual review
+- [ ] Wire into scheduled task system
+
+### Classification Audit Log (May 14) - Carry Forward
+- [x] Integrate audit logging into classifier engine and scheduled endpoint
+- [x] Add audit log UI to Threat Catalog page
+- [x] Write vitest tests for audit log
+
+### Pipeline Dashboard UI (May 14)
+- [x] Build Enrichment Pipeline dashboard page showing all 6 pipeline statuses
+- [x] Add pipeline run history and classification audit log tabs
+- [x] Add to sidebar nav under Admin & System group
+- [x] Register route in App.tsx and lazy import
+- [x] Add pipelineStatus and pipelineHistory tRPC procedures
+- [x] Add getPipelineHistory function to llm-context-updater.ts
+- [x] Write vitest tests (37 tests passing)
+
+### LLM Context & Learning Updates (May 14)
+- [x] Each pipeline must update LLM knowledge context when new data is ingested
+- [x] DFIR ingestion → update actor technique profiles + LLM training context
+- [x] IOC-TTP mapping → feed new technique attributions back into actor profiles for LLM
+- [x] Catalog enrichment → update actor descriptions, tools, TTPs for LLM reasoning
+- [x] Playbook promotion → update emulation knowledge base for LLM graph generation
+- [x] Exploit triage → update exploit intelligence for LLM-assisted analysis
+- [x] Build updateLLMContext() helper (llm-context-updater.ts) that aggregates latest intel into LLM system prompts

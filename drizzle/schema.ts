@@ -8649,3 +8649,28 @@ export const vulnAttackChainSteps = mysqlTable("vuln_attack_chain_steps", {
 	index("vacs_chain_idx").on(table.chainId),
 	index("vacs_order_idx").on(table.chainId, table.stepOrder),
 ]);
+
+
+// ─── Classification Audit Log ────────────────────────────────────────────
+export const classificationAuditLog = mysqlTable("classification_audit_log", {
+	id: int("id").primaryKey().autoincrement(),
+	actorId: varchar("actor_id", { length: 255 }).notNull(),
+	actorName: varchar("actor_name", { length: 500 }),
+	previousType: varchar("previous_type", { length: 100 }).notNull(),
+	newType: varchar("new_type", { length: 100 }).notNull(),
+	confidence: int("confidence").notNull(),
+	reasoning: text("reasoning"),
+	source: varchar("source", { length: 100 }).notNull().default("llm_auto"),
+	appliedBy: varchar("applied_by", { length: 255 }),
+	appliedMethod: varchar("applied_method", { length: 50 }).notNull().default("auto_apply"),
+	batchId: varchar("batch_id", { length: 100 }),
+	wasReverted: tinyint("was_reverted").default(0),
+	revertedAt: bigint("reverted_at", { mode: "number" }),
+	revertedBy: varchar("reverted_by", { length: 255 }),
+	createdAt: bigint("created_at", { mode: "number" }).notNull().$defaultFn(() => Date.now()),
+}, (table) => [
+	index("cal_actor_idx").on(table.actorId),
+	index("cal_source_idx").on(table.source),
+	index("cal_batch_idx").on(table.batchId),
+	index("cal_created_idx").on(table.createdAt),
+]);

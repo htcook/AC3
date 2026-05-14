@@ -5,6 +5,8 @@
  * based on their descriptions, TTPs, tools, target sectors, and other profile data.
  */
 import { invokeLLM } from "../_core/llm";
+import { getDb } from "../db";
+import * as schema from "../../drizzle/schema";
 
 export type ActorType = "apt" | "ransomware" | "cybercrime" | "hacktivist" | "access_broker" | "influence_ops";
 
@@ -199,6 +201,7 @@ export async function classifyBatch(
 ): Promise<BatchProgress> {
   const { batchSize = 5, delayMs = 1000, autoApplyThreshold = 75, onResult } = options;
 
+  const batchId = `batch_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   cancelRequested = false;
   currentBatchProgress = {
     total: actors.length,
@@ -238,10 +241,15 @@ export async function classifyBatch(
         if (result.value.confidence >= autoApplyThreshold && onResult) {
           try {
             await onResult(result.value);
+            // Log to audit trail
+            await logClassificationAudit(result.value, 'auto_apply', batchId);
           } catch (e) {
             // Log but don't fail the batch
             console.error(`[Classifier] Failed to apply result for ${result.value.actorId}:`, e);
           }
+        } else if (result.value.confidence < autoApplyThreshold) {
+          // Log pending review classifications
+          await logClassificationAudit(result.value, 'pending_review', batchId);
         }
       } else {
         currentBatchProgress.failed++;
@@ -310,4 +318,152 @@ export function validateClassification(result: ClassificationResult): { valid: b
   }
 
   return { valid: issues.length === 0, issues };
+}
+
+
+/**
+ * Log a classification action to the audit trail
+ */
+async function logClassificationAudit(
+  result: ClassificationResult,
+  method: string,
+  batchId?: string,
+  appliedBy?: string
+): Promise<void> {
+  try {
+    const db = await getDb();
+    if (!db) return;
+    await db.insert(schema.classificationAuditLog).values({
+      actorId: result.actorId,
+      actorName: result.name,
+      previousType: result.previousType || "unknown",
+      newType: result.classifiedType,
+      confidence: result.confidence,
+      reasoning: result.reasoning,
+      source: "llm_auto",
+      appliedBy: appliedBy || "system",
+      appliedMethod: method,
+      batchId: batchId || null,
+    });
+  } catch (err) {
+    console.error("[Classifier] Failed to log audit:", err);
+  }
+}
+
+/**
+ * Log a manual classification action (for UI-triggered approvals/reverts)
+ */
+export async function logManualClassificationAudit(params: {
+  actorId: string;
+  actorName: string;
+  previousType: string;
+  newType: string;
+  confidence: number;
+  reasoning: string;
+  appliedBy: string;
+  method: "manual_approve" | "manual_override" | "revert";
+}): Promise<void> {
+  try {
+    const db = await getDb();
+    if (!db) return;
+    await db.insert(schema.classificationAuditLog).values({
+      actorId: params.actorId,
+      actorName: params.actorName,
+      previousType: params.previousType,
+      newType: params.newType,
+      confidence: params.confidence,
+      reasoning: params.reasoning,
+      source: "manual",
+      appliedBy: params.appliedBy,
+      appliedMethod: params.method,
+    });
+  } catch (err) {
+    console.error("[Classifier] Failed to log manual audit:", err);
+  }
+}
+
+/**
+ * Query the classification audit log with filters
+ */
+export async function queryAuditLog(filters: {
+  actorId?: string;
+  source?: string;
+  method?: string;
+  batchId?: string;
+  limit?: number;
+  offset?: number;
+} = {}): Promise<{ entries: any[]; total: number }> {
+  const db = await getDb();
+  if (!db) return { entries: [], total: 0 };
+
+  const { desc, eq, sql, and, count } = await import("drizzle-orm");
+  const conditions: any[] = [];
+  if (filters.actorId) conditions.push(eq(schema.classificationAuditLog.actorId, filters.actorId));
+  if (filters.source) conditions.push(eq(schema.classificationAuditLog.source, filters.source));
+  if (filters.method) conditions.push(eq(schema.classificationAuditLog.appliedMethod, filters.method));
+  if (filters.batchId) conditions.push(eq(schema.classificationAuditLog.batchId, filters.batchId));
+
+  const where = conditions.length > 0 ? and(...conditions) : undefined;
+
+  const [entries, totalResult] = await Promise.all([
+    db.select().from(schema.classificationAuditLog)
+      .where(where)
+      .orderBy(desc(schema.classificationAuditLog.createdAt))
+      .limit(filters.limit || 50)
+      .offset(filters.offset || 0),
+    db.select({ count: count() }).from(schema.classificationAuditLog).where(where),
+  ]);
+
+  return { entries, total: totalResult[0]?.count || 0 };
+}
+
+/**
+ * Get audit log summary statistics
+ */
+export async function getAuditSummary(): Promise<{
+  totalClassifications: number;
+  autoApplied: number;
+  manualApproved: number;
+  pendingReview: number;
+  reverted: number;
+  byType: Record<string, number>;
+  last24h: number;
+  last7d: number;
+}> {
+  const db = await getDb();
+  if (!db) return { totalClassifications: 0, autoApplied: 0, manualApproved: 0, pendingReview: 0, reverted: 0, byType: {}, last24h: 0, last7d: 0 };
+
+  const { count, eq, sql, gte } = await import("drizzle-orm");
+  const now = Date.now();
+  const day = 24 * 60 * 60 * 1000;
+
+  const [total, autoApplied, manualApproved, pendingReview, reverted, last24h, last7d, byTypeRows] = await Promise.all([
+    db.select({ count: count() }).from(schema.classificationAuditLog),
+    db.select({ count: count() }).from(schema.classificationAuditLog).where(eq(schema.classificationAuditLog.appliedMethod, "auto_apply")),
+    db.select({ count: count() }).from(schema.classificationAuditLog).where(eq(schema.classificationAuditLog.appliedMethod, "manual_approve")),
+    db.select({ count: count() }).from(schema.classificationAuditLog).where(eq(schema.classificationAuditLog.appliedMethod, "pending_review")),
+    db.select({ count: count() }).from(schema.classificationAuditLog).where(eq(schema.classificationAuditLog.wasReverted, 1)),
+    db.select({ count: count() }).from(schema.classificationAuditLog).where(gte(schema.classificationAuditLog.createdAt, now - day)),
+    db.select({ count: count() }).from(schema.classificationAuditLog).where(gte(schema.classificationAuditLog.createdAt, now - 7 * day)),
+    db.execute(sql`SELECT newType, COUNT(*) as cnt FROM classification_audit_log GROUP BY newType`),
+  ]);
+
+  const byType: Record<string, number> = {};
+  const typeRows = (byTypeRows as any)?.[0] || byTypeRows;
+  if (Array.isArray(typeRows)) {
+    for (const row of typeRows) {
+      byType[row.newType] = Number(row.cnt);
+    }
+  }
+
+  return {
+    totalClassifications: total[0]?.count || 0,
+    autoApplied: autoApplied[0]?.count || 0,
+    manualApproved: manualApproved[0]?.count || 0,
+    pendingReview: pendingReview[0]?.count || 0,
+    reverted: reverted[0]?.count || 0,
+    byType,
+    last24h: last24h[0]?.count || 0,
+    last7d: last7d[0]?.count || 0,
+  };
 }

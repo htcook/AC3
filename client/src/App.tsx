@@ -360,6 +360,7 @@ const ApiHealthDashboard = lazyWithRetry(() => import("./pages/ApiHealthDashboar
 const MonitoringDeploy = lazyWithRetry(() => import("./pages/MonitoringDeploy"));
 const IncidentResponseRunbook = lazyWithRetry(() => import("./pages/IncidentResponseRunbook"));
 const DnsSecurityPage = lazyWithRetry(() => import("./pages/DnsSecurityPage"));
+const PipelineDashboard = lazyWithRetry(() => import("./pages/PipelineDashboard"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -1231,6 +1232,9 @@ function Router() {
         </Route>
         <Route path="/pipeline-audit">
           <ProtectedRoute component={PipelineAudit} />
+        </Route>
+        <Route path="/pipeline-dashboard">
+          <ProtectedRoute component={PipelineDashboard} />
         </Route>
         <Route path="/agent-internal-scanning">
           <ProtectedRoute component={AgentInternalScanning} />

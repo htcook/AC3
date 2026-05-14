@@ -13,7 +13,9 @@ import { getDb } from "../db";
 import {
   threatActors, threatGroupEvents, threatIntelUpdates,
   ransomwareGroups, threatActorIocs, enrichmentHistory,
+  classificationAuditLog,
 } from "../../drizzle/schema";
+import * as schema from "../../drizzle/schema";
 import { eq, sql, desc, and, like, inArray, gte } from "drizzle-orm";
 
 async function requireDb() {
@@ -1438,6 +1440,77 @@ export const threatIntelRouter = router({
         applied++;
       }
       return { applied };
+    }),
+
+  // ─── Classification Audit Log ─────────────────────────────────────────
+  classifyAuditLog: protectedProcedure
+    .input(z.object({
+      actorId: z.string().optional(),
+      source: z.string().optional(),
+      method: z.string().optional(),
+      batchId: z.string().optional(),
+      limit: z.number().default(50),
+      offset: z.number().default(0),
+    }))
+    .query(async ({ input }) => {
+      const { queryAuditLog } = await import("../lib/threat-actor-classifier");
+      return queryAuditLog(input);
+    }),
+
+  classifyAuditSummary: protectedProcedure
+    .query(async () => {
+      const { getAuditSummary } = await import("../lib/threat-actor-classifier");
+      return getAuditSummary();
+    }),
+
+  classifyAuditRevert: protectedProcedure
+    .input(z.object({ auditId: z.number(), actorId: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await requireDb();
+      // Get the audit entry
+      const [entry] = await db.select().from(schema.classificationAuditLog)
+        .where(eq(schema.classificationAuditLog.id, input.auditId))
+        .limit(1);
+      if (!entry) throw new TRPCError({ code: 'NOT_FOUND', message: 'Audit entry not found' });
+
+      // Revert the actor type
+      await db.update(threatActors)
+        .set({ actorType: entry.previousType as any })
+        .where(eq(threatActors.actorId, input.actorId));
+
+      // Mark the audit entry as reverted
+      await db.update(schema.classificationAuditLog)
+        .set({ wasReverted: 1, revertedAt: Date.now(), revertedBy: ctx.user?.name || 'admin' })
+        .where(eq(schema.classificationAuditLog.id, input.auditId));
+
+      // Log the revert action
+      const { logManualClassificationAudit } = await import("../lib/threat-actor-classifier");
+      await logManualClassificationAudit({
+        actorId: input.actorId,
+        actorName: entry.actorName || input.actorId,
+        previousType: entry.newType,
+        newType: entry.previousType,
+        confidence: 100,
+        reasoning: `Reverted classification from ${entry.newType} back to ${entry.previousType}`,
+        appliedBy: ctx.user?.name || 'admin',
+        method: 'revert',
+      });
+
+      return { success: true };
+    }),
+
+  // ─── Pipeline Status ──────────────────────────────────────────────────
+  pipelineStatus: protectedProcedure
+    .query(async () => {
+      const { getAllPipelineStatuses } = await import("../lib/llm-context-updater");
+      return getAllPipelineStatuses();
+    }),
+
+  pipelineHistory: protectedProcedure
+    .input(z.object({ pipelineName: z.string().optional(), limit: z.number().default(20) }))
+    .query(async ({ input }) => {
+      const { getPipelineHistory } = await import("../lib/llm-context-updater");
+      return getPipelineHistory(input.pipelineName, input.limit);
     }),
 });
 // Helper: compute completeness percentage for an actor
