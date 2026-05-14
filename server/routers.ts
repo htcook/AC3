@@ -64,7 +64,6 @@ import { accountAuthRouter } from "./routers/account-auth";
 import { tenantRouter } from "./routers/tenants";
 import { vulnScannerRouter } from "./routers/vuln-scanner";
 import { riskTrendingRouter } from "./routers/risk-trending";
-import { riskRegisterRouter } from "./routers/risk-register";
 import { agentlessBASRouter } from "./routers/agentless-bas";
 import { attackPathDiscoveryRouter } from "./routers/attack-path-discovery";
 import { reportTemplatesRouter } from "./routers/report-templates";
@@ -248,6 +247,8 @@ import { demoRequestsRouter } from "./routers/demo-requests";
 import { dnsSecurityRouter } from "./routers/dns-security";
 import { socradarRouter } from "./routers/socradar";
 import { googleDorkingRouter } from "./routers/google-dorking";
+import { riskRegisterRouter } from "./routers/risk-register";
+import { attackChainsRouter } from "./routers/attack-chains";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -372,7 +373,6 @@ export const appRouter = router({
   tenants: tenantRouter,
   vulnScanner: vulnScannerRouter,
   riskTrending: riskTrendingRouter,
-  riskRegister: riskRegisterRouter,
   agentlessBAS: agentlessBASRouter,
   attackPathDiscovery: attackPathDiscoveryRouter,
   reportTemplates: reportTemplatesRouter,
@@ -668,6 +668,10 @@ export const appRouter = router({
   // ─── SOCRadar (Dark Web, Brand Protection, Threat Feeds) ──
   socradar: socradarRouter,
   googleDorking: googleDorkingRouter,
+  // ─── Risk Register (FedRAMP POA&M) ──
+  riskRegister: riskRegisterRouter,
+  // ─── Vulnerability Attack Chains ──
+  attackChains: attackChainsRouter,
 });
 export type AppRouter = typeof appRouter;
 

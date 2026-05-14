@@ -1,660 +1,464 @@
 import { z } from "zod";
-import { router, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
-import { getDb as _getDb } from "../db";
+import { protectedProcedure, router } from "../_core/trpc";
+import { getDb } from "../db";
 import {
   riskRegisterEntries,
   riskRegisterActivityLog,
   riskRegisterAttachments,
-  ac3ReportFindings,
-  ac3Reports,
+  engagements,
 } from "../../drizzle/schema";
-import { eq, desc, asc, and, or, like, sql, gte, lte, inArray, isNotNull } from "drizzle-orm";
+import { eq, and, or, like, sql, desc, asc, inArray, count } from "drizzle-orm";
 
-async function getDbSafe() {
-  const db = await _getDb();
+function generatePoamId(): string {
+  const ts = Date.now().toString(36).toUpperCase();
+  const rand = Math.random().toString(36).substring(2, 6).toUpperCase();
+  return `POAM-${ts}-${rand}`;
+}
+
+async function requireDb() {
+  const db = await getDb();
   if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
   return db;
 }
 
-function generatePoamId(sourceType: string, index: number): string {
-  const prefix = sourceType === "pentest" ? "PT" :
-                 sourceType === "red_team" ? "RT" :
-                 sourceType === "vulnerability_scan" ? "VS" :
-                 sourceType === "cicd" ? "CI" :
-                 sourceType === "ctem" ? "CT" : "MN";
-  return `${prefix}-${Date.now().toString(36).toUpperCase()}-${index.toString().padStart(4, "0")}`;
-}
-
-const statusEnum = z.enum(["open", "closed", "risk_accepted", "false_positive", "operationally_required", "vendor_dependent", "deferred"]);
-const severityEnum = z.enum(["critical", "high", "moderate", "low", "informational"]);
-const sourceTypeEnum = z.enum(["pentest", "red_team", "vulnerability_scan", "cicd", "ctem", "manual", "import"]);
-
 export const riskRegisterRouter = router({
-  // ─── List entries with filtering, sorting, pagination ───
   list: protectedProcedure
     .input(z.object({
-      status: statusEnum.optional(),
-      severity: severityEnum.optional(),
-      sourceType: sourceTypeEnum.optional(),
+      page: z.number().min(1).default(1),
+      pageSize: z.number().min(1).max(200).default(50),
+      status: z.string().optional(),
+      severity: z.string().optional(),
+      source: z.string().optional(),
       search: z.string().optional(),
-      controlFamily: z.string().optional(),
-      overdue: z.boolean().optional(),
-      sortBy: z.enum(["severity", "createdAt", "scheduledCompletion", "poamId"]).default("createdAt"),
-      sortOrder: z.enum(["asc", "desc"]).default("desc"),
-      limit: z.number().min(1).max(200).default(50),
-      offset: z.number().min(0).default(0),
-    }).optional())
+      sortBy: z.enum(["createdAt", "severity", "status", "scheduledCompletionDate", "originalDetectionDate"]).default("createdAt"),
+      sortDir: z.enum(["asc", "desc"]).default("desc"),
+    }))
     .query(async ({ input }) => {
-      const db = await getDbSafe();
-      const filters: any[] = [];
-      const i = input || {};
-
-      if (i.status) filters.push(eq(riskRegisterEntries.status, i.status));
-      if (i.severity) filters.push(eq(riskRegisterEntries.severity, i.severity));
-      if (i.sourceType) filters.push(eq(riskRegisterEntries.sourceType, i.sourceType));
-      if (i.controlFamily) filters.push(like(riskRegisterEntries.controls, `%${i.controlFamily}%`));
-      if (i.search) {
-        filters.push(or(
-          like(riskRegisterEntries.weaknessName, `%${i.search}%`),
-          like(riskRegisterEntries.poamId, `%${i.search}%`),
-          like(riskRegisterEntries.assetIdentifier, `%${i.search}%`),
-          like(riskRegisterEntries.weaknessDescription, `%${i.search}%`),
-          like(riskRegisterEntries.cve, `%${i.search}%`),
+      const db = await requireDb();
+      const { page, pageSize, status, severity, source, search, sortBy, sortDir } = input;
+      const conditions: any[] = [];
+      if (status) conditions.push(eq(riskRegisterEntries.status, status as any));
+      if (severity) conditions.push(eq(riskRegisterEntries.severity, severity as any));
+      if (source) conditions.push(eq(riskRegisterEntries.source, source as any));
+      if (search) {
+        conditions.push(or(
+          like(riskRegisterEntries.weaknessName, `%${search}%`),
+          like(riskRegisterEntries.poamId, `%${search}%`),
+          like(riskRegisterEntries.assetIdentifier, `%${search}%`),
+          like(riskRegisterEntries.controls, `%${search}%`),
         ));
       }
-      if (i.overdue) {
-        filters.push(isNotNull(riskRegisterEntries.scheduledCompletionDate));
-        filters.push(lte(riskRegisterEntries.scheduledCompletionDate, sql`NOW()`));
-        filters.push(eq(riskRegisterEntries.status, "open"));
-      }
-
-      const where = filters.length > 0 ? and(...filters) : undefined;
-
-      const orderCol = i.sortBy === "severity" ? riskRegisterEntries.severity :
-                       i.sortBy === "scheduledCompletion" ? riskRegisterEntries.scheduledCompletionDate :
-                       i.sortBy === "poamId" ? riskRegisterEntries.poamId :
-                       riskRegisterEntries.createdAt;
-      const orderFn = i.sortOrder === "asc" ? asc : desc;
-
-      const [items, countResult] = await Promise.all([
-        db.select().from(riskRegisterEntries).where(where)
-          .orderBy(orderFn(orderCol))
-          .limit(i.limit || 50)
-          .offset(i.offset || 0),
-        db.select({ count: sql<number>`count(*)` }).from(riskRegisterEntries).where(where),
+      const where = conditions.length > 0 ? and(...conditions) : undefined;
+      const sortCol = sortBy === "severity" ? riskRegisterEntries.severity :
+                      sortBy === "status" ? riskRegisterEntries.status :
+                      sortBy === "scheduledCompletionDate" ? riskRegisterEntries.scheduledCompletionDate :
+                      sortBy === "originalDetectionDate" ? riskRegisterEntries.originalDetectionDate :
+                      riskRegisterEntries.createdAt;
+      const orderFn = sortDir === "asc" ? asc : desc;
+      const [items, [{ total }]] = await Promise.all([
+        db.select().from(riskRegisterEntries).where(where).orderBy(orderFn(sortCol)).limit(pageSize).offset((page - 1) * pageSize),
+        db.select({ total: count() }).from(riskRegisterEntries).where(where),
       ]);
-
-      return { items, total: Number(countResult[0]?.count ?? 0) };
+      return { items, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
     }),
 
-  // ─── Get single entry with activity log ───
   get: protectedProcedure
     .input(z.object({ id: z.number() }))
     .query(async ({ input }) => {
-      const db = await getDbSafe();
-      const [entry] = await db.select().from(riskRegisterEntries)
-        .where(eq(riskRegisterEntries.id, input.id));
+      const db = await requireDb();
+      const [entry] = await db.select().from(riskRegisterEntries).where(eq(riskRegisterEntries.id, input.id));
       if (!entry) throw new TRPCError({ code: "NOT_FOUND", message: "Risk register entry not found" });
-
-      const activity = await db.select().from(riskRegisterActivityLog)
-        .where(eq(riskRegisterActivityLog.entryId, input.id))
-        .orderBy(desc(riskRegisterActivityLog.createdAt))
-        .limit(50);
-
-      const attachments = await db.select().from(riskRegisterAttachments)
-        .where(eq(riskRegisterAttachments.entryId, input.id))
-        .orderBy(desc(riskRegisterAttachments.createdAt));
-
-      return { entry, activity, attachments };
+      const [activity, attachments] = await Promise.all([
+        db.select().from(riskRegisterActivityLog).where(eq(riskRegisterActivityLog.entryId, input.id)).orderBy(desc(riskRegisterActivityLog.createdAt)),
+        db.select().from(riskRegisterAttachments).where(eq(riskRegisterAttachments.entryId, input.id)).orderBy(desc(riskRegisterAttachments.createdAt)),
+      ]);
+      return { ...entry, activityLog: activity, attachments };
     }),
 
-  // ─── Create manual entry ───
   create: protectedProcedure
     .input(z.object({
       weaknessName: z.string().min(1),
       weaknessDescription: z.string().optional(),
       controls: z.string().optional(),
-      severity: severityEnum,
-      category: z.string().optional(),
+      weaknessDetectorSource: z.string().optional(),
+      weaknessSourceIdentifier: z.string().optional(),
       assetIdentifier: z.string().optional(),
       pointOfContact: z.string().optional(),
+      resourcesRequired: z.string().optional(),
       remediationPlan: z.string().optional(),
+      originalDetectionDate: z.string().optional(),
       scheduledCompletionDate: z.string().optional(),
-      cve: z.string().optional(),
-      cvssScore: z.string().optional(),
-      detectorSource: z.string().optional(),
-      sourceIdentifier: z.string().optional(),
-      vendorDependency: z.string().optional(),
+      milestones: z.string().optional(),
+      vendorDependency: z.boolean().optional(),
       vendorDependentProductName: z.string().optional(),
-      impactLevel: z.string().optional(),
+      originalRiskRating: z.enum(["critical", "high", "moderate", "low", "informational"]).default("moderate"),
+      severity: z.enum(["critical", "high", "moderate", "low", "informational"]).default("moderate"),
+      source: z.enum(["manual", "engagement", "ctem_scan", "vulnerability_scan", "pentest", "red_team", "bug_bounty"]).default("manual"),
+      sourceEngagementId: z.number().optional(),
+      attackChainId: z.string().optional(),
       comments: z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const db = await getDbSafe();
-      const poamId = generatePoamId("manual", Math.floor(Math.random() * 9999));
-
-      const result = await db.insert(riskRegisterEntries).values({
-        poamId,
-        controls: input.controls || null,
-        weaknessName: input.weaknessName,
-        weaknessDescription: input.weaknessDescription || null,
-        weaknessDetectorSource: input.detectorSource || "Manual Entry",
-        weaknessSourceIdentifier: input.sourceIdentifier || null,
-        assetIdentifier: input.assetIdentifier || null,
-        pointOfContact: input.pointOfContact || null,
-        originalRiskRating: input.severity,
-        adjustedRiskRating: input.severity,
-        severity: input.severity,
-        category: input.category || "vulnerability",
-        remediationPlan: input.remediationPlan || null,
-        scheduledCompletionDate: input.scheduledCompletionDate || null,
-        originalDetectionDate: sql`NOW()`,
-        status: "open",
-        sourceType: "manual",
-        cve: input.cve || null,
-        cvssScore: input.cvssScore || null,
-        vendorDependency: input.vendorDependency || "No",
-        vendorDependentProductName: input.vendorDependentProductName || null,
-        impactLevel: input.impactLevel || null,
-        comments: input.comments || null,
-        createdBy: ctx.user?.id ? Number(ctx.user.id) : null,
+      const db = await requireDb();
+      const poamId = generatePoamId();
+      const [result] = await db.insert(riskRegisterEntries).values({
+        poamId, ...input,
+        vendorDependency: input.vendorDependency ? 1 : 0,
+        createdBy: ctx.user.id,
       });
-
       await db.insert(riskRegisterActivityLog).values({
-        entryId: result[0].insertId,
-        action: "created",
-        performedBy: ctx.user?.id ? Number(ctx.user.id) : null,
-        performedByName: ctx.user?.name || "System",
-        notes: JSON.stringify({ source: "manual", severity: input.severity }),
+        entryId: result.insertId, action: "created",
+        details: `POA&M ${poamId} created`, performedBy: ctx.user.name || ctx.user.openId,
       });
-
-      return { id: result[0].insertId, poamId };
+      return { id: result.insertId, poamId };
     }),
 
-  // ─── Update entry ───
   update: protectedProcedure
     .input(z.object({
       id: z.number(),
       weaknessName: z.string().optional(),
       weaknessDescription: z.string().optional(),
       controls: z.string().optional(),
-      severity: severityEnum.optional(),
-      adjustedRiskRating: severityEnum.optional(),
-      category: z.string().optional(),
+      weaknessDetectorSource: z.string().optional(),
+      weaknessSourceIdentifier: z.string().optional(),
       assetIdentifier: z.string().optional(),
       pointOfContact: z.string().optional(),
+      resourcesRequired: z.string().optional(),
       remediationPlan: z.string().optional(),
       scheduledCompletionDate: z.string().nullable().optional(),
-      status: statusEnum.optional(),
-      vendorDependency: z.string().optional(),
+      actualCompletionDate: z.string().nullable().optional(),
+      milestones: z.string().optional(),
+      milestoneChanges: z.string().optional(),
+      vendorDependency: z.boolean().optional(),
       vendorDependentProductName: z.string().optional(),
-      cve: z.string().optional(),
-      cvssScore: z.string().optional(),
-      riskDecision: z.string().optional(),
-      riskDecisionJustification: z.string().optional(),
-      compensatingControls: z.string().optional(),
+      lastVendorCheckinDate: z.string().nullable().optional(),
+      originalRiskRating: z.enum(["critical", "high", "moderate", "low", "informational"]).optional(),
+      adjustedRiskRating: z.enum(["critical", "high", "moderate", "low", "informational"]).nullable().optional(),
+      riskAdjustment: z.string().optional(),
+      falsePositive: z.boolean().optional(),
+      operationalRequirement: z.boolean().optional(),
       deviationRationale: z.string().optional(),
+      supportingDocuments: z.string().optional(),
       comments: z.string().optional(),
-      impactLevel: z.string().optional(),
-      milestones: z.any().optional(),
+      status: z.enum(["open", "in_progress", "closed", "risk_accepted", "deferred", "vendor_dependent"]).optional(),
+      severity: z.enum(["critical", "high", "moderate", "low", "informational"]).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const db = await getDbSafe();
+      const db = await requireDb();
       const { id, ...updates } = input;
-
-      const [existing] = await db.select().from(riskRegisterEntries)
-        .where(eq(riskRegisterEntries.id, id));
-      if (!existing) throw new TRPCError({ code: "NOT_FOUND" });
-
-      const setValues: any = { updatedAt: sql`NOW()`, updatedBy: ctx.user?.id ? Number(ctx.user.id) : null };
-      const changes: string[] = [];
-
-      if (updates.weaknessName !== undefined) { setValues.weaknessName = updates.weaknessName; changes.push("weaknessName"); }
-      if (updates.weaknessDescription !== undefined) { setValues.weaknessDescription = updates.weaknessDescription; changes.push("description"); }
-      if (updates.controls !== undefined) { setValues.controls = updates.controls; changes.push("controls"); }
-      if (updates.severity) { setValues.severity = updates.severity; setValues.originalRiskRating = updates.severity; changes.push(`severity→${updates.severity}`); }
-      if (updates.adjustedRiskRating) { setValues.adjustedRiskRating = updates.adjustedRiskRating; changes.push(`adjustedRisk→${updates.adjustedRiskRating}`); }
-      if (updates.category !== undefined) { setValues.category = updates.category; changes.push("category"); }
-      if (updates.assetIdentifier !== undefined) { setValues.assetIdentifier = updates.assetIdentifier; changes.push("asset"); }
-      if (updates.pointOfContact !== undefined) { setValues.pointOfContact = updates.pointOfContact; changes.push("poc"); }
-      if (updates.remediationPlan !== undefined) { setValues.remediationPlan = updates.remediationPlan; changes.push("remediationPlan"); }
-      if (updates.scheduledCompletionDate !== undefined) { setValues.scheduledCompletionDate = updates.scheduledCompletionDate; changes.push("scheduledCompletion"); }
-      if (updates.status) {
-        setValues.status = updates.status;
-        setValues.statusDate = sql`NOW()`;
-        changes.push(`status→${updates.status}`);
-        if (updates.status === "closed") {
-          setValues.closedAt = sql`NOW()`;
-          setValues.actualCompletionDate = sql`NOW()`;
-        }
-      }
-      if (updates.vendorDependency !== undefined) { setValues.vendorDependency = updates.vendorDependency; changes.push("vendorDependency"); }
-      if (updates.vendorDependentProductName !== undefined) { setValues.vendorDependentProductName = updates.vendorDependentProductName; changes.push("vendorProduct"); }
-      if (updates.cve !== undefined) { setValues.cve = updates.cve; changes.push("cve"); }
-      if (updates.cvssScore !== undefined) { setValues.cvssScore = updates.cvssScore; changes.push("cvss"); }
-      if (updates.riskDecision !== undefined) { setValues.riskDecision = updates.riskDecision; setValues.riskDecisionDate = sql`NOW()`; changes.push("riskDecision"); }
-      if (updates.riskDecisionJustification !== undefined) { setValues.riskDecisionJustification = updates.riskDecisionJustification; changes.push("justification"); }
-      if (updates.compensatingControls !== undefined) { setValues.compensatingControls = updates.compensatingControls; changes.push("compensatingControls"); }
-      if (updates.deviationRationale !== undefined) { setValues.deviationRationale = updates.deviationRationale; changes.push("deviationRationale"); }
-      if (updates.comments !== undefined) { setValues.comments = updates.comments; changes.push("comments"); }
-      if (updates.impactLevel !== undefined) { setValues.impactLevel = updates.impactLevel; changes.push("impactLevel"); }
-      if (updates.milestones !== undefined) { setValues.milestones = updates.milestones; changes.push("milestones"); }
-
-      await db.update(riskRegisterEntries).set(setValues).where(eq(riskRegisterEntries.id, id));
-
+      const updateData: any = { ...updates };
+      if (updates.vendorDependency !== undefined) updateData.vendorDependency = updates.vendorDependency ? 1 : 0;
+      if (updates.falsePositive !== undefined) updateData.falsePositive = updates.falsePositive ? 1 : 0;
+      if (updates.operationalRequirement !== undefined) updateData.operationalRequirement = updates.operationalRequirement ? 1 : 0;
+      updateData.statusDate = sql`CURRENT_TIMESTAMP`;
+      await db.update(riskRegisterEntries).set(updateData).where(eq(riskRegisterEntries.id, id));
+      const changes = Object.keys(updates).filter(k => (updates as any)[k] !== undefined).join(", ");
       await db.insert(riskRegisterActivityLog).values({
-        entryId: id,
-        action: "updated",
-        performedBy: ctx.user?.id ? Number(ctx.user.id) : null,
-        performedByName: ctx.user?.name || "System",
-        notes: JSON.stringify({ fields: changes }),
+        entryId: id, action: "updated", details: `Updated fields: ${changes}`,
+        performedBy: ctx.user.name || ctx.user.openId,
       });
-
-      return { success: true, changes };
-    }),
-
-  // ─── Risk Acceptance Decision ───
-  acceptRisk: protectedProcedure
-    .input(z.object({
-      id: z.number(),
-      decision: z.enum(["risk_accepted", "false_positive", "operationally_required"]),
-      justification: z.string().min(10),
-      compensatingControls: z.string().optional(),
-    }))
-    .mutation(async ({ input, ctx }) => {
-      const db = await getDbSafe();
-      const [entry] = await db.select().from(riskRegisterEntries)
-        .where(eq(riskRegisterEntries.id, input.id));
-      if (!entry) throw new TRPCError({ code: "NOT_FOUND" });
-
-      const riskAdjustment = input.decision === "risk_accepted" ? "RA" :
-                             input.decision === "false_positive" ? "FP" : "OR";
-
-      await db.update(riskRegisterEntries).set({
-        status: input.decision,
-        riskDecision: input.decision,
-        riskDecisionBy: ctx.user?.name || "System",
-        riskDecisionDate: sql`NOW()`,
-        riskDecisionJustification: input.justification,
-        riskAdjustment,
-        falsePositive: input.decision === "false_positive" ? "Yes" : "No",
-        operationalRequirement: input.decision === "operationally_required" ? "Yes" : "No",
-        compensatingControls: input.compensatingControls || null,
-        updatedAt: sql`NOW()`,
-      }).where(eq(riskRegisterEntries.id, input.id));
-
-      await db.insert(riskRegisterActivityLog).values({
-        entryId: input.id,
-        action: "risk_decision",
-        performedBy: ctx.user?.id ? Number(ctx.user.id) : null,
-        performedByName: ctx.user?.name || "System",
-        notes: JSON.stringify({ decision: input.decision, justification: input.justification }),
-      });
-
       return { success: true };
     }),
 
-  // ─── Auto-populate from finalized engagement ───
-  autoPopulateFromEngagement: protectedProcedure
-    .input(z.object({
-      reportId: z.string(),
-      overridePointOfContact: z.string().optional(),
-      defaultSlaMonths: z.number().default(3),
-    }))
-    .mutation(async ({ input, ctx }) => {
-      const db = await getDbSafe();
-
-      const [report] = await db.select().from(ac3Reports)
-        .where(eq(ac3Reports.rptReportId, input.reportId));
-      if (!report) throw new TRPCError({ code: "NOT_FOUND", message: "Report not found" });
-
-      const findings = await db.select().from(ac3ReportFindings)
-        .where(eq(ac3ReportFindings.rfReportId, input.reportId));
-
-      if (findings.length === 0) return { created: 0, updated: 0, skipped: 0, total: 0 };
-
-      const sourceType = report.rptAssessmentType === "red_team" ? "red_team" : "pentest";
-      let created = 0, updated = 0, skipped = 0;
-
-      for (let i = 0; i < findings.length; i++) {
-        const f = findings[i];
-        const assets = f.rfAssets ? (Array.isArray(f.rfAssets) ? (f.rfAssets as string[]).join(", ") : String(f.rfAssets)) : "";
-        const controls = f.rfControls ? (Array.isArray(f.rfControls) ? (f.rfControls as string[]).join(", ") : String(f.rfControls)) : "";
-
-        // Dedup check
-        const existingEntries = await db.select().from(riskRegisterEntries)
-          .where(and(
-            eq(riskRegisterEntries.weaknessName, f.rfTitle),
-            like(riskRegisterEntries.assetIdentifier, `%${assets.slice(0, 50)}%`),
-          ));
-
-        if (existingEntries.length > 0) {
-          await db.update(riskRegisterEntries).set({
-            statusDate: sql`NOW()`,
-            updatedAt: sql`NOW()`,
-          }).where(eq(riskRegisterEntries.id, existingEntries[0].id));
-
-          await db.insert(riskRegisterActivityLog).values({
-            entryId: existingEntries[0].id,
-            action: "re_observed",
-            performedByName: "System",
-            notes: JSON.stringify({ source: sourceType, reportId: input.reportId }),
-          });
-          updated++;
-        } else {
-          const poamId = generatePoamId(sourceType, i + 1);
-          const slaDate = new Date();
-          slaDate.setMonth(slaDate.getMonth() + input.defaultSlaMonths);
-
-          const result = await db.insert(riskRegisterEntries).values({
-            poamId,
-            controls: controls || null,
-            weaknessName: f.rfTitle,
-            weaknessDescription: f.rfSummary || null,
-            weaknessDetectorSource: `AC3 ${sourceType === "red_team" ? "Red Team" : "Penetration Test"}`,
-            weaknessSourceIdentifier: f.rfFindingId,
-            assetIdentifier: assets || null,
-            pointOfContact: input.overridePointOfContact || null,
-            originalRiskRating: f.rfSeverity || "moderate",
-            adjustedRiskRating: f.rfSeverity || "moderate",
-            severity: f.rfSeverity || "moderate",
-            category: "vulnerability",
-            originalDetectionDate: sql`NOW()`,
-            scheduledCompletionDate: slaDate.toISOString().slice(0, 19).replace("T", " "),
-            remediationPlan: f.rfRemediation || null,
-            status: "open",
-            sourceType,
-            sourceFindingId: f.id || null,
-            sourceEngagementId: input.reportId,
-            cve: f.rfCveIds ? (Array.isArray(f.rfCveIds) ? (f.rfCveIds as string[]).join(", ") : String(f.rfCveIds)) : null,
-            cvssScore: f.rfCvssScore || null,
-            vendorDependency: "No",
-            createdBy: ctx.user?.id ? Number(ctx.user.id) : null,
-          });
-
-          await db.insert(riskRegisterActivityLog).values({
-            entryId: result[0].insertId,
-            action: "auto_created",
-            performedByName: "System",
-            notes: JSON.stringify({ source: sourceType, reportId: input.reportId, severity: f.rfSeverity }),
-          });
-          created++;
-        }
-      }
-
-      return { created, updated, skipped, total: findings.length };
-    }),
-
-  // ─── CTEM Sync — bulk ingest ───
-  ctemSync: protectedProcedure
-    .input(z.object({
-      findings: z.array(z.object({
-        weaknessName: z.string(),
-        weaknessDescription: z.string().optional(),
-        severity: severityEnum,
-        assetIdentifier: z.string(),
-        sourceIdentifier: z.string(),
-        detectorSource: z.string(),
-        controls: z.string().optional(),
-        cvssScore: z.string().optional(),
-        cve: z.string().optional(),
-        remediationPlan: z.string().optional(),
-      })),
-      defaultSlaMonths: z.number().default(1),
-      pointOfContact: z.string().optional(),
-    }))
-    .mutation(async ({ input }) => {
-      const db = await getDbSafe();
-      let created = 0, updated = 0;
-
-      for (let i = 0; i < input.findings.length; i++) {
-        const f = input.findings[i];
-        const [existing] = await db.select().from(riskRegisterEntries)
-          .where(and(
-            eq(riskRegisterEntries.weaknessName, f.weaknessName),
-            like(riskRegisterEntries.assetIdentifier, `%${f.assetIdentifier.slice(0, 50)}%`),
-          ));
-
-        if (existing) {
-          await db.update(riskRegisterEntries).set({ statusDate: sql`NOW()`, updatedAt: sql`NOW()` })
-            .where(eq(riskRegisterEntries.id, existing.id));
-          updated++;
-        } else {
-          const slaDate = new Date();
-          slaDate.setMonth(slaDate.getMonth() + input.defaultSlaMonths);
-
-          await db.insert(riskRegisterEntries).values({
-            poamId: generatePoamId("ctem", i + 1),
-            controls: f.controls || null,
-            weaknessName: f.weaknessName,
-            weaknessDescription: f.weaknessDescription || null,
-            weaknessDetectorSource: f.detectorSource,
-            weaknessSourceIdentifier: f.sourceIdentifier,
-            assetIdentifier: f.assetIdentifier,
-            pointOfContact: input.pointOfContact || null,
-            originalRiskRating: f.severity,
-            adjustedRiskRating: f.severity,
-            severity: f.severity,
-            category: "vulnerability",
-            originalDetectionDate: sql`NOW()`,
-            scheduledCompletionDate: slaDate.toISOString().slice(0, 19).replace("T", " "),
-            remediationPlan: f.remediationPlan || null,
-            status: "open",
-            sourceType: "ctem",
-            cve: f.cve || null,
-            cvssScore: f.cvssScore || null,
-            vendorDependency: "No",
-          });
-          created++;
-        }
-      }
-
-      return { created, updated, total: input.findings.length };
-    }),
-
-  // ─── Executive Dashboard Metrics ───
-  executiveMetrics: protectedProcedure
-    .input(z.object({ days: z.number().default(90) }).optional())
-    .query(async ({ input }) => {
-      const db = await getDbSafe();
-      const days = input?.days || 90;
-
-      const openBySeverity = await db.select({
-        severity: riskRegisterEntries.severity,
-        count: sql<number>`count(*)`,
-      }).from(riskRegisterEntries)
-        .where(eq(riskRegisterEntries.status, "open"))
-        .groupBy(riskRegisterEntries.severity);
-
-      const [totalOpen] = await db.select({ count: sql<number>`count(*)` })
-        .from(riskRegisterEntries).where(eq(riskRegisterEntries.status, "open"));
-
-      const [totalClosed] = await db.select({ count: sql<number>`count(*)` })
-        .from(riskRegisterEntries)
-        .where(and(eq(riskRegisterEntries.status, "closed"), gte(riskRegisterEntries.closedAt, sql`DATE_SUB(NOW(), INTERVAL ${days} DAY)`)));
-
-      const [overdueCount] = await db.select({ count: sql<number>`count(*)` })
-        .from(riskRegisterEntries)
-        .where(and(eq(riskRegisterEntries.status, "open"), isNotNull(riskRegisterEntries.scheduledCompletionDate), lte(riskRegisterEntries.scheduledCompletionDate, sql`NOW()`)));
-
-      const [acceptedCount] = await db.select({ count: sql<number>`count(*)` })
-        .from(riskRegisterEntries).where(eq(riskRegisterEntries.riskDecision, "risk_accepted"));
-
-      const [vendorDepCount] = await db.select({ count: sql<number>`count(*)` })
-        .from(riskRegisterEntries)
-        .where(and(eq(riskRegisterEntries.vendorDependency, "Yes"), eq(riskRegisterEntries.status, "open")));
-
-      const closedItems = await db.select({
-        detected: riskRegisterEntries.originalDetectionDate,
-        closed: riskRegisterEntries.closedAt,
-        severity: riskRegisterEntries.severity,
-      }).from(riskRegisterEntries)
-        .where(and(eq(riskRegisterEntries.status, "closed"), isNotNull(riskRegisterEntries.closedAt), gte(riskRegisterEntries.closedAt, sql`DATE_SUB(NOW(), INTERVAL ${days} DAY)`)));
-
-      const mttrBySeverity: Record<string, { totalDays: number; count: number; avgDays: number }> = {};
-      for (const item of closedItems) {
-        if (item.detected && item.closed) {
-          const sev = item.severity || "unknown";
-          if (!mttrBySeverity[sev]) mttrBySeverity[sev] = { totalDays: 0, count: 0, avgDays: 0 };
-          const diffDays = Math.max(0, (new Date(item.closed).getTime() - new Date(item.detected).getTime()) / 86400000);
-          mttrBySeverity[sev].totalDays += diffDays;
-          mttrBySeverity[sev].count++;
-        }
-      }
-      for (const sev of Object.keys(mttrBySeverity)) {
-        mttrBySeverity[sev].avgDays = Math.round(mttrBySeverity[sev].totalDays / mttrBySeverity[sev].count);
-      }
-
-      const [newInPeriod] = await db.select({ count: sql<number>`count(*)` })
-        .from(riskRegisterEntries).where(gte(riskRegisterEntries.createdAt, sql`DATE_SUB(NOW(), INTERVAL ${days} DAY)`));
-
-      const oldestOpen = await db.select().from(riskRegisterEntries)
-        .where(eq(riskRegisterEntries.status, "open"))
-        .orderBy(asc(riskRegisterEntries.originalDetectionDate))
-        .limit(10);
-
-      const sourceDistribution = await db.select({
-        sourceType: riskRegisterEntries.sourceType,
-        count: sql<number>`count(*)`,
-      }).from(riskRegisterEntries).groupBy(riskRegisterEntries.sourceType);
-
-      return {
-        summary: {
-          totalOpen: Number(totalOpen?.count ?? 0),
-          totalClosedInPeriod: Number(totalClosed?.count ?? 0),
-          overdue: Number(overdueCount?.count ?? 0),
-          riskAccepted: Number(acceptedCount?.count ?? 0),
-          vendorDependent: Number(vendorDepCount?.count ?? 0),
-          newInPeriod: Number(newInPeriod?.count ?? 0),
-        },
-        openBySeverity: openBySeverity.map(r => ({ severity: r.severity, count: Number(r.count) })),
-        mttrBySeverity,
-        oldestOpen,
-        sourceDistribution: sourceDistribution.map(r => ({ source: r.sourceType, count: Number(r.count) })),
-      };
-    }),
-
-  // ─── Trend data ───
-  trend: protectedProcedure
-    .input(z.object({ months: z.number().default(6) }))
-    .query(async ({ input }) => {
-      const db = await getDbSafe();
-      const points: { month: string; opened: number; closed: number; netOpen: number }[] = [];
-
-      for (let i = input.months - 1; i >= 0; i--) {
-        const monthLabel = new Date(Date.now() - i * 30 * 86400000).toISOString().slice(0, 7);
-        const [opened] = await db.select({ count: sql<number>`count(*)` })
-          .from(riskRegisterEntries)
-          .where(sql`DATE_FORMAT(${riskRegisterEntries.createdAt}, '%Y-%m') = ${monthLabel}`);
-        const [closed] = await db.select({ count: sql<number>`count(*)` })
-          .from(riskRegisterEntries)
-          .where(and(eq(riskRegisterEntries.status, "closed"), sql`DATE_FORMAT(${riskRegisterEntries.closedAt}, '%Y-%m') = ${monthLabel}`));
-        points.push({ month: monthLabel, opened: Number(opened?.count ?? 0), closed: Number(closed?.count ?? 0), netOpen: Number(opened?.count ?? 0) - Number(closed?.count ?? 0) });
-      }
-      return points;
-    }),
-
-  // ─── POA&M Export ───
-  exportPoam: protectedProcedure
-    .input(z.object({ status: z.enum(["open", "closed", "all"]).default("open") }).optional())
-    .query(async ({ input }) => {
-      const db = await getDbSafe();
-      const statusFilter = input?.status === "all" ? undefined :
-                           input?.status === "closed" ? eq(riskRegisterEntries.status, "closed") :
-                           eq(riskRegisterEntries.status, "open");
-
-      const entries = await db.select().from(riskRegisterEntries)
-        .where(statusFilter || undefined)
-        .orderBy(asc(riskRegisterEntries.poamId));
-
-      const poamRows = entries.map(e => ({
-        "POA&M ID": e.poamId,
-        "Controls": e.controls || "",
-        "Weakness Name": e.weaknessName,
-        "Weakness Description": e.weaknessDescription || "",
-        "Weakness Detector Source": e.weaknessDetectorSource || "",
-        "Weakness Source Identifier": e.weaknessSourceIdentifier || "",
-        "Asset Identifier": e.assetIdentifier || "",
-        "Point of Contact": e.pointOfContact || "",
-        "Resources Required": e.resourcesRequired || "",
-        "Overall Remediation Plan": e.remediationPlan || "",
-        "Original Detection Date": e.originalDetectionDate || "",
-        "Scheduled Completion Date": e.scheduledCompletionDate || "",
-        "Planned Milestones": e.milestones ? JSON.stringify(e.milestones) : "",
-        "Milestone Changes": e.milestoneChanges ? JSON.stringify(e.milestoneChanges) : "",
-        "Status Date": e.statusDate || "",
-        "Vendor Dependency": e.vendorDependency || "No",
-        "Last Vendor Check-In Date": e.lastVendorCheckinDate || "",
-        "Vendor Dependent Product Name": e.vendorDependentProductName || "",
-        "Original Risk Rating": e.originalRiskRating || "",
-        "Adjusted Risk Rating": e.adjustedRiskRating || "",
-        "Risk Adjustment": e.riskAdjustment || "No",
-        "False Positive": e.falsePositive || "No",
-        "Operational Requirement": e.operationalRequirement || "No",
-        "Deviation Rationale": e.deviationRationale || "",
-        "Supporting Documents": e.supportingDocuments || "",
-        "Comments": e.comments || "",
-        "CVE": e.cve || "",
-        "CVSS Score": e.cvssScore || "",
-        "Status": e.status,
-        "Actual Completion Date": e.actualCompletionDate || "",
-      }));
-
-      return { entries: poamRows, total: poamRows.length };
-    }),
-
-  // ─── Delete ───
   delete: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
-      const db = await getDbSafe();
+      const db = await requireDb();
       await db.delete(riskRegisterActivityLog).where(eq(riskRegisterActivityLog.entryId, input.id));
       await db.delete(riskRegisterAttachments).where(eq(riskRegisterAttachments.entryId, input.id));
       await db.delete(riskRegisterEntries).where(eq(riskRegisterEntries.id, input.id));
       return { success: true };
     }),
 
-  // ─── Bulk status update ───
-  bulkUpdateStatus: protectedProcedure
+  acceptRisk: protectedProcedure
     .input(z.object({
-      ids: z.array(z.number()),
-      status: statusEnum,
-      justification: z.string().optional(),
+      id: z.number(),
+      decision: z.enum(["mitigate", "accept", "transfer", "defer", "avoid"]),
+      justification: z.string().min(1),
     }))
     .mutation(async ({ input, ctx }) => {
-      const db = await getDbSafe();
-      const setValues: any = { status: input.status, updatedAt: sql`NOW()`, statusDate: sql`NOW()` };
-      if (input.status === "closed") { setValues.closedAt = sql`NOW()`; setValues.actualCompletionDate = sql`NOW()`; }
-      if (input.justification) setValues.riskDecisionJustification = input.justification;
+      const db = await requireDb();
+      const newStatus = input.decision === "accept" ? "risk_accepted" as const :
+                        input.decision === "defer" ? "deferred" as const : "in_progress" as const;
+      await db.update(riskRegisterEntries).set({
+        riskDecision: input.decision, riskDecisionBy: ctx.user.name || ctx.user.openId,
+        riskDecisionDate: sql`CURRENT_TIMESTAMP`, riskDecisionJustification: input.justification,
+        status: newStatus, statusDate: sql`CURRENT_TIMESTAMP`,
+      }).where(eq(riskRegisterEntries.id, input.id));
+      await db.insert(riskRegisterActivityLog).values({
+        entryId: input.id, action: `risk_decision_${input.decision}`,
+        details: input.justification, performedBy: ctx.user.name || ctx.user.openId,
+      });
+      return { success: true };
+    }),
 
-      await db.update(riskRegisterEntries).set(setValues).where(inArray(riskRegisterEntries.id, input.ids));
+  autoPopulateFromEngagement: protectedProcedure
+    .input(z.object({ engagementId: z.number() }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await requireDb();
+      const [eng] = await db.select().from(engagements).where(eq(engagements.id, input.engagementId));
+      if (!eng) throw new TRPCError({ code: "NOT_FOUND", message: "Engagement not found" });
+      const existing = await db.select({ weaknessName: riskRegisterEntries.weaknessName, assetIdentifier: riskRegisterEntries.assetIdentifier })
+        .from(riskRegisterEntries).where(eq(riskRegisterEntries.sourceEngagementId, input.engagementId));
+      const existingKeys = new Set(existing.map(e => `${e.weaknessName}::${e.assetIdentifier}`));
+      const findings: any = await db.execute(sql`
+        SELECT title, description, severity, affected_asset, cve_id, cwe_id
+        FROM remediation_tasks WHERE engagement_id = ${input.engagementId} AND status != 'verified_fixed' LIMIT 500
+      `);
+      const rows = Array.isArray(findings) ? (Array.isArray(findings[0]) ? findings[0] : findings) : [];
+      let created = 0, skipped = 0;
+      for (const f of rows) {
+        const key = `${f.title}::${f.affected_asset || ""}`;
+        if (existingKeys.has(key)) { skipped++; continue; }
+        const poamId = generatePoamId();
+        const sevMap: Record<string, string> = { critical: "critical", high: "high", medium: "moderate", moderate: "moderate", low: "low", info: "informational", informational: "informational" };
+        const sev = sevMap[f.severity?.toLowerCase()] || "moderate";
+        await db.insert(riskRegisterEntries).values({
+          poamId, weaknessName: f.title || "Unnamed Finding", weaknessDescription: f.description || null,
+          weaknessSourceIdentifier: f.cve_id || f.cwe_id || null, assetIdentifier: f.affected_asset || eng.targetDomain || null,
+          originalRiskRating: sev as any, severity: sev as any,
+          source: eng.engagementType === "red_team" ? "red_team" : eng.engagementType === "pentest" ? "pentest" : "engagement",
+          sourceEngagementId: input.engagementId, originalDetectionDate: sql`CURRENT_TIMESTAMP`, createdBy: ctx.user.id,
+        });
+        existingKeys.add(key);
+        created++;
+      }
+      return { created, skipped, total: created + skipped };
+    }),
 
+  ctemSync: protectedProcedure
+    .input(z.object({
+      findings: z.array(z.object({
+        weaknessName: z.string(), weaknessDescription: z.string().optional(),
+        weaknessSourceIdentifier: z.string().optional(), assetIdentifier: z.string().optional(),
+        severity: z.enum(["critical", "high", "moderate", "low", "informational"]).default("moderate"),
+        detectorSource: z.string().optional(), scanId: z.number().optional(),
+      })),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await requireDb();
+      const existing = await db.select({ weaknessName: riskRegisterEntries.weaknessName, assetIdentifier: riskRegisterEntries.assetIdentifier })
+        .from(riskRegisterEntries).where(or(eq(riskRegisterEntries.status, "open"), eq(riskRegisterEntries.status, "in_progress")));
+      const existingKeys = new Set(existing.map(e => `${e.weaknessName}::${e.assetIdentifier || ""}`));
+      let created = 0, skipped = 0;
+      for (const f of input.findings) {
+        const key = `${f.weaknessName}::${f.assetIdentifier || ""}`;
+        if (existingKeys.has(key)) { skipped++; continue; }
+        const poamId = generatePoamId();
+        await db.insert(riskRegisterEntries).values({
+          poamId, weaknessName: f.weaknessName, weaknessDescription: f.weaknessDescription || null,
+          weaknessSourceIdentifier: f.weaknessSourceIdentifier || null, assetIdentifier: f.assetIdentifier || null,
+          weaknessDetectorSource: f.detectorSource || null, severity: f.severity, originalRiskRating: f.severity,
+          source: "ctem_scan", sourceScanId: f.scanId || null, originalDetectionDate: sql`CURRENT_TIMESTAMP`, createdBy: ctx.user.id,
+        });
+        existingKeys.add(key);
+        created++;
+      }
+      return { created, skipped, total: input.findings.length };
+    }),
+
+  executiveMetrics: protectedProcedure
+    .input(z.object({ days: z.number().default(90) }))
+    .query(async ({ input }) => {
+      const db = await requireDb();
+      const cutoff = new Date(Date.now() - input.days * 86400000).toISOString();
+      const allEntries = await db.select().from(riskRegisterEntries);
+      const openStatuses = ["open", "in_progress", "vendor_dependent"];
+      const openEntries = allEntries.filter(e => openStatuses.includes(e.status));
+      const closedInPeriod = allEntries.filter(e => e.status === "closed" && e.actualCompletionDate && e.actualCompletionDate >= cutoff);
+      const newInPeriod = allEntries.filter(e => e.createdAt >= cutoff);
+      const now = Date.now();
+      const overdue = openEntries.filter(e => e.scheduledCompletionDate && new Date(e.scheduledCompletionDate).getTime() < now);
+      const openBySeverity = ["critical", "high", "moderate", "low", "informational"].map(sev => ({
+        severity: sev, count: openEntries.filter(e => e.severity === sev).length,
+      }));
+      const mttrBySeverity: Record<string, { avgDays: number; count: number }> = {};
+      const closedAll = allEntries.filter(e => e.status === "closed" && e.actualCompletionDate && e.originalDetectionDate);
+      for (const e of closedAll) {
+        const days = Math.floor((new Date(e.actualCompletionDate!).getTime() - new Date(e.originalDetectionDate!).getTime()) / 86400000);
+        if (!mttrBySeverity[e.severity]) mttrBySeverity[e.severity] = { avgDays: 0, count: 0 };
+        mttrBySeverity[e.severity].count++;
+        mttrBySeverity[e.severity].avgDays += days;
+      }
+      for (const sev of Object.keys(mttrBySeverity)) {
+        mttrBySeverity[sev].avgDays = Math.round(mttrBySeverity[sev].avgDays / mttrBySeverity[sev].count);
+      }
+      const oldestOpen = openEntries
+        .sort((a, b) => {
+          const da = a.originalDetectionDate ? new Date(a.originalDetectionDate).getTime() : new Date(a.createdAt).getTime();
+          const db2 = b.originalDetectionDate ? new Date(b.originalDetectionDate).getTime() : new Date(b.createdAt).getTime();
+          return da - db2;
+        }).slice(0, 10);
+      return {
+        summary: { totalOpen: openEntries.length, overdue: overdue.length, totalClosedInPeriod: closedInPeriod.length,
+          riskAccepted: allEntries.filter(e => e.status === "risk_accepted").length,
+          vendorDependent: allEntries.filter(e => e.vendorDependency === 1 || e.status === "vendor_dependent").length,
+          newInPeriod: newInPeriod.length },
+        openBySeverity, mttrBySeverity,
+        oldestOpen: oldestOpen.map(e => ({ id: e.id, poamId: e.poamId, weaknessName: e.weaknessName,
+          severity: e.severity, originalDetectionDate: e.originalDetectionDate || e.createdAt })),
+      };
+    }),
+
+  trend: protectedProcedure
+    .input(z.object({ months: z.number().default(6) }))
+    .query(async ({ input }) => {
+      const db = await requireDb();
+      const allEntries = await db.select().from(riskRegisterEntries);
+      const result: { month: string; opened: number; closed: number; netOpen: number }[] = [];
+      for (let i = input.months - 1; i >= 0; i--) {
+        const d = new Date(); d.setMonth(d.getMonth() - i);
+        const year = d.getFullYear(); const month = d.getMonth();
+        const monthStr = `${year}-${String(month + 1).padStart(2, "0")}`;
+        const opened = allEntries.filter(e => { const cd = new Date(e.createdAt); return cd.getFullYear() === year && cd.getMonth() === month; }).length;
+        const closed = allEntries.filter(e => { if (!e.actualCompletionDate) return false; const cd = new Date(e.actualCompletionDate); return cd.getFullYear() === year && cd.getMonth() === month; }).length;
+        result.push({ month: monthStr, opened, closed, netOpen: opened - closed });
+      }
+      return result;
+    }),
+
+  exportPoam: protectedProcedure
+    .input(z.object({ status: z.string().optional(), severity: z.string().optional() }))
+    .query(async ({ input }) => {
+      const db = await requireDb();
+      const conditions: any[] = [];
+      if (input.status) conditions.push(eq(riskRegisterEntries.status, input.status as any));
+      if (input.severity) conditions.push(eq(riskRegisterEntries.severity, input.severity as any));
+      const where = conditions.length > 0 ? and(...conditions) : undefined;
+      return db.select().from(riskRegisterEntries).where(where).orderBy(asc(riskRegisterEntries.poamId));
+    }),
+
+  bulkUpdateStatus: protectedProcedure
+    .input(z.object({
+      ids: z.array(z.number()).min(1),
+      status: z.enum(["open", "in_progress", "closed", "risk_accepted", "deferred", "vendor_dependent"]),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await requireDb();
+      const updateData: any = { status: input.status, statusDate: sql`CURRENT_TIMESTAMP` };
+      if (input.status === "closed") updateData.actualCompletionDate = sql`CURRENT_TIMESTAMP`;
+      await db.update(riskRegisterEntries).set(updateData).where(inArray(riskRegisterEntries.id, input.ids));
       for (const id of input.ids) {
         await db.insert(riskRegisterActivityLog).values({
-          entryId: id,
-          action: "bulk_status_change",
-          performedBy: ctx.user?.id ? Number(ctx.user.id) : null,
-          performedByName: ctx.user?.name || "System",
-          notes: JSON.stringify({ newStatus: input.status, justification: input.justification }),
+          entryId: id, action: `bulk_status_${input.status}`, details: `Bulk status change to ${input.status}`,
+          performedBy: ctx.user.name || ctx.user.openId,
         });
       }
       return { updated: input.ids.length };
     }),
 
-  // ─── Available reports for auto-populate ───
-  availableReports: protectedProcedure
-    .query(async () => {
-      const db = await getDbSafe();
-      return db.select({
-        reportId: ac3Reports.rptReportId,
-        title: ac3Reports.rptTitle,
-        assessmentType: ac3Reports.rptAssessmentType,
-        status: ac3Reports.rptStatus,
-        createdAt: ac3Reports.rptCreatedAt,
-      }).from(ac3Reports)
-        .where(eq(ac3Reports.rptStatus, "finalized"))
-        .orderBy(desc(ac3Reports.rptCreatedAt))
-        .limit(50);
+  exportPoamExcel: protectedProcedure
+    .input(z.object({ status: z.string().optional(), severity: z.string().optional() }))
+    .mutation(async ({ input }) => {
+      const db = await requireDb();
+      const ExcelJS = (await import("exceljs")).default;
+      const conditions: any[] = [];
+      if (input.status) conditions.push(eq(riskRegisterEntries.status, input.status));
+      if (input.severity) conditions.push(eq(riskRegisterEntries.severity, input.severity));
+      const entries = await db.select().from(riskRegisterEntries)
+        .where(conditions.length ? and(...conditions) : undefined)
+        .orderBy(desc(riskRegisterEntries.createdAt));
+
+      const wb = new ExcelJS.Workbook();
+      wb.creator = "AceofCloud Caldera Dashboard";
+      wb.created = new Date();
+      const ws = wb.addWorksheet("POA&M");
+
+      // FedRAMP POA&M Template columns
+      ws.columns = [
+        { header: "POA&M ID", key: "poamId", width: 18 },
+        { header: "Controls", key: "controls", width: 15 },
+        { header: "Weakness Name", key: "weaknessName", width: 35 },
+        { header: "Weakness Description", key: "weaknessDescription", width: 45 },
+        { header: "Weakness Detector Source", key: "weaknessDetectorSource", width: 22 },
+        { header: "Weakness Source Identifier", key: "weaknessSourceIdentifier", width: 22 },
+        { header: "Asset Identifier", key: "assetIdentifier", width: 25 },
+        { header: "Point of Contact", key: "pointOfContact", width: 20 },
+        { header: "Resources Required", key: "resourcesRequired", width: 20 },
+        { header: "Overall Remediation Plan", key: "remediationPlan", width: 40 },
+        { header: "Original Detection Date", key: "originalDetectionDate", width: 20 },
+        { header: "Scheduled Completion Date", key: "scheduledCompletionDate", width: 22 },
+        { header: "Planned Milestones", key: "milestones", width: 30 },
+        { header: "Milestone Changes", key: "milestoneChanges", width: 25 },
+        { header: "Status Date", key: "statusDate", width: 15 },
+        { header: "Vendor Dependency", key: "vendorDependency", width: 18 },
+        { header: "Vendor Dependent Product Name", key: "vendorDependentProductName", width: 28 },
+        { header: "Original Risk Rating", key: "originalRiskRating", width: 18 },
+        { header: "Adjusted Risk Rating", key: "severity", width: 18 },
+        { header: "Risk Adjustment", key: "riskDecision", width: 18 },
+        { header: "False Positive", key: "falsePositive", width: 14 },
+        { header: "Operational Requirement", key: "operationalRequirement", width: 22 },
+        { header: "Deviation Request", key: "deviationRequest", width: 20 },
+        { header: "Supporting Documents", key: "supportingDocuments", width: 22 },
+        { header: "Comments", key: "comments", width: 35 },
+        { header: "Auto-Approval Status", key: "status", width: 18 },
+      ];
+
+      // Style header row
+      const headerRow = ws.getRow(1);
+      headerRow.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 10 };
+      headerRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1F4E79" } };
+      headerRow.alignment = { vertical: "middle", wrapText: true };
+      headerRow.height = 35;
+
+      for (const entry of entries) {
+        ws.addRow({
+          poamId: entry.poamId,
+          controls: entry.controls || "",
+          weaknessName: entry.weaknessName,
+          weaknessDescription: entry.weaknessDescription || "",
+          weaknessDetectorSource: entry.weaknessDetectorSource || "",
+          weaknessSourceIdentifier: entry.weaknessSourceIdentifier || "",
+          assetIdentifier: entry.assetIdentifier || "",
+          pointOfContact: entry.pointOfContact || "",
+          resourcesRequired: entry.resourcesRequired || "",
+          remediationPlan: entry.remediationPlan || "",
+          originalDetectionDate: entry.originalDetectionDate || "",
+          scheduledCompletionDate: entry.scheduledCompletionDate || "",
+          milestones: entry.milestones || "",
+          milestoneChanges: "",
+          statusDate: entry.statusDate ? new Date(entry.statusDate).toLocaleDateString() : "",
+          vendorDependency: entry.vendorDependency ? "Yes" : "No",
+          vendorDependentProductName: entry.vendorDependentProductName || "",
+          originalRiskRating: entry.originalRiskRating || "",
+          severity: entry.severity || "",
+          riskDecision: entry.riskDecision || "",
+          falsePositive: "",
+          operationalRequirement: "",
+          deviationRequest: "",
+          supportingDocuments: "",
+          comments: entry.comments || "",
+          status: entry.status || "",
+        });
+      }
+
+      // Alternate row colors
+      ws.eachRow((row, rowNum) => {
+        if (rowNum > 1) {
+          row.alignment = { vertical: "top", wrapText: true };
+          if (rowNum % 2 === 0) {
+            row.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF2F2F2" } };
+          }
+        }
+      });
+
+      // Add borders
+      ws.eachRow(row => {
+        row.eachCell(cell => {
+          cell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
+        });
+      });
+
+      const buffer = await wb.xlsx.writeBuffer();
+      const base64 = Buffer.from(buffer as ArrayBuffer).toString("base64");
+      return { base64, filename: `FedRAMP-POAM-${new Date().toISOString().split("T")[0]}.xlsx`, count: entries.length };
     }),
+
+  availableReports: protectedProcedure.query(async () => {
+    const db = await requireDb();
+    return db.select({ id: engagements.id, name: engagements.name, customerName: engagements.customerName,
+      engagementType: engagements.engagementType, status: engagements.status })
+      .from(engagements).orderBy(desc(engagements.createdAt)).limit(50);
+  }),
 });

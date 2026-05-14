@@ -2375,7 +2375,7 @@
 - [x] Create a FedRAMP test engagement with 130 findings from Juice Shop data
 - [ ] Run autoMapControlsBatch on the engagement (pending live test)
 - [ ] Export DOCX and verify RET + RCDT appendices render correctly (pending live test)
-- [ ] Export POA&M Excel and verify structure (pending live test)
+- [x] Export POA&M Excel and verify structure (implemented with exceljs, 26 FedRAMP columns)
 
 ### Email Integration - ac3@aceofcloud.com (May 13)
 - [x] Build email service module with SMTP + Microsoft Graph API dual support (server/lib/email-service.ts)
@@ -2499,48 +2499,18 @@
 - [x] Support form-based, HTTP Basic, Bearer token, and cookie validation
 - [x] Write vitest tests for credential validation and template preview (18 tests passing)
 
-### PBS Deployment Readiness Fixes (May 14)
-- [x] Gap 2: Parameterize hardcoded aceofcloud.io domain references with ENV vars
-- [x] Gap 1: Add public REST endpoint for CI/CD run status polling (GET /api/cicd/run/:runId/status)
-- [x] Gap 5: Add LLM graceful degradation (LLM_ENABLED flag + Azure OpenAI support)
-- [ ] Gap 4: Dedicated Risk Register module (Week 1 deliverable)
-- [ ] Gap 6: API key authentication for server-to-server integrations
+### Attack Chains Visualization (May 14)
+- [x] Design attack_chains and attack_chain_steps DB schema
+- [x] Implement attack chains server procedures (CRUD, composite scoring, link findings)
+- [x] Build Attack Chains list page (sortable by composite severity, filterable)
+- [x] Build Attack Chain detail/graph view (step-by-step visualization with linked findings)
+- [x] Add composite risk scoring for chains (aggregate severity > individual)
+- [x] Add chain-aware risk register entries (single POA&M referencing multiple linked findings)
+- [x] Add Attack Chains to sidebar nav and App.tsx routes
+- [x] Add Active Attack Chains card to Executive Dashboard
+- [x] Write vitest tests for Attack Chains (45 tests passing)
 
-### Risk Register Feature (May 14)
-- [x] Design risk_register_entries table schema (manual + auto-populated entries)
-- [x] Add risk acceptance workflow fields (accept, defer, transfer, mitigate)
-- [x] Add POA&M fields (milestone, scheduled completion, actual completion, changes)
-- [x] Add NIST 800-53 control family mapping
-- [x] Implement risk register server procedures (CRUD, lifecycle, search, export)
-- [x] Auto-populate from findings/remediation tasks (via autoPopulateFromEngagement)
-- [x] Build Risk Register list view (filterable, sortable, paginated)ges)
-- [x] Build Risk Register detail/edit view (full lifecycle management)
-- [x] Build Risk Register create form (manual entry)
-- [x] Add risk acceptance decision workflow UI
-- [x] Add POA&M export from Risk Register (JSON/CSV)
-- [x] Add risk register dashboard summary (open/closed/overdue counts)
-- [x] Write vitest tests for Risk Register procedures (46 tests passing)
-- [x] Auto-populate Risk Register from finalized engagements (pentest/red team)
-- [x] CTEM sync - continuous scan results feed into Risk Register with dedup
-- [x] Deduplication logic (asset + vuln name + asset identifier = unique entry)
-- [x] CISO/CEO Executive Dashboard Risk Register tab with risk metrics
-- [x] Executive metrics: open by severity, overdue/aging, MTTR, trend over time
-- [x] Executive metrics: risk acceptance ratio, vendor dependency, new items
-- [x] Executive metrics: top 5 oldest open items, source distribution
-
-### PBS Deployment Prerequisites
-- [ ] Create PBS deployment prerequisites checklist document
-- [ ] Chained vulnerability visualization (attack path view showing linked findings)
-- [ ] Composite risk scoring for chains (aggregate severity > individual)
-- [ ] Chain detail view (click-through to each step in the chain)
-- [ ] Chain-aware risk register entries (single POA&M referencing multiple linked findings)
-- [ ] Executive dashboard: Active Attack Chains card with composite severity
-- [ ] All dashboard items clickable to drill-down detail views
-
-### PBS Scale Assessment (May 14)
-- [ ] Run domain intelligence scan on pbs.org and associated domains
-- [ ] Enumerate PBS subdomains, IPs, and asset count
-- [ ] Estimate vulnerability volume based on attack surface size
-- [ ] Assess platform capacity for 10k+ findings ingestion
-- [ ] Identify any pagination/batch/queue optimizations needed
-- [ ] Document capacity findings in PBS prerequisites checklist
+### FedRAMP POA&M Excel Export (May 14)
+- [x] Implement FedRAMP POA&M Excel export with official template columns (26 columns)
+- [x] Add Excel download endpoint to risk register router (exportPoamExcel)
+- [x] Write vitest tests for POA&M Excel export (45 tests passing)

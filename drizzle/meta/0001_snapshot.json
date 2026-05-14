@@ -1,7 +1,7 @@
 {
   "version": "5",
   "dialect": "mysql",
-  "id": "ddf249dd-65c6-46de-8e16-b43c6b94eb76",
+  "id": "ec1625d6-64b6-4349-9153-3aa9dd04af04",
   "prevId": "8eb3e773-8506-454d-9b08-313a0155a71c",
   "tables": {
     "ability_graph_edges": {
@@ -41912,36 +41912,15 @@
           "notNull": true,
           "autoincrement": false
         },
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "int",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "action": {
           "name": "action",
-          "type": "varchar(64)",
+          "type": "varchar(128)",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
-        "field": {
-          "name": "field",
-          "type": "varchar(128)",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "previous_value": {
-          "name": "previous_value",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "new_value": {
-          "name": "new_value",
+        "details": {
+          "name": "details",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -41949,21 +41928,7 @@
         },
         "performed_by": {
           "name": "performed_by",
-          "type": "int",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "performed_by_name": {
-          "name": "performed_by_name",
           "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "notes": {
-          "name": "notes",
-          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
@@ -41972,9 +41937,9 @@
           "name": "created_at",
           "type": "timestamp",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false,
-          "default": "(now())"
+          "default": "'CURRENT_TIMESTAMP'"
         }
       },
       "indexes": {
@@ -41984,38 +41949,10 @@
             "entry_id"
           ],
           "isUnique": false
-        },
-        "rral_tenant_idx": {
-          "name": "rral_tenant_idx",
-          "columns": [
-            "tenant_id"
-          ],
-          "isUnique": false
-        },
-        "rral_action_idx": {
-          "name": "rral_action_idx",
-          "columns": [
-            "action"
-          ],
-          "isUnique": false
-        },
-        "rral_created_at_idx": {
-          "name": "rral_created_at_idx",
-          "columns": [
-            "created_at"
-          ],
-          "isUnique": false
         }
       },
       "foreignKeys": {},
-      "compositePrimaryKeys": {
-        "risk_register_activity_log_id": {
-          "name": "risk_register_activity_log_id",
-          "columns": [
-            "id"
-          ]
-        }
-      },
+      "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraint": {}
     },
@@ -42036,13 +41973,6 @@
           "notNull": true,
           "autoincrement": false
         },
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "int",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "file_name": {
           "name": "file_name",
           "type": "varchar(512)",
@@ -42057,44 +41987,16 @@
           "notNull": true,
           "autoincrement": false
         },
-        "file_key": {
-          "name": "file_key",
-          "type": "varchar(512)",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "mime_type": {
-          "name": "mime_type",
-          "type": "varchar(128)",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "file_size": {
-          "name": "file_size",
-          "type": "int",
+        "file_type": {
+          "name": "file_type",
+          "type": "varchar(64)",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
         "uploaded_by": {
           "name": "uploaded_by",
-          "type": "int",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "uploaded_by_name": {
-          "name": "uploaded_by_name",
           "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "description": {
-          "name": "description",
-          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
@@ -42103,9 +42005,9 @@
           "name": "created_at",
           "type": "timestamp",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false,
-          "default": "(now())"
+          "default": "'CURRENT_TIMESTAMP'"
         }
       },
       "indexes": {
@@ -42115,24 +42017,10 @@
             "entry_id"
           ],
           "isUnique": false
-        },
-        "rra_tenant_idx": {
-          "name": "rra_tenant_idx",
-          "columns": [
-            "tenant_id"
-          ],
-          "isUnique": false
         }
       },
       "foreignKeys": {},
-      "compositePrimaryKeys": {
-        "risk_register_attachments_id": {
-          "name": "risk_register_attachments_id",
-          "columns": [
-            "id"
-          ]
-        }
-      },
+      "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraint": {}
     },
@@ -42146,23 +42034,16 @@
           "notNull": true,
           "autoincrement": true
         },
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "int",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "poam_id": {
           "name": "poam_id",
-          "type": "varchar(64)",
+          "type": "varchar(32)",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
         "controls": {
           "name": "controls",
-          "type": "text",
+          "type": "varchar(512)",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
@@ -42183,7 +42064,7 @@
         },
         "weakness_detector_source": {
           "name": "weakness_detector_source",
-          "type": "varchar(255)",
+          "type": "varchar(128)",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
@@ -42197,7 +42078,7 @@
         },
         "asset_identifier": {
           "name": "asset_identifier",
-          "type": "text",
+          "type": "varchar(512)",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
@@ -42244,6 +42125,20 @@
           "notNull": false,
           "autoincrement": false
         },
+        "milestones": {
+          "name": "milestones",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "milestone_changes": {
+          "name": "milestone_changes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "status_date": {
           "name": "status_date",
           "type": "timestamp",
@@ -42253,11 +42148,11 @@
         },
         "vendor_dependency": {
           "name": "vendor_dependency",
-          "type": "varchar(10)",
+          "type": "tinyint",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
-          "default": "'No'"
+          "default": 0
         },
         "last_vendor_checkin_date": {
           "name": "last_vendor_checkin_date",
@@ -42275,41 +42170,41 @@
         },
         "original_risk_rating": {
           "name": "original_risk_rating",
-          "type": "varchar(32)",
+          "type": "enum('critical','high','moderate','low','informational')",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'moderate'"
         },
         "adjusted_risk_rating": {
           "name": "adjusted_risk_rating",
-          "type": "varchar(32)",
+          "type": "enum('critical','high','moderate','low','informational')",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
         "risk_adjustment": {
           "name": "risk_adjustment",
-          "type": "varchar(32)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
-          "autoincrement": false,
-          "default": "'No'"
+          "autoincrement": false
         },
         "false_positive": {
           "name": "false_positive",
-          "type": "varchar(10)",
+          "type": "tinyint",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
-          "default": "'No'"
+          "default": 0
         },
         "operational_requirement": {
           "name": "operational_requirement",
-          "type": "varchar(10)",
+          "type": "tinyint",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
-          "default": "'No'"
+          "default": 0
         },
         "deviation_rationale": {
           "name": "deviation_rationale",
@@ -42332,96 +42227,54 @@
           "notNull": false,
           "autoincrement": false
         },
-        "bod_22_01_tracking": {
-          "name": "bod_22_01_tracking",
-          "type": "varchar(10)",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": "'No'"
-        },
-        "bod_22_01_due_date": {
-          "name": "bod_22_01_due_date",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "cve": {
-          "name": "cve",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "status": {
           "name": "status",
-          "type": "varchar(32)",
+          "type": "enum('open','in_progress','closed','risk_accepted','deferred','vendor_dependent')",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
           "default": "'open'"
         },
-        "category": {
-          "name": "category",
-          "type": "varchar(64)",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": "'vulnerability'"
-        },
         "severity": {
           "name": "severity",
-          "type": "varchar(32)",
+          "type": "enum('critical','high','moderate','low','informational')",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'moderate'"
         },
-        "cvss_score": {
-          "name": "cvss_score",
-          "type": "varchar(10)",
+        "source": {
+          "name": "source",
+          "type": "enum('manual','engagement','ctem_scan','vulnerability_scan','pentest','red_team','bug_bounty')",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "source_type": {
-          "name": "source_type",
-          "type": "varchar(32)",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "source_finding_id": {
-          "name": "source_finding_id",
-          "type": "int",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "source_remediation_id": {
-          "name": "source_remediation_id",
-          "type": "int",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'manual'"
         },
         "source_engagement_id": {
           "name": "source_engagement_id",
-          "type": "varchar(128)",
+          "type": "int",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
-        "source_cicd_run_id": {
-          "name": "source_cicd_run_id",
+        "source_scan_id": {
+          "name": "source_scan_id",
           "type": "int",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "attack_chain_id": {
+          "name": "attack_chain_id",
+          "type": "varchar(100)",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
         "risk_decision": {
           "name": "risk_decision",
-          "type": "varchar(32)",
+          "type": "enum('mitigate','accept','transfer','defer','avoid')",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
@@ -42447,57 +42300,8 @@
           "notNull": false,
           "autoincrement": false
         },
-        "risk_acceptance_expires_at": {
-          "name": "risk_acceptance_expires_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "compensating_controls": {
-          "name": "compensating_controls",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "milestones": {
-          "name": "milestones",
-          "type": "json",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "milestone_changes": {
-          "name": "milestone_changes",
-          "type": "json",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "impact_level": {
-          "name": "impact_level",
-          "type": "varchar(32)",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "cso_name": {
-          "name": "cso_name",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "created_by": {
           "name": "created_by",
-          "type": "int",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "updated_by": {
-          "name": "updated_by",
           "type": "int",
           "primaryKey": false,
           "notNull": false,
@@ -42507,100 +42311,59 @@
           "name": "created_at",
           "type": "timestamp",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false,
-          "default": "(now())"
+          "default": "'CURRENT_TIMESTAMP'"
         },
         "updated_at": {
           "name": "updated_at",
           "type": "timestamp",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false,
+          "onUpdate": true,
           "default": "(now())"
-        },
-        "closed_at": {
-          "name": "closed_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
         }
       },
       "indexes": {
-        "rr_tenant_idx": {
-          "name": "rr_tenant_idx",
-          "columns": [
-            "tenant_id"
-          ],
-          "isUnique": false
-        },
-        "rr_status_idx": {
-          "name": "rr_status_idx",
-          "columns": [
-            "status"
-          ],
-          "isUnique": false
-        },
-        "rr_poam_id_idx": {
-          "name": "rr_poam_id_idx",
+        "rre_poam_idx": {
+          "name": "rre_poam_idx",
           "columns": [
             "poam_id"
           ],
           "isUnique": false
         },
-        "rr_severity_idx": {
-          "name": "rr_severity_idx",
+        "rre_status_idx": {
+          "name": "rre_status_idx",
+          "columns": [
+            "status"
+          ],
+          "isUnique": false
+        },
+        "rre_severity_idx": {
+          "name": "rre_severity_idx",
           "columns": [
             "severity"
           ],
           "isUnique": false
         },
-        "rr_category_idx": {
-          "name": "rr_category_idx",
+        "rre_source_idx": {
+          "name": "rre_source_idx",
           "columns": [
-            "category"
+            "source"
           ],
           "isUnique": false
         },
-        "rr_source_finding_idx": {
-          "name": "rr_source_finding_idx",
+        "rre_attack_chain_idx": {
+          "name": "rre_attack_chain_idx",
           "columns": [
-            "source_finding_id"
-          ],
-          "isUnique": false
-        },
-        "rr_scheduled_completion_idx": {
-          "name": "rr_scheduled_completion_idx",
-          "columns": [
-            "scheduled_completion_date"
-          ],
-          "isUnique": false
-        },
-        "rr_risk_decision_idx": {
-          "name": "rr_risk_decision_idx",
-          "columns": [
-            "risk_decision"
-          ],
-          "isUnique": false
-        },
-        "rr_created_at_idx": {
-          "name": "rr_created_at_idx",
-          "columns": [
-            "created_at"
+            "attack_chain_id"
           ],
           "isUnique": false
         }
       },
       "foreignKeys": {},
-      "compositePrimaryKeys": {
-        "risk_register_entries_id": {
-          "name": "risk_register_entries_id",
-          "columns": [
-            "id"
-          ]
-        }
-      },
+      "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraint": {}
     },
@@ -52765,6 +52528,311 @@
         }
       },
       "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "vuln_attack_chain_steps": {
+      "name": "vuln_attack_chain_steps",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "chain_id": {
+          "name": "chain_id",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "step_order": {
+          "name": "step_order",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "title": {
+          "name": "title",
+          "type": "varchar(512)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "finding_type": {
+          "name": "finding_type",
+          "type": "enum('vulnerability','misconfiguration','credential','exposure','social_engineering','privilege_escalation','lateral_movement','data_access')",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'vulnerability'"
+        },
+        "severity": {
+          "name": "severity",
+          "type": "enum('critical','high','moderate','low','informational')",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'moderate'"
+        },
+        "cve_id": {
+          "name": "cve_id",
+          "type": "varchar(32)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "cwe_id": {
+          "name": "cwe_id",
+          "type": "varchar(32)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "affected_asset": {
+          "name": "affected_asset",
+          "type": "varchar(512)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "mitre_technique": {
+          "name": "mitre_technique",
+          "type": "varchar(32)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "mitre_tactic": {
+          "name": "mitre_tactic",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "evidence": {
+          "name": "evidence",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "source_finding_id": {
+          "name": "source_finding_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "source_table": {
+          "name": "source_table",
+          "type": "varchar(128)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'CURRENT_TIMESTAMP'"
+        }
+      },
+      "indexes": {
+        "vacs_chain_idx": {
+          "name": "vacs_chain_idx",
+          "columns": [
+            "chain_id"
+          ],
+          "isUnique": false
+        },
+        "vacs_order_idx": {
+          "name": "vacs_order_idx",
+          "columns": [
+            "chain_id",
+            "step_order"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "vuln_attack_chains": {
+      "name": "vuln_attack_chains",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "chain_id": {
+          "name": "chain_id",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(512)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "composite_risk_score": {
+          "name": "composite_risk_score",
+          "type": "double",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "composite_severity": {
+          "name": "composite_severity",
+          "type": "enum('critical','high','moderate','low','informational')",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'moderate'"
+        },
+        "entry_point": {
+          "name": "entry_point",
+          "type": "varchar(512)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "final_target": {
+          "name": "final_target",
+          "type": "varchar(512)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "impact_description": {
+          "name": "impact_description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "mitre_techniques": {
+          "name": "mitre_techniques",
+          "type": "json",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "kill_chain_phases": {
+          "name": "kill_chain_phases",
+          "type": "json",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "enum('active','mitigated','accepted','investigating')",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'active'"
+        },
+        "engagement_id": {
+          "name": "engagement_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "source_type": {
+          "name": "source_type",
+          "type": "enum('manual','auto_correlated','pentest','red_team','ctem')",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'manual'"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'CURRENT_TIMESTAMP'"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "onUpdate": true,
+          "default": "(now())"
+        }
+      },
+      "indexes": {
+        "vac_chain_id_idx": {
+          "name": "vac_chain_id_idx",
+          "columns": [
+            "chain_id"
+          ],
+          "isUnique": false
+        },
+        "vac_severity_idx": {
+          "name": "vac_severity_idx",
+          "columns": [
+            "composite_severity"
+          ],
+          "isUnique": false
+        },
+        "vac_status_idx": {
+          "name": "vac_status_idx",
+          "columns": [
+            "status"
+          ],
+          "isUnique": false
+        },
+        "vac_engagement_idx": {
+          "name": "vac_engagement_idx",
+          "columns": [
+            "engagement_id"
+          ],
+          "isUnique": false
+        }
+      },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},

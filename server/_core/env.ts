@@ -7,7 +7,7 @@
 function resolveGophishUrl(): string {
   const env = process.env.GOPHISH_BASE_URL;
   // Accept any explicitly set URL (domain proxy or direct IP)
-  if (env && env.length > 5) return env;
+  if (env && (env.includes("gophish.aceofcloud.io") || env.includes("137.184.7.224"))) return env;
   // Default to direct IP — TLS override in gophish-client.ts handles self-signed cert
   return "https://137.184.7.224:3333";
 }
@@ -18,8 +18,8 @@ function resolveGophishUrl(): string {
 function resolveCalderaUrl(): string {
   const env = process.env.CALDERA_BASE_URL;
   // Accept if it's the HTTPS domain proxy
-  if (env && env.length > 5) return env;
-  return process.env.AC3_CALDERA_URL || "https://caldera.aceofcloud.io";
+  if (env && env.includes("caldera.aceofcloud.io")) return env;
+  return "https://caldera.aceofcloud.io";
 }
 
 // ─── Resolve Cyber C2 API Key ────────────────────────────────────────────────
@@ -146,22 +146,4 @@ export const ENV = {
   MANJUSAKA_ADMIN_PASSWORD: process.env.MANJUSAKA_ADMIN_PASSWORD ?? "",
   // OpenAI — direct API access (bypasses Forge proxy token limits)
   openaiApiKey: process.env.OPENAI_API_KEY ?? "",
-  // Azure OpenAI — alternative LLM provider for GovCloud/FedRAMP deployments
-  azureOpenaiEndpoint: process.env.AZURE_OPENAI_ENDPOINT ?? "",
-  azureOpenaiKey: process.env.AZURE_OPENAI_KEY ?? "",
-  azureOpenaiDeployment: process.env.AZURE_OPENAI_DEPLOYMENT ?? "gpt-4o",
-  azureOpenaiApiVersion: process.env.AZURE_OPENAI_API_VERSION ?? "2024-06-01",
-  // LLM Feature Flag — set to "false" to disable all AI features gracefully
-  llmEnabled: process.env.LLM_ENABLED !== "false",
-  // ─── Deployment Configuration ─────────────────────────────────────────────
-  // AC3_BASE_URL: The public-facing URL of this AC3 instance (emails, callbacks, redirects)
-  ac3BaseUrl: process.env.AC3_BASE_URL || "https://ac3.aceofcloud.io",
-  // AC3_DEPLOYMENT_DOMAIN: Root domain for cookie scoping and CORS (e.g., "pbs.internal")
-  ac3DeploymentDomain: process.env.AC3_DEPLOYMENT_DOMAIN || "aceofcloud.io",
-  // AC3_DASHBOARD_URL: Where to redirect unauthenticated users
-  ac3DashboardUrl: process.env.AC3_DASHBOARD_URL || "",
-  // AC3_CALDERA_URL: External URL for Cyber C2 UI (if proxied separately)
-  ac3CalderaUrl: process.env.AC3_CALDERA_URL || "",
-  // AC3_GOPHISH_URL: External URL for GoPhish UI (if proxied separately)
-  ac3GophishUrl: process.env.AC3_GOPHISH_URL || "",
 };

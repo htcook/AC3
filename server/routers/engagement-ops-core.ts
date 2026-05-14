@@ -1,4 +1,3 @@
-import { ENV } from "../_core/env";
 import { TRPCError } from "@trpc/server";
 import { protectedProcedure, router } from "../_core/trpc";
 import { z } from "zod";
@@ -192,7 +191,7 @@ export const engagementOpsRouter = router({
         // Auto-detect training lab from target domain (aceofcloud.io lab infrastructure)
         if (state.trainingLabMode === undefined) {
           const domain = engagement.targetDomain || '';
-          if (domain.includes(ENV.ac3DeploymentDomain) || domain.includes('aceofcloud.io') || domain.includes('aceofcloud.com')) {
+          if (domain.includes('aceofcloud.io') || domain.includes('aceofcloud.com')) {
             state.trainingLabMode = true;
             console.log(`[EngOps] Training lab auto-detected for #${input.engagementId} (domain: ${domain})`);
           }

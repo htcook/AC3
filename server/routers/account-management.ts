@@ -1,4 +1,3 @@
-import { ENV } from "../_core/env";
 import * as db from "../db";
 /**
  * Account Management Router
@@ -303,7 +302,7 @@ export const accountRouter = router({
       // Send invitation email
       let emailSent = false;
       if (isEmailConfigured()) {
-        const baseUrl = process.env.AC3_BASE_URL || ENV.ac3BaseUrl;
+        const baseUrl = process.env.AC3_BASE_URL || "https://ac3.aceofcloud.io";
         const emailContent = teamInviteEmail({
           recipientEmail: input.email,
           inviterName: ctx.user!.name || "Admin",
@@ -440,7 +439,7 @@ export const accountRouter = router({
 
       // Send activation confirmation to the new user
       if (isEmailConfigured()) {
-        const baseUrl = process.env.AC3_BASE_URL || ENV.ac3BaseUrl;
+        const baseUrl = process.env.AC3_BASE_URL || "https://ac3.aceofcloud.io";
         const activationEmail = accountActivatedEmail({
           recipientEmail: invite.email,
           recipientName: ctx.user!.name || invite.email,
@@ -507,7 +506,7 @@ export const accountRouter = router({
       // Resend invitation email
       let emailSent = false;
       if (isEmailConfigured()) {
-        const baseUrl = process.env.AC3_BASE_URL || ENV.ac3BaseUrl;
+        const baseUrl = process.env.AC3_BASE_URL || "https://ac3.aceofcloud.io";
         const emailContent = teamInviteEmail({
           recipientEmail: invite.email,
           inviterName: ctx.user!.name || "Admin",
@@ -617,7 +616,7 @@ export const accountRouter = router({
       return {
         configured: false,
         provider: process.env.EMAIL_PROVIDER || "smtp",
-        from: process.env.EMAIL_FROM || "noreply@" + ENV.ac3DeploymentDomain,
+        from: process.env.EMAIL_FROM || "ac3@aceofcloud.com",
         verified: false,
         error: "Email credentials not configured. Set SMTP_PASSWORD (for SMTP) or AZURE_TENANT_ID/AZURE_CLIENT_ID/AZURE_CLIENT_SECRET (for Graph API).",
       };
@@ -627,7 +626,7 @@ export const accountRouter = router({
     return {
       configured: true,
       provider: verification.provider,
-      from: process.env.EMAIL_FROM || "noreply@" + ENV.ac3DeploymentDomain,
+      from: process.env.EMAIL_FROM || "ac3@aceofcloud.com",
       verified: verification.ok,
       error: verification.error,
     };
@@ -651,13 +650,13 @@ export const accountRouter = router({
           <h2 style="color: #0ea5e9;">AC3 Email Configuration Test</h2>
           <p>This is a test email from the AC3 platform to verify that email sending is working correctly.</p>
           <p><strong>Provider:</strong> ${process.env.EMAIL_PROVIDER || "smtp"}</p>
-          <p><strong>From:</strong> ${process.env.EMAIL_FROM || "noreply@" + ENV.ac3DeploymentDomain}</p>
+          <p><strong>From:</strong> ${process.env.EMAIL_FROM || "ac3@aceofcloud.com"}</p>
           <p><strong>Sent by:</strong> ${ctx.user!.name || ctx.user!.email || "Admin"}</p>
           <p><strong>Timestamp:</strong> ${new Date().toUTCString()}</p>
           <hr style="border: 1px solid #334155; margin: 24px 0;">
           <p style="color: #94a3b8; font-size: 12px;">AceofCloud — AC3 Platform</p>
         </div>`,
-        text: `AC3 Email Configuration Test\n\nProvider: ${process.env.EMAIL_PROVIDER || "smtp"}\nFrom: ${process.env.EMAIL_FROM || "noreply@" + ENV.ac3DeploymentDomain}\nSent by: ${ctx.user!.name || "Admin"}\nTimestamp: ${new Date().toUTCString()}`,
+        text: `AC3 Email Configuration Test\n\nProvider: ${process.env.EMAIL_PROVIDER || "smtp"}\nFrom: ${process.env.EMAIL_FROM || "ac3@aceofcloud.com"}\nSent by: ${ctx.user!.name || "Admin"}\nTimestamp: ${new Date().toUTCString()}`,
       });
 
       if (!result.success) {
@@ -701,7 +700,7 @@ export const accountRouter = router({
         return { success: false, error: "No admin users found" };
       }
 
-      const baseUrl = process.env.AC3_BASE_URL || ENV.ac3BaseUrl;
+      const baseUrl = process.env.AC3_BASE_URL || "https://ac3.aceofcloud.io";
       const emailContent = securityAlertEmail({
         ...input,
         timestamp: new Date(),

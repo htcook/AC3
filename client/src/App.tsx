@@ -309,6 +309,9 @@ const RemediationTracking = lazyWithRetry(() => import("./pages/RemediationTrack
 const RiskRegister = lazyWithRetry(() => import("./pages/RiskRegister"));
 const RiskRegisterDetail = lazyWithRetry(() => import("./pages/RiskRegisterDetail"));
 const RiskRegisterNew = lazyWithRetry(() => import("./pages/RiskRegisterNew"));
+const AttackChains = lazyWithRetry(() => import("./pages/AttackChains"));
+const AttackChainDetail = lazyWithRetry(() => import("./pages/AttackChainDetail"));
+const AttackChainNew = lazyWithRetry(() => import("./pages/AttackChainNew"));
 const SafetyDashboard = lazyWithRetry(() => import("./pages/SafetyDashboard"));
 const PipelineAudit = lazyWithRetry(() => import("./pages/PipelineAudit"));
 const AgentInternalScanning = lazyWithRetry(() => import("./pages/AgentInternalScanning"));
@@ -1205,14 +1208,23 @@ function Router() {
         <Route path="/remediation-tracking">
           <ProtectedRoute component={RemediationTracking} />
         </Route>
+        <Route path="/risk-register">
+          <ProtectedRoute component={RiskRegister} />
+        </Route>
         <Route path="/risk-register/new">
           <ProtectedRoute component={RiskRegisterNew} />
         </Route>
         <Route path="/risk-register/:id">
-          <ProtectedRoute component={RiskRegisterDetail} />
+          {(params: any) => <ProtectedRoute component={RiskRegisterDetail} />}
         </Route>
-        <Route path="/risk-register">
-          <ProtectedRoute component={RiskRegister} />
+        <Route path="/attack-chains">
+          <ProtectedRoute component={AttackChains} />
+        </Route>
+        <Route path="/attack-chains/new">
+          <ProtectedRoute component={AttackChainNew} />
+        </Route>
+        <Route path="/attack-chains/:id">
+          {(params: any) => <ProtectedRoute component={AttackChainDetail} />}
         </Route>
         <Route path="/safety-dashboard">
           <ProtectedRoute component={SafetyDashboard} />

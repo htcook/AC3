@@ -48,12 +48,12 @@ interface EmailConfig {
 function getEmailConfig(): EmailConfig {
   return {
     provider: (process.env.EMAIL_PROVIDER as "smtp" | "graph") || "smtp",
-    from: process.env.EMAIL_FROM || `noreply@${process.env.AC3_DEPLOYMENT_DOMAIN || "aceofcloud.io"}`,
+    from: process.env.EMAIL_FROM || "ac3@aceofcloud.com",
     fromName: process.env.EMAIL_FROM_NAME || "AC3 Platform",
     smtp: {
       host: process.env.SMTP_HOST || "smtp.office365.com",
       port: parseInt(process.env.SMTP_PORT || "587", 10),
-      user: process.env.SMTP_USER || process.env.EMAIL_FROM || `noreply@${process.env.AC3_DEPLOYMENT_DOMAIN || "aceofcloud.io"}`,
+      user: process.env.SMTP_USER || process.env.EMAIL_FROM || "ac3@aceofcloud.com",
       password: process.env.SMTP_PASSWORD || "",
     },
     graph: {
