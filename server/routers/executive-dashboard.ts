@@ -345,6 +345,24 @@ export const executiveDashboardRouter = router({
     };
   }),
 
+  // ── Executive Threat Briefing — Dynamic Actor-to-Enterprise Matching ─────
+  threatBriefing: protectedProcedure
+    .input(z.object({
+      scanId: z.number().optional(),
+      sector: z.string().optional(),
+      limit: z.number().min(5).max(50).default(15),
+    }).optional())
+    .query(async ({ input }) => {
+      const { computeExecutiveThreatBriefing } = await import("../lib/executive-threat-briefing");
+      return computeExecutiveThreatBriefing(input || {});
+    }),
+
+  // ── Scan list for briefing selector ─────────────────────────────────────
+  briefingScans: protectedProcedure.query(async () => {
+    const { getRecentScansForBriefing } = await import("../lib/executive-threat-briefing");
+    return getRecentScansForBriefing();
+  }),
+
   // ── Engagement Summary for Executives ────────────────────────────────────
   engagementSummary: protectedProcedure.query(async () => {
     const drizzleDb = await getDb();

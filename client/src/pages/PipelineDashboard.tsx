@@ -3,7 +3,7 @@ import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   Activity, RefreshCw, CheckCircle2, XCircle, Clock, AlertTriangle,
-  FileText, Shield, Zap, BookOpen, Network, Bug, Brain,
+  FileText, Shield, Zap, BookOpen, Network, Bug, Brain, Play,
   ChevronDown, ChevronUp, RotateCcw, History
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -51,9 +51,20 @@ export default function PipelineDashboard() {
   const [expandedPipeline, setExpandedPipeline] = useState<string | null>(null);
   const [auditPage, setAuditPage] = useState(0);
 
+  // Pipeline trigger mutation
+  const triggerPipeline = trpc.threatIntel.triggerPipeline.useMutation({
+    onSuccess: (data) => {
+      toast({ title: "Pipeline triggered", description: data.message });
+      pipelineStatus.refetch();
+    },
+    onError: (err) => {
+      toast({ title: "Trigger failed", description: err.message, variant: "destructive" });
+    },
+  });
+
   // Pipeline status queries
   const pipelineStatus = trpc.threatIntel.pipelineStatus.useQuery(undefined, {
-    refetchInterval: 15000,
+    refetchInterval: 5000,
   });
   const pipelineHistory = trpc.threatIntel.pipelineHistory.useQuery(
     { limit: 50 },
@@ -216,6 +227,22 @@ export default function PipelineDashboard() {
                       ) : (
                         <span className="text-xs text-zinc-600">Not yet run</span>
                       )}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 px-2 text-xs border-zinc-700 hover:border-blue-500/50 hover:text-blue-400"
+                        disabled={status?.running || triggerPipeline.isPending}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          triggerPipeline.mutate({ pipelineKey: pipeline.key as any });
+                        }}
+                      >
+                        {status?.running ? (
+                          <><RefreshCw className="h-3 w-3 mr-1 animate-spin" /> Running</>
+                        ) : (
+                          <><Play className="h-3 w-3 mr-1" /> Run Now</>
+                        )}
+                      </Button>
                       {isExpanded ? <ChevronUp className="h-4 w-4 text-zinc-500" /> : <ChevronDown className="h-4 w-4 text-zinc-500" />}
                     </div>
                   </div>

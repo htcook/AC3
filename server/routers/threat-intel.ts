@@ -1512,6 +1512,79 @@ export const threatIntelRouter = router({
       const { getPipelineHistory } = await import("../lib/llm-context-updater");
       return getPipelineHistory(input.pipelineName, input.limit);
     }),
+
+  // ─── Trigger Pipeline (manual run) ─────────────────────────────────────
+  triggerPipeline: protectedProcedure
+    .input(z.object({
+      pipelineKey: z.enum(["dfir-ingest", "ioc-ttp-mapping", "catalog-enrichment", "playbook-promotion", "graph-generation", "exploit-triage"]),
+    }))
+    .mutation(async ({ input }) => {
+      const { getPipelineStatus, markPipelineRunning } = await import("../lib/llm-context-updater");
+      const status = getPipelineStatus(input.pipelineKey);
+      if (status?.running) {
+        throw new TRPCError({ code: "CONFLICT", message: `Pipeline ${input.pipelineKey} is already running` });
+      }
+
+      // Map pipeline keys to their scheduled endpoint paths
+      const endpointMap: Record<string, string> = {
+        'dfir-ingest': '/api/scheduled/dfir-bulk-ingest',
+        'ioc-ttp-mapping': '/api/scheduled/ioc-ttp-mapping',
+        'catalog-enrichment': '/api/scheduled/catalog-enrichment',
+        'playbook-promotion': '/api/scheduled/playbook-promotion',
+        'graph-generation': '/api/scheduled/graph-generation',
+        'exploit-triage': '/api/scheduled/exploit-triage',
+      };
+
+      const endpoint = endpointMap[input.pipelineKey];
+      if (!endpoint) throw new TRPCError({ code: "BAD_REQUEST", message: "Unknown pipeline" });
+
+      // Fire-and-forget: call the local endpoint
+      markPipelineRunning(input.pipelineKey);
+      const port = process.env.PORT || 3000;
+      fetch(`http://localhost:${port}${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Cookie': `caldera_session=${process.env.CALDERA_INTERNAL_TOKEN || ''}` },
+        body: JSON.stringify({ triggeredBy: 'manual_dashboard' }),
+      }).catch(err => {
+        console.error(`[TriggerPipeline] Failed to call ${endpoint}:`, err.message);
+      });
+
+      return { triggered: true, pipelineKey: input.pipelineKey, message: `Pipeline ${input.pipelineKey} triggered successfully` };
+    }),
+
+  // ─── Force Refresh Actor LLM Context ───────────────────────────────────
+  refreshActorContext: protectedProcedure
+    .input(z.object({ actorId: z.string() }))
+    .mutation(async ({ input }) => {
+      const { refreshActorLLMContext } = await import("../lib/llm-context-updater");
+      const result = await refreshActorLLMContext(input.actorId);
+
+      // Also log to enrichment history
+      try {
+        const db = await getDb();
+        if (db) {
+          await db.insert(enrichmentHistory).values({
+            actorId: input.actorId,
+            actorName: input.actorId,
+            triggeredBy: 'manual_refresh',
+            fieldsUpdated: JSON.stringify(result.sourcesUsed),
+            fieldsDiscovered: [],
+            sourcesUsed: result.sourcesUsed,
+            summary: `Manual LLM context refresh: ${result.contextLength} tokens from ${result.sourcesUsed.length} sources (${result.sourcesUsed.join(', ')})`,
+            status: 'success',
+            durationMs: 0,
+          });
+        }
+      } catch (err: any) {
+        console.error('[RefreshActorContext] Failed to log:', err.message);
+      }
+
+      return {
+        success: true,
+        contextLength: result.contextLength,
+        sourcesUsed: result.sourcesUsed,
+      };
+    }),
 });
 // Helper: compute completeness percentage for an actor
 function computeCompleteness(actor: any): number {

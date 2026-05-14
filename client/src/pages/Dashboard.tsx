@@ -21,6 +21,7 @@ import { useDashboardEvents } from "@/hooks/useWebSocket";
 import { DashboardWidgetProvider, useDashboardWidgets } from "@/contexts/DashboardWidgetConfig";
 import { Settings2 } from "lucide-react";
 import TechniqueHeatmapWidget from "@/components/TechniqueHeatmapWidget";
+import ExecutiveThreatBriefing from "@/components/ExecutiveThreatBriefing";
 
 import { sanitizeErrorForToast } from "@/lib/error-sanitizer";
 const DEFAULT_SERVER = {
@@ -93,6 +94,7 @@ function DashboardInner() {
     caldera: true,
     gophish: false,
     threats: false,
+    threatBriefing: true,
     vulnFeed: false,
     operations: false,
   });
@@ -1281,6 +1283,24 @@ function DashboardInner() {
               </div>
             )}
           </div>
+          </SectionErrorBoundary>
+        </CollapsibleSection>
+        </>)}
+
+        {isVisible('threat-briefing') && (
+        <>
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        {/* EXECUTIVE THREAT BRIEFING — Actor-to-Enterprise Matching        */}
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        <CollapsibleSection
+          title="EXECUTIVE THREAT BRIEFING"
+          expanded={expandedSections.threatBriefing}
+          onToggle={() => toggleSection('threatBriefing')}
+          icon={<Brain className="w-4 h-4 text-blue-500" />}
+          badge={<span className="text-xs text-muted-foreground">Dynamic actor-to-enterprise matching based on OSINT, CARVER & recon</span>}
+        >
+          <SectionErrorBoundary sectionName="Executive Threat Briefing">
+            <ExecutiveThreatBriefing />
           </SectionErrorBoundary>
         </CollapsibleSection>
         </>)}

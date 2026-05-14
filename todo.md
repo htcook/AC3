@@ -2635,3 +2635,41 @@
 - [x] Playbook promotion → update emulation knowledge base for LLM graph generation
 - [x] Exploit triage → update exploit intelligence for LLM-assisted analysis
 - [x] Build updateLLMContext() helper (llm-context-updater.ts) that aggregates latest intel into LLM system prompts
+
+### Pipeline Trigger Buttons (May 14)
+- [x] Add triggerPipeline tRPC mutation to threat-intel router
+- [x] Add trigger buttons to each pipeline card in PipelineDashboard
+- [x] Show running/progress state after trigger
+- [x] Write vitest tests for trigger mutation
+
+### Force Context Refresh Per-Actor (May 14)
+- [x] Add refreshActorContext tRPC mutation to threat-intel router
+- [x] Add "Force Context Refresh" button to ThreatActorCatalogDetail and ThreatActorDetail pages
+- [x] Show loading state and success/failure feedback
+- [x] Write vitest tests for context refresh mutation
+
+### Scheduled Heartbeat Jobs (May 14)
+- [x] Read periodic-updates.md for heartbeat setup guidance
+- [x] Set up combined pipeline heartbeat schedule (all 6 pipelines, every 6 hours)
+- [x] DFIR ingest, IOC-TTP mapping, Catalog enrichment, Playbook promotion, Ability graph, Exploit triage
+- [x] Configured via manus-config schedule with sequential POST calls
+- [ ] Push updates to GitHub/AWS
+
+### Executive Dashboard - Threat Catalog Integration (May 14)
+- [x] Add threat landscape summary section (actor type breakdown, threat level distribution)
+- [x] Add top active threat actors widget with recent activity
+- [x] Add recent classification changes feed from audit log
+- [x] Add pipeline health status overview widget
+- [x] Add tRPC procedures for executive dashboard threat metrics
+- [x] Write vitest tests for executive dashboard procedures
+
+### Executive Threat Briefing - Actor-to-Enterprise Matching (May 14)
+- [x] Build executiveThreatBriefing tRPC procedure that dynamically matches actors to client based on sector, assets, CARVER, recon
+- [x] Cross-reference domain intel scan findings with actor TTPs and IOCs in real-time
+- [x] Factor CARVER criticality scoring into actor relevance ranking
+- [x] Support continuous monitoring: re-compute on every query from live scan/asset/CARVER data
+- [x] Build Executive Threat Briefing collapsible section on Dashboard with scan selector
+- [x] Show ranked threat actors with relevance scores, matched assets, attack vectors, and recommended actions
+- [x] Trend visualizations: event timeline (90d), actor activity momentum, top attack vectors
+- [x] CARVER profile visualization with threat likelihood bars
+- [x] Write vitest tests for executive threat briefing procedure (20 tests passing)

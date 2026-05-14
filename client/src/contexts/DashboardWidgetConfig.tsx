@@ -18,9 +18,10 @@ const DEFAULT_WIDGETS: WidgetConfig[] = [
   { id: 'server-status', label: 'Server Status', icon: 'Server', visible: true, pinned: false, order: 5 },
   { id: 'phishing-metrics', label: 'Phishing Metrics', icon: 'Fish', visible: true, pinned: false, order: 6 },
   { id: 'threat-awareness', label: 'Threat Awareness', icon: 'ShieldAlert', visible: true, pinned: false, order: 7 },
-  { id: 'vuln-feed', label: '0-Day Vulnerability Feed', icon: 'Flame', visible: true, pinned: false, order: 8 },
-  { id: 'more-tools', label: 'More Tools', icon: 'Grid3X3', visible: true, pinned: false, order: 9 },
-  { id: 'technique-heatmap', label: 'Technique Heatmap', icon: 'Grid3X3', visible: true, pinned: false, order: 10 },
+  { id: 'threat-briefing', label: 'Executive Threat Briefing', icon: 'Brain', visible: true, pinned: false, order: 8 },
+  { id: 'vuln-feed', label: '0-Day Vulnerability Feed', icon: 'Flame', visible: true, pinned: false, order: 9 },
+  { id: 'more-tools', label: 'More Tools', icon: 'Grid3X3', visible: true, pinned: false, order: 10 },
+  { id: 'technique-heatmap', label: 'Technique Heatmap', icon: 'Grid3X3', visible: true, pinned: false, order: 11 },
 ];
 
 const STORAGE_KEY = 'ac3-dashboard-widgets';

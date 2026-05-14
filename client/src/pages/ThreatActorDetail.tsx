@@ -138,6 +138,14 @@ export default function ThreatActorDetail() {
     onError: (err) => toast.error(`Enrichment failed: ${sanitizeErrorForToast(err)}`),
   });
 
+  const refreshContextMutation = trpc.threatIntel.refreshActorContext.useMutation({
+    onSuccess: (result) => {
+      toast.success(`LLM context refreshed: ${result.contextLength} tokens from ${result.sourcesUsed.length} sources`);
+      refetch();
+    },
+    onError: (err) => toast.error(`Context refresh failed: ${sanitizeErrorForToast(err)}`),
+  });
+
   const deployMutation = trpc.calderaProxy.createAdversary.useMutation({
     onSuccess: () => toast.success("Adversary profile deployed to emulation framework"),
     onError: (err) => toast.error(`Deploy failed: ${sanitizeErrorForToast(err)}`),
@@ -270,6 +278,16 @@ export default function ThreatActorDetail() {
             >
               {enrichMutation.isPending ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-1" />}
               Enrich with LLM
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10"
+              onClick={() => refreshContextMutation.mutate({ actorId })}
+              disabled={refreshContextMutation.isPending}
+            >
+              {refreshContextMutation.isPending ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Database className="w-4 h-4 mr-1" />}
+              Refresh Context
             </Button>
             <Button
               size="sm"

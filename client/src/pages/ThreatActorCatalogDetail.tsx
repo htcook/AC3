@@ -84,6 +84,25 @@ export default function ThreatActorCatalogDetail() {
     },
   });
 
+  const [refreshingContext, setRefreshingContext] = useState(false);
+  const refreshContextMutation = trpc.threatIntel.refreshActorContext.useMutation({
+    onSuccess: (result) => {
+      toast.success(`LLM context refreshed: ${result.contextLength} tokens from ${result.sourcesUsed.length} sources`);
+      setRefreshingContext(false);
+      refetch();
+    },
+    onError: (err) => {
+      toast.error(`Context refresh failed: ${sanitizeErrorForToast(err)}`);
+      setRefreshingContext(false);
+    },
+  });
+
+  const handleRefreshContext = () => {
+    if (!data?.actor) return;
+    setRefreshingContext(true);
+    refreshContextMutation.mutate({ actorId: data.actor.actorId });
+  };
+
   const handleEnrich = () => {
     if (!data?.actor) return;
     setEnriching(true);
@@ -255,6 +274,14 @@ export default function ThreatActorCatalogDetail() {
             >
               {enriching ? <Loader2 className="w-3 h-3 animate-spin" /> : <Brain className="w-3 h-3" />}
               LLM ENRICH
+            </button>
+            <button
+              onClick={handleRefreshContext}
+              disabled={refreshingContext}
+              className="flex items-center gap-2 px-3 py-2 bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-xs font-display tracking-wider hover:bg-cyan-500/20 transition-colors disabled:opacity-50"
+            >
+              {refreshingContext ? <Loader2 className="w-3 h-3 animate-spin" /> : <Database className="w-3 h-3" />}
+              REFRESH CONTEXT
             </button>
             <button
               onClick={() => refetch()}
