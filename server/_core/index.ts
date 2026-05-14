@@ -1229,6 +1229,104 @@ async function startServer() {
     }
   });
 
+  // ─── Scheduled Threat Actor Classification ─────────────────────────────
+  app.post('/api/scheduled/threat-actor-classify', async (req, res) => {
+    try {
+      let user: any = null;
+      try {
+        user = await scheduledSdk.authenticateRequest(req);
+      } catch { /* unauthenticated */ }
+      if (!user) {
+        const token = req.cookies?.['caldera_session'];
+        if (token) {
+          try {
+            const AUTH_SECRET = process.env.CALDERA_JWT_SECRET || 'caldera-dashboard-secret-key-2024';
+            const decoded = jwt.verify(token, AUTH_SECRET) as any;
+            if (decoded && decoded.accountId) user = { id: decoded.accountId, role: decoded.role || 'user' };
+          } catch { /* invalid */ }
+        }
+      }
+      if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+      const { getDb } = await import("../db");
+      const { threatActors } = await import("../../drizzle/schema");
+      const { eq, sql: sqlFn } = await import("drizzle-orm");
+      const { classifyBatch, resetProgress } = await import("../lib/threat-actor-classifier");
+      const db = await getDb();
+      if (!db) return res.status(500).json({ error: 'Database unavailable' });
+
+      const batchLimit = req.body?.batchLimit || 50;
+      const autoApplyThreshold = req.body?.autoApplyThreshold || 70;
+
+      const unknownActors = await db.select().from(threatActors)
+        .where(eq(threatActors.actorType, 'unknown'))
+        .limit(batchLimit);
+
+      if (unknownActors.length === 0) {
+        return res.json({ success: true, message: 'No unknown actors to classify', classified: 0, remaining: 0 });
+      }
+
+      const [{ count: totalRemaining }] = await db.select({ count: sqlFn`count(*)` })
+        .from(threatActors).where(eq(threatActors.actorType, 'unknown'));
+
+      function safeParseArr(v: any) {
+        if (Array.isArray(v)) return v;
+        if (typeof v === 'string') { try { const p = JSON.parse(v); return Array.isArray(p) ? p : []; } catch { return []; } }
+        return [];
+      }
+
+      const actorInputs = unknownActors.map((a: any) => ({
+        actorId: a.actorId, name: a.name, description: a.description,
+        aliases: safeParseArr(a.aliases), origin: a.origin, motivation: a.motivation,
+        targetSectors: safeParseArr(a.targetSectors), targetRegions: safeParseArr(a.targetRegions),
+        techniques: safeParseArr(a.techniques), tools: safeParseArr(a.tools),
+        malware: safeParseArr(a.malware), firstSeen: a.firstSeen,
+        lastActive: a.lastActive, sophistication: a.sophistication,
+      }));
+
+      resetProgress();
+      let applied = 0;
+
+      const result = await classifyBatch(actorInputs, {
+        batchSize: 10, delayMs: 1500, autoApplyThreshold,
+        onResult: async (classification) => {
+          if (classification.confidence >= autoApplyThreshold) {
+            try {
+              await db.update(threatActors)
+                .set({ actorType: classification.classifiedType })
+                .where(eq(threatActors.actorId, classification.actorId));
+              applied++;
+            } catch (err: any) {
+              console.error(`[ThreatClassify] Failed to apply ${classification.actorId}:`, err.message);
+            }
+          }
+        },
+      });
+
+      if (applied > 0) {
+        const { notifyOwner } = await import("./notification");
+        const typeCounts: Record<string, number> = {};
+        for (const r of result.results) { typeCounts[r.classifiedType] = (typeCounts[r.classifiedType] || 0) + 1; }
+        const breakdown = Object.entries(typeCounts).sort((a, b) => (b[1] as number) - (a[1] as number)).map(([t, c]) => `${t}: ${c}`).join(', ');
+        await notifyOwner({
+          title: `🧠 Threat Actor Classifier: ${applied} actors classified`,
+          content: `Batch: ${result.total} processed, ${result.succeeded} succeeded, ${applied} auto-applied (≥${autoApplyThreshold}% confidence).\nBreakdown: ${breakdown}\nRemaining unknown: ${Number(totalRemaining) - applied}`,
+        });
+      }
+
+      console.log(`[ThreatClassify] Scheduled run: ${result.succeeded}/${result.total} classified, ${applied} applied`);
+      return res.json({
+        success: true, timestamp: new Date().toISOString(),
+        total: result.total, succeeded: result.succeeded, failed: result.failed,
+        applied, remaining: Number(totalRemaining) - applied,
+        duration: ((result.completedAt! - result.startedAt!) / 1000).toFixed(1) + 's',
+      });
+    } catch (err: any) {
+      console.error('[ThreatClassify] Scheduled endpoint error:', err.message);
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
   // ─── Rate Limiting ────────────────────────────────────────────────────
   const { apiRateLimiter, trpcAuthRateLimiter } = await import("../lib/rate-limiter");
 

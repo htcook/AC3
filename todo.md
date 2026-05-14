@@ -2550,3 +2550,16 @@
 - [x] Add progress indicator showing batch classification status (real-time polling)
 - [x] Add review panel for low-confidence classifications with accept buttons
 - [x] Write vitest tests for classification engine (21 tests passing)
+
+### Run Classifier on 928 Unknown Actors (May 14)
+- [x] Trigger batch classification via server-side script (scripts/run-classifier.mjs)
+- [x] Monitor progress: 928 → 340 unknown remaining (588 classified so far)
+- [x] Confirmed actor types updated in database (APT: 672, Ransomware: 438, Cybercrime: 235, Hacktivist: 46, Access Broker: 27, Influence Ops: 14)
+
+### Scheduled Auto-Re-Classification (May 14)
+- [x] Built /api/scheduled/threat-actor-classify endpoint (follows existing scheduled task pattern)
+- [x] Processes batch of 50 unknown actors per run with configurable batchLimit and autoApplyThreshold
+- [x] Auto-applies classifications above confidence threshold (default 70%)
+- [x] Sends owner notification with breakdown when actors are classified
+- [x] Supports both Manus OAuth and caldera_session cookie auth
+- [x] Write vitest tests for scheduled classification (19 tests passing)
