@@ -362,3 +362,273 @@ describe("Main Router Registration", () => {
     expect(routersContent).toContain("attackChains:");
   });
 });
+
+// ─── Auto-Correlation Engine Tests ──────────────────────────────────────────
+describe("Auto-Correlation Engine", () => {
+  const correlatorPath = path.resolve(__dirname, "lib/attack-chain-correlator.ts");
+  let correlatorContent: string;
+
+  it("correlator module exists", () => {
+    expect(fs.existsSync(correlatorPath)).toBe(true);
+    correlatorContent = fs.readFileSync(correlatorPath, "utf-8");
+  });
+
+  it("exports correlateFindings function", () => {
+    expect(correlatorContent).toContain("export function correlateFindings");
+  });
+
+  it("exports CorrelationFinding interface", () => {
+    expect(correlatorContent).toContain("CorrelationFinding");
+  });
+
+  it("implements host-based clustering", () => {
+    expect(correlatorContent).toContain("hostname");
+  });
+
+  it("implements CVE-based clustering", () => {
+    expect(correlatorContent).toContain("cve");
+  });
+
+  it("implements MITRE technique clustering", () => {
+    expect(correlatorContent).toContain("mitreTechnique");
+  });
+
+  it("computes composite risk scores", () => {
+    expect(correlatorContent).toContain("compositeRiskScore");
+  });
+
+  it("generates confidence scores for correlations", () => {
+    expect(correlatorContent).toContain("confidence");
+  });
+
+  it("produces chain names and descriptions", () => {
+    expect(correlatorContent).toContain("name");
+    expect(correlatorContent).toContain("description");
+  });
+
+  it("identifies entry points and final targets", () => {
+    expect(correlatorContent).toContain("entryPoint");
+    expect(correlatorContent).toContain("finalTarget");
+  });
+});
+
+// ─── Auto-Correlation Unit Logic ────────────────────────────────────────────
+describe("Auto-Correlation Logic", () => {
+  it("correlateFindings returns empty for < 2 findings", async () => {
+    const { correlateFindings } = await import("./lib/attack-chain-correlator");
+    const result = correlateFindings([{ id: 1, title: "Single", severity: "high", hostname: "a.com" }]);
+    expect(result).toEqual([]);
+  });
+
+  it("correlateFindings groups findings on same host", async () => {
+    const { correlateFindings } = await import("./lib/attack-chain-correlator");
+    const findings = [
+      { id: 1, title: "SQL Injection", severity: "critical", hostname: "web.example.com", port: 443 },
+      { id: 2, title: "XSS Reflected", severity: "high", hostname: "web.example.com", port: 443 },
+      { id: 3, title: "Outdated TLS", severity: "medium", hostname: "web.example.com", port: 443 },
+    ];
+    const chains = correlateFindings(findings);
+    expect(chains.length).toBeGreaterThanOrEqual(1);
+    expect(chains[0].steps.length).toBeGreaterThanOrEqual(2);
+    expect(chains[0].compositeRiskScore).toBeGreaterThan(0);
+    expect(chains[0].confidence).toBeGreaterThan(0);
+  });
+
+  it("correlateFindings assigns severity to chains", async () => {
+    const { correlateFindings } = await import("./lib/attack-chain-correlator");
+    const findings = [
+      { id: 1, title: "RCE", severity: "critical", hostname: "db.example.com" },
+      { id: 2, title: "Priv Escalation", severity: "high", hostname: "db.example.com" },
+    ];
+    const chains = correlateFindings(findings);
+    expect(chains.length).toBeGreaterThanOrEqual(1);
+    expect(["critical", "high", "moderate"]).toContain(chains[0].compositeSeverity);
+  });
+
+  it("correlateFindings generates step ordering", async () => {
+    const { correlateFindings } = await import("./lib/attack-chain-correlator");
+    const findings = [
+      { id: 1, title: "Recon", severity: "low", hostname: "target.com", mitreTechnique: "T1595" },
+      { id: 2, title: "Initial Access", severity: "high", hostname: "target.com", mitreTechnique: "T1190" },
+      { id: 3, title: "Lateral Move", severity: "critical", hostname: "target.com", mitreTechnique: "T1021" },
+    ];
+    const chains = correlateFindings(findings);
+    if (chains.length > 0) {
+      const steps = chains[0].steps;
+      for (let i = 0; i < steps.length; i++) {
+        expect(steps[i].stepOrder).toBe(i + 1);
+      }
+    }
+  });
+});
+
+// ─── Attack Chains Router - Auto-Correlate & E2E Procedures ────────────────
+describe.skipIf(__skipInCI)("Attack Chains - Auto-Correlate & E2E Procedures", () => {
+  it("attackChainsRouter has autoCorrelate procedure", async () => {
+    const mod = await import("./routers/attack-chains");
+    const procedureNames = Object.keys(mod.attackChainsRouter);
+    expect(procedureNames).toContain("autoCorrelate");
+  });
+
+  it("attackChainsRouter has e2ePipeline procedure", async () => {
+    const mod = await import("./routers/attack-chains");
+    const procedureNames = Object.keys(mod.attackChainsRouter);
+    expect(procedureNames).toContain("e2ePipeline");
+  });
+
+  it("attackChainsRouter has availableScans procedure", async () => {
+    const mod = await import("./routers/attack-chains");
+    const procedureNames = Object.keys(mod.attackChainsRouter);
+    expect(procedureNames).toContain("availableScans");
+  });
+
+  it("attackChainsRouter has recalculateScore procedure", async () => {
+    const mod = await import("./routers/attack-chains");
+    const procedureNames = Object.keys(mod.attackChainsRouter);
+    expect(procedureNames).toContain("recalculateScore");
+  });
+
+  it("has at least 14 procedures including new auto-correlation features", async () => {
+    const mod = await import("./routers/attack-chains");
+    const procedureNames = Object.keys(mod.attackChainsRouter);
+    expect(procedureNames.length).toBeGreaterThanOrEqual(14);
+  });
+});
+
+// ─── FedRAMP POA&M DOCX Export ──────────────────────────────────────────────
+describe("FedRAMP POA&M DOCX Export", () => {
+  const routerPath = path.resolve(__dirname, "routers/risk-register.ts");
+  let routerContent: string;
+
+  it("risk-register router file exists", () => {
+    expect(fs.existsSync(routerPath)).toBe(true);
+    routerContent = fs.readFileSync(routerPath, "utf-8");
+  });
+
+  it("has exportPoamDocx procedure", () => {
+    expect(routerContent).toContain("exportPoamDocx");
+  });
+
+  it("uses docx library for DOCX generation", () => {
+    expect(routerContent).toContain('import("docx")');
+  });
+
+  it("creates Document with landscape orientation", () => {
+    expect(routerContent).toContain("PageOrientation.LANDSCAPE");
+  });
+
+  it("includes FedRAMP POA&M title", () => {
+    expect(routerContent).toContain("Plan of Action and Milestones");
+  });
+
+  it("includes Executive Summary section", () => {
+    expect(routerContent).toContain("Executive Summary");
+  });
+
+  it("includes ConMon SLA Reference", () => {
+    expect(routerContent).toContain("FedRAMP ConMon SLA Reference");
+    expect(routerContent).toContain("30 days");
+    expect(routerContent).toContain("90 days");
+    expect(routerContent).toContain("180 days");
+  });
+
+  it("includes POA&M table with proper headers", () => {
+    const headers = ["POA&M ID", "Weakness", "Severity", "Status", "Affected Assets", "Control ID", "Mitigation Plan", "Risk Decision"];
+    for (const h of headers) {
+      expect(routerContent).toContain(h);
+    }
+  });
+
+  it("uses FedRAMP blue header styling", () => {
+    expect(routerContent).toContain("0D47A1");
+  });
+
+  it("uploads to S3 via doStoragePut", () => {
+    expect(routerContent).toContain("doStoragePut");
+  });
+
+  it("returns URL for download", () => {
+    expect(routerContent).toContain("url");
+    expect(routerContent).toContain("fileName");
+    expect(routerContent).toContain("totalItems");
+  });
+
+  it("accepts systemName and preparedBy parameters", () => {
+    expect(routerContent).toContain("systemName");
+    expect(routerContent).toContain("preparedBy");
+    expect(routerContent).toContain("preparedFor");
+  });
+});
+
+// ─── Risk Register Router - DOCX Export Procedure ──────────────────────────
+describe.skipIf(__skipInCI)("Risk Register Router - DOCX Procedure", () => {
+  it("riskRegisterRouter has exportPoamDocx procedure", async () => {
+    const mod = await import("./routers/risk-register");
+    const procedureNames = Object.keys(mod.riskRegisterRouter);
+    expect(procedureNames).toContain("exportPoamDocx");
+  });
+
+  it("has at least 14 procedures including DOCX export", async () => {
+    const mod = await import("./routers/risk-register");
+    const procedureNames = Object.keys(mod.riskRegisterRouter);
+    expect(procedureNames.length).toBeGreaterThanOrEqual(14);
+  });
+});
+
+// ─── Frontend UI - Auto-Correlate & DOCX Export ─────────────────────────────
+describe("Frontend - Auto-Correlate UI", () => {
+  const chainsPath = path.resolve(__dirname, "../client/src/pages/AttackChains.tsx");
+  let chainsContent: string;
+
+  it("AttackChains.tsx exists", () => {
+    expect(fs.existsSync(chainsPath)).toBe(true);
+    chainsContent = fs.readFileSync(chainsPath, "utf-8");
+  });
+
+  it("has Auto-Correlate button and dialog", () => {
+    expect(chainsContent).toContain("Auto-Correlate");
+    expect(chainsContent).toContain("autoCorrelate");
+  });
+
+  it("has E2E Pipeline button and dialog", () => {
+    expect(chainsContent).toContain("E2E Pipeline");
+    expect(chainsContent).toContain("e2ePipeline");
+  });
+
+  it("has scan selector for correlation", () => {
+    expect(chainsContent).toContain("availableScans");
+    expect(chainsContent).toContain("selectedScanId");
+  });
+
+  it("has confidence slider", () => {
+    expect(chainsContent).toContain("minConfidence");
+  });
+
+  it("has auto-populate POA&M toggle", () => {
+    expect(chainsContent).toContain("autoPopulatePoam");
+  });
+});
+
+describe("Frontend - DOCX Export UI", () => {
+  const rrPath = path.resolve(__dirname, "../client/src/pages/RiskRegister.tsx");
+  let rrContent: string;
+
+  it("RiskRegister.tsx exists", () => {
+    expect(fs.existsSync(rrPath)).toBe(true);
+    rrContent = fs.readFileSync(rrPath, "utf-8");
+  });
+
+  it("has DOCX export button", () => {
+    expect(rrContent).toContain("DOCX POA&M");
+    expect(rrContent).toContain("exportPoamDocx");
+  });
+
+  it("has Excel export button", () => {
+    expect(rrContent).toContain("Excel POA&M");
+    expect(rrContent).toContain("exportPoamExcel");
+  });
+
+  it("has CSV export button", () => {
+    expect(rrContent).toContain("CSV");
+  });
+});

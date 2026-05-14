@@ -10,9 +10,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import {
   GitBranch, Plus, Search, ChevronLeft, ChevronRight, MoreHorizontal,
-  Trash2, ArrowUpDown, Shield, Zap, Target,
+  Trash2, ArrowUpDown, Shield, Zap, Target, Wand2, Play, Loader2, FileText,
 } from "lucide-react";
 
 const SEV_COLORS: Record<string, string> = { critical: "bg-red-500/20 text-red-400 border-red-500/30", high: "bg-orange-500/20 text-orange-400 border-orange-500/30", moderate: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30", low: "bg-blue-500/20 text-blue-400 border-blue-500/30", informational: "bg-gray-500/20 text-gray-400 border-gray-500/30" };
@@ -46,6 +48,31 @@ export default function AttackChains() {
     onError: (e: any) => toast.error(e.message),
   });
 
+  const availableScans = trpc.attackChains.availableScans.useQuery();
+  const [selectedScanId, setSelectedScanId] = useState<number | null>(null);
+  const [minConfidence, setMinConfidence] = useState(50);
+  const [autoPopulatePoam, setAutoPopulatePoam] = useState(true);
+  const [correlateOpen, setCorrelateOpen] = useState(false);
+  const [e2eOpen, setE2eOpen] = useState(false);
+
+  const autoCorrelateMut = trpc.attackChains.autoCorrelate.useMutation({
+    onSuccess: (result) => {
+      refetch(); summary.refetch();
+      toast.success(`Auto-correlation complete: ${result.chainsCreated} chains created from ${result.totalFindings} findings`);
+      setCorrelateOpen(false);
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const e2ePipelineMut = trpc.attackChains.e2ePipeline.useMutation({
+    onSuccess: (result) => {
+      refetch(); summary.refetch();
+      toast.success(`E2E Pipeline complete: ${result.chainsCreated} chains + ${result.poamEntriesCreated} POA&M entries from ${result.totalFindings} findings on ${result.scanDomain}`);
+      setE2eOpen(false);
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
   const handleSort = (col: typeof sortBy) => {
     if (sortBy === col) setSortDir(d => d === "asc" ? "desc" : "asc");
     else { setSortBy(col); setSortDir("desc"); }
@@ -64,7 +91,66 @@ export default function AttackChains() {
               <p className="text-muted-foreground">Linked vulnerability chains with composite risk scoring</p>
             </div>
           </div>
-          <Link href="/attack-chains/new"><Button size="sm"><Plus className="h-4 w-4 mr-1" /> New Chain</Button></Link>
+          <div className="flex items-center gap-2">
+            <Dialog open={correlateOpen} onOpenChange={setCorrelateOpen}>
+              <DialogTrigger asChild><Button size="sm" variant="outline"><Wand2 className="h-4 w-4 mr-1" /> Auto-Correlate</Button></DialogTrigger>
+              <DialogContent className="bg-card border-border">
+                <DialogHeader><DialogTitle>Auto-Correlate Findings</DialogTitle></DialogHeader>
+                <div className="space-y-4 py-2">
+                  <div><Label>Select DI Scan</Label>
+                    <Select value={selectedScanId?.toString() || ""} onValueChange={v => setSelectedScanId(Number(v))}>
+                      <SelectTrigger><SelectValue placeholder="Choose a completed scan..." /></SelectTrigger>
+                      <SelectContent>{(availableScans.data || []).map(s => (
+                        <SelectItem key={s.id} value={s.id.toString()}>{s.primaryDomain} ({s.totalAssets} assets, {s.totalFindings} findings)</SelectItem>
+                      ))}</SelectContent>
+                    </Select>
+                  </div>
+                  <div><Label>Min Confidence: {minConfidence}%</Label>
+                    <input type="range" min={20} max={95} value={minConfidence} onChange={e => setMinConfidence(Number(e.target.value))} className="w-full" />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+                  <Button disabled={!selectedScanId || autoCorrelateMut.isPending} onClick={() => selectedScanId && autoCorrelateMut.mutate({ scanId: selectedScanId, minConfidence })}>
+                    {autoCorrelateMut.isPending ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Analyzing...</> : <><Wand2 className="h-4 w-4 mr-1" /> Run Correlation</>}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            <Dialog open={e2eOpen} onOpenChange={setE2eOpen}>
+              <DialogTrigger asChild><Button size="sm" variant="outline" className="border-primary/50 text-primary"><Play className="h-4 w-4 mr-1" /> E2E Pipeline</Button></DialogTrigger>
+              <DialogContent className="bg-card border-border">
+                <DialogHeader><DialogTitle>End-to-End Pipeline</DialogTitle></DialogHeader>
+                <p className="text-sm text-muted-foreground">Run the full pipeline: DI Scan → Auto-Correlate → Attack Chains → Risk Register POA&M entries</p>
+                <div className="space-y-4 py-2">
+                  <div><Label>Select DI Scan</Label>
+                    <Select value={selectedScanId?.toString() || ""} onValueChange={v => setSelectedScanId(Number(v))}>
+                      <SelectTrigger><SelectValue placeholder="Choose a completed scan..." /></SelectTrigger>
+                      <SelectContent>{(availableScans.data || []).map(s => (
+                        <SelectItem key={s.id} value={s.id.toString()}>{s.primaryDomain} ({s.totalAssets} assets, {s.totalFindings} findings)</SelectItem>
+                      ))}</SelectContent>
+                    </Select>
+                  </div>
+                  <div><Label>Min Confidence: {minConfidence}%</Label>
+                    <input type="range" min={20} max={95} value={minConfidence} onChange={e => setMinConfidence(Number(e.target.value))} className="w-full" />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input type="checkbox" id="autoPoam" checked={autoPopulatePoam} onChange={e => setAutoPopulatePoam(e.target.checked)} />
+                    <Label htmlFor="autoPoam">Auto-populate Risk Register with POA&M entries</Label>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+                  <Button disabled={!selectedScanId || e2ePipelineMut.isPending} onClick={() => selectedScanId && e2ePipelineMut.mutate({ scanId: selectedScanId, minConfidence, autoPopulateRiskRegister: autoPopulatePoam })}>
+                    {e2ePipelineMut.isPending ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Running Pipeline...</> : <><Play className="h-4 w-4 mr-1" /> Run Pipeline</>}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            <Link href="/attack-chains/new"><Button size="sm"><Plus className="h-4 w-4 mr-1" /> New Chain</Button></Link>
+          </div>
         </div>
 
         {s && (

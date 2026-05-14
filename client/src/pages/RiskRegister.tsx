@@ -13,7 +13,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { toast } from "sonner";
 import {
   ClipboardCheck, Plus, Search, Download, ChevronLeft, ChevronRight,
-  AlertTriangle, MoreHorizontal, Trash2, ArrowUpDown, FileSpreadsheet,
+  AlertTriangle, MoreHorizontal, Trash2, ArrowUpDown, FileSpreadsheet, FileText, Loader2,
 } from "lucide-react";
 
 const SEV_COLORS: Record<string, string> = {
@@ -78,6 +78,13 @@ export default function RiskRegister() {
     },
     onError: (e: any) => toast.error(e.message),
   });
+  const exportDocx = trpc.riskRegister.exportPoamDocx.useMutation({
+    onSuccess: (d: any) => {
+      window.open(d.url, "_blank");
+      toast.success(`DOCX POA&M exported with ${d.totalItems} entries`);
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
 
   const toggleSelect = useCallback((id: number) => {
     setSelected(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
@@ -125,7 +132,10 @@ export default function RiskRegister() {
               <Download className="h-4 w-4 mr-1" /> CSV
             </Button>
             <Button variant="outline" size="sm" onClick={() => exportExcel.mutate({ status: statusFilter || undefined, severity: severityFilter || undefined })} disabled={exportExcel.isPending}>
-              <FileSpreadsheet className="h-4 w-4 mr-1" /> {exportExcel.isPending ? "Generating..." : "FedRAMP POA&M"}
+              <FileSpreadsheet className="h-4 w-4 mr-1" /> {exportExcel.isPending ? "Generating..." : "Excel POA&M"}
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => exportDocx.mutate({ statusFilter: statusFilter || undefined, severityFilter: severityFilter || undefined })} disabled={exportDocx.isPending}>
+              <FileText className="h-4 w-4 mr-1" /> {exportDocx.isPending ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Generating...</> : "DOCX POA&M"}
             </Button>
             <Link href="/risk-register/new">
               <Button size="sm"><Plus className="h-4 w-4 mr-1" /> New Entry</Button>

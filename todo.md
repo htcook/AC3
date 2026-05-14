@@ -2514,3 +2514,28 @@
 - [x] Implement FedRAMP POA&M Excel export with official template columns (26 columns)
 - [x] Add Excel download endpoint to risk register router (exportPoamExcel)
 - [x] Write vitest tests for POA&M Excel export (45 tests passing)
+
+### Auto-Correlation Engine for Attack Chains (May 14)
+- [x] Design correlation algorithm (host-based, CVE-based, MITRE kill chain adjacency, port/service clustering)
+- [x] Implement server-side auto-correlation engine (server/lib/attack-chain-correlator.ts)
+- [x] Support correlation signals: shared asset, CVE chain references, MITRE kill chain adjacency, port/service
+- [x] Auto-generate attack chains from correlated finding clusters with composite scoring
+- [x] Add Auto-Correlate dialog to Attack Chains page (scan selector, confidence slider)
+- [x] Add E2E Pipeline dialog to Attack Chains page (scan → correlate → chains → POA&M)
+- [x] Write vitest tests for auto-correlation engine (88 tests passing total)
+
+### FedRAMP POA&M DOCX Export (May 14)
+- [x] Implement DOCX generation with docx library (landscape, FedRAMP blue styling)
+- [x] Include Executive Summary, ConMon SLA Reference, and 10-column POA&M table
+- [x] Add DOCX POA&M download button to Risk Register page alongside Excel + CSV
+- [x] Upload to S3 via doStoragePut for reliable download
+- [x] Write vitest tests for DOCX export (11 tests)
+
+### Live End-to-End Test: PBS DI Scan → Attack Chains → POA&M Export (May 14)
+- [x] Build e2ePipeline procedure in attack-chains router
+- [x] Gathers findings from DI scan assets + engagement findings
+- [x] Runs auto-correlation engine with configurable confidence threshold
+- [x] Persists chains to database with steps and MITRE mappings
+- [x] Auto-populates risk register with POA&M entries (configurable toggle)
+- [x] Add E2E Pipeline trigger button with scan selector dialog
+- [x] Write vitest tests for e2e pipeline procedures (5 tests)

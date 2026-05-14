@@ -2,7 +2,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
-import { vulnAttackChains, vulnAttackChainSteps, riskRegisterEntries } from "../../drizzle/schema";
+import { vulnAttackChains, vulnAttackChainSteps, riskRegisterEntries, discoveredAssets, domainIntelScans, engagementFindings } from "../../drizzle/schema";
 import { eq, and, or, like, sql, desc, asc, count, inArray } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
@@ -195,6 +195,280 @@ export const attackChainsRouter = router({
       await db.update(vulnAttackChains).set({ compositeRiskScore: Math.round(composite * 10) / 10, compositeSeverity: compSev }).where(eq(vulnAttackChains.id, input.id));
       return { compositeRiskScore: Math.round(composite * 10) / 10, compositeSeverity: compSev };
     }),
+
+  autoCorrelate: protectedProcedure
+    .input(z.object({
+      scanId: z.number().optional(),
+      engagementId: z.number().optional(),
+      minConfidence: z.number().default(50),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await requireDb();
+      const { correlateFindings, CorrelationFinding } = await import("../lib/attack-chain-correlator");
+
+      // Gather findings from DI scan assets and/or engagement findings
+      const findings: any[] = [];
+
+      if (input.scanId) {
+        const assets = await db.select().from(discoveredAssets).where(eq(discoveredAssets.scanId, input.scanId));
+        for (const a of assets) {
+          const postureFindings = (a.postureFindings as any[]) || [];
+          if (postureFindings.length > 0) {
+            for (const pf of postureFindings) {
+              findings.push({
+                id: a.id * 10000 + (pf.id || Math.random() * 1000 | 0),
+                title: pf.title || pf.finding || `Finding on ${a.hostname}`,
+                severity: pf.severity || "medium",
+                hostname: a.hostname,
+                cve: pf.cve || null,
+                cwe: pf.cwe || null,
+                mitreTechnique: pf.mitreTechnique || null,
+                port: pf.port || null,
+                source: "di_scan",
+                tool: pf.tool || "passive_recon",
+                description: pf.description || pf.detail || null,
+                technologies: a.technologies,
+                hybridRiskScore: a.hybridRiskScore,
+                assetType: a.assetType,
+              });
+            }
+          } else {
+            // Create a synthetic finding from the asset itself if it has risk
+            if (a.hybridRiskScore && a.hybridRiskScore > 30) {
+              findings.push({
+                id: a.id,
+                title: `Elevated Risk Asset: ${a.hostname}`,
+                severity: a.riskBand === "critical" ? "critical" : a.riskBand === "high" ? "high" : "medium",
+                hostname: a.hostname,
+                source: "di_scan",
+                tool: "risk_scoring",
+                description: `Asset ${a.hostname} has hybrid risk score of ${a.hybridRiskScore}`,
+                technologies: a.technologies,
+                hybridRiskScore: a.hybridRiskScore,
+                assetType: a.assetType,
+              });
+            }
+          }
+        }
+      }
+
+      if (input.engagementId) {
+        const engFindings = await db.select().from(engagementFindings)
+          .where(eq(engagementFindings.engagementId, input.engagementId));
+        for (const ef of engFindings) {
+          findings.push({
+            id: ef.id,
+            title: ef.title,
+            severity: ef.severity,
+            hostname: ef.hostname || "unknown",
+            cve: ef.cve,
+            cwe: ef.cwe,
+            mitreTechnique: ef.mitreTechnique,
+            port: ef.port,
+            source: ef.source,
+            tool: ef.tool,
+            description: ef.description,
+            endpoint: ef.endpoint,
+          });
+        }
+      }
+
+      if (findings.length < 2) {
+        return { chainsCreated: 0, totalFindings: findings.length, message: "Not enough findings to correlate (need at least 2)" };
+      }
+
+      // Run correlation engine
+      const correlatedChains = correlateFindings(findings).filter(c => c.confidence >= input.minConfidence);
+
+      // Persist correlated chains to database
+      let chainsCreated = 0;
+      for (const cc of correlatedChains) {
+        const chainId = `AC-${Date.now()}-${randomUUID().slice(0, 8)}`;
+        const [inserted] = await db.insert(vulnAttackChains).values({
+          chainId,
+          name: cc.name,
+          description: cc.description,
+          entryPoint: cc.entryPoint,
+          finalTarget: cc.finalTarget,
+          mitreTactics: JSON.stringify(cc.mitreTactics),
+          compositeRiskScore: Math.round(cc.compositeRiskScore * 10) / 10,
+          compositeSeverity: cc.compositeSeverity as any,
+          status: "active",
+          discoveredBy: "auto_correlator",
+          metadata: JSON.stringify({ correlationSignals: cc.correlationSignals, confidence: cc.confidence, sourceType: input.scanId ? "di_scan" : "engagement", sourceId: input.scanId || input.engagementId }),
+        }).$returningId();
+
+        // Insert steps
+        for (const step of cc.steps) {
+          await db.insert(vulnAttackChainSteps).values({
+            chainId,
+            stepOrder: step.stepOrder,
+            title: step.title,
+            description: step.description,
+            severity: step.severity as any,
+            cveId: step.cveId || null,
+            cweId: step.cweId || null,
+            affectedAsset: step.affectedAsset,
+            mitreTechnique: step.mitreTechnique || null,
+            mitreTactic: step.mitreTactic || null,
+            findingType: step.findingType as any,
+          });
+        }
+        chainsCreated++;
+      }
+
+      return {
+        chainsCreated,
+        totalFindings: findings.length,
+        chainsDetected: correlatedChains.length,
+        chains: correlatedChains.map(c => ({ name: c.name, steps: c.steps.length, confidence: c.confidence, compositeRiskScore: Math.round(c.compositeRiskScore * 10) / 10, compositeSeverity: c.compositeSeverity })),
+      };
+    }),
+
+  // End-to-end pipeline: DI scan → auto-correlate → risk register → export
+  e2ePipeline: protectedProcedure
+    .input(z.object({
+      scanId: z.number(),
+      engagementId: z.number().optional(),
+      autoPopulateRiskRegister: z.boolean().default(true),
+      minConfidence: z.number().default(50),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await requireDb();
+      const { correlateFindings } = await import("../lib/attack-chain-correlator");
+
+      // Step 1: Verify scan exists
+      const [scan] = await db.select().from(domainIntelScans).where(eq(domainIntelScans.id, input.scanId));
+      if (!scan) throw new TRPCError({ code: "NOT_FOUND", message: "DI scan not found" });
+
+      // Step 2: Gather all findings
+      const assets = await db.select().from(discoveredAssets).where(eq(discoveredAssets.scanId, input.scanId));
+      const findings: any[] = [];
+      for (const a of assets) {
+        const postureFindings = (a.postureFindings as any[]) || [];
+        for (const pf of postureFindings) {
+          findings.push({
+            id: a.id * 10000 + (pf.id || Math.random() * 1000 | 0),
+            title: pf.title || pf.finding || `Finding on ${a.hostname}`,
+            severity: pf.severity || "medium",
+            hostname: a.hostname,
+            cve: pf.cve || null, cwe: pf.cwe || null,
+            mitreTechnique: pf.mitreTechnique || null,
+            port: pf.port || null,
+            source: "di_scan", tool: pf.tool || "passive_recon",
+            description: pf.description || pf.detail || null,
+          });
+        }
+        if (postureFindings.length === 0 && a.hybridRiskScore && a.hybridRiskScore > 30) {
+          findings.push({
+            id: a.id, title: `Elevated Risk: ${a.hostname}`,
+            severity: a.riskBand === "critical" ? "critical" : a.riskBand === "high" ? "high" : "medium",
+            hostname: a.hostname, source: "di_scan", tool: "risk_scoring",
+            description: `Hybrid risk score: ${a.hybridRiskScore}`,
+          });
+        }
+      }
+
+      if (input.engagementId) {
+        const engFindings = await db.select().from(engagementFindings)
+          .where(eq(engagementFindings.engagementId, input.engagementId));
+        for (const ef of engFindings) {
+          findings.push({
+            id: ef.id, title: ef.title, severity: ef.severity,
+            hostname: ef.hostname || "unknown", cve: ef.cve, cwe: ef.cwe,
+            mitreTechnique: ef.mitreTechnique, port: ef.port,
+            source: ef.source, tool: ef.tool, description: ef.description,
+          });
+        }
+      }
+
+      // Step 3: Run auto-correlation
+      const correlatedChains = correlateFindings(findings).filter(c => c.confidence >= input.minConfidence);
+
+      // Step 4: Persist chains
+      let chainsCreated = 0;
+      const chainIds: string[] = [];
+      for (const cc of correlatedChains) {
+        const chainId = `AC-${Date.now()}-${randomUUID().slice(0, 8)}`;
+        chainIds.push(chainId);
+        await db.insert(vulnAttackChains).values({
+          chainId, name: cc.name, description: cc.description,
+          entryPoint: cc.entryPoint, finalTarget: cc.finalTarget,
+          mitreTactics: JSON.stringify(cc.mitreTactics),
+          compositeRiskScore: Math.round(cc.compositeRiskScore * 10) / 10,
+          compositeSeverity: cc.compositeSeverity as any,
+          status: "active", discoveredBy: "e2e_pipeline",
+          metadata: JSON.stringify({ scanId: input.scanId, scanDomain: scan.primaryDomain, confidence: cc.confidence, correlationSignals: cc.correlationSignals }),
+        });
+        for (const step of cc.steps) {
+          await db.insert(vulnAttackChainSteps).values({
+            chainId, stepOrder: step.stepOrder, title: step.title,
+            description: step.description, severity: step.severity as any,
+            cveId: step.cveId || null, cweId: step.cweId || null,
+            affectedAsset: step.affectedAsset, mitreTechnique: step.mitreTechnique || null,
+            mitreTactic: step.mitreTactic || null, findingType: step.findingType as any,
+          });
+        }
+        chainsCreated++;
+      }
+
+      // Step 5: Auto-populate risk register
+      let poamEntriesCreated = 0;
+      if (input.autoPopulateRiskRegister) {
+        for (const cc of correlatedChains) {
+          const poamId = `POAM-${Date.now()}-${randomUUID().slice(0, 6)}`;
+          await db.insert(riskRegisterEntries).values({
+            poamId,
+            weaknessName: cc.name,
+            weaknessDescription: cc.description,
+            severity: (cc.compositeSeverity === "moderate" ? "medium" : cc.compositeSeverity) as any,
+            status: "open",
+            source: "auto_correlation",
+            sourceRef: `scan:${input.scanId}`,
+            detectedDate: new Date().toISOString().slice(0, 19).replace("T", " "),
+            affectedAssets: cc.entryPoint,
+            controlId: null,
+            scheduledCompletionDate: new Date(Date.now() + (cc.compositeSeverity === "critical" ? 15 : cc.compositeSeverity === "high" ? 30 : 90) * 86400000).toISOString().slice(0, 19).replace("T", " "),
+            mitigationPlan: `Remediate ${cc.steps.length}-step attack chain: ${cc.steps.map(s => s.title).join(" → ")}`,
+            riskDecision: "pending",
+            createdBy: ctx.user?.id || null,
+          });
+          poamEntriesCreated++;
+        }
+      }
+
+      return {
+        scanDomain: scan.primaryDomain,
+        totalAssets: assets.length,
+        totalFindings: findings.length,
+        chainsDetected: correlatedChains.length,
+        chainsCreated,
+        poamEntriesCreated,
+        chains: correlatedChains.map(c => ({
+          name: c.name, steps: c.steps.length, confidence: c.confidence,
+          compositeRiskScore: Math.round(c.compositeRiskScore * 10) / 10,
+          compositeSeverity: c.compositeSeverity,
+          correlationSignals: c.correlationSignals,
+        })),
+      };
+    }),
+
+  // List available DI scans for correlation
+  availableScans: protectedProcedure.query(async () => {
+    const db = await requireDb();
+    const scans = await db.select({
+      id: domainIntelScans.id,
+      primaryDomain: domainIntelScans.primaryDomain,
+      status: domainIntelScans.status,
+      totalAssets: domainIntelScans.totalAssets,
+      totalFindings: domainIntelScans.totalFindings,
+      createdAt: domainIntelScans.createdAt,
+    }).from(domainIntelScans)
+      .where(eq(domainIntelScans.status, "completed"))
+      .orderBy(desc(domainIntelScans.createdAt))
+      .limit(50);
+    return scans;
+  }),
 
   summary: protectedProcedure.query(async () => {
     const db = await requireDb();
