@@ -2698,3 +2698,13 @@
 - [x] Add threshold configuration UI to Executive Threat Briefing (create/edit/delete/toggle)
 - [x] Alert history table with deduplication (24h window)
 - [x] Write vitest tests (CRUD + checkAlertThresholds + history)
+
+### Attack Planner Specialist — Token Overflow Fix (May 14)
+- [x] Investigated: triple asset duplication + full banking/missedVuln knowledge injection caused overflow
+- [x] Fixed: removed buildAssetContext from system prompt (assets already in passiveReconSummary)
+- [x] Fixed: use getBankingContextCompact() (~500 chars) instead of full buildBankingDomainContext (~12K+)
+- [x] Fixed: limit missed vuln patterns to top 5 instead of all 19
+- [x] Added MAX_SPECIALIST_CHARS (40K) budget with truncateWithMarker
+- [x] Added budget-aware fallback path with FALLBACK_MAX_CHARS (40K)
+- [x] Added prompt size logging for observability
+- [x] 12 vitest tests passing (prompt capping, no asset duplication, compact context, budget enforcement)

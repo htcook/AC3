@@ -3,12 +3,33 @@
  *
  * Designs realistic attack paths based on discovered assets and vulnerabilities.
  * Used by generateScanPlan and active scan strategy determination.
+ *
+ * IMPORTANT: This specialist receives passiveReconSummary from the orchestrator
+ * which already contains asset data + enrichment context (capped at 12K chars).
+ * To avoid token overflow (429 "Request too large"), we:
+ *   1. Do NOT duplicate asset data via buildAssetContext (it's in passiveReconSummary)
+ *   2. Use compact banking context instead of full domain knowledge
+ *   3. Cap the total prompt to MAX_SPECIALIST_CHARS
+ *   4. Truncate passiveReconSummary if needed to fit budget
  */
 
 import { invokeLLM } from "../../_core/llm";
 import { throttledLLMCall } from "../llm-throttle";
-import { assembleSystemPrompt, buildAssetContext, buildCustomerContext } from "./core-policy";
+import { assembleSystemPrompt, buildCustomerContext } from "./core-policy";
 import { parseLLMJson } from "../../../shared/llm-json-parser";
+
+/**
+ * Maximum total characters for the specialist prompt (system + user).
+ * ~10K tokens ≈ 40K chars. Leaves headroom for the response_format schema
+ * and the LLM's own response within the model's context window.
+ */
+const MAX_SPECIALIST_CHARS = 40_000;
+
+/**
+ * Estimate character count for the response_format schema overhead.
+ * The JSON schema is sent as part of the request and counts toward tokens.
+ */
+const SCHEMA_OVERHEAD_CHARS = 2_000;
 
 const ROLE_PROMPT = `## Role: Attack Path Planner
 
@@ -186,19 +207,28 @@ export interface AttackPlannerOutput {
   confidence: string;
 }
 
+/**
+ * Truncate a string to maxLen characters, appending a marker if truncated.
+ */
+function truncateWithMarker(text: string, maxLen: number): string {
+  if (text.length <= maxLen) return text;
+  return text.slice(0, maxLen) + '\n[...truncated to fit token budget]';
+}
+
 export async function planAttack(input: AttackPlannerInput): Promise<AttackPlannerOutput> {
-  // Inject banking domain knowledge if applicable
-  let bankingAttackCtx = '';
+  // ── Step 1: Build compact domain-specific context (NOT the full knowledge base) ──
+  let domainHint = '';
   try {
     const isBanking = input.assets?.some((a: any) => /bank|altoro|mutual|vulnbank|fintech|payment/i.test(a.hostname || ''));
     if (isBanking) {
-      const { buildBankingDomainContext } = await import('./banking-domain-knowledge');
-      bankingAttackCtx = '\n\n' + buildBankingDomainContext({ phase: 'vuln_detection', includeRegulatory: true, includeTechStack: true, includeAttackScenarios: true });
+      // Use compact banking context (~500 chars) instead of full domain knowledge (~12K+)
+      const { getBankingContextCompact } = await import('./banking-domain-knowledge');
+      domainHint = '\n\n## Domain Context\n' + getBankingContextCompact();
     }
   } catch (e) { /* non-fatal */ }
 
-  // Inject missed vulnerability training knowledge
-  let missedVulnCtx = '';
+  // ── Step 2: Build compact missed vuln hint (top 5 most relevant, not all 19) ──
+  let missedVulnHint = '';
   try {
     const { buildMissedVulnAttackContext } = await import('../knowledge/missed-vuln-training-knowledge');
     const targetPreset = input.assets?.[0]?.hostname?.includes('juice') ? 'juice-shop'
@@ -208,16 +238,43 @@ export async function planAttack(input: AttackPlannerInput): Promise<AttackPlann
       : input.assets?.[0]?.hostname?.includes('webgoat') ? 'webgoat'
       : input.assets?.[0]?.hostname?.includes('crapi') ? 'crapi'
       : undefined;
-    missedVulnCtx = '\n\n## Commonly Missed Vulnerabilities — MUST Include in Attack Plan\n' + buildMissedVulnAttackContext(targetPreset);
+    const fullCtx = buildMissedVulnAttackContext(targetPreset);
+    // Take only the first 5 lines (most relevant patterns) to save tokens
+    const lines = fullCtx.split('\n').filter(Boolean);
+    const trimmed = lines.slice(0, 5).join('\n');
+    if (trimmed) {
+      missedVulnHint = '\n\n## Key Missed Vulnerabilities\n' + trimmed;
+    }
   } catch (e) { /* non-fatal */ }
 
+  // ── Step 3: Assemble system prompt WITHOUT duplicate asset data ──
+  // passiveReconSummary already contains full asset data + enrichment context,
+  // so we only put engagement metadata + domain hints in the system prompt.
   const systemPrompt = assembleSystemPrompt({
     rolePrompt: ROLE_PROMPT,
     customerContext: buildCustomerContext(input.engagement),
-    assetContext: buildAssetContext(input.assets) + bankingAttackCtx + missedVulnCtx,
+    // NO buildAssetContext here — assets are in passiveReconSummary (user message)
+    additionalContext: (domainHint + missedVulnHint).trim() || undefined,
   });
 
-  const userMessage = `Based on the following passive reconnaissance results, design an attack path and active scanning strategy:\n\n${input.passiveReconSummary}`;
+  // ── Step 4: Budget-aware user message truncation ──
+  const userPrefix = 'Based on the following passive reconnaissance results, design an attack path and active scanning strategy:\n\n';
+  const totalBudget = MAX_SPECIALIST_CHARS - SCHEMA_OVERHEAD_CHARS;
+  const systemLen = systemPrompt.length;
+  const prefixLen = userPrefix.length;
+  const reconBudget = Math.max(totalBudget - systemLen - prefixLen, 4_000); // At least 4K chars for recon
+
+  const reconSummary = truncateWithMarker(input.passiveReconSummary, reconBudget);
+  const userMessage = userPrefix + reconSummary;
+
+  // ── Step 5: Log prompt size for observability ──
+  const totalChars = systemPrompt.length + userMessage.length;
+  const estimatedTokens = Math.ceil(totalChars / 4);
+  console.log(`[AttackPlanner] Prompt size: ${totalChars} chars (~${estimatedTokens} tokens). System: ${systemPrompt.length}, User: ${userMessage.length}. Budget: ${totalBudget}`);
+
+  if (totalChars > MAX_SPECIALIST_CHARS) {
+    console.warn(`[AttackPlanner] WARNING: Prompt exceeds budget (${totalChars} > ${MAX_SPECIALIST_CHARS}). May hit token limits.`);
+  }
 
   const result = await throttledLLMCall({ _priority: 'essential',
     messages: [

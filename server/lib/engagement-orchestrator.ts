@@ -2383,6 +2383,7 @@ Return valid JSON per the response_format schema.`;
   let usedPath = 'specialist';
   try {
     console.log(`[ScanPlan] Using Attack Planner specialist...`);
+    console.log(`[ScanPlan] passiveReconSummary size: ${fullUserContent.length} chars (~${Math.ceil(fullUserContent.length / 4)} tokens)`);
     const { planAttack } = await import('./llm-specialists/attack-planner');
     const attackPlan = await planAttack({
       passiveReconSummary: fullUserContent,
@@ -2457,10 +2458,18 @@ Return valid JSON per the response_format schema.`;
     broadcastOpsUpdate(engagementId, { type: 'log_update' });
     usedPath = 'direct-llm';
     try {
+      // Budget-aware fallback: cap total prompt to ~40K chars (~10K tokens)
+      const FALLBACK_MAX_CHARS = 40_000;
+      const fallbackSystemLen = systemPrompt.length;
+      const fallbackUserBudget = Math.max(FALLBACK_MAX_CHARS - fallbackSystemLen - 2000, 4000);
+      const fallbackUserContent = tier1Content.length > fallbackUserBudget
+        ? tier1Content.slice(0, fallbackUserBudget) + '\n[...truncated to fit token budget]'
+        : tier1Content;
+      console.log(`[ScanPlan Fallback] System: ${fallbackSystemLen} chars, User: ${fallbackUserContent.length} chars, Total: ${fallbackSystemLen + fallbackUserContent.length}`);
       response = await throttledLLMCall({
           messages: [
             { role: 'system', content: systemPrompt },
-            { role: 'user', content: tier1Content },
+            { role: 'user', content: fallbackUserContent },
           ],
           _caller: 'engagement-orchestrator.generateScanPlan.fallback',
           _engagementId: state.engagementId,
