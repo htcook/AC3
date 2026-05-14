@@ -2653,7 +2653,7 @@
 - [x] Set up combined pipeline heartbeat schedule (all 6 pipelines, every 6 hours)
 - [x] DFIR ingest, IOC-TTP mapping, Catalog enrichment, Playbook promotion, Ability graph, Exploit triage
 - [x] Configured via manus-config schedule with sequential POST calls
-- [ ] Push updates to GitHub/AWS
+- [x] Push updates to GitHub/AWS (checkpoint 59f49668)
 
 ### Executive Dashboard - Threat Catalog Integration (May 14)
 - [x] Add threat landscape summary section (actor type breakdown, threat level distribution)
@@ -2673,3 +2673,28 @@
 - [x] Trend visualizations: event timeline (90d), actor activity momentum, top attack vectors
 - [x] CARVER profile visualization with threat likelihood bars
 - [x] Write vitest tests for executive threat briefing procedure (20 tests passing)
+
+### Deployment Build Fix (May 14)
+- [x] Fix catalog-auto-enrichment.ts: import { db } from '../db' → use getDb()
+- [x] Fix exploit-selection-intelligence.ts: duplicate CVE-2015-1635 key
+- [x] Fix roe-document-parser.ts: duplicate _caller key
+- [x] tool-runner.ts: toolExecutions warning is non-fatal (runtime check), build passes
+
+### IOC Overlap Detection (May 14)
+- [x] Cross-reference discovered asset IPs/domains against threat actor IOCs (ioc-overlap-detector.ts)
+- [x] Surface active compromise indicators in the Executive Threat Briefing
+- [x] Add IOC match count and details to actor cards
+- [x] Write vitest tests (34 tests passing)
+
+### Executive PDF Export (May 14)
+- [x] Add "Generate Briefing Report" button to Executive Threat Briefing
+- [x] Render current threat briefing as branded HTML report (uploaded to S3)
+- [x] Include actor rankings, CARVER profile, trends, and IOC overlaps
+- [x] Write vitest tests (HTML generation, XSS escaping, null handling)
+
+### Alert Thresholds (May 14)
+- [x] Configure notification triggers when actor relevance score exceeds threshold (threat-alert-engine.ts)
+- [x] Push real-time alerts via notifyOwner() when new high-relevance actors detected
+- [x] Add threshold configuration UI to Executive Threat Briefing (create/edit/delete/toggle)
+- [x] Alert history table with deduplication (24h window)
+- [x] Write vitest tests (CRUD + checkAlertThresholds + history)

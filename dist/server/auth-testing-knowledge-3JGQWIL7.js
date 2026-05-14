@@ -1,0 +1,33 @@
+import {
+  AUTH_ATTACK_TAXONOMY,
+  AUTH_CARVER_OVERLAY,
+  AUTH_MITRE_MAPPINGS,
+  AUTH_REASONING_SYSTEM_PROMPT,
+  AUTH_TESTING_PHASES,
+  AUTH_TOOLING_STACK,
+  FEDERAL_AUTH_CONTROLS,
+  SSO_ASSESSMENT_CHECKS,
+  STANDARD_MODE_GUARDRAILS,
+  STRICT_MODE_GUARDRAILS,
+  buildAuthKnowledgeContext,
+  calculateAuthCarverScore,
+  init_auth_testing_knowledge,
+  validateAgainstGuardrails
+} from "./chunk-3VQIFHCJ.js";
+import "./chunk-KFQGP6VL.js";
+init_auth_testing_knowledge();
+export {
+  AUTH_ATTACK_TAXONOMY,
+  AUTH_CARVER_OVERLAY,
+  AUTH_MITRE_MAPPINGS,
+  AUTH_REASONING_SYSTEM_PROMPT,
+  AUTH_TESTING_PHASES,
+  AUTH_TOOLING_STACK,
+  FEDERAL_AUTH_CONTROLS,
+  SSO_ASSESSMENT_CHECKS,
+  STANDARD_MODE_GUARDRAILS,
+  STRICT_MODE_GUARDRAILS,
+  buildAuthKnowledgeContext,
+  calculateAuthCarverScore,
+  validateAgainstGuardrails
+};

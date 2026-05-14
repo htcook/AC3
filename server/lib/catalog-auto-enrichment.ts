@@ -12,7 +12,7 @@
  * It can be called after engagements, on schedule, or manually.
  */
 
-import { db as drizzleDb } from '../db';
+import { getDb } from '../db';
 import * as schema from '../../drizzle/schema';
 import { eq, sql, and, isNull, desc, lt, count } from 'drizzle-orm';
 
@@ -131,6 +131,7 @@ async function enrichFromDFIR(config: EnrichmentConfig, maxItems: number): Promi
   const start = Date.now();
   const details: string[] = [];
   let processed = 0, added = 0, failed = 0;
+  const drizzleDb = await getDb();
 
   try {
     const { ingestDFIRReport } = await import('./dfir-report-ingestion');
@@ -185,6 +186,7 @@ async function enrichFromIOCs(config: EnrichmentConfig, maxItems: number): Promi
   const start = Date.now();
   const details: string[] = [];
   let processed = 0, added = 0, failed = 0;
+  const drizzleDb = await getDb();
 
   try {
     const { reverseEngineerIOC, batchReverseEngineerIOCs } = await import('./ioc-ttp-reverse-engineer');
@@ -244,6 +246,7 @@ async function enrichFromExploitOutcomes(config: EnrichmentConfig, maxItems: num
   const start = Date.now();
   const details: string[] = [];
   let processed = 0, added = 0, failed = 0;
+  const drizzleDb = await getDb();
 
   try {
     // Find successful exploit outcomes that haven't been converted to playbooks yet
@@ -368,6 +371,7 @@ async function enrichFromThreatIntel(config: EnrichmentConfig, maxItems: number)
   const start = Date.now();
   const details: string[] = [];
   let processed = 0, added = 0, failed = 0;
+  const drizzleDb = await getDb();
 
   try {
     // Enrich actors that have incomplete profiles (missing abilities, IOCs, or tools)
@@ -458,6 +462,7 @@ export async function enrichCatalogFromEngagement(engagementId: number): Promise
   const start = Date.now();
   const details: string[] = [];
   let processed = 0, added = 0, failed = 0;
+  const drizzleDb = await getDb();
 
   try {
     // 1. Extract successful exploit outcomes → playbooks

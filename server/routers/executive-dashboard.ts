@@ -363,6 +363,81 @@ export const executiveDashboardRouter = router({
     return getRecentScansForBriefing();
   }),
 
+  // ── IOC Overlap for a scan ──────────────────────────────────────────────
+  iocOverlap: protectedProcedure
+    .input(z.object({ scanId: z.number() }))
+    .query(async ({ input }) => {
+      const { computeIocOverlap } = await import("../lib/ioc-overlap-detector");
+      const result = await computeIocOverlap(input.scanId);
+      return {
+        totalMatches: result.totalMatches,
+        compromiseIndicators: result.compromiseIndicators,
+        assetExposure: result.assetExposure,
+      };
+    }),
+
+  // ── Generate PDF Briefing Report ────────────────────────────────────────
+  generateBriefingReport: protectedProcedure
+    .input(z.object({
+      scanId: z.number().optional(),
+      sector: z.string().optional(),
+      generatedBy: z.string().optional(),
+    }).optional())
+    .mutation(async ({ input }) => {
+      const { computeExecutiveThreatBriefing } = await import("../lib/executive-threat-briefing");
+      const { generateBriefingPdf } = await import("../lib/briefing-pdf-generator");
+      const briefing = await computeExecutiveThreatBriefing(input || {});
+      let iocOverlap = undefined;
+      if (briefing.scan) {
+        const { computeIocOverlap } = await import("../lib/ioc-overlap-detector");
+        iocOverlap = await computeIocOverlap(briefing.scan.id);
+      }
+      const result = await generateBriefingPdf({
+        briefing,
+        iocOverlap: iocOverlap || undefined,
+        generatedBy: input?.generatedBy || "Ace C3 Platform",
+        generatedAt: Date.now(),
+      });
+      return result;
+    }),
+
+  // ── Alert Thresholds CRUD ───────────────────────────────────────────────
+  alertThresholds: protectedProcedure.query(async () => {
+    const { getAlertThresholds } = await import("../lib/threat-alert-engine");
+    return getAlertThresholds();
+  }),
+
+  upsertAlertThreshold: protectedProcedure
+    .input(z.object({
+      id: z.number().optional(),
+      scanId: z.number().nullable().optional(),
+      label: z.string().min(1).max(255),
+      relevanceThreshold: z.number().min(0).max(100),
+      threatLevelFilter: z.enum(["any", "critical", "high", "medium"]).optional(),
+      enabled: z.boolean().optional(),
+      notifyOnNew: z.boolean().optional(),
+      notifyOnRising: z.boolean().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const { upsertAlertThreshold } = await import("../lib/threat-alert-engine");
+      return upsertAlertThreshold({ ...input, createdBy: ctx.user?.name || ctx.user?.openId });
+    }),
+
+  deleteAlertThreshold: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const { deleteAlertThreshold } = await import("../lib/threat-alert-engine");
+      await deleteAlertThreshold(input.id);
+      return { success: true };
+    }),
+
+  alertHistory: protectedProcedure
+    .input(z.object({ scanId: z.number().optional(), limit: z.number().min(1).max(200).optional() }).optional())
+    .query(async ({ input }) => {
+      const { getAlertHistory } = await import("../lib/threat-alert-engine");
+      return getAlertHistory(input || {});
+    }),
+
   // ── Engagement Summary for Executives ────────────────────────────────────
   engagementSummary: protectedProcedure.query(async () => {
     const drizzleDb = await getDb();

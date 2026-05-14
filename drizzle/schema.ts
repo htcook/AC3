@@ -8674,3 +8674,40 @@ export const classificationAuditLog = mysqlTable("classification_audit_log", {
 	index("cal_batch_idx").on(table.batchId),
 	index("cal_created_idx").on(table.createdAt),
 ]);
+
+// ─── Threat Alert Thresholds & History ──────────────────────────────────────
+export const threatAlertThresholds = mysqlTable("threat_alert_thresholds", {
+	id: int().autoincrement().primaryKey(),
+	scanId: int("scan_id"),
+	label: varchar({ length: 255 }).notNull().default("Default Alert"),
+	relevanceThreshold: int("relevance_threshold").notNull().default(80),
+	threatLevelFilter: mysqlEnum("threat_level_filter", ['any','critical','high','medium']).default('any'),
+	enabled: tinyint().default(1).notNull(),
+	notifyOnNew: tinyint("notify_on_new").default(1).notNull(),
+	notifyOnRising: tinyint("notify_on_rising").default(1).notNull(),
+	createdBy: varchar("created_by", { length: 255 }),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+	index("tat_scan_idx").on(table.scanId),
+	index("tat_enabled_idx").on(table.enabled),
+]);
+
+export const threatAlertHistory = mysqlTable("threat_alert_history", {
+	id: int().autoincrement().primaryKey(),
+	thresholdId: int("threshold_id").notNull(),
+	scanId: int("scan_id"),
+	actorId: varchar("actor_id", { length: 128 }).notNull(),
+	actorName: varchar("actor_name", { length: 255 }),
+	relevanceScore: int("relevance_score").notNull(),
+	threatLevel: varchar("threat_level", { length: 32 }),
+	triggerReason: varchar("trigger_reason", { length: 255 }).notNull(),
+	notificationSent: tinyint("notification_sent").default(0).notNull(),
+	notificationError: text("notification_error"),
+	createdAt: bigint("created_at", { mode: "number" }).notNull().$defaultFn(() => Date.now()),
+}, (table) => [
+	index("tah_threshold_idx").on(table.thresholdId),
+	index("tah_actor_idx").on(table.actorId),
+	index("tah_scan_idx").on(table.scanId),
+	index("tah_created_idx").on(table.createdAt),
+]);

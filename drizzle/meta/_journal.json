@@ -22,6 +22,13 @@
       "when": 1778781014561,
       "tag": "0002_skinny_roughhouse",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1778784486984,
+      "tag": "0003_flimsy_lightspeed",
+      "breakpoints": true
     }
   ]
 }

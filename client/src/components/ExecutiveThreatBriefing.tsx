@@ -4,10 +4,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Input } from "@/components/ui/input";
+import { useToast } from "@/hooks/use-toast";
 import {
   Shield, ShieldAlert, Target, Globe, Brain, TrendingUp, TrendingDown,
   Minus, ChevronDown, ChevronRight, AlertTriangle, Crosshair, Eye,
-  RefreshCw, BarChart3, Activity, Loader2, Zap, ArrowUpRight
+  RefreshCw, BarChart3, Activity, Loader2, Zap, ArrowUpRight,
+  FileText, Download, Bell, BellOff, BellRing, Trash2, Plus,
+  AlertCircle, Fingerprint, Wifi, Link2
 } from "lucide-react";
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -36,6 +40,13 @@ const TREND_ICON = {
   rising: <TrendingUp className="w-3.5 h-3.5 text-red-400" />,
   stable: <Minus className="w-3.5 h-3.5 text-zinc-400" />,
   declining: <TrendingDown className="w-3.5 h-3.5 text-emerald-400" />,
+};
+
+const IOC_TYPE_ICON: Record<string, typeof Wifi> = {
+  ip: Wifi,
+  domain: Globe,
+  url: Link2,
+  subdomain: Globe,
 };
 
 // ─── Relevance Score Bar ──────────────────────────────────────────────────────
@@ -97,16 +108,263 @@ function ThreatLikelihoods({ likelihoods }: { likelihoods: Array<{ threat: strin
   );
 }
 
+// ─── IOC Overlap Alert Panel ─────────────────────────────────────────────────
+function IocOverlapPanel({ iocOverlap }: { iocOverlap: any }) {
+  const [expanded, setExpanded] = useState(false);
+  if (!iocOverlap || iocOverlap.totalMatches === 0) return null;
+
+  return (
+    <Card className="bg-red-950/30 border-red-500/30">
+      <CardContent className="p-3">
+        <button
+          className="w-full text-left flex items-center justify-between"
+          onClick={() => setExpanded(!expanded)}
+        >
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 rounded-md bg-red-500/20 border border-red-500/40">
+              <Fingerprint className="w-4 h-4 text-red-400" />
+            </div>
+            <div>
+              <div className="text-sm font-bold text-red-300">
+                {iocOverlap.totalMatches} Active IOC Overlaps Detected
+              </div>
+              <div className="text-[10px] text-red-400/70">
+                {iocOverlap.assetExposure.assetsWithIocHits} of {iocOverlap.assetExposure.totalAssetsChecked} assets affected
+                · {iocOverlap.assetExposure.uniqueActorsMatched} threat actors linked
+              </div>
+            </div>
+          </div>
+          {expanded ? <ChevronDown className="w-4 h-4 text-red-400" /> : <ChevronRight className="w-4 h-4 text-red-400" />}
+        </button>
+
+        {expanded && (
+          <div className="mt-3 space-y-1.5 max-h-[300px] overflow-y-auto">
+            <div className="grid grid-cols-[auto_1fr_1fr_auto_auto] gap-x-3 gap-y-1 text-[10px]">
+              <div className="text-zinc-500 font-semibold uppercase">Type</div>
+              <div className="text-zinc-500 font-semibold uppercase">IOC Value</div>
+              <div className="text-zinc-500 font-semibold uppercase">Matched Asset</div>
+              <div className="text-zinc-500 font-semibold uppercase">Match</div>
+              <div className="text-zinc-500 font-semibold uppercase">Conf.</div>
+              {iocOverlap.compromiseIndicators.map((m: any, i: number) => {
+                const Icon = IOC_TYPE_ICON[m.matchType] || AlertCircle;
+                return (
+                  <>
+                    <div key={`type-${i}`} className="flex items-center gap-1 text-red-300">
+                      <Icon className="w-3 h-3" />
+                      {m.iocType}
+                    </div>
+                    <div key={`val-${i}`} className="font-mono text-zinc-300 truncate">{m.iocValue}</div>
+                    <div key={`asset-${i}`} className="font-mono text-zinc-400 truncate">{m.matchedAsset}</div>
+                    <Badge key={`match-${i}`} variant="outline" className="text-[9px] px-1 py-0 border-red-500/40 text-red-300">
+                      {m.matchType}
+                    </Badge>
+                    <Badge key={`conf-${i}`} variant="outline" className={`text-[9px] px-1 py-0 ${
+                      m.confidence === "high" ? "border-red-500/40 text-red-300" :
+                      m.confidence === "medium" ? "border-orange-500/40 text-orange-300" :
+                      "border-zinc-700 text-zinc-400"
+                    }`}>
+                      {m.confidence || "med"}
+                    </Badge>
+                  </>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Alert Threshold Manager ─────────────────────────────────────────────────
+function AlertThresholdManager({ scanId }: { scanId?: number }) {
+  const [showForm, setShowForm] = useState(false);
+  const [label, setLabel] = useState("Default Alert");
+  const [threshold, setThreshold] = useState(80);
+  const [threatFilter, setThreatFilter] = useState<"any" | "critical" | "high" | "medium">("any");
+  const [editId, setEditId] = useState<number | undefined>();
+  const { toast } = useToast();
+
+  const { data: thresholds, refetch } = trpc.executiveDashboard.alertThresholds.useQuery(undefined, { staleTime: 30_000 });
+  const { data: alertHistory } = trpc.executiveDashboard.alertHistory.useQuery({ limit: 20 }, { staleTime: 30_000 });
+
+  const upsertMutation = trpc.executiveDashboard.upsertAlertThreshold.useMutation({
+    onSuccess: () => {
+      refetch();
+      setShowForm(false);
+      setEditId(undefined);
+      toast({ title: "Alert threshold saved" });
+    },
+  });
+
+  const deleteMutation = trpc.executiveDashboard.deleteAlertThreshold.useMutation({
+    onSuccess: () => {
+      refetch();
+      toast({ title: "Alert threshold deleted" });
+    },
+  });
+
+  return (
+    <Card className="bg-zinc-900/60 border-zinc-800">
+      <CardContent className="p-3 space-y-3">
+        <div className="flex items-center justify-between">
+          <h4 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
+            <BellRing className="w-3.5 h-3.5" />
+            Alert Thresholds
+          </h4>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 px-2 text-xs text-zinc-400 hover:text-zinc-200"
+            onClick={() => { setShowForm(!showForm); setEditId(undefined); setLabel("Default Alert"); setThreshold(80); setThreatFilter("any"); }}
+          >
+            <Plus className="w-3 h-3 mr-1" />
+            Add
+          </Button>
+        </div>
+
+        {/* Active Thresholds */}
+        {thresholds && thresholds.length > 0 && (
+          <div className="space-y-1.5">
+            {thresholds.map((t: any) => (
+              <div key={t.id} className="flex items-center justify-between text-xs bg-zinc-800/50 rounded-md px-2 py-1.5">
+                <div className="flex items-center gap-2">
+                  {t.enabled ? <Bell className="w-3 h-3 text-amber-400" /> : <BellOff className="w-3 h-3 text-zinc-600" />}
+                  <span className={t.enabled ? "text-zinc-300" : "text-zinc-600"}>{t.label}</span>
+                  <Badge variant="outline" className="text-[9px] px-1 py-0 border-zinc-700 text-zinc-500">
+                    &ge;{t.relevanceThreshold}
+                  </Badge>
+                  {t.threatLevelFilter !== "any" && (
+                    <Badge variant="outline" className="text-[9px] px-1 py-0 border-zinc-700 text-zinc-500">
+                      {t.threatLevelFilter}+
+                    </Badge>
+                  )}
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-5 w-5 p-0 text-zinc-500 hover:text-zinc-300"
+                    onClick={() => {
+                      setEditId(t.id);
+                      setLabel(t.label);
+                      setThreshold(t.relevanceThreshold);
+                      setThreatFilter(t.threatLevelFilter || "any");
+                      setShowForm(true);
+                    }}
+                  >
+                    <Eye className="w-3 h-3" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-5 w-5 p-0 text-zinc-500 hover:text-red-400"
+                    onClick={() => deleteMutation.mutate({ id: t.id })}
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Add/Edit Form */}
+        {showForm && (
+          <div className="space-y-2 border border-zinc-700 rounded-md p-2">
+            <Input
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              placeholder="Alert label"
+              className="h-7 text-xs bg-zinc-800 border-zinc-700"
+            />
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-zinc-500 w-20">Threshold:</span>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                value={threshold}
+                onChange={(e) => setThreshold(Number(e.target.value))}
+                className="flex-1 h-1.5 accent-red-500"
+              />
+              <span className="text-xs font-mono text-zinc-400 w-8">{threshold}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-zinc-500 w-20">Min Level:</span>
+              <select
+                value={threatFilter}
+                onChange={(e) => setThreatFilter(e.target.value as any)}
+                className="bg-zinc-800 border border-zinc-700 rounded px-2 py-0.5 text-xs text-zinc-300"
+              >
+                <option value="any">Any</option>
+                <option value="critical">Critical</option>
+                <option value="high">High+</option>
+                <option value="medium">Medium+</option>
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                className="h-6 px-3 text-xs"
+                disabled={upsertMutation.isPending}
+                onClick={() => upsertMutation.mutate({
+                  id: editId,
+                  scanId: scanId || null,
+                  label,
+                  relevanceThreshold: threshold,
+                  threatLevelFilter: threatFilter,
+                  enabled: true,
+                  notifyOnNew: true,
+                  notifyOnRising: true,
+                })}
+              >
+                {upsertMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : "Save"}
+              </Button>
+              <Button variant="ghost" size="sm" className="h-6 px-3 text-xs" onClick={() => setShowForm(false)}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Recent Alert History */}
+        {alertHistory && alertHistory.length > 0 && (
+          <div className="space-y-1">
+            <div className="text-[10px] text-zinc-600 uppercase tracking-wider">Recent Alerts</div>
+            {alertHistory.slice(0, 5).map((a: any) => (
+              <div key={a.id} className="flex items-center gap-2 text-[10px] text-zinc-500">
+                {a.notificationSent ? <Bell className="w-2.5 h-2.5 text-amber-400" /> : <BellOff className="w-2.5 h-2.5 text-zinc-600" />}
+                <span className="text-zinc-300 font-medium">{a.actorName}</span>
+                <span>score {a.relevanceScore}</span>
+                <span className="text-zinc-600">·</span>
+                <span className="truncate">{a.triggerReason}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {(!thresholds || thresholds.length === 0) && !showForm && (
+          <div className="text-center py-2 text-[10px] text-zinc-600">
+            No alert thresholds configured. Click "Add" to set up notifications.
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 // ─── Actor Card ───────────────────────────────────────────────────────────────
 function ActorCard({ actor, rank }: { actor: any; rank: number }) {
   const [expanded, setExpanded] = useState(false);
+  const hasIocOverlap = actor.recommendedActions?.some((a: string) => a.includes("IOC overlap"));
   return (
-    <div className="border border-zinc-800 rounded-lg bg-zinc-900/50 hover:bg-zinc-900/80 transition-colors">
+    <div className={`border rounded-lg bg-zinc-900/50 hover:bg-zinc-900/80 transition-colors ${hasIocOverlap ? "border-red-500/40" : "border-zinc-800"}`}>
       <button
         className="w-full text-left p-3 flex items-start gap-3"
         onClick={() => setExpanded(!expanded)}
       >
-        <div className="flex-shrink-0 w-7 h-7 rounded-full bg-zinc-800 flex items-center justify-center text-xs font-bold text-zinc-400">
+        <div className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${hasIocOverlap ? "bg-red-500/20 text-red-400" : "bg-zinc-800 text-zinc-400"}`}>
           {rank}
         </div>
         <div className="flex-1 min-w-0">
@@ -122,6 +380,11 @@ function ActorCard({ actor, rank }: { actor: any; rank: number }) {
             <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-zinc-700 text-zinc-400">
               {actor.actorType?.toUpperCase()}
             </Badge>
+            {hasIocOverlap && (
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-red-500/40 text-red-300 animate-pulse">
+                <Fingerprint className="w-2.5 h-2.5 mr-0.5" />IOC HIT
+              </Badge>
+            )}
             {actor.origin && (
               <span className="text-[10px] text-zinc-500 flex items-center gap-0.5">
                 <Globe className="w-3 h-3" />{actor.origin}
@@ -131,48 +394,36 @@ function ActorCard({ actor, rank }: { actor: any; rank: number }) {
           <div className="flex items-center gap-3 mt-1">
             <RelevanceBar score={actor.relevanceScore} />
             {actor.matchedSectors?.length > 0 && (
-              <span className="text-[10px] text-zinc-500">
-                Sectors: {actor.matchedSectors.slice(0, 3).join(", ")}
+              <span className="text-[10px] text-zinc-500 truncate">
+                {actor.matchedSectors.slice(0, 2).join(", ")}
               </span>
             )}
           </div>
         </div>
-        <div className="flex-shrink-0 text-zinc-500">
-          {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+        <div className="flex-shrink-0 pt-1">
+          {expanded ? <ChevronDown className="w-4 h-4 text-zinc-500" /> : <ChevronRight className="w-4 h-4 text-zinc-500" />}
         </div>
       </button>
 
       {expanded && (
-        <div className="px-3 pb-3 pt-0 border-t border-zinc-800 space-y-3">
+        <div className="px-3 pb-3 pt-0 space-y-2 border-t border-zinc-800/50">
           {/* Relevance Breakdown */}
-          <div className="grid grid-cols-5 gap-2 pt-2">
+          <div className="grid grid-cols-5 gap-2 mt-2">
             {[
-              { label: "Sector", val: actor.relevanceFactors?.sectorMatch, max: 40 },
-              { label: "Threat Level", val: actor.relevanceFactors?.threatLevelWeight, max: 20 },
-              { label: "CARVER Align", val: actor.relevanceFactors?.carverAlignment, max: 20 },
-              { label: "Activity", val: actor.relevanceFactors?.recentActivity, max: 10 },
-              { label: "IOC Density", val: actor.relevanceFactors?.iocOverlap, max: 10 },
+              { label: "Sector", value: actor.relevanceFactors?.sectorMatch, max: 40 },
+              { label: "Threat", value: actor.relevanceFactors?.threatLevelWeight, max: 20 },
+              { label: "CARVER", value: actor.relevanceFactors?.carverAlignment, max: 20 },
+              { label: "Activity", value: actor.relevanceFactors?.recentActivity, max: 10 },
+              { label: "IOC", value: actor.relevanceFactors?.iocOverlap, max: 10 },
             ].map(f => (
               <div key={f.label} className="text-center">
-                <div className="text-[10px] text-zinc-500">{f.label}</div>
-                <div className="text-xs font-mono text-zinc-300">{f.val}/{f.max}</div>
+                <div className="text-[10px] text-zinc-600">{f.label}</div>
+                <div className="text-xs font-mono text-zinc-400">{f.value || 0}/{f.max}</div>
               </div>
             ))}
           </div>
 
-          {/* Attack Vectors */}
-          {actor.attackVectors?.length > 0 && (
-            <div>
-              <div className="text-[10px] text-zinc-500 mb-1 uppercase tracking-wider">Attack Vectors</div>
-              <div className="flex flex-wrap gap-1">
-                {actor.attackVectors.map((v: string) => (
-                  <Badge key={v} variant="outline" className="text-[10px] px-1.5 py-0 border-zinc-700 text-zinc-400">{v}</Badge>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Top Techniques */}
+          {/* Techniques */}
           {actor.topTechniques?.length > 0 && (
             <div>
               <div className="text-[10px] text-zinc-500 mb-1 uppercase tracking-wider">Key Techniques</div>
@@ -186,19 +437,17 @@ function ActorCard({ actor, rank }: { actor: any; rank: number }) {
             </div>
           )}
 
-          {/* Recent Events */}
-          {actor.recentEvents?.length > 0 && (
+          {/* Tools */}
+          {actor.topTools?.length > 0 && (
             <div>
-              <div className="text-[10px] text-zinc-500 mb-1 uppercase tracking-wider">Recent Activity</div>
-              {actor.recentEvents.map((e: any, i: number) => (
-                <div key={i} className="flex items-center gap-2 text-xs text-zinc-400 py-0.5">
-                  <Badge variant="outline" className={`text-[9px] px-1 py-0 ${THREAT_BADGE[e.severity] || THREAT_BADGE.medium}`}>
-                    {e.severity}
+              <div className="text-[10px] text-zinc-500 mb-1 uppercase tracking-wider">Tools</div>
+              <div className="flex flex-wrap gap-1">
+                {actor.topTools.map((t: string) => (
+                  <Badge key={t} variant="outline" className="text-[10px] px-1.5 py-0 border-zinc-700 text-zinc-400">
+                    {t}
                   </Badge>
-                  <span className="truncate">{e.title}</span>
-                  {e.date && <span className="text-zinc-600 flex-shrink-0">{new Date(e.date).toLocaleDateString()}</span>}
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           )}
 
@@ -208,8 +457,8 @@ function ActorCard({ actor, rank }: { actor: any; rank: number }) {
               <div className="text-[10px] text-zinc-500 mb-1 uppercase tracking-wider">Recommended Actions</div>
               <ul className="space-y-0.5">
                 {actor.recommendedActions.map((a: string, i: number) => (
-                  <li key={i} className="text-xs text-zinc-400 flex items-start gap-1.5">
-                    <Zap className="w-3 h-3 text-amber-500 flex-shrink-0 mt-0.5" />
+                  <li key={i} className={`text-xs flex items-start gap-1.5 ${a.includes("CRITICAL") ? "text-red-300" : "text-zinc-400"}`}>
+                    <Zap className={`w-3 h-3 flex-shrink-0 mt-0.5 ${a.includes("CRITICAL") ? "text-red-500" : "text-amber-500"}`} />
                     {a}
                   </li>
                 ))}
@@ -235,6 +484,7 @@ function ActorCard({ actor, rank }: { actor: any; rank: number }) {
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function ExecutiveThreatBriefing() {
   const [selectedScanId, setSelectedScanId] = useState<number | undefined>(undefined);
+  const { toast } = useToast();
 
   const briefingInput = useMemo(() => ({
     scanId: selectedScanId,
@@ -247,6 +497,16 @@ export default function ExecutiveThreatBriefing() {
   );
   const { data: scans } = trpc.executiveDashboard.briefingScans.useQuery(undefined, { staleTime: 120_000 });
 
+  const generateReport = trpc.executiveDashboard.generateBriefingReport.useMutation({
+    onSuccess: (data) => {
+      window.open(data.url, "_blank");
+      toast({ title: "Briefing report generated", description: "Opening in new tab..." });
+    },
+    onError: (err) => {
+      toast({ title: "Report generation failed", description: err.message, variant: "destructive" });
+    },
+  });
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -258,12 +518,12 @@ export default function ExecutiveThreatBriefing() {
 
   if (!briefing) return null;
 
-  const { summary, matchedActors, trends, carverProfile, scan } = briefing;
+  const { summary, matchedActors, trends, carverProfile, scan, iocOverlap, alertsTriggered } = briefing as any;
   const riskColor = THREAT_COLORS[summary.sectorRiskLevel] || THREAT_COLORS.unknown;
 
   return (
     <div className="space-y-4">
-      {/* ── Header: Scan Selector + Summary ── */}
+      {/* ── Header: Scan Selector + Actions ── */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <select
@@ -287,24 +547,48 @@ export default function ExecutiveThreatBriefing() {
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? "animate-spin" : ""}`} />
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-xs gap-1.5 border-zinc-700 text-zinc-300 hover:bg-zinc-800"
+            disabled={generateReport.isPending}
+            onClick={() => generateReport.mutate({
+              scanId: selectedScanId,
+              generatedBy: "Ace C3 Platform",
+            })}
+          >
+            {generateReport.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <FileText className="w-3 h-3" />}
+            Generate Report
+          </Button>
         </div>
-        {scan && (
-          <div className="flex items-center gap-2 text-xs text-zinc-500">
-            <Globe className="w-3.5 h-3.5" />
-            <span>{scan.domain}</span>
-            {scan.sector && <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-zinc-700">{scan.sector}</Badge>}
-            {scan.riskBand && (
-              <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${THREAT_BADGE[scan.riskBand] || ""}`}>
-                Risk: {scan.riskBand}
-              </Badge>
-            )}
-            <span>{scan.totalAssets} assets · {scan.totalFindings} findings</span>
-          </div>
-        )}
+        <div className="flex items-center gap-3">
+          {alertsTriggered > 0 && (
+            <Badge variant="outline" className="text-[10px] px-2 py-0.5 border-amber-500/40 text-amber-300 animate-pulse">
+              <BellRing className="w-3 h-3 mr-1" />
+              {alertsTriggered} alert{alertsTriggered > 1 ? "s" : ""} triggered
+            </Badge>
+          )}
+          {scan && (
+            <div className="flex items-center gap-2 text-xs text-zinc-500">
+              <Globe className="w-3.5 h-3.5" />
+              <span>{scan.domain}</span>
+              {scan.sector && <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-zinc-700">{scan.sector}</Badge>}
+              {scan.riskBand && (
+                <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${THREAT_BADGE[scan.riskBand] || ""}`}>
+                  Risk: {scan.riskBand}
+                </Badge>
+              )}
+              <span>{scan.totalAssets} assets · {scan.totalFindings} findings</span>
+            </div>
+          )}
+        </div>
       </div>
 
+      {/* ── IOC Overlap Alert (if detected) ── */}
+      <IocOverlapPanel iocOverlap={iocOverlap} />
+
       {/* ── Summary Cards ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         <Card className="bg-zinc-900/60 border-zinc-800">
           <CardContent className="p-3">
             <div className="flex items-center gap-2">
@@ -349,6 +633,21 @@ export default function ExecutiveThreatBriefing() {
             </div>
           </CardContent>
         </Card>
+        {iocOverlap && iocOverlap.totalMatches > 0 && (
+          <Card className="bg-red-950/30 border-red-500/30">
+            <CardContent className="p-3">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-md border border-red-500/40 bg-red-500/20">
+                  <Fingerprint className="w-4 h-4 text-red-400" />
+                </div>
+                <div>
+                  <div className="text-[10px] text-red-400/70 uppercase">IOC Hits</div>
+                  <div className="text-sm font-bold text-red-300">{iocOverlap.totalMatches}</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
         <Card className="bg-zinc-900/60 border-zinc-800">
           <CardContent className="p-3">
             <div className="flex items-center gap-2">
@@ -391,8 +690,11 @@ export default function ExecutiveThreatBriefing() {
           </div>
         </div>
 
-        {/* Right: CARVER Profile + Trends + Activity */}
+        {/* Right: CARVER Profile + Trends + Activity + Alerts */}
         <div className="space-y-4">
+          {/* Alert Thresholds */}
+          <AlertThresholdManager scanId={selectedScanId} />
+
           {/* CARVER Profile */}
           {carverProfile && (
             <Card className="bg-zinc-900/60 border-zinc-800">

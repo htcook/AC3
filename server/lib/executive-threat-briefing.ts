@@ -138,6 +138,12 @@ export interface ThreatBriefingResult {
     priorityBreakdown: Record<string, number>;
     topThreatLikelihoods: Array<{ threat: string; likelihood: number }>;
   } | null;
+  iocOverlap: {
+    totalMatches: number;
+    compromiseIndicators: Array<{ actorId: string; iocType: string; iocValue: string; matchedAsset: string; matchType: string; confidence: string | null }>;
+    assetExposure: { totalAssetsChecked: number; assetsWithIocHits: number; uniqueActorsMatched: number };
+  } | null;
+  alertsTriggered: number;
   lastUpdated: number;
 }
 
@@ -150,6 +156,8 @@ export async function computeExecutiveThreatBriefing(input: ThreatBriefingInput)
       summary: { totalMatched: 0, criticalActors: 0, highActors: 0, topAttackVectors: [], sectorRiskLevel: "unknown", avgRelevanceScore: 0 },
       trends: { eventsByMonth: [], actorActivityTrend: [] },
       carverProfile: null,
+      iocOverlap: null,
+      alertsTriggered: 0,
       lastUpdated: Date.now(),
     };
   }
@@ -500,6 +508,74 @@ export async function computeExecutiveThreatBriefing(input: ThreatBriefingInput)
     };
   });
 
+  // ── Step 9: IOC Overlap Detection ──────────────────────────────────────────
+  let iocOverlapResult = null;
+  if (scanData) {
+    try {
+      const { computeIocOverlap } = await import("./ioc-overlap-detector");
+      const overlap = await computeIocOverlap(scanData.id);
+      if (overlap.totalMatches > 0) {
+        iocOverlapResult = {
+          totalMatches: overlap.totalMatches,
+          compromiseIndicators: overlap.compromiseIndicators.map(m => ({
+            actorId: m.actorId,
+            iocType: m.iocType,
+            iocValue: m.iocValue,
+            matchedAsset: m.matchedAsset,
+            matchType: m.matchType,
+            confidence: m.confidence,
+          })),
+          assetExposure: overlap.assetExposure,
+        };
+        // Boost relevance scores for actors with IOC overlaps
+        for (const actor of topActors) {
+          const actorMatches = overlap.matchesByActor.get(actor.actorId);
+          if (actorMatches && actorMatches.length > 0) {
+            actor.relevanceScore = Math.min(100, actor.relevanceScore + Math.min(15, actorMatches.length * 3));
+            actor.relevanceFactors.iocOverlap = Math.min(10, actorMatches.length * 2);
+            if (!actor.recommendedActions.some(a => a.includes("IOC overlap"))) {
+              actor.recommendedActions.unshift(`CRITICAL: ${actorMatches.length} IOC overlaps with your infrastructure`);
+            }
+          }
+        }
+        // Re-sort after IOC boost
+        topActors.sort((a, b) => b.relevanceScore - a.relevanceScore);
+      }
+    } catch (err) {
+      console.error("[ThreatBriefing] IOC overlap check failed:", err);
+    }
+  }
+
+  // ── Step 10: Check Alert Thresholds ────────────────────────────────────────
+  let alertsTriggered = 0;
+  try {
+    const { checkAlertThresholds } = await import("./threat-alert-engine");
+    const iocOverlapActors = new Set<string>();
+    if (iocOverlapResult) {
+      for (const ind of iocOverlapResult.compromiseIndicators) {
+        iocOverlapActors.add(ind.actorId);
+      }
+    }
+    const risingActors = new Set(actorActivityTrend.filter(a => a.trend === "rising").map(a => a.actorId));
+    const alertResult = await checkAlertThresholds({
+      scanId: scanData?.id || null,
+      matchedActors: topActors.map(a => ({
+        actorId: a.actorId,
+        name: a.name,
+        relevanceScore: a.relevanceScore,
+        threatLevel: a.threatLevel,
+        iocCount: a.iocCount,
+        matchedSectors: a.matchedSectors,
+        attackVectors: a.attackVectors,
+      })),
+      iocOverlapActors,
+      risingActors,
+    });
+    alertsTriggered = alertResult.alertsFired;
+  } catch (err) {
+    console.error("[ThreatBriefing] Alert threshold check failed:", err);
+  }
+
   return {
     scan: scanData,
     matchedActors: topActors,
@@ -513,6 +589,8 @@ export async function computeExecutiveThreatBriefing(input: ThreatBriefingInput)
     },
     trends: { eventsByMonth, actorActivityTrend },
     carverProfile,
+    iocOverlap: iocOverlapResult,
+    alertsTriggered,
     lastUpdated: Date.now(),
   };
 }
