@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/_core/hooks/useAuth";
 import {
   Activity, RefreshCw, CheckCircle2, XCircle, Clock, AlertTriangle,
   FileText, Shield, Zap, BookOpen, Network, Bug, Brain, Play,

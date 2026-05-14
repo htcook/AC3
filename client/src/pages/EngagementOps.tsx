@@ -6985,7 +6985,6 @@ const TOOL_COLORS: Record<string, string> = {
   gospider: "text-blue-400 border-blue-500/30",
   waybackurls: "text-amber-400 border-amber-500/30",
   gau: "text-amber-400 border-amber-500/30",
-  naabu: "text-cyan-400 border-cyan-500/30",
 };
 
 function FeedbackScanCard({ scan, index }: { scan: any; index: number }) {
