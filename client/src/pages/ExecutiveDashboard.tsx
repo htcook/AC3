@@ -401,6 +401,10 @@ export default function ExecutiveDashboard() {
   const { data: vulnTrendData, isLoading: vulnTrendLoading } = trpc.cisoMetrics.vulnTrend.useQuery();
   const { data: mitreHeatmapData, isLoading: mitreHeatmapLoading } = trpc.cisoMetrics.mitreHeatmap.useQuery();
 
+  // Risk Register metrics
+  const { data: rrMetrics, isLoading: rrLoading } = trpc.riskRegister.executiveMetrics.useQuery({ days: 90 });
+  const { data: rrTrend, isLoading: rrTrendLoading } = trpc.riskRegister.trend.useQuery({ months: 6 });
+
   // PDF export handler
   const handleExportPdf = async () => {
     setExportingPdf(true);
@@ -671,6 +675,9 @@ export default function ExecutiveDashboard() {
           </TabsTrigger>
           <TabsTrigger value="mitre-heatmap" className="gap-1.5">
             <Radar className="w-4 h-4" /> ATT&CK Heatmap
+          </TabsTrigger>
+          <TabsTrigger value="risk-register" className="gap-1.5">
+            <FileText className="w-4 h-4" /> Risk Register
           </TabsTrigger>
         </TabsList>
 
@@ -2165,7 +2172,208 @@ export default function ExecutiveDashboard() {
           </div>
         </TabsContent>
 
-        {/* ── MITRE ATT&CK Heatmap Tab ── */}
+        {/* ── Risk Register (POA&M) Tab ── */}
+        <TabsContent value="risk-register" className="mt-4">
+          {rrLoading ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-3 md:grid-cols-6 gap-4">
+                {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-24" />)}
+              </div>
+              <Skeleton className="h-[300px]" />
+            </div>
+          ) : rrMetrics ? (
+            <div className="space-y-6">
+              {/* Summary Cards */}
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                <Card className="bg-red-500/5 border-red-500/20">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <ShieldAlert className="h-5 w-5 text-red-400" />
+                      <span className="text-2xl font-bold tabular-nums">{rrMetrics.summary.totalOpen}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">Open POA&Ms</p>
+                  </CardContent>
+                </Card>
+                <Card className="bg-orange-500/5 border-orange-500/20">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <Clock className="h-5 w-5 text-orange-400" />
+                      <span className="text-2xl font-bold tabular-nums">{rrMetrics.summary.overdue}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">Overdue</p>
+                  </CardContent>
+                </Card>
+                <Card className="bg-emerald-500/5 border-emerald-500/20">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <CheckCircle2 className="h-5 w-5 text-emerald-400" />
+                      <span className="text-2xl font-bold tabular-nums">{rrMetrics.summary.totalClosedInPeriod}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">Closed (90d)</p>
+                  </CardContent>
+                </Card>
+                <Card className="bg-purple-500/5 border-purple-500/20">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <ShieldCheck className="h-5 w-5 text-purple-400" />
+                      <span className="text-2xl font-bold tabular-nums">{rrMetrics.summary.riskAccepted}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">Risk Accepted</p>
+                  </CardContent>
+                </Card>
+                <Card className="bg-pink-500/5 border-pink-500/20">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <AlertTriangle className="h-5 w-5 text-pink-400" />
+                      <span className="text-2xl font-bold tabular-nums">{rrMetrics.summary.vendorDependent}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">Vendor Dep.</p>
+                  </CardContent>
+                </Card>
+                <Card className="bg-blue-500/5 border-blue-500/20">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <FileText className="h-5 w-5 text-blue-400" />
+                      <span className="text-2xl font-bold tabular-nums">{rrMetrics.summary.newInPeriod}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">New (90d)</p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {/* Open by Severity */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Open POA&Ms by Severity</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {["critical", "high", "moderate", "low", "informational"].map(sev => {
+                        const item = rrMetrics.openBySeverity.find((s: any) => s.severity === sev);
+                        const count = item?.count || 0;
+                        const total = rrMetrics.summary.totalOpen || 1;
+                        const pct = Math.round((count / total) * 100);
+                        const color = sev === "critical" ? "bg-red-500" : sev === "high" ? "bg-orange-500" : sev === "moderate" ? "bg-yellow-500" : sev === "low" ? "bg-blue-500" : "bg-gray-500";
+                        return (
+                          <div key={sev} className="flex items-center gap-3">
+                            <span className="text-xs capitalize w-24 text-muted-foreground">{sev}</span>
+                            <div className="flex-1 h-2 bg-muted/30 rounded-full overflow-hidden">
+                              <div className={`h-full ${color} rounded-full transition-all`} style={{ width: `${pct}%` }} />
+                            </div>
+                            <span className="text-sm font-medium tabular-nums w-8 text-right">{count}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* MTTR by Severity */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Mean Time to Remediate (days)</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {Object.keys(rrMetrics.mttrBySeverity).length > 0 ? (
+                      <div className="space-y-3">
+                        {Object.entries(rrMetrics.mttrBySeverity).map(([sev, data]: [string, any]) => (
+                          <div key={sev} className="flex items-center justify-between p-2.5 rounded-lg bg-muted/20">
+                            <span className="text-sm capitalize">{sev}</span>
+                            <div className="text-right">
+                              <span className="text-lg font-bold tabular-nums">{data.avgDays}</span>
+                              <span className="text-xs text-muted-foreground ml-1">days ({data.count} items)</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="py-8 text-center text-muted-foreground">
+                        <Timer className="w-6 h-6 mx-auto mb-2 opacity-30" />
+                        <p className="text-sm">No closed items to calculate MTTR</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Trend Chart */}
+              {rrTrend && rrTrend.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">POA&M Trend (6 months)</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-6 gap-2">
+                      {rrTrend.map((point: any) => (
+                        <div key={point.month} className="text-center p-2 rounded-lg bg-muted/20">
+                          <p className="text-xs text-muted-foreground mb-1">{point.month}</p>
+                          <p className="text-sm font-medium">
+                            <span className="text-emerald-400">+{point.opened}</span>
+                            {" / "}
+                            <span className="text-red-400">-{point.closed}</span>
+                          </p>
+                          <p className={`text-xs mt-0.5 ${point.netOpen > 0 ? "text-red-400" : point.netOpen < 0 ? "text-emerald-400" : "text-muted-foreground"}`}>
+                            net: {point.netOpen > 0 ? "+" : ""}{point.netOpen}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Oldest Open Items */}
+              {rrMetrics.oldestOpen && rrMetrics.oldestOpen.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Oldest Open POA&Ms</CardTitle>
+                    <CardDescription>Items that have been open the longest — prioritize for remediation or risk acceptance</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      {rrMetrics.oldestOpen.slice(0, 5).map((item: any) => {
+                        const ageDays = item.originalDetectionDate ? Math.floor((Date.now() - new Date(item.originalDetectionDate).getTime()) / 86400000) : 0;
+                        return (
+                          <div key={item.id} className="flex items-center gap-3 p-2.5 rounded-lg bg-muted/20 border border-border/50 cursor-pointer hover:border-primary/40 transition-colors" onClick={() => navigate(`/risk-register/${item.id}`)}>
+                            <Badge variant="outline" className={`text-[10px] ${item.severity === "critical" ? "text-red-400 border-red-500/30" : item.severity === "high" ? "text-orange-400 border-orange-500/30" : "text-yellow-400 border-yellow-500/30"}`}>{item.severity}</Badge>
+                            <div className="flex-1 min-w-0">
+                              <span className="text-sm font-medium truncate block">{item.weaknessName}</span>
+                              <span className="text-[10px] text-muted-foreground font-mono">{item.poamId}</span>
+                            </div>
+                            <div className="text-right flex-shrink-0">
+                              <span className="text-sm font-bold tabular-nums text-red-400">{ageDays}d</span>
+                              <p className="text-[10px] text-muted-foreground">open</p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              <div className="flex justify-center">
+                <Button variant="outline" onClick={() => navigate("/risk-register")}>
+                  <FileText className="w-4 h-4 mr-2" /> View Full Risk Register
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <Card className="bg-zinc-900/50 border-zinc-800">
+              <CardContent className="py-12 text-center">
+                <FileText className="w-12 h-12 mx-auto mb-3 text-zinc-600" />
+                <p className="text-zinc-400">No Risk Register data available</p>
+                <p className="text-sm text-zinc-500 mt-1">Import findings from engagements or create manual entries</p>
+                <Button variant="outline" className="mt-4" onClick={() => navigate("/risk-register")}>
+                  Go to Risk Register
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        {/* ── MITRE ATT&CK Heatmap Tab ── */
         <TabsContent value="mitre-heatmap" className="mt-4">
           {mitreHeatmapLoading ? (
             <div className="space-y-4">

@@ -447,6 +447,7 @@ export const sidebarNavGroups: NavGroup[] = [
       { label: "Evidence Gallery", path: "/evidence-gallery", icon: Camera },
       { label: "Scoring", path: "/scoring", icon: BarChart3 },
       { label: "BIA Report", path: "/bia-report", icon: BarChart3 },
+      { label: "Risk Register", path: "/risk-register", icon: ClipboardCheck },
       { label: "Risk Trending", path: "/risk-trending", icon: TrendingUp },
       { label: "Remediation Tracking", path: "/remediation-tracking", icon: Target },
     ],

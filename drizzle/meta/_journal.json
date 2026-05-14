@@ -8,6 +8,13 @@
       "when": 1778608200121,
       "tag": "0000_initial_schema",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1778766998455,
+      "tag": "0001_cute_agent_brand",
+      "breakpoints": true
     }
   ]
 }

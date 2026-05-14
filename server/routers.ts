@@ -64,6 +64,7 @@ import { accountAuthRouter } from "./routers/account-auth";
 import { tenantRouter } from "./routers/tenants";
 import { vulnScannerRouter } from "./routers/vuln-scanner";
 import { riskTrendingRouter } from "./routers/risk-trending";
+import { riskRegisterRouter } from "./routers/risk-register";
 import { agentlessBASRouter } from "./routers/agentless-bas";
 import { attackPathDiscoveryRouter } from "./routers/attack-path-discovery";
 import { reportTemplatesRouter } from "./routers/report-templates";
@@ -371,6 +372,7 @@ export const appRouter = router({
   tenants: tenantRouter,
   vulnScanner: vulnScannerRouter,
   riskTrending: riskTrendingRouter,
+  riskRegister: riskRegisterRouter,
   agentlessBAS: agentlessBASRouter,
   attackPathDiscovery: attackPathDiscoveryRouter,
   reportTemplates: reportTemplatesRouter,

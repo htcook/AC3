@@ -306,6 +306,9 @@ const ExecutiveDashboard = lazyWithRetry(() => import("./pages/ExecutiveDashboar
 const ThreatGroupProfile = lazyWithRetry(() => import("./pages/ThreatGroupProfile"));
 const GraduationEngine = lazyWithRetry(() => import("./pages/GraduationEngine"));
 const RemediationTracking = lazyWithRetry(() => import("./pages/RemediationTracking"));
+const RiskRegister = lazyWithRetry(() => import("./pages/RiskRegister"));
+const RiskRegisterDetail = lazyWithRetry(() => import("./pages/RiskRegisterDetail"));
+const RiskRegisterNew = lazyWithRetry(() => import("./pages/RiskRegisterNew"));
 const SafetyDashboard = lazyWithRetry(() => import("./pages/SafetyDashboard"));
 const PipelineAudit = lazyWithRetry(() => import("./pages/PipelineAudit"));
 const AgentInternalScanning = lazyWithRetry(() => import("./pages/AgentInternalScanning"));
@@ -1201,6 +1204,15 @@ function Router() {
         </Route>
         <Route path="/remediation-tracking">
           <ProtectedRoute component={RemediationTracking} />
+        </Route>
+        <Route path="/risk-register/new">
+          <ProtectedRoute component={RiskRegisterNew} />
+        </Route>
+        <Route path="/risk-register/:id">
+          <ProtectedRoute component={RiskRegisterDetail} />
+        </Route>
+        <Route path="/risk-register">
+          <ProtectedRoute component={RiskRegister} />
         </Route>
         <Route path="/safety-dashboard">
           <ProtectedRoute component={SafetyDashboard} />
