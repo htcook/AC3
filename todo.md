@@ -2756,6 +2756,6 @@
 - [x] Fix 1: Increased sort_buffer_size to 8MB on RDS parameter group ac3-dev-mysql80
 - [x] Fix 2: Added indexes on lastActive, threatLevel, name, updatedAt, actorType (migration 0004)
 - [x] Fix 3: Changed frontend default sort from 'lastActive' to 'name' (indexed column)
-- [ ] Deploy fixes to AWS and verify Threat Catalog renders
+- [x] Deploy fixes to AWS and verify Threat Catalog renders
 - [ ] Trigger SYNC ALL SOURCES to populate missing actors (target: 1,700+)
-- [ ] Verify fix on live AWS deployment
+- [x] Verify fix on live AWS deployment — 2,824 actors rendering, all stat cards populated
