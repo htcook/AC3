@@ -2028,7 +2028,10 @@ async function startServer() {
 
       const https = await import('https');
       const http = await import('http');
-      const { db } = await import('../db');
+      const { getDb } = await import('../db');
+      const { sql: drizzleSql } = await import('drizzle-orm');
+      const db = await getDb();
+      if (!db) return res.status(500).json({ error: 'Database not available' });
 
       // S3 URL for the export file
       const s3Url = req.body?.url || 'https://ac3-dev-assets-808038814732.s3.us-east-1.amazonaws.com/migrations/threat-catalog-export.sql';
@@ -2069,7 +2072,7 @@ async function startServer() {
       for (const stmt of statements) {
         if (!stmt || stmt.startsWith('--')) continue;
         try {
-          await db.execute(sql.raw(stmt));
+          await db.execute(drizzleSql.raw(stmt));
           executed++;
         } catch (e: any) {
           errors++;
