@@ -2090,6 +2090,28 @@ async function startServer() {
     }
   });
 
+  // ─── DB Diagnostic ─────────────────────────────────────────────────────
+  app.get("/api/scheduled/db-diagnostic", async (_req: any, res: any) => {
+    try {
+      const { getDb } = await import('../db');
+      const db = await getDb();
+      if (!db) return res.status(500).json({ error: "No DB" });
+      const [cols] = await db.execute(sql.raw("SHOW COLUMNS FROM threat_actors"));
+      const [count] = await db.execute(sql.raw("SELECT COUNT(*) as cnt FROM threat_actors"));
+      const [sample] = await db.execute(sql.raw("SELECT id, actorId, name, actorType FROM threat_actors LIMIT 3"));
+      // Also try the full SELECT that drizzle would do
+      let fullSelectError = null;
+      try {
+        const [fullRow] = await db.execute(sql.raw("SELECT * FROM threat_actors LIMIT 1"));
+      } catch (e: any) {
+        fullSelectError = { message: e.message, code: e.code, errno: e.errno, sqlMessage: e.sqlMessage };
+      }
+      return res.json({ columns: cols, count, sample, fullSelectError });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message, code: err.code, errno: err.errno, sqlMessage: (err as any).sqlMessage });
+    }
+  });
+
   // ─── Rate Limiting ────────────────────────────────────────────────────
   const { apiRateLimiter, trpcAuthRateLimiter } = await import("../lib/rate-limiter");
 
@@ -2102,8 +2124,8 @@ async function startServer() {
       router: appRouter,
       createContext,
       onError({ error, path }) {
-        // Log full error server-side for debugging
-        console.error(`[tRPC] ${path}:`, error.message);
+        // Log full error server-side for debugging (including MySQL error details)
+        console.error(`[tRPC] ${path}:`, error.message, (error.cause as any)?.code || '', (error.cause as any)?.sqlMessage || '', (error.cause as any)?.errno || '');
         // Sanitize error message before it reaches the client
         // Strip internal URLs, file paths, API keys, and stack traces
         const original = error.message;

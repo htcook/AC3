@@ -2751,3 +2751,8 @@
 - [ ] Fix the list rendering/query issue
 - [ ] Trigger SYNC ALL SOURCES to populate missing actors (target: 1,700+)
 - [ ] Verify fix on live AWS deployment
+- [x] Add db-diagnostic endpoint with proper imports (getDb was undefined in previous version)
+- [x] Add detailed error logging to threatIntel.list (catch MySQL error code, sqlMessage, errno)
+- [x] Improve tRPC error handler to log cause.code, cause.sqlMessage, cause.errno
+- [ ] Deploy diagnostic build to AWS and identify actual MySQL error
+- [ ] Fix the root cause of the SELECT failure on AWS RDS

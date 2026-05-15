@@ -77,10 +77,17 @@ export const threatIntelRouter = router({
         : threatActors.name;
       const order = opts.sortOrder === "desc" ? desc(sortCol) : sortCol;
 
-      const [actors, countResult] = await Promise.all([
-        db.select().from(threatActors).where(where).orderBy(order).limit(opts.pageSize || 50).offset(offset),
-        db.select({ count: sql<number>`count(*)` }).from(threatActors).where(where),
-      ]);
+      let actors: any[];
+      let countResult: any[];
+      try {
+        [actors, countResult] = await Promise.all([
+          db.select().from(threatActors).where(where).orderBy(order).limit(opts.pageSize || 50).offset(offset),
+          db.select({ count: sql<number>`count(*)` }).from(threatActors).where(where),
+        ]);
+      } catch (err: any) {
+        console.error('[threatIntel.list] DB error:', err.message, 'code:', err.code, 'errno:', err.errno, 'sqlMessage:', err.sqlMessage);
+        throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: `DB query failed: ${err.sqlMessage || err.message}`, cause: err });
+      }
 
       return {
         actors: actors.map(a => ({
