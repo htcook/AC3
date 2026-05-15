@@ -2736,3 +2736,12 @@
 - [x] @protobufjs/utf8: override >=1.1.1 (fixes 1 medium alert)
 - [x] Verify no breaking changes from dependency updates
 - [x] Run vitest tests to confirm nothing is broken (35 tests passing)
+
+### AWS Deployment Fix (May 15)
+- [x] Diagnose container crash: vite import in production build (ERR_MODULE_NOT_FOUND)
+- [x] Split serve-static.ts from vite.ts to avoid importing vite in production
+- [x] Make setupVite a dynamic import only loaded in development mode
+- [x] Fix migration 0003: CURRENT_TIMESTAMP was string-quoted causing table creation failure
+- [x] Fix drizzle schema: use defaultNow() instead of default('CURRENT_TIMESTAMP')
+- [x] Verify all 35 alert notification tests still pass
+- [x] Rebuild and redeploy to AWS ECR/ECS

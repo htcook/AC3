@@ -8686,7 +8686,7 @@ export const threatAlertThresholds = mysqlTable("threat_alert_thresholds", {
 	notifyOnNew: tinyint("notify_on_new").default(1).notNull(),
 	notifyOnRising: tinyint("notify_on_rising").default(1).notNull(),
 	createdBy: varchar("created_by", { length: 255 }),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow().notNull(),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 }, (table) => [
 	index("tat_scan_idx").on(table.scanId),

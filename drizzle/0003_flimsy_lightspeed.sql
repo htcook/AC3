@@ -23,7 +23,7 @@ CREATE TABLE `threat_alert_thresholds` (
 	`notify_on_new` tinyint NOT NULL DEFAULT 1,
 	`notify_on_rising` tinyint NOT NULL DEFAULT 1,
 	`created_by` varchar(255),
-	`createdAt` timestamp NOT NULL DEFAULT 'CURRENT_TIMESTAMP',
+	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
 	CONSTRAINT `threat_alert_thresholds_id` PRIMARY KEY(`id`)
 );

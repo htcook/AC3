@@ -11,7 +11,8 @@ import { registerSAMLRoutes } from "../routers/saml-auth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { ENV } from "./env";
-import { serveStatic, setupVite } from "./vite";
+// serveStatic is in a separate module that doesn't import vite (production-safe)
+import { serveStatic } from "./serve-static";
 import { eventHub } from "../lib/ws-event-hub";
 import { enforceFIPSTLS } from "../lib/fips-tls-global";
 import { initFIPSProvider } from "../lib/fips-openssl-provider";
@@ -2046,6 +2047,7 @@ async function startServer() {
   );
   // development mode uses Vite, production mode uses static files
   if (process.env.NODE_ENV === "development") {
+    const { setupVite } = await import("./vite");
     await setupVite(app, server);
   } else {
     serveStatic(app);
