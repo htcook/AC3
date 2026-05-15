@@ -2106,7 +2106,35 @@ async function startServer() {
       } catch (e: any) {
         fullSelectError = { message: e.message, code: e.code, errno: e.errno, sqlMessage: e.sqlMessage };
       }
-      return res.json({ columns: cols, count, sample, fullSelectError });
+      // Try the exact drizzle ORM query that the list procedure uses
+      let drizzleQueryError = null;
+      let drizzleQueryResult = null;
+      try {
+        const { threatActors } = await import('../../drizzle/schema');
+        const { desc } = await import('drizzle-orm');
+        const result = await db.select().from(threatActors).orderBy(desc(threatActors.lastActive)).limit(3);
+        drizzleQueryResult = { count: result.length, firstId: result[0]?.id, firstName: result[0]?.name };
+      } catch (e: any) {
+        const cause = (e as any).cause || e;
+        drizzleQueryError = {
+          message: e.message,
+          causeMessage: cause?.message,
+          causeCode: cause?.code,
+          causeErrno: cause?.errno,
+          causeSqlMessage: cause?.sqlMessage,
+          causeSqlState: cause?.sqlState,
+          errKeys: Object.keys(e),
+          causeKeys: cause ? Object.keys(cause) : [],
+        };
+      }
+      // Also try the raw SQL version of the drizzle query
+      let rawDrizzleQueryError = null;
+      try {
+        const [rawResult] = await db.execute(sql.raw("SELECT `id`, `actorId`, `name`, `aliases`, `actorType`, `origin`, `description`, `motivation`, `firstSeen`, `lastActive`, `threatLevel`, `sophistication`, `targetSectors`, `targetRegions`, `techniques`, `tools`, `malware`, `calderaProfile`, `activityTimeline`, `stixId`, `dataSource`, `confidence`, `createdAt`, `updatedAt`, `ta_tenant_id`, `logoUrl`, `conflicts`, `enrichment_sources` FROM `threat_actors` ORDER BY `threat_actors`.`lastActive` DESC LIMIT 3"));
+      } catch (e: any) {
+        rawDrizzleQueryError = { message: e.message, code: e.code, errno: e.errno, sqlMessage: e.sqlMessage };
+      }
+      return res.json({ columns: cols, count, sample, fullSelectError, drizzleQueryError, drizzleQueryResult, rawDrizzleQueryError });
     } catch (err: any) {
       return res.status(500).json({ error: err.message, code: err.code, errno: err.errno, sqlMessage: (err as any).sqlMessage });
     }

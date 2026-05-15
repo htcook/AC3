@@ -85,8 +85,17 @@ export const threatIntelRouter = router({
           db.select({ count: sql<number>`count(*)` }).from(threatActors).where(where),
         ]);
       } catch (err: any) {
-        console.error('[threatIntel.list] DB error:', err.message, 'code:', err.code, 'errno:', err.errno, 'sqlMessage:', err.sqlMessage);
-        throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: `DB query failed: ${err.sqlMessage || err.message}`, cause: err });
+        const cause = (err as any).cause || err;
+        console.error('[threatIntel.list] DB error:', err.message);
+        console.error('[threatIntel.list] Cause details:', JSON.stringify({
+          causeName: cause?.name, causeCode: cause?.code, causeErrno: cause?.errno,
+          causeSqlMessage: cause?.sqlMessage, causeSqlState: cause?.sqlState,
+          causeMessage: cause?.message,
+          errKeys: Object.keys(err),
+          causeKeys: cause ? Object.keys(cause) : [],
+          fullErr: String(err),
+        }));
+        throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: `DB query failed: ${cause?.sqlMessage || cause?.message || err.message}`, cause: err });
       }
 
       return {
