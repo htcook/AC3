@@ -7052,8 +7052,13 @@ export const threatActors = mysqlTable("threat_actors", {
 	enrichmentSources: json("enrichment_sources"),
 },
 (table) => [
-	index("threat_actors_actorId_unique").on(table.actorId),
-]);
+		index("threat_actors_actorId_unique").on(table.actorId),
+		index("ta_last_active_idx").on(table.lastActive),
+		index("ta_threat_level_idx").on(table.threatLevel),
+		index("ta_name_idx").on(table.name),
+		index("ta_updated_at_idx").on(table.updatedAt),
+		index("ta_actor_type_idx").on(table.actorType),
+	]);
 
 export const threatGroupEvents = mysqlTable("threat_group_events", {
 	id: int().autoincrement().notNull(),

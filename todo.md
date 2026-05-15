@@ -2747,12 +2747,15 @@
 - [x] Rebuild and redeploy to AWS ECR/ECS
 
 ### Threat Catalog List Not Rendering (May 15)
-- [ ] Investigate why threat catalog list shows "NO THREAT GROUPS FOUND" despite stats showing 1,453 actors
-- [ ] Fix the list rendering/query issue
-- [ ] Trigger SYNC ALL SOURCES to populate missing actors (target: 1,700+)
-- [ ] Verify fix on live AWS deployment
+- [x] Investigate why threat catalog list shows "NO THREAT GROUPS FOUND" despite stats showing 1,453 actors
 - [x] Add db-diagnostic endpoint with proper imports (getDb was undefined in previous version)
 - [x] Add detailed error logging to threatIntel.list (catch MySQL error code, sqlMessage, errno)
 - [x] Improve tRPC error handler to log cause.code, cause.sqlMessage, cause.errno
-- [ ] Deploy diagnostic build to AWS and identify actual MySQL error
-- [ ] Fix the root cause of the SELECT failure on AWS RDS
+- [x] Deploy diagnostic build to AWS and identify actual MySQL error
+- [x] ROOT CAUSE: ER_OUT_OF_SORTMEMORY (errno 1038) - ORDER BY lastActive DESC on 2,824 rows with large JSON columns exceeds sort_buffer_size
+- [x] Fix 1: Increased sort_buffer_size to 8MB on RDS parameter group ac3-dev-mysql80
+- [x] Fix 2: Added indexes on lastActive, threatLevel, name, updatedAt, actorType (migration 0004)
+- [x] Fix 3: Changed frontend default sort from 'lastActive' to 'name' (indexed column)
+- [ ] Deploy fixes to AWS and verify Threat Catalog renders
+- [ ] Trigger SYNC ALL SOURCES to populate missing actors (target: 1,700+)
+- [ ] Verify fix on live AWS deployment

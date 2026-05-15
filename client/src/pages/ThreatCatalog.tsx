@@ -101,7 +101,7 @@ function parseFiltersFromURL(searchString: string) {
   return {
     search: p.get("q") || "",
     type: (p.get("type") || "all") as GroupType,
-    sortBy: (p.get("sort") || "lastActive") as SortBy,
+    sortBy: (p.get("sort") || "name") as SortBy,
     page: parseInt(p.get("page") || "1", 10) || 1,
     lastActive: (p.get("activity") || "all") as LastActiveFilter,
     threatLevel: (p.get("threat") || "all") as ThreatLevelFilter,
@@ -120,7 +120,7 @@ function buildFilterURL(filters: {
   const p = new URLSearchParams();
   if (filters.search) p.set("q", filters.search);
   if (filters.type && filters.type !== "all") p.set("type", filters.type);
-  if (filters.sortBy && filters.sortBy !== "lastActive") p.set("sort", filters.sortBy);
+  if (filters.sortBy && filters.sortBy !== "name") p.set("sort", filters.sortBy);
   if (filters.page && filters.page > 1) p.set("page", String(filters.page));
   if (filters.lastActive && filters.lastActive !== "all") p.set("activity", filters.lastActive);
   if (filters.threatLevel && filters.threatLevel !== "all") p.set("threat", filters.threatLevel);

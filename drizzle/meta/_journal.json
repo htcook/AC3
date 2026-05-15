@@ -29,6 +29,13 @@
       "when": 1778784486984,
       "tag": "0003_flimsy_lightspeed",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1778824600000,
+      "tag": "0004_add_threat_actor_indexes",
+      "breakpoints": true
     }
   ]
 }
