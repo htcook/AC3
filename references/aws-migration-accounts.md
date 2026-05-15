@@ -99,7 +99,17 @@ export AWS_SECRET_ACCESS_KEY="69mPIE4RlE4jEo3zpU7kgiFjIsb4U76Bx+FpaEvj"
 export AWS_SESSION_TOKEN="IQoJb3JpZ2luX2VjEK///////////wEaCXVzLWVhc3QtMSJHMEUCIBJkfxBRqTUmX4YpDSIyhMuHgBJMi3lDrwnUsRiu8eztAiEA96I6x6J8moaV+YXaR2zW2YFiaI4S00fgpvIJInqP/YQq+gIIdxAAGgw4MDgwMzg4MTQ3MzIiDHP1Xfe8H4rRuzzN2SrXAhsVT0oPJA4bLw5TAI7GyexG/HhAAiaBQMz/dzqt3gYadFA7rgQ68jvFNP8pgvlKWyUr3XRyDvvLjWWVTkYPkXTWHV8VW7uywY9U6BYXc6ZnlSVJ1e9NbxhwayQjlco8OhwY0L+e0VsEm5GAOlR0EfJ6iFr5VETLFqp2ti9Ufaf5Pw4K6Um6oSX2bbNtJe8vv2b5ONusvD9dNzYg/omMF84F7R8Y7U/V5uCWITLXz7d7YEwvRX3O2YQlilJ6RcGAGu8CKoMqJ8FkFsjE4MBlemjpzUgSrbZkaqSGEW+bxsJPUlX1lLhQI/MUD8nIzW+nIv/3oaUftW3AaDdRGJrKNfBagdD0Lpu5edEgQN7DMgasAI0zM+cNYHgsmT0XvcogYaxFwEXLeRh1F/o0fF42Z6/kc2ptXYzOQ3GGU/Vi/95V7KbmXi8RB2iEBqaIHXta0ysSTX0j43Qw2tec0AY6pQEoRzggJaQ2NnsxbCWLMeZn5PGSskYDQS/QfQZXifOwSSy62hSVPVRe1WHORcOGPsjbOJuDjVqQvnQXgUJZ9lGAmjOM5Ta3gewQUFBQarAJ4eTkQWPTMkpFh+2QWd4V85ko+I54U52jpSWPlo1h4Z+p3ZZWVrfv/5d0Ch2TQ4yMhSS44SShf3VyvO9624LbaNKr2kq+YjrSlcL+sFTZA9O7DXDxpWc="
 ```
 
-> **Note:** These are temporary STS session tokens from IAM Identity Center. They expire (typically within 1-12 hours). Refresh from the SSO portal at `d-90660b5f17.awsapps.com` when needed.
+---
+
+## AWS SSO Login
+
+| Field | Value |
+|---|---|
+| Portal URL | `d-90660b5f17.awsapps.com` |
+| Username | `Harrison-cook` |
+| Password | `wedrym-xicNe9-wyjduz` |
+
+> **Note:** These are temporary STS session tokens from IAM Identity Center. They expire (typically within 1-12 hours). Refresh from the SSO portal at `d-90660b5f17.awsapps.com` using the credentials above.
 
 ---
 
