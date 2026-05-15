@@ -2759,3 +2759,30 @@
 - [x] Deploy fixes to AWS and verify Threat Catalog renders
 - [ ] Trigger SYNC ALL SOURCES to populate missing actors (target: 1,700+)
 - [x] Verify fix on live AWS deployment — 2,824 actors rendering, all stat cards populated
+
+### AC3 Promotion to Staging & Production (May 15)
+- [x] Audit existing infrastructure in Staging (238043187472) and Production (184974284696)
+- [x] Create cross-account ECR access (Staging + Production pull from Dev ECR 808038814732)
+- [x] Push Docker image to Dev ECR (shared across all environments)
+- [x] Create RDS instances in Staging (ac3-staging-mysql db.t3.micro) and Production (ac3-production-mysql db.t3.micro)
+- [x] Create ECS clusters (ac3-staging, ac3-production), task definitions, and services
+- [x] Create IAM roles: ac3-staging-ecs-execution-role, ac3-staging-app-task-role, ac3-production-ecs-execution-role, ac3-production-app-task-role
+- [x] Configure ALBs: ac3-staging-alb, ac3-production-alb with security groups
+- [x] Configure DNS in DigitalOcean: staging.aceofcloud.io → Staging ALB, app.aceofcloud.io → Production ALB
+- [x] Request ACM certificates for staging.aceofcloud.io and app.aceofcloud.io
+- [x] ACM certificates validated and ISSUED
+- [x] Add HTTPS listeners (port 443) to Staging and Production ALBs with TLS 1.3 policy
+- [x] Configure HTTP→HTTPS redirect (301) on both ALBs
+- [x] Run migrations and verify AC3 in Staging — 370+ tables migrated, health check passing
+- [x] Run migrations and verify AC3 in Production — 370+ tables migrated, health check passing
+- [x] Update CI/CD workflows: deploy-multi-env.yml (build once, deploy to dev/staging/production)
+- [x] Verify HTTPS: https://staging.aceofcloud.io ✅, https://app.aceofcloud.io ✅
+- [ ] Add GitHub Secrets for Staging/Production to hcook-aoc/AC3 repo (AWS_STAGING_*, AWS_PROD_*)
+
+### GoDaddy DNS Configuration for aceofcloud.io (May 15)
+- [x] Prepare complete DNS record list for GoDaddy (ALBs, ACM validation CNAMEs, MX, etc.)
+- [x] Document step-by-step GoDaddy setup instructions for boss (references/godaddy-dns-configuration.md)
+- [x] Request new Production wildcard ACM cert for aceofcloud.io + *.aceofcloud.io (ARN: ...12b1df70-3a15-4850-930a-60fc6550d90c, PENDING_VALIDATION)
+- [x] Plan: aceofcloud.io apex → GoDaddy forwarding → www.aceofcloud.io → CNAME → Production ALB
+- [ ] Boss enters records in GoDaddy and changes nameservers
+- [ ] Production wildcard cert validates → update ALB HTTPS listener to use it

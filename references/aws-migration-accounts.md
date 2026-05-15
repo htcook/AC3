@@ -54,18 +54,25 @@ The following accounts have PowerUser access keys configured:
 
 ---
 
-## Migration Checklist (Future)
+## Migration Checklist (Completed May 15, 2026)
 
-- [ ] Create ECR repository in Staging account (238043187472)
-- [ ] Create RDS instance in Staging account
-- [ ] Set up ECS cluster and service in Staging
-- [ ] Configure cross-account ECR image replication (Dev → Staging → Prod)
-- [ ] Set up Staging domain (e.g., staging.aceofcloud.io)
-- [ ] Create ECR repository in Production account (184974284696)
-- [ ] Create RDS instance in Production account
-- [ ] Set up ECS cluster and service in Production
-- [ ] Configure Production domain
-- [ ] Set up CI/CD pipeline with environment promotion gates
+- [x] Configure cross-account ECR access (Staging + Prod pull from Dev ECR 808038814732)
+- [x] Create RDS instance in Staging (ac3-staging-mysql, db.t3.micro, MySQL 8.0)
+- [x] Create RDS instance in Production (ac3-production-mysql, db.t3.micro, MySQL 8.0)
+- [x] Create ECS cluster + service in Staging (ac3-staging / ac3-staging-app)
+- [x] Create ECS cluster + service in Production (ac3-production / ac3-production-app)
+- [x] Create IAM roles (execution + task) in Staging and Production
+- [x] Configure ALBs with security groups in Staging and Production
+- [x] Set up DNS: staging.aceofcloud.io → Staging ALB, app.aceofcloud.io → Production ALB
+- [x] Request and validate ACM certs for staging.aceofcloud.io and app.aceofcloud.io
+- [x] Add HTTPS listeners (TLS 1.3) + HTTP→HTTPS redirect on both ALBs
+- [x] Run DB migrations (370+ tables) in both environments
+- [x] Create deploy-multi-env.yml CI/CD workflow (build once, deploy everywhere)
+- [x] Request Production wildcard cert for aceofcloud.io + *.aceofcloud.io
+- [x] Prepare GoDaddy DNS configuration document (references/godaddy-dns-configuration.md)
+- [ ] Add GitHub Secrets for Staging/Production to hcook-aoc/AC3
+- [ ] Boss enters DNS records in GoDaddy and changes nameservers
+- [ ] Update Production ALB cert to wildcard after validation
 - [ ] Configure CloudWatch cross-account log aggregation to LogArchive (016042452350)
 - [ ] Set up SecurityTooling (672003402407) for cross-account GuardDuty/SecurityHub
 
