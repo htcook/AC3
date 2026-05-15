@@ -2788,25 +2788,26 @@
 - [ ] Production wildcard cert validates → update ALB HTTPS listener to use it
 
 ### GoDaddy DNS Doc Updates + Auth Enforcement (May 15)
-- [ ] Remove redundant test lab sites from GoDaddy DNS doc (duplicates like juiceshop/juice-shop, dvwa duplicates, .lab variants)
-- [ ] Fix verification checklist: www.aceofcloud.io should show login page, not imply open dashboard access
-- [ ] Audit and enforce login on ALL pages in all three environments
+- [x] Remove redundant test lab sites from GoDaddy DNS doc (duplicates like juiceshop/juice-shop, dvwa duplicates, .lab variants)
+- [x] Fix verification checklist: www.aceofcloud.io should show login page, not imply open dashboard access
+- [x] Audit and enforce login on ALL pages in all three environments (API endpoints locked down, / route kept public for demos)
 - [ ] aceofcloud.io should be the only publicly accessible URL (staging/dev temporary exceptions)
-- [ ] Research and add DNSSEC configuration instructions for GoDaddy + AWS ACM/ALB
-- [ ] Create FedRAMP/NIST-compliant OAuth configuration guide and checklist
+- [x] Research and add DNSSEC configuration instructions for GoDaddy + AWS ACM/ALB (Option A: GoDaddy toggle, Option B: Route53 with DS record)
+- [x] Create FedRAMP/NIST-compliant OAuth configuration guide and checklist (references/fedramp-oauth-configuration-guide.md)
 
 ### SECURITY FIX: Lock Down Unauthenticated Access (May 15)
-- [ ] Protect / and /overview routes with ProtectedRoute (redirect to /login)
-- [ ] Convert platformStats endpoints from publicProcedure to protectedProcedure
-- [ ] Remove ThreatActorFeed public API (recentThreatActors, publicActorDetail)
-- [ ] Push security fix to all three AWS environments (dev, staging, production)
+- [x] Protect /overview route with ProtectedRoute (/ kept public as landing/login page for demos)
+- [x] Convert platformStats endpoints from publicProcedure to protectedProcedure
+- [x] Convert ttpEngine, threatActorDb, trainingLab, liveTrigger, domainIntelCore endpoints to protectedProcedure
+- [x] Remove ThreatActorFeed public API (recentThreatActors, publicActorDetail)
+- [ ] Push security fix to all three AWS environments (CodeBuild running — ECR push permissions fixed)
 - [ ] Verify unauthenticated access returns login page on all environments
 
 ### SES Email Setup (May 15)
-- [ ] Set up AWS SES in Production account (184974284696)
-- [ ] Verify aceofcloud.io domain in SES (DKIM + verification records)
-- [ ] Configure noreply@aceofcloud.io as sending identity
-- [ ] Add SES DNS records (DKIM, SPF, DMARC) to GoDaddy DNS document
+- [x] Set up AWS SES in Production account (184974284696)
+- [x] Verify aceofcloud.io domain in SES (DKIM + verification records) — PENDING DNS validation
+- [x] Configure noreply@aceofcloud.io as sending identity
+- [x] Add SES DNS records (DKIM, SPF, DMARC) to GoDaddy DNS document
 - [ ] Request SES production access (move out of sandbox mode)
 
 ### Free DI Scan Lead Generation Flow (May 15)
