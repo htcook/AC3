@@ -2745,3 +2745,9 @@
 - [x] Fix drizzle schema: use defaultNow() instead of default('CURRENT_TIMESTAMP')
 - [x] Verify all 35 alert notification tests still pass
 - [x] Rebuild and redeploy to AWS ECR/ECS
+
+### Threat Catalog List Not Rendering (May 15)
+- [ ] Investigate why threat catalog list shows "NO THREAT GROUPS FOUND" despite stats showing 1,453 actors
+- [ ] Fix the list rendering/query issue
+- [ ] Trigger SYNC ALL SOURCES to populate missing actors (target: 1,700+)
+- [ ] Verify fix on live AWS deployment

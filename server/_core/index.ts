@@ -2012,6 +2012,81 @@ async function startServer() {
     }
   });
 
+  // ─── Data Import from S3 ──────────────────────────────────────────────
+  app.post('/api/admin/import-threat-catalog', async (req, res) => {
+    try {
+      // Auth check
+      let user: any = null;
+      const token = req.cookies?.['caldera_session'];
+      if (token) {
+        try {
+          const jwtMod = await import('jsonwebtoken');
+          user = jwtMod.default.verify(token, process.env.JWT_SECRET || process.env.CALDERA_JWT_SECRET || 'dev-secret');
+        } catch {}
+      }
+      if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+      const https = await import('https');
+      const http = await import('http');
+      const { db } = await import('../db');
+
+      // S3 URL for the export file
+      const s3Url = req.body?.url || 'https://ac3-dev-assets-808038814732.s3.us-east-1.amazonaws.com/migrations/threat-catalog-export.sql';
+      console.log(`[ImportCatalog] Downloading from: ${s3Url}`);
+
+      // Download the SQL file
+      const fetchModule = s3Url.startsWith('https') ? https : http;
+      const sqlContent = await new Promise<string>((resolve, reject) => {
+        fetchModule.get(s3Url, (response: any) => {
+          if (response.statusCode === 301 || response.statusCode === 302) {
+            fetchModule.get(response.headers.location!, (r2: any) => {
+              let data = '';
+              r2.on('data', (chunk: string) => { data += chunk; });
+              r2.on('end', () => resolve(data));
+              r2.on('error', reject);
+            }).on('error', reject);
+            return;
+          }
+          let data = '';
+          response.on('data', (chunk: string) => { data += chunk; });
+          response.on('end', () => resolve(data));
+          response.on('error', reject);
+        }).on('error', reject);
+      });
+
+      console.log(`[ImportCatalog] Downloaded ${(sqlContent.length / 1024 / 1024).toFixed(2)} MB`);
+
+      // Split into individual statements and execute
+      const statements = sqlContent
+        .split(';\n')
+        .map(s => s.trim())
+        .filter(s => s.length > 0 && !s.startsWith('--'));
+
+      let executed = 0;
+      let errors = 0;
+      const errorMessages: string[] = [];
+
+      for (const stmt of statements) {
+        if (!stmt || stmt.startsWith('--')) continue;
+        try {
+          await db.execute(sql.raw(stmt));
+          executed++;
+        } catch (e: any) {
+          errors++;
+          if (errorMessages.length < 10) {
+            errorMessages.push(e.message?.substring(0, 200) || 'Unknown error');
+          }
+        }
+      }
+
+      console.log(`[ImportCatalog] Done: ${executed} statements executed, ${errors} errors`);
+      return res.json({ success: true, executed, errors, errorMessages });
+    } catch (err: any) {
+      console.error('[ImportCatalog] Error:', err.message);
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
   // ─── Rate Limiting ────────────────────────────────────────────────────
   const { apiRateLimiter, trpcAuthRateLimiter } = await import("../lib/rate-limiter");
 
