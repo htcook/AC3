@@ -15,7 +15,7 @@
  */
 
 import { z } from "zod";
-import { publicProcedure, protectedProcedure, router } from "../_core/trpc";
+import { protectedProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import crypto from "crypto";
 import { SCAN_SERVICE_URL } from "../lib/scan-service-url";
@@ -2014,7 +2014,7 @@ ${learningContext}`;
 
 export const trainingLabRouter = router({
   /** List available training targets */
-  targets: publicProcedure.query(() => {
+  targets: protectedProcedure.query(() => {
     return TRAINING_TARGETS.filter(t => t.id !== "custom");
   }),
 
@@ -2091,7 +2091,7 @@ export const trainingLabRouter = router({
     }),
 
   /** Pre-check RoE for a target before launching a scan */
-  checkRoE: publicProcedure
+  checkRoE: protectedProcedure
     .input(z.object({
       targetId: z.string(),
       scanProfile: z.enum(["quick", "standard", "deep"]).default("standard"),
@@ -2114,7 +2114,7 @@ export const trainingLabRouter = router({
     }),
 
   /** Get session status and results */
-  getSession: publicProcedure
+  getSession: protectedProcedure
     .input(z.object({ sessionId: z.string() }))
     .query(async ({ input }) => {
       // Check in-memory state first (for live sessions)
@@ -2161,7 +2161,7 @@ export const trainingLabRouter = router({
     }),
 
   /** List all training lab sessions */
-  listSessions: publicProcedure
+  listSessions: protectedProcedure
     .input(z.object({ limit: z.number().min(1).max(100).default(50) }).optional())
     .query(async ({ input }) => {
       const { listTrainingLabSessions } = await import("../db");
@@ -2374,7 +2374,7 @@ Respond with a JSON object containing: executiveSummary, riskScore (1-10), riskR
     }),
 
   /** Get feedback for a session */
-  getFeedback: publicProcedure
+  getFeedback: protectedProcedure
     .input(z.object({ sessionId: z.string() }))
     .query(async ({ input }) => {
       const { getTrainingLabFeedbackForSession } = await import("../db");
@@ -2402,13 +2402,13 @@ Respond with a JSON object containing: executiveSummary, riskScore (1-10), riskR
   // ─── Self-Learning Endpoints ─────────────────────────────────────────────
 
   /** Get learning stats dashboard data */
-  learningStats: publicProcedure.query(async () => {
+  learningStats: protectedProcedure.query(async () => {
     const { getLearningStats } = await import("../lib/llm-self-learning");
     return getLearningStats();
   }),
 
   /** Get accuracy trend data for a target or all targets */
-  accuracyTrend: publicProcedure
+  accuracyTrend: protectedProcedure
     .input(z.object({ targetPreset: z.string().optional(), limit: z.number().default(50) }).optional())
     .query(async ({ input }) => {
       const { getAccuracyTrend } = await import("../lib/llm-self-learning");
@@ -2416,7 +2416,7 @@ Respond with a JSON object containing: executiveSummary, riskScore (1-10), riskR
     }),
 
   /** Get ground truth for a target */
-  groundTruth: publicProcedure
+  groundTruth: protectedProcedure
     .input(z.object({ targetPreset: z.string() }))
     .query(async ({ input }) => {
       const { GROUND_TRUTH_LIBRARY } = await import("../lib/llm-self-learning");
@@ -2424,7 +2424,7 @@ Respond with a JSON object containing: executiveSummary, riskScore (1-10), riskR
     }),
 
   /** Get all available ground truth targets */
-  groundTruthTargets: publicProcedure.query(async () => {
+  groundTruthTargets: protectedProcedure.query(async () => {
     const { GROUND_TRUTH_LIBRARY } = await import("../lib/llm-self-learning");
     return Object.entries(GROUND_TRUTH_LIBRARY).map(([key, vulns]: [string, any]) => ({
       targetPreset: key,
@@ -2465,7 +2465,7 @@ Respond with a JSON object containing: executiveSummary, riskScore (1-10), riskR
     }),
 
   /** Get learning entries for a target */
-  learningEntries: publicProcedure
+  learningEntries: protectedProcedure
     .input(z.object({ targetPreset: z.string() }))
     .query(async ({ input }) => {
       const { getLearningEntries } = await import("../lib/llm-self-learning");
@@ -2473,7 +2473,7 @@ Respond with a JSON object containing: executiveSummary, riskScore (1-10), riskR
     }),
 
   /** Get accuracy score for a specific session */
-  sessionAccuracy: publicProcedure
+  sessionAccuracy: protectedProcedure
     .input(z.object({ sessionId: z.string() }))
     .query(async ({ input }) => {
       const mysql = await import("mysql2/promise");
@@ -2687,7 +2687,7 @@ Respond with a JSON object containing: executiveSummary, riskScore (1-10), riskR
     }),
 
   /** Get continuous training loop status */
-  continuousTrainingStatus: publicProcedure
+  continuousTrainingStatus: protectedProcedure
     .input(z.object({ sessionId: z.string() }))
     .query(async ({ input }) => {
       const { getActiveLoop } = await import("../lib/continuous-training");
@@ -2721,7 +2721,7 @@ Respond with a JSON object containing: executiveSummary, riskScore (1-10), riskR
     }),
 
   /** List all active continuous training loops */
-  activeContinuousTraining: publicProcedure.query(async () => {
+  activeContinuousTraining: protectedProcedure.query(async () => {
     const { listActiveLoops } = await import("../lib/continuous-training");
     return listActiveLoops();
   }),
@@ -2775,7 +2775,7 @@ Respond with a JSON object containing: executiveSummary, riskScore (1-10), riskR
     }),
 
   /** Get ExploitDB index stats (cache age, total exploits, etc.) */
-  exploitDBStats: publicProcedure.query(async () => {
+  exploitDBStats: protectedProcedure.query(async () => {
     const { getIndexStats } = await import("../lib/exploitdb-connector");
     return getIndexStats();
   }),

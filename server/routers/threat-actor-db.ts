@@ -1,13 +1,13 @@
 import { CALDERA_BASE_URL, CALDERA_API_KEY } from "../lib/api-helpers";
 import { TRPCError } from "@trpc/server";
-import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
+import { protectedProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import * as db from "../db";
 import { invokeLLM } from "../_core/llm";
 import { and, not } from "drizzle-orm";
 
 export const threatActorDbRouter = router({
-    list: publicProcedure
+    list: protectedProcedure
       .input(z.object({
         type: z.string().optional(),
         origin: z.string().optional(),
@@ -19,17 +19,17 @@ export const threatActorDbRouter = router({
       .query(async ({ input }) => {
         return db.listThreatActors(input || {});
       }),
-    get: publicProcedure
+    get: protectedProcedure
       .input(z.object({ actorId: z.string() }))
       .query(async ({ input }) => {
         return db.getThreatActor(input.actorId);
       }),
-    getById: publicProcedure
+    getById: protectedProcedure
       .input(z.object({ id: z.number() }))
       .query(async ({ input }) => {
         return db.getThreatActorById(input.id);
       }),
-    stats: publicProcedure.query(async () => {
+    stats: protectedProcedure.query(async () => {
       return db.getThreatActorStats();
     }),
     update: protectedProcedure
@@ -105,7 +105,7 @@ export const threatActorDbRouter = router({
   });
 
 export const abilitiesLibraryRouter = router({
-    list: publicProcedure
+    list: protectedProcedure
       .input(z.object({
         tactic: z.string().optional(),
         search: z.string().optional(),
@@ -116,7 +116,7 @@ export const abilitiesLibraryRouter = router({
       .query(async ({ input }) => {
         return db.listAllAbilities(input || {});
       }),
-    byActor: publicProcedure
+    byActor: protectedProcedure
       .input(z.object({ actorId: z.string() }))
       .query(async ({ input }) => {
         return db.listThreatActorAbilities(input.actorId);

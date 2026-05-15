@@ -5,7 +5,7 @@
  * Uses getOpsStateWithRecovery() for automatic DB snapshot fallback
  * when in-memory state is lost (e.g., after server restart).
  */
-import { publicProcedure, router } from "../_core/trpc";
+import { protectedProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import * as db from "../db";
 
@@ -43,7 +43,7 @@ function inferLastActivePhase(state: any): typeof PHASE_ORDER[number] | null {
 
 export const liveTriggerTempRouter = router({
   /** Trigger autonomous engagement execution with optional resume (TEMP - no auth) */
-  triggerExecution: publicProcedure
+  triggerExecution: protectedProcedure
     .input(z.object({
       engagementId: z.number(),
       resume: z.boolean().optional().default(false),
@@ -146,7 +146,7 @@ export const liveTriggerTempRouter = router({
     }),
 
   /** Check if an engagement can be resumed from a saved state */
-  checkResumeCapability: publicProcedure
+  checkResumeCapability: protectedProcedure
     .input(z.object({ engagementId: z.number() }))
     .query(async ({ input }) => {
       const { getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
@@ -227,7 +227,7 @@ export const liveTriggerTempRouter = router({
     }),
 
   /** Approve a pending gate (TEMP - no auth) */
-  approveGate: publicProcedure
+  approveGate: protectedProcedure
     .input(z.object({ gateId: z.string() }))
     .mutation(async ({ input }) => {
       const { resolveApproval } = await import('../lib/engagement-orchestrator');
@@ -236,7 +236,7 @@ export const liveTriggerTempRouter = router({
     }),
 
   /** List pending approval gates (TEMP - no auth) */
-  listPendingGates: publicProcedure
+  listPendingGates: protectedProcedure
     .input(z.object({ engagementId: z.number() }))
     .query(async ({ input }) => {
       const { getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
@@ -248,7 +248,7 @@ export const liveTriggerTempRouter = router({
     }),
 
   /** Get current ops state with automatic DB recovery (TEMP - no auth) */
-  getState: publicProcedure
+  getState: protectedProcedure
     .input(z.object({ engagementId: z.number() }))
     .query(async ({ input }) => {
       const { getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
@@ -262,7 +262,7 @@ export const liveTriggerTempRouter = router({
     }),
 
   /** Start C2 callback polling for an engagement */
-  startC2Poller: publicProcedure
+  startC2Poller: protectedProcedure
     .input(z.object({
       engagementId: z.number(),
       operationId: z.string(),
@@ -275,7 +275,7 @@ export const liveTriggerTempRouter = router({
     }),
 
   /** Stop C2 callback polling for an engagement */
-  stopC2Poller: publicProcedure
+  stopC2Poller: protectedProcedure
     .input(z.object({ engagementId: z.number() }))
     .mutation(async ({ input }) => {
       const { stopPolling } = await import('../lib/caldera-c2-callback-poller');
@@ -284,7 +284,7 @@ export const liveTriggerTempRouter = router({
     }),
 
   /** Get C2 poller state for an engagement */
-  getC2PollerState: publicProcedure
+  getC2PollerState: protectedProcedure
     .input(z.object({ engagementId: z.number() }))
     .query(async ({ input }) => {
       const { getPollerSnapshot } = await import('../lib/caldera-c2-callback-poller');
@@ -292,14 +292,14 @@ export const liveTriggerTempRouter = router({
     }),
 
   /** List all active C2 pollers */
-  listC2Pollers: publicProcedure
+  listC2Pollers: protectedProcedure
     .query(async () => {
       const { listActivePollers } = await import('../lib/caldera-c2-callback-poller');
       return listActivePollers();
     }),
 
   /** Get summary of all active/recent engagement snapshots from DB */
-  listSnapshots: publicProcedure
+  listSnapshots: protectedProcedure
     .query(async () => {
       const { getDb } = await import('../db');
       const { engagementOpsSnapshots } = await import('../../drizzle/schema');
@@ -320,14 +320,14 @@ export const liveTriggerTempRouter = router({
     }),
 
   /** Get interrupted engagements detected at server startup */
-  getInterruptedEngagements: publicProcedure
+  getInterruptedEngagements: protectedProcedure
     .query(async () => {
       const { getDetectedInterruptions } = await import('../lib/engagement-auto-resume');
       return getDetectedInterruptions();
     }),
 
   /** Dismiss/acknowledge interrupted engagement notifications */
-  dismissInterruptions: publicProcedure
+  dismissInterruptions: protectedProcedure
     .mutation(async () => {
       const { clearDetectedInterruptions } = await import('../lib/engagement-auto-resume');
       clearDetectedInterruptions();
@@ -335,7 +335,7 @@ export const liveTriggerTempRouter = router({
     }),
 
   /** Auto-resume a specific interrupted engagement */
-  autoResumeEngagement: publicProcedure
+  autoResumeEngagement: protectedProcedure
     .input(z.object({ engagementId: z.number() }))
     .mutation(async ({ input }) => {
       const { autoResumeEngagement } = await import('../lib/engagement-auto-resume');

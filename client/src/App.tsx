@@ -421,7 +421,7 @@ function ProtectedRoute({ component: Component, pageName }: { component: React.C
 function Router() {
   const [location] = useLocation();
   // Routes that should NOT have the sidebar
-  const noSidebarRoutes = ["/", "/overview", "/login", "/404", "/ops-viewer"];
+  const noSidebarRoutes = ["/", "/login", "/404", "/ops-viewer"];
   const isPortalRoute = location.startsWith("/portal/") || location.startsWith("/customer-");
   const showSidebar = !noSidebarRoutes.includes(location) && !isPortalRoute;
 
@@ -432,7 +432,7 @@ function Router() {
           <PageErrorBoundary pageName="Home"><Home /></PageErrorBoundary>
         </Route>
         <Route path="/overview">
-          <PageErrorBoundary pageName="Overview"><Home /></PageErrorBoundary>
+          <ProtectedRoute component={Home} pageName="Overview" />
         </Route>
         <Route path="/home">
           <ProtectedRoute component={RoleHome} pageName="RoleHome" />

@@ -2866,7 +2866,7 @@ export const domainIntelRouter = router({
         };
       }),
 
-    getConnectorCatalog: publicProcedure
+    getConnectorCatalog: protectedProcedure
       .query(async () => {
         // Return the full list of available connectors with metadata
         const connectorInfo = [

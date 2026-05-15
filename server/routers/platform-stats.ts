@@ -1,12 +1,12 @@
 import { TRPCError } from "@trpc/server";
-import { publicProcedure, router } from "../_core/trpc";
+import { protectedProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import * as db from "../db";
 import { count, max, min, not, or } from "drizzle-orm";
 import * as schema from "../../drizzle/schema";
 
 export const platformStatsRouter = router({
-    getHomepageStats: publicProcedure.query(async () => {
+    getHomepageStats: protectedProcedure.query(async () => {
       const { getCatalogStats } = await import('../lib/exploit-catalog');
       const catalogStats = await getCatalogStats();
 
@@ -40,8 +40,8 @@ export const platformStatsRouter = router({
         lastUpdated: Date.now(),
       };
     }),
-    // Public feed of recent threat actors for homepage (limited fields, no sensitive data)
-    recentThreatActors: publicProcedure
+    // Threat actor feed — requires authentication
+    recentThreatActors: protectedProcedure
       .input(z.object({ limit: z.number().min(1).max(50).default(20) }).optional())
       .query(async ({ input }) => {
         const limit = input?.limit ?? 20;
@@ -69,8 +69,8 @@ export const platformStatsRouter = router({
           total: result.total,
         };
       }),
-    // Public single threat actor detail for homepage modal (limited fields)
-    publicActorDetail: publicProcedure
+    // Single threat actor detail — requires authentication
+    publicActorDetail: protectedProcedure
       .input(z.object({ actorId: z.string() }))
       .query(async ({ input }) => {
         const a = await db.getThreatActor(input.actorId);

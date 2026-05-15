@@ -1,17 +1,17 @@
-import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
+import { protectedProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import * as db from "../db";
 import * as schema from "../../drizzle/schema";
 
 export const ttpEngineRouter = router({
     // Get knowledge for a single technique
-    get: publicProcedure
+    get: protectedProcedure
       .input(z.object({ techniqueId: z.string() }))
       .query(async ({ input }) => {
         return db.getTtpKnowledge(input.techniqueId);
       }),
     // List all TTP knowledge entries
-    list: publicProcedure
+    list: protectedProcedure
       .input(z.object({
         tactic: z.string().optional(),
         search: z.string().optional(),
@@ -22,7 +22,7 @@ export const ttpEngineRouter = router({
         return db.listTtpKnowledge(input || {});
       }),
     // Get stats about the knowledge base
-    stats: publicProcedure.query(async () => {
+    stats: protectedProcedure.query(async () => {
       return db.getTtpKnowledgeStats();
     }),
     // Enrich a single technique with deep LLM analysis
@@ -92,7 +92,7 @@ export const ttpEngineRouter = router({
         return runFullIngestion(input || {});
       }),
     // Get Kali Linux tools catalog
-    kaliTools: publicProcedure
+    kaliTools: protectedProcedure
       .input(z.object({ techniqueId: z.string().optional() }).optional())
       .query(async ({ input }) => {
         const { getKaliToolsCatalog, getKaliToolsForTechnique } = await import('../lib/ttp-ingest');

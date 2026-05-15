@@ -8324,6 +8324,32 @@ export const demoRequests = mysqlTable("demo_requests", {
   index("dr_created_at_idx").on(table.createdAt),
 ]);
 
+// ─── Free DI Scan Lead Generation ────────────────────────────────────────────
+export const freeScanRequests = mysqlTable("free_scan_requests", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  email: varchar("email", { length: 255 }).notNull(),
+  organization: varchar("organization", { length: 255 }),
+  jobTitle: varchar("job_title", { length: 255 }),
+  targetDomain: varchar("target_domain", { length: 255 }).notNull(),
+  verificationToken: varchar("verification_token", { length: 128 }).notNull(),
+  verifiedAt: timestamp("verified_at", { mode: "string" }),
+  verificationExpiresAt: timestamp("verification_expires_at", { mode: "string" }).notNull(),
+  scanId: int("scan_id"),
+  resultsToken: varchar("results_token", { length: 128 }).notNull(),
+  resultsExpiresAt: timestamp("results_expires_at", { mode: "string" }).notNull(),
+  status: mysqlEnum("status", ["pending_verification", "verified", "scanning", "completed", "expired", "failed"]).default("pending_verification").notNull(),
+  ipAddress: varchar("ip_address", { length: 45 }),
+  userAgent: varchar("user_agent", { length: 512 }),
+  createdAt: timestamp("created_at", { mode: "string" }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { mode: "string" }).defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("fsr_email_idx").on(table.email),
+  index("fsr_verification_token_idx").on(table.verificationToken),
+  index("fsr_results_token_idx").on(table.resultsToken),
+  index("fsr_status_idx").on(table.status),
+  index("fsr_created_at_idx").on(table.createdAt),
+]);
 
 // ─── DNS Security Persistence ────────────────────────────────────────────────
 export const dnsSecurityAssessments = mysqlTable("dns_security_assessments", {

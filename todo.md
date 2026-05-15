@@ -2786,3 +2786,43 @@
 - [x] Plan: aceofcloud.io apex → GoDaddy forwarding → www.aceofcloud.io → CNAME → Production ALB
 - [ ] Boss enters records in GoDaddy and changes nameservers
 - [ ] Production wildcard cert validates → update ALB HTTPS listener to use it
+
+### GoDaddy DNS Doc Updates + Auth Enforcement (May 15)
+- [ ] Remove redundant test lab sites from GoDaddy DNS doc (duplicates like juiceshop/juice-shop, dvwa duplicates, .lab variants)
+- [ ] Fix verification checklist: www.aceofcloud.io should show login page, not imply open dashboard access
+- [ ] Audit and enforce login on ALL pages in all three environments
+- [ ] aceofcloud.io should be the only publicly accessible URL (staging/dev temporary exceptions)
+- [ ] Research and add DNSSEC configuration instructions for GoDaddy + AWS ACM/ALB
+- [ ] Create FedRAMP/NIST-compliant OAuth configuration guide and checklist
+
+### SECURITY FIX: Lock Down Unauthenticated Access (May 15)
+- [ ] Protect / and /overview routes with ProtectedRoute (redirect to /login)
+- [ ] Convert platformStats endpoints from publicProcedure to protectedProcedure
+- [ ] Remove ThreatActorFeed public API (recentThreatActors, publicActorDetail)
+- [ ] Push security fix to all three AWS environments (dev, staging, production)
+- [ ] Verify unauthenticated access returns login page on all environments
+
+### SES Email Setup (May 15)
+- [ ] Set up AWS SES in Production account (184974284696)
+- [ ] Verify aceofcloud.io domain in SES (DKIM + verification records)
+- [ ] Configure noreply@aceofcloud.io as sending identity
+- [ ] Add SES DNS records (DKIM, SPF, DMARC) to GoDaddy DNS document
+- [ ] Request SES production access (move out of sandbox mode)
+
+### Free DI Scan Lead Generation Flow (May 15)
+- [ ] Public demo request form with domain input field
+- [ ] Email verification flow (send confirmation link before scan runs)
+- [ ] Trigger full DI scan after email verification
+- [ ] Public scan results page (/scan-results/:token) — token-authenticated, no login required
+- [ ] Upsell CTA on results page (schedule demo, create account)
+- [ ] Rate limiting on free scan (1 per email per day)
+- [ ] AC3 email integration for registrant messaging via SES
+
+### Threat Actor Catalog Deduplication (May 15)
+- [x] Audit threat_actors table for duplicate entries (same actor, different names/rows)
+- [x] Build dedup strategy: identify canonical record, merge all unique data fields
+- [x] Execute dedup: merge duplicates preserving all unique TTPs, IOCs, aliases, activity history (1772 → 1600)
+- [x] Update any foreign key references (scans, alerts, etc.) to point to canonical records (81 events reassigned)
+- [x] Fixed 500 malformed alias entries (double-encoded JSON)
+- [x] Dedup runs against shared DB — all environments already have clean data
+- [x] Remove AceofCloud IDP Compromise entries from threat_actors (IDs: 150001, 150002, 150003, 210001) — removed 4 entries + 21 related events
