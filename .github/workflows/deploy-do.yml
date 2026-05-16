@@ -1,8 +1,8 @@
 name: Build & Deploy to DigitalOcean
 
+# DISABLED — Migrating to AWS. DO environment decommissioned.
+# To re-enable, restore push trigger and remove 'if: false' from job.
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 concurrency:
@@ -20,8 +20,8 @@ jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    # Only deploy to DO from the personal repo (company repo deploys to AWS)
-    if: github.repository == 'htcook/caldera-dashboard'
+    # DISABLED — DO environment decommissioned, migrating to AWS
+    if: false
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

@@ -103,7 +103,16 @@ export interface CicdFinding {
  * Returns temporary credentials for environment discovery.
  */
 export async function assumeRole(config: AssumeRoleConfig): Promise<AwsCicdCredentials> {
-  const stsClient = new STSClient({ region: config.region || "us-east-1" });
+  // Explicitly pass credentials from our ENV mapping (AWS_USERNAME → AWS_ACCESS_KEY_ID)
+  // to ensure the SDK picks them up even if process.env doesn't have the standard names
+  const platformKeyId = process.env.AWS_ACCESS_KEY_ID || process.env.AWS_USERNAME || "";
+  const platformSecret = process.env.AWS_SECRET_ACCESS_KEY || process.env.AWS_PASSWORD || "";
+  const stsClient = new STSClient({
+    region: config.region || "us-east-1",
+    ...(platformKeyId && platformSecret ? {
+      credentials: { accessKeyId: platformKeyId, secretAccessKey: platformSecret }
+    } : {}),
+  });
 
   const command = new AssumeRoleCommand({
     RoleArn: config.roleArn,
@@ -675,7 +684,7 @@ async function runBurpCicd(targetUrl: string): Promise<CicdFinding[]> {
   const findings: CicdFinding[] = [];
 
   try {
-    const BURP_URL = process.env.BURP_BASE_URL || "http://137.184.211.238:1337";
+    const BURP_URL = process.env.BURP_BASE_URL || `http://${process.env.SCAN_SERVER_HOST || ''}:1337`;
 
     // Submit scan
     const scanResp = await fetch(`${BURP_URL}/v0.1/scan`, {

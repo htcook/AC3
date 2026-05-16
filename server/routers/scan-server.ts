@@ -1,6 +1,7 @@
 import { protectedProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import { not } from "drizzle-orm";
+// DO infra audit kept for backward compatibility — audits customer DO environments (not our infra)
 import { runDoInfraAudit, runDoFirewallAudit } from "../lib/do-infra-audit";
 
 export const scanServerRouter = router({

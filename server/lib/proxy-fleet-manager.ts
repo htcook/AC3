@@ -1,13 +1,13 @@
 /**
  * Proxy Fleet Manager
  * 
- * Manages DigitalOcean droplet-based proxy fleets for IP rotation during
+ * Manages AWS EC2-based proxy fleets for IP rotation during
  * red team engagements. Each engagement gets its own fleet of lightweight
  * SOCKS5 proxy nodes across configurable regions.
  * 
  * Features:
- * - Auto-provision DO droplets with microsocks SOCKS5 proxy via cloud-init
- * - Multi-region deployment (NYC, LON, SFO, AMS, SGP, BLR)
+ * - Auto-provision EC2 instances with microsocks SOCKS5 proxy via UserData
+ * - Multi-region deployment (us-east-1, us-west-2, eu-west-1, ap-southeast-1, etc.)
  * - Proxy health checking (connectivity, latency, IP reputation)
  * - Burned IP detection (connection resets, rate limits, WAF blocks)
  * - Auto-rotation when IPs get burned
@@ -22,8 +22,8 @@ import {
   getDroplet,
   listDroplets,
   listSshKeys,
-  type DODroplet,
-} from "./digitalocean-infra";
+} from "./aws-ec2-infra";
+type DODroplet = any;
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 

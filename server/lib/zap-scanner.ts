@@ -62,7 +62,7 @@ export interface ZapConfig {
 }
 
 export const DEFAULT_ZAP_CONFIG: ZapConfig = {
-  baseUrl: process.env.ZAP_BASE_URL || `http://${process.env.SCAN_SERVER_HOST || '137.184.211.238'}:8092`,
+  baseUrl: process.env.ZAP_BASE_URL || `http://${process.env.SCAN_SERVER_HOST || ''}:8092`,
   apiKey: process.env.ZAP_API_KEY || "",
   spiderMaxDepth: 5,
   spiderMaxChildren: 20,

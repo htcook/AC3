@@ -875,7 +875,11 @@ export async function collectThreatIntel(): Promise<ThreatIntelResult[]> {
   const shodanKey = ENV.SHODAN_API_KEY;
   if (shodanKey) {
     // Check known infrastructure IPs
-    const infraIps = ["134.199.213.248", "137.184.7.224"]; // App server + Mail server
+    const infraIps = [
+      process.env.APP_SERVER_IP || "",
+      process.env.MAIL_SERVER_IP || "",
+      process.env.SCAN_SERVER_HOST || "",
+    ].filter(Boolean); // Infra IPs from env vars
     for (const ip of infraIps) {
       try {
         const hostData = await fetchJson(

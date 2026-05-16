@@ -1,11 +1,11 @@
 /**
  * Live Infrastructure tRPC Router
- * Endpoints for DigitalOcean droplets, DNS automation, and scheduled scans.
+ * Endpoints for AWS EC2 instances, DNS automation, and scheduled scans.
  */
 
 import { z } from "zod";
 import { router, protectedProcedure } from "../_core/trpc";
-import * as doInfra from "../lib/digitalocean-infra";
+import * as doInfra from "../lib/aws-ec2-infra";
 import * as dns from "../lib/dns-automation";
 import * as scans from "../lib/opsec-scheduled-scans";
 

@@ -1,20 +1,20 @@
 // ─── Resolve GoPhish URL ────────────────────────────────────────────────────
-// GoPhish runs on the mail server (137.184.7.224:3333) with a self-signed cert.
+// GoPhish runs on the mail/phishing server with a self-signed cert.
 // The gophish-client.ts uses an undici dispatcher with TLS override to handle
 // the self-signed cert, so direct IP:port connections work reliably.
-// Previously defaulted to https://gophish.aceofcloud.io but the DNS record
-// was never created, causing silent failures on the DO deployment.
+// GOPHISH_BASE_URL env var must be set to the correct host (AWS EC2 instance).
 function resolveGophishUrl(): string {
   const env = process.env.GOPHISH_BASE_URL;
-  // Accept any explicitly set URL (domain proxy or direct IP)
-  if (env && (env.includes("gophish.aceofcloud.io") || env.includes("137.184.7.224"))) return env;
-  // Default to direct IP — TLS override in gophish-client.ts handles self-signed cert
-  return "https://137.184.7.224:3333";
+  if (env) return env;
+  // Fallback: construct from MAIL_SERVER_IP if available
+  const mailIp = process.env.MAIL_SERVER_IP;
+  if (mailIp) return `https://${mailIp}:3333`;
+  return "https://gophish.aceofcloud.io";
 }
 
 // ─── Resolve Cyber C2 URL ────────────────────────────────────────────────────
-// Cyber C2 runs on the app server (134.199.213.248:8888) and is proxied through
-// nginx at https://caldera.aceofcloud.io. The HTTPS proxy is the reliable path.
+// Cyber C2 is proxied through nginx at https://caldera.aceofcloud.io.
+// The HTTPS proxy is the reliable path. Direct IP access via APP_SERVER_IP env var.
 function resolveCalderaUrl(): string {
   const env = process.env.CALDERA_BASE_URL;
   // Accept if it's the HTTPS domain proxy
@@ -84,8 +84,17 @@ export const ENV = {
   // HackerOne Bug Bounty Intelligence
   HACKERONE_API_KEY: process.env.HACKERONE_API_KEY ?? "",
   HACKERONE_API_USERNAME: process.env.HACKERONE_API_USERNAME ?? "",
-  // DigitalOcean — domain purchasing
+  // DigitalOcean — domain purchasing (legacy, being replaced by AWS)
   DIGITALOCEAN_ACCESS_TOKEN: process.env.DIGITALOCEAN_ACCESS_TOKEN ?? "",
+  // AWS EC2 — MSF server provisioning & scan infrastructure
+  AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID || process.env.AWS_USERNAME || "",
+  AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY || process.env.AWS_PASSWORD || "",
+  AWS_REGION: process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || "us-east-1",
+  AWS_VPC_ID: process.env.AWS_VPC_ID || "",
+  AWS_SUBNET_ID: process.env.AWS_SUBNET_ID || "",
+  AWS_SECURITY_GROUP_ID: process.env.AWS_SECURITY_GROUP_ID || "",
+  AWS_KEY_PAIR_NAME: process.env.AWS_KEY_PAIR_NAME || "ac3-scan-infra",
+  AWS_MSF_AMI_ID: process.env.AWS_MSF_AMI_ID || "", // Custom AMI with MSF pre-installed (optional)
   // S3-Compatible Storage (generic — preferred for new deployments)
   // Set these to use AWS S3, MinIO, or any S3-compatible provider.
   // If not set, falls back to DO_SPACES_* vars below.

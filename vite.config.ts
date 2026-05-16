@@ -127,7 +127,7 @@ export default defineConfig({
     outDir: path.resolve(__dir, "dist/public"),
     emptyOutDir: true,
     minify: "esbuild",
-    sourcemap: false,
+    sourcemap: "hidden",
     cssCodeSplit: false,
     chunkSizeWarningLimit: 5000,
     rollupOptions: {

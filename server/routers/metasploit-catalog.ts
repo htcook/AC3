@@ -30,15 +30,14 @@ export const metasploitCatalogRouter = router({
   provisionServer: protectedProcedure
     .input(z.object({
       name: z.string().min(1).max(100),
-      region: z.string().default("nyc1"),
-      size: z.string().default("s-2vcpu-4gb"),
+      region: z.string().default("us-east-1"),
+      instanceType: z.string().default("t3.medium"),
       msfPassword: z.string().min(8).default("msf_" + Math.random().toString(36).slice(2, 14)),
     }))
     .mutation(async ({ input }) => {
-      const { provisionMsfDroplet } = await import("../lib/msf-provisioner");
-      const doToken = ENV.DIGITALOCEAN_ACCESS_TOKEN;
-      if (!doToken) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "DigitalOcean access token not configured" });
-      const result = await provisionMsfDroplet({ name: input.name, region: input.region, size: input.size });
+      const { provisionMsfInstance } = await import("../lib/msf-provisioner");
+      if (!ENV.AWS_ACCESS_KEY_ID) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "AWS credentials not configured" });
+      const result = await provisionMsfInstance({ name: input.name, region: input.region, instanceType: input.instanceType });
       try {
         const { emitMsfServerEvent } = await import("../lib/ws-event-hub");
         emitMsfServerEvent({ serverId: (result as any)?.serverId || 0, status: 'provisioning', name: input.name });
@@ -102,16 +101,16 @@ export const metasploitCatalogRouter = router({
       const [server] = await dbConn.select().from(metasploitServers).where(eq(metasploitServers.id, input.id)).limit(1);
       if (!server) throw new TRPCError({ code: "NOT_FOUND", message: "Exploit server not found" });
 
-      if (server.dropletId && ENV.DIGITALOCEAN_ACCESS_TOKEN) {
+      // Terminate EC2 instance if we have an instance ID (stored in dropletId field for backward compat)
+      if (server.dropletId && ENV.AWS_ACCESS_KEY_ID) {
         try {
-          const resp = await fetch(`https://api.digitalocean.com/v2/droplets/${server.dropletId}`, {
-            method: "DELETE",
-            headers: { Authorization: `Bearer ${ENV.DIGITALOCEAN_ACCESS_TOKEN}` },
-            signal: AbortSignal.timeout(15000),
-          });
-          if (!resp.ok && resp.status !== 404) throw new Error(`DO API error: ${resp.status}`);
+          const { terminateMsfInstance } = await import("../lib/msf-provisioner");
+          const result = await terminateMsfInstance(String(server.dropletId));
+          if (!result.success) {
+            console.error(`[MSF] Failed to terminate EC2 instance ${server.dropletId}: ${result.error}`);
+          }
         } catch (err: any) {
-          console.error(`[MSF] Failed to destroy droplet ${server.dropletId}: ${err.message}`);
+          console.error(`[MSF] Failed to terminate instance ${server.dropletId}: ${err.message}`);
         }
       }
 

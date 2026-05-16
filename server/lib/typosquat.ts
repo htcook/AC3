@@ -518,7 +518,7 @@ export async function createDnsRecord(
  */
 export async function configureDomainForEmail(
   domain: string,
-  mailServerIp: string = "137.184.7.224" // Default: our mail server
+  mailServerIp: string = process.env.MAIL_SERVER_IP || "" // Set via MAIL_SERVER_IP env var
 ): Promise<DomainDnsConfig> {
   // Add domain to DO
   await addDomainToDO(domain, mailServerIp);

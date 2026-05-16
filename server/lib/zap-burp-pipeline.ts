@@ -511,7 +511,7 @@ export async function runZapToBurpPipeline(params: {
         : undefined; // Use Burp default
 
     const edition = burpCred.platform === "burpsuite_enterprise" ? "enterprise" : "professional";
-    const scanServerHost = process.env.SCAN_SERVER_HOST || "137.184.211.238";
+    const scanServerHost = process.env.SCAN_SERVER_HOST || "";
 
     burpScanState = await launchBurpAutoScan({
       engagementId: params.engagementId,

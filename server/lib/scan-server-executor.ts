@@ -3,10 +3,10 @@
  *
  * Generic SSH tool executor for the remote scan server. The LLM orchestrator
  * calls this to run any tool (ScanForge discovery, nuclei, nikto, hydra, gobuster, etc.)
- * on the DigitalOcean droplet and get structured results back.
+ * on the AWS EC2 scan instance and get structured results back.
  *
  * Architecture:
- *   Dashboard LLM → decides tool + args → this executor → SSH → scan server → parse output
+ *   Dashboard LLM → decides tool + args → this executor → SSH → AWS EC2 scan server → parse output
  *
  * The executor:
  *   1. Validates the command against a whitelist of allowed tools
@@ -111,12 +111,9 @@ const SCAN_SERVER_KEY_URL = process.env.SCAN_SERVER_KEY_URL
   || "https://files.manuscdn.com/user_upload_by_module/session_file/310419663028432609/hHJfIBSNDxDiefRC";
 
 export async function getScanServerConfig() {
-  // IMPORTANT: Always route SSH scan execution to the dedicated ScanForge droplet.
-  // The legacy server (SCAN_SERVER_HOST=137.184.211.238) is perpetually OOM at 15.5GB/16GB
-  // because it hosts Docker lab containers (Juice Shop, ZAP, Burp, WebGoat, etc.).
-  // SSH fallback to the legacy server causes hangs and pipeline failures.
-  const SCANFORGE_DEDICATED = "137.184.71.192";
-  const host = SCANFORGE_DEDICATED; // Always use dedicated, ignore legacy
+  // Route SSH scan execution to the dedicated ScanForge EC2 instance.
+  // Configured via SCANFORGE_HOST or SCAN_SERVER_HOST environment variable.
+  const host = process.env.SCANFORGE_HOST || process.env.SCAN_SERVER_HOST || ENV.SCAN_SERVER_HOST || "";
   const user = ENV.SCAN_SERVER_USER || "root";
   // Read SSH key directly from process.env (removed from ENV object to prevent
   // deployment system from injecting multi-line PEM into Docker build command)

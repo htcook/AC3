@@ -406,7 +406,7 @@ export const typosquatRouter = router({
         try {
           const config = await configureDomainForEmail(
             input.domain,
-            input.mailServerIp || '137.184.7.224'
+            input.mailServerIp || process.env.MAIL_SERVER_IP || ''
           );
 
           // Update typosquat record
@@ -439,7 +439,7 @@ export const typosquatRouter = router({
         typosquatId: z.number(),
         fromName: z.string().default('IT Support'),
         fromAddress: z.string().optional(),
-        smtpHost: z.string().default('137.184.7.224'),
+        smtpHost: z.string().default(process.env.MAIL_SERVER_IP || ''),
         smtpPort: z.number().default(25),
         engagementId: z.number().optional(),
       }))
@@ -485,7 +485,7 @@ export const typosquatRouter = router({
         typosquatId: z.number(),
         engagementId: z.number().optional(),
         fromName: z.string().default('IT Support'),
-        mailServerIp: z.string().default('137.184.7.224'),
+        mailServerIp: z.string().default(process.env.MAIL_SERVER_IP || ''),
       }))
       .mutation(async ({ input, ctx }) => {
         const steps: Array<{ step: string; status: 'success' | 'failed' | 'skipped'; detail: string }> = [];

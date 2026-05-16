@@ -729,8 +729,8 @@ export async function createDOEnvironment(
 
   const id = `lab-do-${randomUUID().slice(0, 8)}`;
 
-  // Import DigitalOcean infra module
-  const { createDroplet } = await import("./digitalocean-infra");
+  // Import AWS EC2 infra module
+  const { createDroplet } = await import("./aws-ec2-infra");
 
   const env: LabEnvironment = {
     id,
@@ -818,7 +818,7 @@ export async function destroyEnvironment(envId: string): Promise<boolean> {
 
   if (env.type === "digitalocean") {
     try {
-      const { deleteDroplet } = await import("./digitalocean-infra");
+      const { deleteDroplet } = await import("./aws-ec2-infra");
       for (const target of env.targets) {
         if (target.dropletId) {
           await deleteDroplet(target.dropletId);

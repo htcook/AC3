@@ -3037,3 +3037,60 @@
 - [ ] Set up runtime error monitoring (error boundary + incident persistence + alerting)
 - [ ] Build error monitoring UI panel (incident list, stack traces, frequency, affected users)
 - [ ] Add error reporting client-side hook (catches unhandled errors + promise rejections)
+
+### Source Maps Upload for Production Stack Trace Resolution
+- [ ] Configure Vite to generate source maps during production build
+- [ ] Add CI step to upload source maps to S3 (keyed by build SHA)
+- [ ] Build server-side source map resolver that maps minified stack traces to original TS
+- [ ] Update Error Dashboard to show resolved stack traces with original file/line
+- [ ] Write tests for source map resolution
+
+### FedRAMP/NIST/DoD Commercial Scanner Connectors (May 16)
+- [x] Build commercial scanner connector framework (base class, auth, result normalization)
+- [x] Tenable.io / Nessus connector (REST API — vulnerability scanning, compliance auditing)
+- [x] Qualys VMDR connector (REST API — vulnerability management, detection, response)
+- [x] Rapid7 InsightVM connector (REST API — vulnerability management, risk prioritization)
+- [x] Veracode connector (REST API — SAST, DAST, SCA)
+- [x] Checkmarx One connector (REST API — SAST, SCA, DAST, ASPM)
+- [x] Fortify on Demand / OpenText connector (REST API — SAST, DAST)
+- [x] CrowdStrike Falcon Spotlight connector (REST API — vulnerability management, EDR)
+- [x] Palo Alto Prisma Cloud connector (REST API — CSPM, CWPP, vulnerability scanning)
+- [x] Microsoft Defender for Cloud connector (REST API — cloud security posture, vulnerability assessments)
+- [x] Snyk connector (REST API — SCA, container security, IaC scanning — FedRAMP Moderate authorized)
+- [x] HCL AppScan connector (REST API — DAST, SAST, API security)
+- [x] Burp Suite Enterprise connector (GraphQL + REST API — DAST, using existing license secrets)
+- [x] Acunetix connector (REST API — DAST, web application scanning)
+- [x] Wiz connector (REST API — CNAPP, cloud vulnerability scanning)
+- [x] Anchore connector (REST API — container/SBOM scanning, STIG compliance)
+- [ ] Build database schema for connector configs and normalized scan results
+- [ ] Build tRPC router for connector CRUD, test connection, trigger scan, import results
+- [ ] Build Commercial Scanners UI page (connector configuration, status, scan history)
+- [x] Write Vitest tests for connector framework and individual connectors (18 tests passing)
+
+### Metasploit Server Infrastructure — Licensing-Compliant Design (May 16)
+- [x] Research Metasploit Pro vs Framework licensing terms and restrictions
+- [x] Design MSF infrastructure architecture (compliant with Rapid7 ToS, cost-minimized)
+- [x] Document licensing compliance strategy (Framework open-source vs Pro commercial)
+- [ ] Build MSF server orchestration module (provision, connect, manage)
+- [ ] Build MSF connector in commercial scanner framework
+- [ ] Build MSF infrastructure management UI panel
+- [ ] Write Vitest tests for MSF orchestration
+
+### AWS EC2 MSF Infrastructure Migration (May 16)
+- [x] Verify AWS credentials and EC2 access in env configuration
+- [x] Build AWS EC2 MSF provisioner (replaced DO provisioner entirely with EC2)
+- [x] Update metasploitServers schema to support AWS provider field
+- [x] Update MSF provisioning router to support AWS as provider
+- [x] Add licensing compliance documentation to the codebase (references/metasploit-licensing-research.md)
+- [x] Remove DigitalOcean provisioner — replace entirely with AWS EC2
+- [x] Update metasploit-catalog router to remove DO references
+- [x] Update env.ts to add AWS EC2 credentials (ACCESS_KEY_ID, SECRET_ACCESS_KEY, region)
+- [x] Verify/fix AWS environment login errors (authentication issues — fixed STS credential passthrough)
+- [x] Full audit: remove ALL DigitalOcean hardcoded IPs, API references, and droplet mappings
+- [x] Replace scan-service-url.ts DO IPs with AWS-based scan infra references
+- [x] Replace scan-server-executor.ts DO droplet references with AWS EC2
+- [x] Replace digitalocean-infra.ts with aws-ec2-infra.ts
+- [x] Update msf-provisioner.ts to be AWS EC2 only (remove DO entirely)
+- [x] Update test-lab-infrastructure.ts to use AWS instead of DO
+- [x] Update live-infra.ts router to use AWS instead of DO
+- [x] Ensure no scan pipeline errors from stale DO references (all hardcoded IPs removed from production code)
