@@ -8862,3 +8862,60 @@ export const roeCustomerInvites = mysqlTable("roe_customer_invites", {
 	index("rci_token_idx").on(table.inviteToken),
 	index("rci_email_idx").on(table.customerEmail),
 ]);
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// AI AUDIT LOGS — Compliance-grade logging for all AI interactions
+// ═══════════════════════════════════════════════════════════════════════════════
+export const aiAuditLogs = mysqlTable("ai_audit_logs", {
+	id: int().autoincrement().notNull(),
+	tenantId: varchar("tenant_id", { length: 128 }).notNull(),
+	userId: varchar("user_id", { length: 128 }).notNull(),
+	sessionId: varchar("session_id", { length: 128 }).notNull(),
+	engagementId: varchar("engagement_id", { length: 128 }),
+	action: varchar({ length: 64 }).notNull(),
+	severity: mysqlEnum(['info', 'warning', 'critical', 'alert']).default('info').notNull(),
+	details: text(),
+	contentHash: varchar("content_hash", { length: 128 }),
+	inputTokens: int("input_tokens"),
+	outputTokens: int("output_tokens"),
+	injectionDetected: tinyint("injection_detected").default(0),
+	injectionPatterns: text("injection_patterns"),
+	piiDetected: tinyint("pii_detected").default(0),
+	crossTenantViolation: tinyint("cross_tenant_violation").default(0),
+	autonomyLevel: int("autonomy_level"),
+	actionBlocked: tinyint("action_blocked").default(0),
+	responseTimeMs: int("response_time_ms"),
+	modelUsed: varchar("model_used", { length: 64 }),
+	ipAddress: varchar("ip_address", { length: 45 }),
+	userAgent: text("user_agent"),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+}, (table) => [
+	index("aal_tenant_idx").on(table.tenantId),
+	index("aal_user_idx").on(table.userId),
+	index("aal_session_idx").on(table.sessionId),
+	index("aal_engagement_idx").on(table.engagementId),
+	index("aal_action_idx").on(table.action),
+	index("aal_created_idx").on(table.createdAt),
+	index("aal_injection_idx").on(table.injectionDetected),
+	index("aal_violation_idx").on(table.crossTenantViolation),
+]);
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// AUTONOMY OVERRIDES — Operator overrides for engagement autonomy levels
+// ═══════════════════════════════════════════════════════════════════════════════
+export const autonomyOverrides = mysqlTable("autonomy_overrides", {
+	id: int().autoincrement().notNull(),
+	engagementId: varchar("engagement_id", { length: 128 }).notNull(),
+	overrideLevel: int("override_level").notNull(),
+	previousLevel: int("previous_level").notNull(),
+	reason: text().notNull(),
+	setBy: int("set_by").notNull(),
+	setByName: varchar("set_by_name", { length: 256 }),
+	expiresAt: timestamp("expires_at", { mode: 'string' }),
+	active: tinyint().default(1).notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+}, (table) => [
+	index("ao_engagement_idx").on(table.engagementId),
+	index("ao_active_idx").on(table.active),
+]);
+

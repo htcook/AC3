@@ -3013,3 +3013,12 @@
 - [x] Build tenant data boundary enforcement in LLM context assembly
 - [x] Build AI safety test suite (adversarial prompt injection tests, cross-tenant leakage tests)
 - [x] Wire safety hardening into all LLM invocation paths (chat, enrichment, planning, exploitation)
+
+### AI Safety Integration + Autonomy UI (May 16)
+- [x] Wire detectPromptInjection + sanitizeAIOutput into campaign advisor chat router as middleware
+- [x] Create ai_audit_logs database table schema
+- [x] Persist audit buffer to database (flush on threshold or interval)
+- [x] Add tRPC procedures for audit log queries (tenant-scoped)
+- [x] Build Autonomy Level UI panel (per-engagement display, operator override, anomaly trail)
+- [x] Add tRPC procedures for autonomy state (get, override, clear suspension)
+- [x] Write Vitest tests for middleware integration, audit persistence, and autonomy procedures (75 tests passing)

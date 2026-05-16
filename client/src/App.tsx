@@ -306,6 +306,7 @@ const AIGovernance = lazyWithRetry(() => import("./pages/AIGovernance"));
 const ExecutiveDashboard = lazyWithRetry(() => import("./pages/ExecutiveDashboard"));
 const ThreatGroupProfile = lazyWithRetry(() => import("./pages/ThreatGroupProfile"));
 const GraduationEngine = lazyWithRetry(() => import("./pages/GraduationEngine"));
+const AISafety = lazyWithRetry(() => import("./pages/AISafety"));
 const RemediationTracking = lazyWithRetry(() => import("./pages/RemediationTracking"));
 const RiskRegister = lazyWithRetry(() => import("./pages/RiskRegister"));
 const RiskRegisterDetail = lazyWithRetry(() => import("./pages/RiskRegisterDetail"));
@@ -1203,6 +1204,9 @@ function Router() {
         </Route>
         <Route path="/graduation-engine">
           <ProtectedRoute component={GraduationEngine} />
+        </Route>
+        <Route path="/ai-safety">
+          <ProtectedRoute component={AISafety} />
         </Route>
         <Route path="/agent-registry">
           <ProtectedRoute component={AgentRegistryPage} />

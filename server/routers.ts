@@ -133,6 +133,7 @@ import { opsecRiskRouter } from "./routers/opsec-risk";
 import { lateralMovementRouter } from "./routers/lateral-movement";
 import { engagementWorkflowRouter } from "./routers/engagement-workflow";
 import { campaignAdvisorRouter } from "./routers/campaign-advisor";
+import { aiSafetyRouter } from "./routers/ai-safety";
 import { reportExportRouter } from "./routers/report-export";
 import { accountRouter } from "./routers/account-management";
 import { samlRouter } from "./routers/saml-auth";
@@ -439,6 +440,7 @@ export const appRouter = router({
   lateralMovement: lateralMovementRouter,
   engagementWorkflow: engagementWorkflowRouter,
   campaignAdvisor: campaignAdvisorRouter,
+  aiSafety: aiSafetyRouter,
   reportExport: reportExportRouter,
   
   auth: authRouter,

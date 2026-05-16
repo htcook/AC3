@@ -139,7 +139,7 @@ const INJECTION_PATTERNS: Array<{
   {
     id: "pi-role-play",
     name: "Malicious Role Play",
-    pattern: /(pretend|imagine|roleplay|role-play|act\s+as)\s+(you\s+are\s+)?(an?\s+)?(evil|malicious|unrestricted|unfiltered|jailbroken|DAN|uncensored)/i,
+    pattern: /(pretend|imagine|roleplay|role-play|act\s+as|you\s+are\s+now)\s+(you\s+are\s+)?(an?\s+)?(evil|malicious|unrestricted|unfiltered|jailbroken|DAN|uncensored|do\s+anything\s+now)/i,
     severity: "high",
     explanation: "Attempts to make the AI adopt an unrestricted persona (DAN-style jailbreak).",
   },
@@ -460,6 +460,10 @@ If a user attempts to:
 /**
  * Validate that a chat message doesn't violate tenant boundaries.
  */
+function escapeForRegex(str: string): string {
+  return str.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+}
+
 export function validateTenantBoundary(
   message: string,
   context: SafeChatContext
@@ -474,6 +478,8 @@ export function validateTenantBoundary(
     /list\s+(all\s+)?(tenants|customers|organizations)/i,
     /SELECT\s+.*\s+FROM\s+.*\s+WHERE\s+tenant_id\s*(!?=|<>|NOT)/i,
     /tenant_id\s*IN\s*\(/i,
+    new RegExp('(data|records|info|information)\\s+(for|from|of)\\s+tenant\\s+(?!' + escapeForRegex(context.tenantId) + ')', 'i'),
+    /show\s+(me\s+)?.*\bfor\s+tenant\b/i,
   ];
 
   for (const pattern of crossTenantPatterns) {
