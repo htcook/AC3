@@ -473,6 +473,7 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/cicd-pipeline", icon: GitBranch, label: "CI/CD PIPELINE" },
           { href: "/cloud-setup-wizard", icon: Cloud, label: "CLOUD SETUP WIZARD" },
           { href: "/ics-ot-security", icon: Cpu, label: "ICS/OT SECURITY" },
+          { href: "/ics-intelligence", icon: ShieldAlert, label: "ICS THREAT INTEL" },
           { href: "/unified-pipeline", icon: Workflow, label: "UNIFIED PIPELINE" },
           { href: "/infra-wiki", icon: BookOpen, label: "INFRA WIKI" },
           { href: "/review-queue", icon: ClipboardCheck, label: "REVIEW QUEUE" },

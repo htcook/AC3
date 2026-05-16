@@ -181,6 +181,9 @@ export default function EngagementAutomation() {
                     {templates.find(t => t.templateId === selectedTemplate)?.description}
                   </p>
                 )}
+                {selectedTemplate && selectedTemplate.includes('ics') && (
+                  <IcsToolRecommendationsPanel templateId={selectedTemplate} />
+                )}
               </div>
               <div className="space-y-2">
                 <Label>Select Attack Vectors * ({selectedVectorIds.length} selected)</Label>
@@ -545,5 +548,52 @@ export default function EngagementAutomation() {
       </Tabs>
     </div>
       </AppShell>
+  );
+}
+
+// ─── ICS Tool Recommendations Panel ────────────────────────────────────────
+function IcsToolRecommendationsPanel({ templateId }: { templateId: string }) {
+  const { data, isLoading } = trpc.engagementAutomation.getIcsToolRecommendations.useQuery({
+    templateId,
+    engagementPhase: 'all',
+  });
+
+  if (isLoading || !data || !data.isIcsEngagement) return null;
+
+  return (
+    <div className="mt-3 p-3 border border-green-500/20 rounded-md bg-green-500/5 space-y-3">
+      <div className="flex items-center gap-2">
+        <Shield className="w-4 h-4 text-green-400" />
+        <span className="text-sm font-medium text-green-400">ICS/OT Tool Recommendations</span>
+        <Badge variant="outline" className="text-[10px] bg-green-500/10 text-green-400 border-green-500/20">
+          {data.tools.length} tools
+        </Badge>
+      </div>
+      <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto">
+        {data.tools.slice(0, 6).map((tool: any) => (
+          <div key={tool.name} className="flex items-center justify-between p-2 rounded bg-card/50 border border-border/50">
+            <div className="flex-1 min-w-0">
+              <span className="text-xs font-medium">{tool.name}</span>
+              <span className="text-[10px] text-muted-foreground ml-2">({tool.category.replace(/_/g, ' ')})</span>
+              <p className="text-[10px] text-muted-foreground truncate">{tool.useCase}</p>
+            </div>
+            <div className="flex gap-1 ml-2">
+              {tool.protocols.slice(0, 2).map((p: string) => (
+                <Badge key={p} variant="outline" className="text-[9px] bg-purple-500/10 text-purple-400 border-purple-500/20">
+                  {p}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+      {data.malwareFamilies.length > 0 && (
+        <div className="text-xs text-muted-foreground">
+          <span className="text-amber-400 font-medium">Relevant ICS Malware:</span>{' '}
+          {data.malwareFamilies.slice(0, 4).map((m: any) => m.name).join(', ')}
+          {data.malwareFamilies.length > 4 && ` +${data.malwareFamilies.length - 4} more`}
+        </div>
+      )}
+    </div>
   );
 }

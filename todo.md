@@ -2899,4 +2899,12 @@
 - [x] Add ICS-specific CVE enrichment (Siemens, Schneider, Rockwell, ABB, Honeywell)
 - [x] Cross-map ICS malware families to threat actors in catalog
 - [x] Write vitest tests for ICS/SCADA module (57 passing)
-- [ ] Create ICS/SCADA enrichment strategy reference document
+- [x] Create ICS/SCADA enrichment strategy reference document (docs/aws-eventbridge-llm-enrichment.md)
+
+### ICS/SCADA UI Panel + Engagement Planner Integration + EventBridge Docs (May 15)
+- [x] Build ICS/SCADA Intelligence UI page (advisories table, malware families, ICS-capable actors list)
+- [x] Add ICS/SCADA tRPC procedures (getIcsAdvisories, getIcsMalware, getIcsActors, getIcsTools)
+- [x] Wire ICS open-source tool catalog into engagement planner (OT engagement tool selection)
+- [x] Add ICS tool selection step to engagement creation flow (IcsToolRecommendationsPanel)
+- [x] Create AWS EventBridge documentation for LLM enrichment ECS Scheduled Task
+- [x] Write vitest tests for new tRPC procedures and UI integration (123 passing)

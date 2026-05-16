@@ -95,6 +95,24 @@ const ENGAGEMENT_TEMPLATES: Record<string, {
     calderaAbilityPatterns: ["apt", "adversary", "emulat"],
     msfModulePatterns: ["exploit/", "post/"],
   },
+  ics_ot_assessment: {
+    name: "ICS/OT Security Assessment",
+    description: "Industrial Control System and Operational Technology security assessment targeting PLCs, RTUs, HMIs, and SCADA protocols with safety-aware testing methodology",
+    type: "ics_ot",
+    killChainPhases: ["reconnaissance", "initial_access", "execution", "persistence", "lateral_movement", "collection", "command_and_control"],
+    recommendedTechniques: ["T0846", "T0886", "T0855", "T0831", "T0826", "T0813", "T0821", "T0836", "T0862", "T0887"],
+    calderaAbilityPatterns: ["ics", "scada", "plc", "modbus", "dnp3", "ot"],
+    msfModulePatterns: ["auxiliary/scanner/scada", "exploit/multi/scada", "auxiliary/scanner/modbus"],
+  },
+  ics_adversary_emulation: {
+    name: "ICS Adversary Emulation",
+    description: "Emulate ICS-targeting threat actors (Sandworm, XENOTIME, CHERNOVITE, Dragonfly) using documented ICS malware TTPs against OT environments",
+    type: "ics_adversary",
+    killChainPhases: ["initial_access", "execution", "persistence", "privilege_escalation", "lateral_movement", "collection", "command_and_control", "exfiltration"],
+    recommendedTechniques: ["T0866", "T0855", "T0831", "T0826", "T0813", "T0821", "T0836", "T0843", "T0857", "T0827"],
+    calderaAbilityPatterns: ["ics", "scada", "industroyer", "triton", "pipedream", "sandworm"],
+    msfModulePatterns: ["exploit/multi/scada", "auxiliary/scanner/scada", "post/multi/gather"],
+  },
 };
 
 export const engagementAutomationRouter = router({
@@ -1283,6 +1301,70 @@ export const engagementAutomationRouter = router({
         })),
         totalAvailable: profiles.length,
         unlinkedCount: profiles.filter(p => !p.engagementId).length,
+      };
+    }),
+
+  /** Recommend ICS/SCADA tools for OT engagements based on target protocols and engagement type */
+  getIcsToolRecommendations: protectedProcedure
+    .input(z.object({
+      templateId: z.string(),
+      targetProtocols: z.array(z.string()).optional(),
+      targetVendors: z.array(z.string()).optional(),
+      engagementPhase: z.enum(['recon', 'assessment', 'exploitation', 'monitoring', 'all']).default('all'),
+    }))
+    .query(({ input }) => {
+      const { ICS_OPEN_SOURCE_TOOLS, ICS_MALWARE_FAMILIES } = require('../lib/ics-scada-intel');
+      const isIcsTemplate = input.templateId.includes('ics');
+      if (!isIcsTemplate) return { tools: [], malwareFamilies: [], isIcsEngagement: false };
+
+      // Map engagement phase to tool categories
+      const phaseToCategories: Record<string, string[]> = {
+        recon: ['monitoring', 'protocol_analysis'],
+        assessment: ['assessment', 'framework'],
+        exploitation: ['framework', 'simulation'],
+        monitoring: ['monitoring', 'honeypot', 'forensics'],
+        all: ['honeypot', 'assessment', 'monitoring', 'simulation', 'framework', 'protocol_analysis', 'forensics'],
+      };
+      const relevantCategories = phaseToCategories[input.engagementPhase] || phaseToCategories.all;
+
+      // Filter tools by category and optionally by protocol
+      let tools = ICS_OPEN_SOURCE_TOOLS.filter((t: any) => relevantCategories.includes(t.category));
+      if (input.targetProtocols && input.targetProtocols.length > 0) {
+        const protos = input.targetProtocols.map((p: string) => p.toLowerCase());
+        tools = tools.filter((t: any) => t.protocols.some((p: string) => protos.includes(p)));
+      }
+
+      // Filter malware families by vendor if specified
+      let malwareFamilies = [...ICS_MALWARE_FAMILIES];
+      if (input.targetVendors && input.targetVendors.length > 0) {
+        const vendors = input.targetVendors.map((v: string) => v.toLowerCase());
+        malwareFamilies = malwareFamilies.filter((m: any) =>
+          m.targetedVendors.some((v: string) => vendors.some(tv => v.toLowerCase().includes(tv)))
+        );
+      }
+
+      return {
+        tools: tools.map((t: any) => ({
+          name: t.name,
+          category: t.category,
+          description: t.description,
+          githubUrl: t.githubUrl,
+          license: t.license,
+          protocols: t.protocols,
+          useCase: t.useCase,
+          recommended: true,
+        })),
+        malwareFamilies: malwareFamilies.map((m: any) => ({
+          name: m.name,
+          attribution: m.attribution,
+          year: m.year,
+          targetedProtocols: m.targetedProtocols,
+          targetedVendors: m.targetedVendors,
+          mitreIcsTechniques: m.mitreIcsTechniques,
+          description: m.description,
+        })),
+        isIcsEngagement: true,
+        recommendedProtocols: [...new Set(tools.flatMap((t: any) => t.protocols))],
       };
     }),
 });

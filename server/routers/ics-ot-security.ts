@@ -16,7 +16,7 @@ import { router, protectedProcedure } from "../_core/trpc";
 import { getDb, getDbRequired } from "../db";
 import {
   icsDevices, otNetworks, icsExploits, aptIcsMappings,
-  icsAssessments, protocolFindings,
+  icsAssessments, protocolFindings, threatActors,
   type InsertIcsDevice, type InsertOtNetwork, type InsertIcsAssessment,
 } from "../../drizzle/schema";
 import { eq, like, sql, desc, and, or } from "drizzle-orm";
@@ -27,6 +27,14 @@ import {
   fingerprintDevice,
   ICS_PROTOCOLS,
 } from "../lib/ics-device-discovery";
+import {
+  getIcsMalwareFamilies,
+  getIcsOpenSourceTools,
+  getIcsVendors,
+  getIcsKeywords,
+  ICS_MALWARE_FAMILIES,
+  ICS_OPEN_SOURCE_TOOLS,
+} from "../lib/ics-scada-intel";
 
 import {
   matchAptGroups,
@@ -597,4 +605,106 @@ export const icsOtSecurityRouter = router({
         mitreTechniques: MITRE_ICS_TECHNIQUES.length,
       };
     }),
+
+  // ─── ICS Threat Intelligence Procedures ──────────────────────────────────────
+
+  /** Get ICS malware families knowledge base */
+  getIcsMalwareFamilies: protectedProcedure.query(() => {
+    return ICS_MALWARE_FAMILIES;
+  }),
+
+  /** Get ICS open-source tool catalog */
+  getIcsTools: protectedProcedure
+    .input(z.object({
+      category: z.string().optional(),
+      protocol: z.string().optional(),
+    }).optional())
+    .query(({ input }) => {
+      let tools = [...ICS_OPEN_SOURCE_TOOLS];
+      if (input?.category) {
+        tools = tools.filter(t => t.category === input.category);
+      }
+      if (input?.protocol) {
+        tools = tools.filter(t => t.protocols.includes(input.protocol!));
+      }
+      return tools;
+    }),
+
+  /** Get ICS-capable threat actors (tagged with [ICS/SCADA-CAPABLE]) */
+  getIcsCapableActors: protectedProcedure.query(async () => {
+    const db = await getDb();
+    if (!db) return [];
+    const actors = await db.select({
+      id: threatActors.id,
+      actorId: threatActors.actorId,
+      name: threatActors.name,
+      aliases: threatActors.aliases,
+      actorType: threatActors.actorType,
+      origin: threatActors.origin,
+      description: threatActors.description,
+      threatLevel: threatActors.threatLevel,
+      sophistication: threatActors.sophistication,
+      targetSectors: threatActors.targetSectors,
+      lastActive: threatActors.lastActive,
+      malware: threatActors.malware,
+      tools: threatActors.tools,
+    }).from(threatActors)
+      .where(like(threatActors.description, '%[ICS/SCADA-CAPABLE]%'))
+      .orderBy(desc(threatActors.updatedAt))
+      .limit(100);
+    return actors;
+  }),
+
+  /** Get recent ICS advisories from the icsExploits table */
+  getRecentIcsAdvisories: protectedProcedure
+    .input(z.object({
+      limit: z.number().min(1).max(200).default(50),
+      vendor: z.string().optional(),
+      minCvss: z.number().optional(),
+      safetyImpact: z.string().optional(),
+    }).optional())
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return [];
+      const conditions = [];
+      if (input?.vendor) {
+        conditions.push(like(icsExploits.iceAffectedVendor, `%${input.vendor}%`));
+      }
+      if (input?.safetyImpact) {
+        conditions.push(eq(icsExploits.iceSafetyImpact, input.safetyImpact as any));
+      }
+      const query = db.select().from(icsExploits)
+        .orderBy(desc(icsExploits.iceCreatedAt))
+        .limit(input?.limit || 50);
+      if (conditions.length > 0) {
+        return query.where(and(...conditions));
+      }
+      return query;
+    }),
+
+  /** Get ICS vendors list */
+  getIcsVendors: protectedProcedure.query(() => {
+    return getIcsVendors();
+  }),
+
+  /** Get ICS keywords used for detection */
+  getIcsKeywords: protectedProcedure.query(() => {
+    return getIcsKeywords();
+  }),
+
+  /** Get ICS tool categories for filtering */
+  getIcsToolCategories: protectedProcedure.query(() => {
+    const categories = [...new Set(ICS_OPEN_SOURCE_TOOLS.map(t => t.category))];
+    return categories.map(c => ({
+      value: c,
+      label: c.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+      count: ICS_OPEN_SOURCE_TOOLS.filter(t => t.category === c).length,
+    }));
+  }),
+
+  /** Get ICS protocols covered by tools */
+  getIcsToolProtocols: protectedProcedure.query(() => {
+    const protocols = [...new Set(ICS_OPEN_SOURCE_TOOLS.flatMap(t => t.protocols))];
+    return protocols.sort();
+  }),
 });

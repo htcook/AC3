@@ -185,6 +185,7 @@ const CompensatingControls = lazyWithRetry(() => import("./pages/CompensatingCon
 const PreFlightChecks = lazyWithRetry(() => import("./pages/PreFlightChecks"));
 const ActiveVerification = lazyWithRetry(() => import("./pages/ActiveVerification"));
 const IcsOtSecurity = lazyWithRetry(() => import("./pages/IcsOtSecurity"));
+const IcsIntelligence = lazyWithRetry(() => import("./pages/IcsIntelligence"));
 const WebAppScanner = lazyWithRetry(() => import("./pages/WebAppScanner"));
 const CredentialAttacks = lazyWithRetry(() => import("./pages/CredentialAttacks"));
 const ZapProxySessions = lazyWithRetry(() => import("./pages/ZapProxySessions"));
@@ -832,6 +833,9 @@ function Router() {
         </Route>
         <Route path="/ics-ot-security">
           <ProtectedRoute component={IcsOtSecurity} />
+        </Route>
+        <Route path="/ics-intelligence">
+          <ProtectedRoute component={IcsIntelligence} />
         </Route>
         <Route path="/ad-attack-sim">
           <ProtectedRoute component={ADSecurityHub} />
