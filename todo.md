@@ -2827,3 +2827,10 @@
 - [x] Fixed 500 malformed alias entries (double-encoded JSON)
 - [x] Dedup runs against shared DB — all environments already have clean data
 - [x] Remove AceofCloud IDP Compromise entries from threat_actors (IDs: 150001, 150002, 150003, 210001) — removed 4 entries + 21 related events
+
+### Threat Actor Enrichment Analysis (May 15)
+- [x] Audit current threat_actors schema and data fields (32 columns, 5 related tables)
+- [x] Identify all current data sources feeding the catalog (7 sources: Malpedia, ransomware.live, OSINT, crawler, MITRE, etc.)
+- [x] Analyze field coverage/sparsity across all 1,600 actors (origin 35% unknown, techniques 55% missing, tools 60% missing)
+- [x] Research additional OSINT/commercial feeds for enrichment (20+ sources: MITRE STIX, MISP Galaxy, FBI, OFAC, ETDA, VulnCheck, etc.)
+- [x] Produce enrichment strategy document (references/threat-actor-enrichment-strategy.md — 10 sections, schema expansion, 8-week roadmap)
