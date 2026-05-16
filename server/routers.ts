@@ -249,6 +249,7 @@ import { socradarRouter } from "./routers/socradar";
 import { googleDorkingRouter } from "./routers/google-dorking";
 import { riskRegisterRouter } from "./routers/risk-register";
 import { attackChainsRouter } from "./routers/attack-chains";
+import { freeScanRouter } from "./routers/free-scan";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -672,6 +673,8 @@ export const appRouter = router({
   riskRegister: riskRegisterRouter,
   // ─── Vulnerability Attack Chains ──
   attackChains: attackChainsRouter,
+  // ─── Free DI Scan (Public Lead Generation) ──
+  freeScan: freeScanRouter,
 });
 export type AppRouter = typeof appRouter;
 

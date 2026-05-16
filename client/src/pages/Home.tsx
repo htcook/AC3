@@ -18,6 +18,7 @@ import {
   Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle,
 } from "@/components/ui/sheet";
 import RequestDemoModal from "@/components/RequestDemoModal";
+import FreeScanModal from "@/components/FreeScanModal";
 
 // ─── Collapsible Section ────────────────────────────────────────────
 function CollapsibleSection({ title, subtitle, defaultOpen = false, children }: {
@@ -62,7 +63,7 @@ const RECENT_UPDATES = [
   { date: "Feb 2026", title: "DAST Scanner", desc: "Dual-mode web app scanning: passive crawling for safe recon, active DAST for coordinated testing. AI auto-tunes scan policies." },
   { date: "Feb 2026", title: "Autonomous Validation", desc: "AI-driven exploit validation runs authorized checks against confirmed CVEs and captures proof artifacts." },
   { date: "Feb 2026", title: "Evasion Engine", desc: "Generate evasive command variants, chain obfuscation tools, and score campaign stealth with detection gap analysis." },
-  { date: "Feb 2026", title: "Public Threat Actor Feed", desc: "Browse 1,700+ threat actor profiles with techniques, tools, and target sectors — no login required." },
+  { date: "Feb 2026", title: "Threat Actor Intelligence", desc: "Browse 1,600+ deduplicated threat actor profiles with ATT&CK-mapped techniques, tools, campaigns, and target sectors." },
 ];
 
 function UpdatesPopup({ onClose }: { onClose: () => void }) {
@@ -175,9 +176,9 @@ export default function Home() {
                 SIGN IN
               </Button>
             </Link>
-            <RequestDemoModal trigger={
+            <FreeScanModal trigger={
               <Button className="hidden sm:inline-flex font-display tracking-wider bg-primary hover:bg-primary/90 text-sm">
-                REQUEST EARLY ACCESS
+                FREE SECURITY SCAN
                 <ChevronRight className="w-4 h-4 ml-1" />
               </Button>
             } />
@@ -223,9 +224,9 @@ export default function Home() {
                       SIGN IN
                     </span>
                   </Link>
-                  <RequestDemoModal trigger={
+                  <FreeScanModal trigger={
                     <Button className="w-full mt-2 font-display tracking-wider bg-primary hover:bg-primary/90 text-sm">
-                      REQUEST EARLY ACCESS
+                      FREE SECURITY SCAN
                     </Button>
                   } />
                 </nav>
@@ -274,9 +275,9 @@ export default function Home() {
             </div>
 
             <div className="flex flex-wrap justify-center gap-4 mb-12">
-              <RequestDemoModal trigger={
+              <FreeScanModal trigger={
                 <Button size="lg" className="font-display tracking-wider bg-primary hover:bg-primary/90 text-white px-8 py-6 text-base">
-                  REQUEST EARLY ACCESS
+                  FREE SECURITY SCAN
                   <ArrowRight className="w-5 h-5 ml-2" />
                 </Button>
               } />
@@ -618,9 +619,9 @@ export default function Home() {
             and direct access to the engineering team.
           </p>
           <div className="flex flex-wrap justify-center gap-4">
-            <RequestDemoModal trigger={
+            <FreeScanModal trigger={
               <Button size="lg" className="font-display tracking-wider bg-primary hover:bg-primary/90 text-white px-8 py-6">
-                REQUEST EARLY ACCESS
+                FREE SECURITY SCAN
                 <ArrowRight className="w-5 h-5 ml-2" />
               </Button>
             } />
@@ -1103,9 +1104,9 @@ export default function Home() {
             evidence-backed findings, and safety architecture you can trust.
           </p>
           <div className="flex flex-wrap justify-center gap-4">
-            <RequestDemoModal trigger={
+            <FreeScanModal trigger={
               <Button size="lg" className="font-display tracking-wider bg-primary hover:bg-primary/90 text-white px-8 py-6">
-                REQUEST EARLY ACCESS
+                FREE SECURITY SCAN
                 <ArrowRight className="w-5 h-5 ml-2" />
               </Button>
             } />

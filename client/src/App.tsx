@@ -361,6 +361,8 @@ const MonitoringDeploy = lazyWithRetry(() => import("./pages/MonitoringDeploy"))
 const IncidentResponseRunbook = lazyWithRetry(() => import("./pages/IncidentResponseRunbook"));
 const DnsSecurityPage = lazyWithRetry(() => import("./pages/DnsSecurityPage"));
 const PipelineDashboard = lazyWithRetry(() => import("./pages/PipelineDashboard"));
+const VerifyScan = lazyWithRetry(() => import("./pages/VerifyScan"));
+const ScanResults = lazyWithRetry(() => import("./pages/ScanResults"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -422,8 +424,9 @@ function Router() {
   const [location] = useLocation();
   // Routes that should NOT have the sidebar
   const noSidebarRoutes = ["/", "/login", "/404", "/ops-viewer"];
+  const isFreeScanRoute = location.startsWith("/verify-scan") || location.startsWith("/scan-results");
   const isPortalRoute = location.startsWith("/portal/") || location.startsWith("/customer-");
-  const showSidebar = !noSidebarRoutes.includes(location) && !isPortalRoute;
+  const showSidebar = !noSidebarRoutes.includes(location) && !isPortalRoute && !isFreeScanRoute;
 
   const routeContent = (
     <Suspense fallback={<PageLoader />}>
@@ -441,6 +444,8 @@ function Router() {
           <ProtectedRoute component={ToolComparison} pageName="ToolComparison" />
         </Route>
         <Route path="/login">{() => <PageErrorBoundary pageName="Login"><Login /></PageErrorBoundary>}</Route>
+        <Route path="/verify-scan/:token">{() => <PageErrorBoundary pageName="VerifyScan"><VerifyScan /></PageErrorBoundary>}</Route>
+        <Route path="/scan-results/:token">{() => <PageErrorBoundary pageName="ScanResults"><ScanResults /></PageErrorBoundary>}</Route>
         <Route path="/dashboard">
           <ProtectedRoute component={Dashboard} />
         </Route>

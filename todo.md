@@ -2834,3 +2834,69 @@
 - [x] Analyze field coverage/sparsity across all 1,600 actors (origin 35% unknown, techniques 55% missing, tools 60% missing)
 - [x] Research additional OSINT/commercial feeds for enrichment (20+ sources: MITRE STIX, MISP Galaxy, FBI, OFAC, ETDA, VulnCheck, etc.)
 - [x] Produce enrichment strategy document (references/threat-actor-enrichment-strategy.md — 10 sections, schema expansion, 8-week roadmap)
+
+### Phase 1: Expanded Threat Intel Schema (May 15)
+- [x] Create threat_actor_members table (individual operators, handles, real names, skills)
+- [x] Create threat_actor_relationships table (group-to-group affiliations, splinters, mergers)
+- [x] Create threat_actor_infrastructure table (C2 servers, domains, hosting providers, ASNs)
+- [x] Create threat_actor_financial table (crypto wallets, ransom payments, money laundering)
+- [x] Create threat_actor_indictments table (DOJ/FBI/Interpol actions, sanctions, arrests)
+- [x] Create threat_actor_campaigns table (named operations with timeline, targets, TTPs)
+- [x] Create threat_actor_operational_patterns table (working hours, language, tooling preferences)
+- [x] Push schema to database — all 7 tables created successfully
+
+### Phase 2: MITRE ATT&CK + MISP Galaxy Importers (May 15)
+- [ ] Build MITRE ATT&CK STIX importer (groups → techniques → software → campaigns)
+- [ ] Build MISP Galaxy importer (threat-actors galaxy: origin, motivation, aliases, refs)
+- [ ] Run importers against live database
+- [ ] Verify enrichment: techniques, tools, origin coverage improvements
+
+### Phase 3: Free DI Scan Flow (May 15)
+- [ ] Complete free-scan.ts router (email verification + scan trigger + public results)
+- [ ] Build frontend: demo request form with domain input
+- [ ] Build frontend: email verification confirmation page
+- [ ] Build frontend: public scan results page (token-authenticated)
+- [ ] Wire SES email sending for verification + results delivery
+- [ ] Test end-to-end flow
+
+### Deterministic Tool/Malware → Technique Mapper (May 15)
+- [ ] Build software→technique lookup from MITRE STIX data (tool/malware → techniques used)
+- [ ] Auto-map techniques to all actors with known tools/malware (high confidence, no LLM)
+- [ ] Run mapper and verify technique coverage improvement
+
+### LLM-Based Technique Inference (May 15)
+- [ ] Build LLM enrichment script for actors with descriptions but no technique mappings
+- [ ] Batch process remaining actors through LLM with confidence scoring
+- [ ] Validate LLM-inferred techniques against known patterns
+
+### DFIR Report Ingestion Pipeline (May 15)
+- [ ] Build RSS/blog feed crawler for: DFIR Report, Unit42, Talos, MSTIC, SentinelOne, Mandiant, Crowdstrike
+- [ ] Build LLM extraction pipeline: report → actor attribution, techniques, tools, IOCs, targets, timeline
+- [ ] Auto-map extracted data to existing catalog entries
+- [ ] Auto-create new actor entries when reports mention unknown groups
+- [ ] Schedule as recurring job (every 6 hours)
+- [ ] Backfill from historical DFIR Report archive (2020-present)
+
+### Government Data Sources + Internal Cron Scheduler (May 15)
+- [x] Create internal threat-intel-daily scheduler (node-cron, daily 03:30 UTC)
+- [x] Add OFAC SDN cyber-sanctions parser (CSV/XML download, filter CYBER2 program)
+- [x] Add Rewards for Justice scraper (State Dept cyber reward targets)
+- [x] Add FBI Cyber Most Wanted scraper (named individuals + group affiliations)
+- [x] Add DOJ cybercrime indictment feed (press releases RSS)
+- [x] Add NSA cybersecurity advisory feed (RSS)
+- [x] Add ACSC (Australia) advisory feed (RSS)
+- [x] Add CCCS (Canada) advisory feed (RSS)
+- [x] Register government source parsers in threat-intel-ingest pipeline
+- [x] Write vitest tests for government source parsers (53 passing)
+- [ ] Document AWS EventBridge setup for LLM enrichment ECS Scheduled Task
+
+### ICS/SCADA Intelligence + Open-Source Tooling (May 15)
+- [x] Research ICS/SCADA threat intel sources (CISA ICS-CERT, Dragos, Claroty, MITRE ICS ATT&CK)
+- [x] Build ICS/SCADA advisory ingest module (CISA ICS advisories RSS, CSAF OT, Siemens ProductCERT)
+- [x] Build open-source ICS/SCADA tool catalog (GRFICSv2, Conpot, Redpoint, GRASSMARLIN, etc.)
+- [x] Add ICS malware knowledge base (Stuxnet, TRITON, Industroyer, PIPEDREAM, BlackEnergy, Havex)
+- [x] Auto-tag actors with ICS/SCADA capability when discovered in advisories
+- [x] Add ICS-specific CVE enrichment (Siemens, Schneider, Rockwell, ABB, Honeywell)
+- [x] Cross-map ICS malware families to threat actors in catalog
+- [x] Write vitest tests for ICS/SCADA module (57 passing)
+- [ ] Create ICS/SCADA enrichment strategy reference document

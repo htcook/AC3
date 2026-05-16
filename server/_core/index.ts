@@ -899,6 +899,23 @@ async function startServer() {
         }
       }
 
+      // Phase 5.5: Government intelligence sources (OFAC, RFJ, FBI, DOJ, NSA, ACSC, CCCS)
+      try {
+        const { runGovernmentIntelIngest } = await import("../lib/government-intel-sources");
+        const govResult = await runGovernmentIntelIngest();
+        results.phases.push({ phase: 'government_intel', success: true, ...govResult });
+      } catch (err: any) {
+        results.phases.push({ phase: 'government_intel', success: false, error: err.message });
+      }
+
+      // Phase 5.6: ICS/SCADA threat intelligence (CISA ICS advisories, CSAF, vendor feeds, malware KB)
+      try {
+        const { runIcsScadaIntelIngest } = await import("../lib/ics-scada-intel");
+        const icsResult = await runIcsScadaIntelIngest();
+        results.phases.push({ phase: 'ics_scada_intel', success: true, ...icsResult });
+      } catch (err: any) {
+        results.phases.push({ phase: 'ics_scada_intel', success: false, error: err.message });
+      }
       // Phase 6: Ransomware leak site monitoring (ransomware.live API)
       try {
         const { runLeakSiteMonitor } = await import("../lib/ransomware-leak-monitor");
@@ -2497,6 +2514,16 @@ async function startServer() {
         initCicdBaselineScheduler();
       }).catch((err) => {
         console.warn("[CICD-Baseline] Failed to initialize baseline scheduler:", err);
+      });
+
+      // Initialize Threat Intel Daily Scheduler (daily at 03:30 UTC — full pipeline)
+      // This runs the same pipeline as /api/scheduled/threat-intel-daily but internally
+      // so it works independently of Manus external triggers in AWS ECS.
+      import("../lib/threat-intel-daily-scheduler").then(({ initThreatIntelDailyScheduler }) => {
+        initThreatIntelDailyScheduler();
+        console.log("[ThreatIntelDaily-Cron] Internal daily threat intel scheduler initialized");
+      }).catch((err) => {
+        console.warn("[ThreatIntelDaily-Cron] Failed to initialize threat intel daily scheduler:", err);
       });
 
       // Force GC after cron scheduler registration
