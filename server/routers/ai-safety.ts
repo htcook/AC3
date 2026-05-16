@@ -23,6 +23,12 @@ import {
   type ActionCategory,
 } from "../lib/graduated-autonomy";
 import { queryAuditLogs, flushAuditBufferToDb } from "../lib/ai-safety-middleware";
+import {
+  getInterceptorStats,
+  getInterceptorConfig,
+  updateInterceptorConfig,
+  resetInterceptorStats,
+} from "../lib/llm-safety-interceptor";
 
 export const aiSafetyRouter = router({
   // ═══════════════════════════════════════════════════════════════════════════
@@ -278,5 +284,62 @@ export const aiSafetyRouter = router({
     .mutation(async () => {
       const flushed = await flushAuditBufferToDb();
       return { flushed };
+    }),
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // TRANSPORT-LEVEL INTERCEPTOR STATS
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /** Get transport-level interceptor statistics */
+  getInterceptorStats: protectedProcedure
+    .query(() => {
+      const raw = getInterceptorStats();
+      return {
+        installed: raw.installed,
+        totalIntercepted: raw.totalIntercepted,
+        totalBlocked: raw.totalBlocked,
+        totalSanitized: raw.totalSanitized,
+        totalInjectionDetected: raw.totalInjectionDetected,
+        totalPiiScrubbed: raw.totalPiiScrubbed,
+        totalBypassed: raw.totalBypassed,
+        lastBlockedAt: raw.lastBlockedAt,
+        lastInjectionAt: raw.lastInjectionAt,
+        blockedCallers: Object.fromEntries(raw.blockedCallers),
+        injectionsByCategory: Object.fromEntries(raw.injectionsByCategory),
+      };
+    }),
+
+  /** Get interceptor configuration */
+  getInterceptorConfig: protectedProcedure
+    .query(() => {
+      const cfg = getInterceptorConfig();
+      return {
+        enabled: cfg.enabled,
+        blockHighSeverity: cfg.blockHighSeverity,
+        sanitizeOutputs: cfg.sanitizeOutputs,
+        auditAll: cfg.auditAll,
+        bypassCallers: [...cfg.bypassCallers],
+        maxMessageLength: cfg.maxMessageLength,
+      };
+    }),
+
+  /** Update interceptor configuration */
+  updateInterceptorConfig: protectedProcedure
+    .input(z.object({
+      enabled: z.boolean().optional(),
+      blockHighSeverity: z.boolean().optional(),
+      sanitizeOutputs: z.boolean().optional(),
+      auditAll: z.boolean().optional(),
+    }))
+    .mutation(({ input }) => {
+      updateInterceptorConfig(input);
+      return { success: true, config: getInterceptorConfig() };
+    }),
+
+  /** Reset interceptor statistics */
+  resetInterceptorStats: protectedProcedure
+    .mutation(() => {
+      resetInterceptorStats();
+      return { success: true };
     }),
 });

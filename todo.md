@@ -3022,3 +3022,11 @@
 - [x] Build Autonomy Level UI panel (per-engagement display, operator override, anomaly trail)
 - [x] Add tRPC procedures for autonomy state (get, override, clear suspension)
 - [x] Write Vitest tests for middleware integration, audit persistence, and autonomy procedures (75 tests passing)
+
+### Wire Safety Middleware into All Remaining LLM Paths (May 16)
+- [x] Identify all LLM invocation paths beyond campaign advisor chat (135+ callers found)
+- [x] Build transport-level LLM safety interceptor (hooks into invokeLLM at _core level)
+- [x] Wire processInputSafety/processOutputSafety into ALL LLM calls (enrichment, planning, exploitation, scanning, reporting)
+- [x] Add interceptor config management + stats tracking + bypass list
+- [x] Add Transport Interceptor tab to AI Safety UI panel
+- [x] Write Vitest tests for interceptor (23 tests, 98 total safety tests passing)

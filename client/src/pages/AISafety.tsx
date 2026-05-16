@@ -202,8 +202,9 @@ export default function AISafety() {
 
       {/* Main Tabs */}
       <Tabs value={selectedTab} onValueChange={setSelectedTab}>
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="autonomy">Autonomy Levels</TabsTrigger>
+          <TabsTrigger value="interceptor">Transport Interceptor</TabsTrigger>
           <TabsTrigger value="audit">Audit Trail</TabsTrigger>
           <TabsTrigger value="overrides">Override History</TabsTrigger>
         </TabsList>
@@ -496,6 +497,11 @@ export default function AISafety() {
           </Card>
         </TabsContent>
 
+        {/* ─── Transport Interceptor Tab ───────────────────────────────── */}
+        <TabsContent value="interceptor" className="space-y-4">
+          <InterceptorPanel />
+        </TabsContent>
+
         {/* ─── Override History Tab ──────────────────────────────────────── */}
         <TabsContent value="overrides" className="space-y-4">
           <Card>
@@ -554,6 +560,213 @@ export default function AISafety() {
 }
 
 // ─── Sub-Components ──────────────────────────────────────────────────────────
+
+function InterceptorPanel() {
+  const { toast } = useToast();
+  const interceptorStats = trpc.aiSafety.getInterceptorStats.useQuery();
+  const interceptorConfig = trpc.aiSafety.getInterceptorConfig.useQuery();
+  const updateConfig = trpc.aiSafety.updateInterceptorConfig.useMutation({
+    onSuccess: () => {
+      toast({ title: "Config Updated", description: "Interceptor configuration saved." });
+      interceptorConfig.refetch();
+    },
+  });
+  const resetStats = trpc.aiSafety.resetInterceptorStats.useMutation({
+    onSuccess: () => {
+      toast({ title: "Stats Reset", description: "Interceptor statistics cleared." });
+      interceptorStats.refetch();
+    },
+  });
+
+  const s = interceptorStats.data;
+  const cfg = interceptorConfig.data;
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      {/* Stats Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Activity className="h-5 w-5 text-cyan-400" />
+            Interceptor Statistics
+          </CardTitle>
+          <CardDescription>
+            Transport-level safety metrics across ALL {s?.totalIntercepted ?? 0} LLM invocations
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center gap-2 mb-4">
+            <Badge className={s?.installed ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400"}>
+              {s?.installed ? "ACTIVE" : "NOT INSTALLED"}
+            </Badge>
+            <Button variant="outline" size="sm" onClick={() => resetStats.mutate()}>
+              Reset Stats
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="p-3 rounded-lg bg-card border">
+              <div className="text-2xl font-bold text-blue-400">{s?.totalIntercepted ?? 0}</div>
+              <div className="text-xs text-muted-foreground">Total Intercepted</div>
+            </div>
+            <div className="p-3 rounded-lg bg-card border">
+              <div className="text-2xl font-bold text-red-400">{s?.totalBlocked ?? 0}</div>
+              <div className="text-xs text-muted-foreground">Blocked (High Severity)</div>
+            </div>
+            <div className="p-3 rounded-lg bg-card border">
+              <div className="text-2xl font-bold text-amber-400">{s?.totalInjectionDetected ?? 0}</div>
+              <div className="text-xs text-muted-foreground">Injections Detected</div>
+            </div>
+            <div className="p-3 rounded-lg bg-card border">
+              <div className="text-2xl font-bold text-emerald-400">{s?.totalSanitized ?? 0}</div>
+              <div className="text-xs text-muted-foreground">Outputs Sanitized</div>
+            </div>
+            <div className="p-3 rounded-lg bg-card border">
+              <div className="text-2xl font-bold text-purple-400">{s?.totalPiiScrubbed ?? 0}</div>
+              <div className="text-xs text-muted-foreground">PII Scrubbed</div>
+            </div>
+            <div className="p-3 rounded-lg bg-card border">
+              <div className="text-2xl font-bold text-slate-400">{s?.totalBypassed ?? 0}</div>
+              <div className="text-xs text-muted-foreground">Bypassed (System)</div>
+            </div>
+          </div>
+
+          {s?.lastBlockedAt && (
+            <div className="text-xs text-red-400 mt-2">
+              Last blocked: {new Date(s.lastBlockedAt).toLocaleString()}
+            </div>
+          )}
+          {s?.lastInjectionAt && (
+            <div className="text-xs text-amber-400">
+              Last injection: {new Date(s.lastInjectionAt).toLocaleString()}
+            </div>
+          )}
+
+          {/* Blocked Callers */}
+          {s?.blockedCallers && Object.keys(s.blockedCallers).length > 0 && (
+            <div className="mt-4">
+              <h4 className="text-sm font-medium mb-2">Blocked by Caller</h4>
+              <div className="space-y-1">
+                {Object.entries(s.blockedCallers).map(([caller, count]) => (
+                  <div key={caller} className="flex items-center justify-between text-xs">
+                    <span className="font-mono text-muted-foreground">{caller}</span>
+                    <Badge variant="destructive" className="text-xs">{count as number}</Badge>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Injections by Category */}
+          {s?.injectionsByCategory && Object.keys(s.injectionsByCategory).length > 0 && (
+            <div className="mt-4">
+              <h4 className="text-sm font-medium mb-2">Injections by Category</h4>
+              <div className="space-y-1">
+                {Object.entries(s.injectionsByCategory).map(([cat, count]) => (
+                  <div key={cat} className="flex items-center justify-between text-xs">
+                    <span className="font-mono text-muted-foreground">{cat}</span>
+                    <Badge className="text-xs bg-amber-500/20 text-amber-400">{count as number}</Badge>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Config Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Shield className="h-5 w-5 text-emerald-400" />
+            Interceptor Configuration
+          </CardTitle>
+          <CardDescription>
+            Control the transport-level safety behavior for all LLM paths
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-3">
+            <ConfigToggle
+              label="Interceptor Enabled"
+              description="Master switch for the transport-level safety layer"
+              value={cfg?.enabled ?? true}
+              onChange={(v) => updateConfig.mutate({ enabled: v })}
+            />
+            <Separator />
+            <ConfigToggle
+              label="Block High Severity"
+              description="Immediately block calls with high-severity injection patterns"
+              value={cfg?.blockHighSeverity ?? true}
+              onChange={(v) => updateConfig.mutate({ blockHighSeverity: v })}
+            />
+            <Separator />
+            <ConfigToggle
+              label="Sanitize Outputs"
+              description="Scrub PII, secrets, and dangerous patterns from LLM responses"
+              value={cfg?.sanitizeOutputs ?? true}
+              onChange={(v) => updateConfig.mutate({ sanitizeOutputs: v })}
+            />
+            <Separator />
+            <ConfigToggle
+              label="Audit All"
+              description="Log all intercepted calls to the audit buffer"
+              value={cfg?.auditAll ?? true}
+              onChange={(v) => updateConfig.mutate({ auditAll: v })}
+            />
+          </div>
+
+          {cfg?.bypassCallers && cfg.bypassCallers.length > 0 && (
+            <div className="mt-4">
+              <h4 className="text-sm font-medium mb-2">Bypass List (System Callers)</h4>
+              <div className="flex flex-wrap gap-1">
+                {cfg.bypassCallers.map((caller) => (
+                  <Badge key={caller} variant="outline" className="text-xs font-mono">
+                    {caller}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="mt-4 p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
+            <h4 className="text-sm font-medium text-emerald-400 mb-1">Coverage</h4>
+            <p className="text-xs text-muted-foreground">
+              This interceptor protects ALL 135+ LLM invocation paths including:
+              enrichment, planning, exploitation, scanning, report generation,
+              threat analysis, and campaign advisory. No caller can bypass without
+              explicit system-level bypass registration.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function ConfigToggle({ label, description, value, onChange }: {
+  label: string;
+  description: string;
+  value: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between">
+      <div>
+        <div className="text-sm font-medium">{label}</div>
+        <div className="text-xs text-muted-foreground">{description}</div>
+      </div>
+      <Button
+        variant={value ? "default" : "outline"}
+        size="sm"
+        onClick={() => onChange(!value)}
+        className={value ? "bg-emerald-600 hover:bg-emerald-700" : ""}
+      >
+        {value ? "ON" : "OFF"}
+      </Button>
+    </div>
+  );
+}
 
 function StatCard({ label, value, icon, color }: { label: string; value: number | string; icon: React.ReactNode; color: string }) {
   return (

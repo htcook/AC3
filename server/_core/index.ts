@@ -63,6 +63,14 @@ async function startServer() {
   // FIPS 140-3: Initialize certificate pinning for Cyber C2 and GoPhish
   initCertPinning();
 
+  // AI Safety: Install transport-level LLM safety interceptor (injection detection + output sanitization)
+  try {
+    const { installSafetyInterceptor } = await import("../lib/llm-safety-interceptor");
+    await installSafetyInterceptor();
+  } catch (err: any) {
+    console.error("[Startup] LLM Safety interceptor install failed (non-fatal):", err.message);
+  }
+
   const app = express();
   const server = createServer(app);
   // Trust proxy headers (X-Forwarded-Proto, X-Forwarded-Host) so Express
