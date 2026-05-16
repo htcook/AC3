@@ -203,6 +203,7 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/scan-scheduler", icon: Clock, label: "SCAN MANAGEMENT" },
           { href: "/config-baseline", icon: Settings, label: "CONFIG BASELINE" },
           { href: "/scanforge-dashboard", icon: FlaskConical, label: "SCANFORGE ANALYTICS" },
+          { href: "/commercial-scanners", icon: ShieldPlus, label: "COMMERCIAL SCANNERS" },
         ],
       },
       {

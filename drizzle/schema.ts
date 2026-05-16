@@ -8919,3 +8919,105 @@ export const autonomyOverrides = mysqlTable("autonomy_overrides", {
 	index("ao_active_idx").on(table.active),
 ]);
 
+
+
+// ============================================================
+// Commercial Scanner Connectors (FedRAMP/NIST/DoD)
+// ============================================================
+
+export const scannerConnectors = mysqlTable("scanner_connectors", {
+	id: int().autoincrement().notNull(),
+	connectorId: varchar("connector_id", { length: 64 }).notNull(),
+	platform: varchar({ length: 64 }).notNull(),
+	name: varchar({ length: 255 }).notNull(),
+	baseUrl: varchar("base_url", { length: 512 }).notNull(),
+	credentials: text().notNull(), // encrypted JSON blob
+	enabled: tinyint().default(1).notNull(),
+	lastHealthCheck: timestamp("last_health_check", { mode: 'string' }),
+	healthStatus: varchar("health_status", { length: 32 }).default('unknown'),
+	healthMessage: text("health_message"),
+	scanTypes: text("scan_types"), // JSON array of supported scan types
+	fedRampLevel: varchar("fedramp_level", { length: 64 }),
+	createdBy: varchar("created_by", { length: 128 }),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+}, (table) => [
+	index("sc_connector_id_unique").on(table.connectorId),
+	index("sc_platform_idx").on(table.platform),
+	index("sc_enabled_idx").on(table.enabled),
+]);
+
+export const scannerScans = mysqlTable("scanner_scans", {
+	id: int().autoincrement().notNull(),
+	scanId: varchar("scan_id", { length: 64 }).notNull(),
+	connectorId: varchar("connector_id", { length: 64 }).notNull(),
+	platform: varchar({ length: 64 }).notNull(),
+	scanType: varchar("scan_type", { length: 64 }).notNull(),
+	status: varchar({ length: 32 }).default('pending').notNull(),
+	targetRef: varchar("target_ref", { length: 512 }), // target URL, IP, or repo
+	externalScanId: varchar("external_scan_id", { length: 256 }), // ID from the scanner platform
+	findingsCount: int("findings_count").default(0),
+	criticalCount: int("critical_count").default(0),
+	highCount: int("high_count").default(0),
+	mediumCount: int("medium_count").default(0),
+	lowCount: int("low_count").default(0),
+	startedAt: timestamp("started_at", { mode: 'string' }),
+	completedAt: timestamp("completed_at", { mode: 'string' }),
+	errorMessage: text("error_message"),
+	rawResponse: text("raw_response"), // JSON blob of raw scanner response
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+}, (table) => [
+	index("ss_scan_id_unique").on(table.scanId),
+	index("ss_connector_id_idx").on(table.connectorId),
+	index("ss_status_idx").on(table.status),
+	index("ss_platform_idx").on(table.platform),
+]);
+
+export const scannerFindings = mysqlTable("scanner_findings", {
+	id: int().autoincrement().notNull(),
+	findingId: varchar("finding_id", { length: 64 }).notNull(),
+	scanId: varchar("scan_id", { length: 64 }).notNull(),
+	connectorId: varchar("connector_id", { length: 64 }).notNull(),
+	platform: varchar({ length: 64 }).notNull(),
+	// Normalized fields
+	title: varchar({ length: 512 }).notNull(),
+	severity: varchar({ length: 16 }).notNull(), // critical, high, medium, low, info
+	cvssScore: decimal("cvss_score", { precision: 3, scale: 1 }),
+	cveId: varchar("cve_id", { length: 32 }),
+	cweId: varchar("cwe_id", { length: 32 }),
+	description: text(),
+	remediation: text(),
+	affectedAsset: varchar("affected_asset", { length: 512 }),
+	affectedComponent: varchar("affected_component", { length: 512 }),
+	evidence: text(), // JSON blob of evidence/proof
+	// Source tracking
+	externalFindingId: varchar("external_finding_id", { length: 256 }),
+	sourceUrl: varchar("source_url", { length: 1024 }),
+	// Status
+	status: varchar({ length: 32 }).default('open').notNull(), // open, acknowledged, remediated, false_positive
+	importedAt: timestamp("imported_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	resolvedAt: timestamp("resolved_at", { mode: 'string' }),
+}, (table) => [
+	index("sf_finding_id_unique").on(table.findingId),
+	index("sf_scan_id_idx").on(table.scanId),
+	index("sf_connector_id_idx").on(table.connectorId),
+	index("sf_severity_idx").on(table.severity),
+	index("sf_cve_idx").on(table.cveId),
+	index("sf_status_idx").on(table.status),
+]);
+
+export const sonarqubeWebhooks = mysqlTable("sonarqube_webhooks", {
+	id: int().autoincrement().notNull(),
+	webhookId: varchar("webhook_id", { length: 64 }).notNull(),
+	connectorId: varchar("connector_id", { length: 64 }).notNull(),
+	projectKey: varchar("project_key", { length: 256 }).notNull(),
+	webhookSecret: varchar("webhook_secret", { length: 128 }),
+	enabled: tinyint().default(1).notNull(),
+	lastTriggeredAt: timestamp("last_triggered_at", { mode: 'string' }),
+	triggerCount: int("trigger_count").default(0),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+}, (table) => [
+	index("sqw_webhook_id_unique").on(table.webhookId),
+	index("sqw_connector_id_idx").on(table.connectorId),
+	index("sqw_project_key_idx").on(table.projectKey),
+]);

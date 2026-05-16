@@ -3094,3 +3094,24 @@
 - [x] Update test-lab-infrastructure.ts to use AWS instead of DO
 - [x] Update live-infra.ts router to use AWS instead of DO
 - [x] Ensure no scan pipeline errors from stale DO references (all hardcoded IPs removed from production code)
+
+### Commercial Scanner tRPC Router + UI (May 16)
+- [x] Build database schema for scanner connector instances (scannerConnectors table)
+- [x] Build database schema for normalized scan results (scannerFindings table)
+- [x] Build tRPC router: addConnector, removeConnector, listConnectors, testConnection
+- [x] Build tRPC router: triggerScan, getScanStatus, importResults
+- [x] Build Commercial Scanners UI page with connector cards, status indicators, scan history
+- [x] Register route in App.tsx and add to sidebar navigation
+
+### SonarQube CI/CD Integration (May 16)
+- [x] Build SonarQube webhook handler for receiving scan results on code push
+- [x] Build tRPC endpoint to register/configure SonarQube project webhooks
+- [x] Auto-import SonarQube findings into AC3 normalized findings store
+- [x] Add SonarQube pipeline status card to Commercial Scanners page
+
+### AWS EC2 MSF Instance Provisioning + RPC Validation (May 16)
+- [x] Build provisionMsfInstance endpoint that creates EC2 + installs MSF via cloud-init
+- [x] Build validateMsfRpc endpoint that tests JSON-RPC connectivity to provisioned instance
+- [x] Build destroyMsfInstance endpoint for cleanup
+- [x] Add MSF instance health check with auto-reconnect logic
+- [x] Write Vitest tests for all new features (14 tests passing)

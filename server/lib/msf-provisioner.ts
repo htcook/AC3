@@ -459,6 +459,20 @@ export async function getDropletStatus(instanceId: string): Promise<any> {
   };
 }
 
+/** Alias used by commercial-scanners router */
+export async function provisionMsfServer(opts: { name: string; instanceType?: string; region?: string; userId?: string }) {
+  return provisionMsfInstance({
+    name: opts.name,
+    instanceType: opts.instanceType,
+    region: opts.region,
+  });
+}
+
+/** Alias used by commercial-scanners router */
+export async function destroyMsfServer(instanceId: string) {
+  return terminateMsfInstance(instanceId);
+}
+
 /** @deprecated Use terminateMsfInstance instead */
 export const destroyMsfDroplet = terminateMsfInstance;
 

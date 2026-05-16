@@ -366,6 +366,7 @@ const DnsSecurityPage = lazyWithRetry(() => import("./pages/DnsSecurityPage"));
 const PipelineDashboard = lazyWithRetry(() => import("./pages/PipelineDashboard"));
 const VerifyScan = lazyWithRetry(() => import("./pages/VerifyScan"));
 const ScanResults = lazyWithRetry(() => import("./pages/ScanResults"));
+const CommercialScanners = lazyWithRetry(() => import("./pages/CommercialScanners"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -1360,7 +1361,10 @@ function Router() {
           <ProtectedRoute component={IncidentResponseRunbook} pageName="IncidentResponseRunbook" />
         </Route>
         <Route path="/dns-security">
-          <ProtectedRoute component={DnsSecurityPage} pageName="DnsSecurityPage" />
+          <ProtectedRoute component={DnsSecurityPage} />
+        </Route>
+        <Route path="/commercial-scanners">
+          <ProtectedRoute component={CommercialScanners} />
         </Route>
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />

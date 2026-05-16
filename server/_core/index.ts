@@ -786,6 +786,14 @@ async function startServer() {
     console.warn("[CICD-Webhooks] Failed to initialize:", err.message);
   }
 
+  // ─── SonarQube Webhook Receiver (public, unauthenticated) ─────────────────
+  try {
+    const { registerSonarQubeWebhookRoutes } = await import("../lib/sonarqube-webhook-receiver");
+    registerSonarQubeWebhookRoutes(app);
+  } catch (err: any) {
+    console.warn("[SonarQube-Webhooks] Failed to initialize:", err.message);
+  }
+
   // ─── Scheduled Task Endpoints ──────────────────────────────────────────
   // These endpoints are called by Manus scheduled tasks with auto-injected cookies
   const { sdk: scheduledSdk } = await import("./sdk");
