@@ -86,7 +86,6 @@ import {
   BrainCircuit,
   FileStack,
   Globe,
-  Wifi,
   GitMerge,
   Satellite,
   Download,
@@ -100,7 +99,7 @@ import {
   Crown,
   Flame,
   Camera,
-  ShieldCheck,
+  FileCheck,
 } from "lucide-react";
 import { useState, useEffect, ReactNode, useCallback, useMemo, useRef } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
