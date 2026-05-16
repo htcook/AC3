@@ -151,6 +151,7 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/opsec-dashboard", icon: ShieldAlert, label: "OPSEC DASHBOARD" },
           { href: "/engagement-automation", icon: Zap, label: "AUTOMATION HUB" },
           { href: "/roe-builder", icon: ClipboardCheck, label: "ROE BUILDER" },
+          { href: "/roe-self-service", icon: FileCheck, label: "ROE SELF-SERVICE" },
           { href: "/campaign-archetypes", icon: Layers, label: "CAMPAIGN ARCHETYPES" },
           { href: "/hunt-ops", icon: Search, label: "HUNT OPS" },
           { href: "/training-lab", icon: FlaskConical, label: "TRAINING LAB" },

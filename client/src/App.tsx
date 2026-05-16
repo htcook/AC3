@@ -348,6 +348,7 @@ const UpdateManager = lazyWithRetry(() => import("./pages/UpdateManager"));
 const VersionThresholds = lazyWithRetry(() => import("./pages/VersionThresholds"));
 const CustomerPortalSelfService = lazyWithRetry(() => import("./pages/CustomerPortalSelfService"));
 const RoeDocUpload = lazyWithRetry(() => import("./pages/RoeDocUpload"));
+const RoeSelfService = lazyWithRetry(() => import("./pages/RoeSelfService"));
 const OpsViewer = lazyWithRetry(() => import("./pages/OpsViewer"));
 const DocTracker = lazyWithRetry(() => import("./pages/DocTracker"));
 const StackProfiles = lazyWithRetry(() => import("./pages/StackProfiles"));
@@ -986,6 +987,12 @@ function Router() {
         </Route>
         <Route path="/unified-pipeline">
           <ProtectedRoute component={UnifiedPipeline} />
+        </Route>
+        <Route path="/roe-self-service">
+          <ProtectedRoute component={RoeSelfService} />
+        </Route>
+        <Route path="/roe-self-service/:id">
+          <ProtectedRoute component={RoeSelfService} />
         </Route>
         <Route path="/roe-builder">
           <ProtectedRoute component={RoeBuilder} />

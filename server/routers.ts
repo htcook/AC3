@@ -176,6 +176,7 @@ import { evidenceGalleryRouter } from "./routers/evidence-gallery";
 import { exploitLearningDashboardRouter } from "./routers/exploit-learning-dashboard";
 import { exploitGuardrailsDashboardRouter } from "./routers/exploit-guardrails-dashboard";
 import { roeUploadRouter } from "./routers/roe-upload";
+import { roeSelfServiceRouter } from "./routers/roe-self-service";
 import { integrationRegistryRouter } from "./routers/integration-registry";
 import { webhookManagementRouter } from "./routers/webhook-management";
 import { exploitAttackGraphRouter } from "./routers/exploit-attack-graph";
@@ -399,6 +400,7 @@ export const appRouter = router({
   attackCoverage: attackCoverageRouter,
   unifiedPipeline: unifiedPipelineRouter,
   roeBuilder: roeBuilderRouter,
+  roeSelfService: roeSelfServiceRouter,
   ksiEvidenceChain: ksiEvidenceChainRouter,
   evidenceIntegrity: evidenceIntegrityRouter,
   ksiValidationScheduler: ksiValidationSchedulerRouter,

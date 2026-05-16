@@ -2917,3 +2917,99 @@
 - [x] Add Dragos WorldView blog RSS feed + Claroty Team82 + Nozomi Labs to ICS ingest pipeline
 - [x] Add ICS/OT threat group names (Dragos naming: CHERNOVITE, ELECTRUM, XENOTIME, etc.) to RSS parser
 - [x] Write vitest tests for new features (147 passing across all ICS modules)
+
+### Rules of Engagement (ROE) Customer Self-Service + Collaborative Creation UI (May 15)
+- [x] Research standard ROE fields (PTES, OWASP, NIST SP 800-115, red team guide)
+- [x] Design customer self-service workflow (customer defines scoped assets, constraints, business hours)
+- [x] Design operator review workflow (operator adds TTPs, tools, attack paths, approves scope)
+- [x] Build ROE database schema with all required fields, collaboration state, and audit trail
+- [x] Build tRPC procedures for ROE CRUD, collaboration, and document ingest
+- [x] Implement ROE document upload (PDF/DOCX) with LLM-powered field extraction
+- [x] Add ROE status workflow (draft → customer_review → operator_review → approved → active)
+- [ ] Research NIST SP 800-115, CISA BOD, and FedRAMP penetration testing ROE requirements
+- [ ] Add NIST SP 800-115 required fields (authorization chain, legal review, notification plan)
+- [ ] Add CISA BOD compliance fields (vulnerability disclosure, coordination requirements)
+- [ ] Add FedRAMP penetration testing guidance fields (3PAO requirements, boundary definition, SAR mapping)
+- [ ] Add compliance validation checks per framework
+- [ ] Build ROE multi-step creation wizard UI (customer-facing + operator-facing views)
+- [ ] Add ROE to sidebar navigation and App.tsx routes
+- [ ] Write vitest tests for ROE procedures and ingest logic
+
+### FIPS 140-3 Cryptographic Hardening for Customer Communications (May 16)
+- [ ] Research FIPS 140-3 requirements for web application communications
+- [ ] Build FIPS 140-3 compliance enforcement middleware (TLS 1.2+ only, approved cipher suites)
+- [ ] Add FIPS-compliant encryption for ROE document storage and transit (AES-256-GCM)
+- [ ] Add FIPS-compliant hashing for all customer data integrity checks (SHA-256/SHA-3)
+- [ ] Build crypto policy enforcement module with audit logging
+- [ ] Add FIPS compliance status indicators to customer portal and ROE wizard
+- [ ] Enforce HSTS, CSP, and security headers for all customer-facing endpoints
+- [ ] Add FIPS 140-3 compliance validation checks to ROE self-service workflow
+- [ ] Write vitest tests for FIPS enforcement and crypto policy
+
+### ROE Engagement Type Templates (May 16)
+- [ ] Build Vulnerability Scanning ROE template (lightest scope, automated tools, no exploitation)
+- [ ] Build Penetration Testing ROE template (NIST SP 800-115 aligned, exploitation permitted, data handling)
+- [ ] Build Red/Purple Teaming ROE template (full adversary emulation, safety controls, deconfliction, physical/social)
+- [ ] Build CI/CD Integration ROE template (automated pipeline testing, guardrails, frequency, rollback triggers)
+- [ ] Add type-specific fields per template (tools, techniques, exclusions, escalation paths)
+- [ ] Add compliance mapping per template (NIST, FedRAMP, CISA BOD, PCI DSS, SOC 2)
+- [ ] Wire templates into ROE self-service wizard with type selector
+- [ ] Add type-specific guided help text and examples for first-time customers
+- [ ] Wire FIPS security headers middleware into Express server
+- [ ] Add FIPS compliance indicators to ROE wizard and customer portal
+
+### Liability Minimization in ROE Templates (May 16)
+- [ ] Add hold harmless / indemnification clauses per engagement type
+- [ ] Add limitation of liability sections with calibrated caps per risk level
+- [ ] Add insurance requirements (E&O, cyber liability, general liability minimums)
+- [ ] Add clear scope boundary language (what's in scope vs explicitly excluded)
+- [ ] Add data handling liability (breach notification, data destruction, retention limits)
+- [ ] Add force majeure and service disruption liability protections
+- [ ] Add third-party system interaction disclaimers
+- [ ] Add customer acknowledgment of risk acceptance per engagement type
+- [ ] Add emergency stop / kill switch provisions with liability implications
+- [ ] Add dispute resolution and governing law clauses
+
+### Phishing Engagement ROE Template (May 16)
+- [ ] Add phishing engagement type to roeDocuments schema enum
+- [ ] Add phishing-specific fields (target employee lists, approved pretexts, payload restrictions)
+- [ ] Add phishing guardrails (credential harvesting boundaries, landing page restrictions, reporting thresholds)
+- [ ] Add HR/legal coordination requirements and employee notification policies
+- [ ] Add phishing campaign frequency/duration limits and opt-out handling
+- [ ] Add phishing-specific liability language (employee privacy, harassment claims, union coordination)
+- [ ] Wire phishing template into ROE self-service wizard
+
+### File Upload Extension Bypass Knowledge Base (May 16)
+- [ ] Extract all file upload extension splitting techniques from @therceman cheat sheet
+- [ ] Categorize by bypass type (newline, carriage return, tab, null byte, hash, semicolon, space, Unicode)
+- [ ] Build structured LLM training corpus with technique explanations, mechanics, and operator guidance
+- [ ] Add MITRE ATT&CK mapping (T1190 Exploit Public-Facing App, T1059 Command Execution)
+- [ ] Create LLM system prompt knowledge injection for file upload bypass expertise
+- [ ] Build tRPC procedure to serve technique knowledge to the AI chat assistant
+- [ ] Wire into engagement automation for web app pentest templates
+
+### Graduated Autonomy Framework + LLM Graduation Pipeline (May 16)
+- [x] Build graduated autonomy engine (Level 0-3: Advisory, Assisted, Supervised, Autonomous-within-ROE)
+- [x] Define autonomy level capabilities and constraints per engagement type
+- [x] Build ROE-to-autonomy-level mapping (vuln scan = L3, pentest = L2, red team = L1-2, phishing = L1)
+- [x] Build operator approval checkpoints for each autonomy level transition
+- [x] Build autonomy boundary enforcement (AI cannot exceed ROE-permitted autonomy level)
+- [x] Integrate graduated autonomy into LLM graduation pipeline
+- [x] Add autonomy level certification criteria (accuracy, safety, scope adherence metrics)
+- [x] Build autonomy promotion/demotion logic based on engagement outcomes
+- [x] Add autonomy level to engagement context so AI knows its operational boundaries
+- [x] Build autonomy audit trail (every autonomous action logged with justification)
+- [x] Wire into engagement pipeline and Caldera campaign execution
+
+### AI Safety Hardening + Cross-Tenant Isolation (May 16)
+- [x] Build prompt injection defense layer (input sanitization, canary tokens, instruction hierarchy)
+- [x] Build cross-tenant session isolation (tenant-scoped context, no data leakage between customers)
+- [x] Build session boundary enforcement (conversation history scoped to tenant+user+engagement)
+- [x] Build AI output sanitization (prevent leaking internal system prompts, other tenant data, secrets)
+- [x] Build compliance-grade AI audit logging (every prompt/response logged with tenant, user, timestamp)
+- [x] Build AI guardrail policy engine (what AI can/cannot do per tenant, role, engagement type)
+- [x] Build prompt injection detection with scoring and alerting
+- [x] Build AI response validation (check outputs don't contain cross-tenant data, secrets, or PII)
+- [x] Build tenant data boundary enforcement in LLM context assembly
+- [x] Build AI safety test suite (adversarial prompt injection tests, cross-tenant leakage tests)
+- [x] Wire safety hardening into all LLM invocation paths (chat, enrichment, planning, exploitation)

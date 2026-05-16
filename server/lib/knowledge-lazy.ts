@@ -34,6 +34,10 @@ import * as threatActorLearningContext from './threat-actor-learning-context';
 import * as zapSourceSecretsKnowledge from './knowledge/zap-source-secrets-knowledge';
 import * as burpPentestingKnowledge from './knowledge/burp-pentesting-knowledge';
 import * as kevService from './kev-service';
+import * as fileUploadBypassKnowledge from './knowledge/file-upload-bypass-knowledge';
+import * as platformKnowledgeCorpus from './platform-knowledge-corpus';
+import * as graduatedAutonomy from './graduated-autonomy';
+import * as aiChatSafety from './ai-chat-safety';
 
 // Module registry for cache management
 const _loadedModules = new Set<string>();
@@ -345,4 +349,64 @@ export function lazyMatchCvesAgainstKev(...args: any[]) {
 export function lazyCalculateKevRiskBoost(...args: any[]) {
   track('kev');
   return kevService.calculateKevRiskBoost(...args);
+}
+
+// ─── file-upload-bypass-knowledge ──────────────────────────────────────────
+export function buildFileUploadTrainingContext(...args: any[]) {
+  track('file-upload');
+  return fileUploadBypassKnowledge.buildFileUploadTrainingContext(...args);
+}
+export function getBypassStrategy(...args: any[]) {
+  track('file-upload');
+  return fileUploadBypassKnowledge.getBypassStrategy(...args);
+}
+export function getTechniquesForStack(...args: any[]) {
+  track('file-upload');
+  return fileUploadBypassKnowledge.getTechniquesForStack(...args);
+}
+export function getTechniquesByCategory(...args: any[]) {
+  track('file-upload');
+  return fileUploadBypassKnowledge.getTechniquesByCategory(...args);
+}
+
+// ─── platform-knowledge-corpus ─────────────────────────────────────────────
+export function buildPlatformKnowledgeContext(...args: any[]) {
+  track('platform-corpus');
+  return platformKnowledgeCorpus.buildPlatformKnowledgeContext(...args);
+}
+export function buildEngagementKnowledgeContext(...args: any[]) {
+  track('platform-corpus');
+  return platformKnowledgeCorpus.buildEngagementKnowledgeContext(...args);
+}
+export function getKnowledgeModuleCount(...args: any[]) {
+  track('platform-corpus');
+  return platformKnowledgeCorpus.getKnowledgeModuleCount(...args);
+}
+
+// ─── graduated-autonomy ────────────────────────────────────────────────────
+export function evaluateAutonomyLevel(...args: any[]) {
+  track('autonomy');
+  return graduatedAutonomy.evaluateAutonomyLevel(...args);
+}
+export function canExecuteAction(...args: any[]) {
+  track('autonomy');
+  return graduatedAutonomy.canExecuteAction(...args);
+}
+export function getAutonomyDescription(...args: any[]) {
+  track('autonomy');
+  return graduatedAutonomy.getAutonomyDescription(...args);
+}
+
+// ─── ai-chat-safety ────────────────────────────────────────────────────────
+export function createSafeChatContext(...args: any[]) {
+  track('ai-safety');
+  return aiChatSafety.createSafeChatContext(...args);
+}
+export function sanitizeAIOutput(...args: any[]) {
+  track('ai-safety');
+  return aiChatSafety.sanitizeAIOutput(...args);
+}
+export function detectPromptInjection(...args: any[]) {
+  track('ai-safety');
+  return aiChatSafety.detectPromptInjection(...args);
 }
