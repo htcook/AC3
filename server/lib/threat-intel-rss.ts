@@ -197,6 +197,43 @@ export const THREAT_INTEL_FEEDS: FeedSource[] = [
     targets: ["incident_reports"],
     enabled: true,
   },
+  // ── Tier 3: ICS/OT Specific ──
+  {
+    id: "dragos-blog",
+    name: "Dragos Blog (ICS/OT)",
+    url: "https://www.dragos.com/blog/feed/",
+    tier: 3,
+    category: "vendor_research",
+    targets: ["threat_group_events", "incident_reports"],
+    enabled: true,
+  },
+  {
+    id: "dragos-threat-intel",
+    name: "Dragos Threat Intelligence",
+    url: "https://www.dragos.com/threat/feed/",
+    tier: 3,
+    category: "threat_intel",
+    targets: ["threat_group_events", "incident_reports"],
+    enabled: true,
+  },
+  {
+    id: "claroty-research",
+    name: "Claroty Team82 Research",
+    url: "https://claroty.com/team82/research/feed",
+    tier: 3,
+    category: "vendor_research",
+    targets: ["incident_reports"],
+    enabled: true,
+  },
+  {
+    id: "nozomi-labs",
+    name: "Nozomi Networks Labs",
+    url: "https://www.nozominetworks.com/blog/feed/",
+    tier: 3,
+    category: "vendor_research",
+    targets: ["incident_reports"],
+    enabled: true,
+  },
   // ── Tier 4: Geopolitical & OSINT ──
   {
     id: "bellingcat",
@@ -231,6 +268,14 @@ const KNOWN_THREAT_GROUPS = [
   // Hacktivist
   "Handala", "Anonymous", "KillNet", "NoName057",
   "CyberAv3ngers", "SiegedSec", "GhostSec",
+  // ICS/OT Specific Groups (Dragos naming)
+  "CHERNOVITE", "ELECTRUM", "XENOTIME", "KAMACITE", "ERYTHRITE",
+  "KOSTOVITE", "PETROVITE", "WASSONITE", "BENTONITE", "TALONITE",
+  "DYMALLOY", "MAGNALLIUM", "CHRYSENE", "COVELLITE", "RASPITE",
+  "PARISITE", "ALLANITE", "VANADINITE", "STIBNITE",
+  // ICS Malware Families
+  "PIPEDREAM", "INCONTROLLER", "TRITON", "TRISIS", "Industroyer",
+  "Industroyer2", "CrashOverride", "BlackEnergy", "FrostyGoop",
 ];
 
 // ─── RSS Parser ──────────────────────────────────────────────────────

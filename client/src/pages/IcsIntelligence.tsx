@@ -6,29 +6,59 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { useLocation } from "wouter";
 import {
   Shield, AlertTriangle, Activity, Cpu, Eye, RefreshCw, Zap, Target,
   Globe, ChevronRight, Bug, Skull, Factory, Database, ExternalLink,
   Biohazard, Wrench, GitBranch, Radio, Search, Filter, BookOpen,
+  Rocket, Play, ArrowRight,
 } from "lucide-react";
 import AppShell from "@/components/AppShell";
+
+// ─── Protocol & Vendor Constants ────────────────────────────────────────────
+const ICS_PROTOCOLS = [
+  "modbus", "dnp3", "s7comm", "bacnet", "ethernet/ip", "opc ua", "opc da",
+  "iec104", "iec61850", "profinet", "codesys", "tristation", "mqtt", "m-bus",
+];
+
+const ICS_VENDORS = [
+  "Siemens", "Schneider Electric", "Rockwell", "ABB", "Honeywell",
+  "OMRON", "Emerson", "GE", "Yokogawa", "Mitsubishi",
+];
 
 // ─── Main Component ─────────────────────────────────────────────────────────
 export default function IcsIntelligence() {
   const [activeTab, setActiveTab] = useState("malware");
+  const [showEngagementDialog, setShowEngagementDialog] = useState(false);
+  const [selectedActorForEngagement, setSelectedActorForEngagement] = useState<any>(null);
+
+  const handleStartEngagement = (actor?: any) => {
+    setSelectedActorForEngagement(actor || null);
+    setShowEngagementDialog(true);
+  };
 
   return (
     <AppShell>
     <div className="space-y-6 p-6">
-      <div>
-        <h1 className="text-2xl font-bold flex items-center gap-2">
-          <Biohazard className="w-6 h-6 text-red-400" />
-          ICS/SCADA Threat Intelligence
-        </h1>
-        <p className="text-muted-foreground mt-1">
-          Curated intelligence on ICS-targeting malware families, capable threat actors, open-source assessment tools, and live CISA advisories. Auto-enriched daily from government and vendor feeds.
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <Biohazard className="w-6 h-6 text-red-400" />
+            ICS/SCADA Threat Intelligence
+          </h1>
+          <p className="text-muted-foreground mt-1">
+            Curated intelligence on ICS-targeting malware families, capable threat actors, open-source assessment tools, and live CISA advisories. Auto-enriched daily from government and vendor feeds.
+          </p>
+        </div>
+        <Button
+          onClick={() => handleStartEngagement()}
+          className="gap-2 bg-green-600 hover:bg-green-700 text-white shrink-0"
+        >
+          <Rocket className="w-4 h-4" />
+          Start ICS Engagement
+        </Button>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -48,10 +78,10 @@ export default function IcsIntelligence() {
         </TabsList>
 
         <TabsContent value="malware" className="space-y-6">
-          <MalwareFamiliesTab />
+          <MalwareFamiliesTab onStartEngagement={handleStartEngagement} />
         </TabsContent>
         <TabsContent value="actors" className="space-y-6">
-          <IcsActorsTab />
+          <IcsActorsTab onStartEngagement={handleStartEngagement} />
         </TabsContent>
         <TabsContent value="tools" className="space-y-6">
           <OpenSourceToolsTab />
@@ -60,16 +90,25 @@ export default function IcsIntelligence() {
           <LiveAdvisoriesTab />
         </TabsContent>
       </Tabs>
+
+      {/* Start ICS Engagement Dialog */}
+      <StartIcsEngagementDialog
+        open={showEngagementDialog}
+        onClose={() => setShowEngagementDialog(false)}
+        selectedActor={selectedActorForEngagement}
+      />
     </div>
     </AppShell>
   );
 }
 
 // ─── Malware Families Tab ───────────────────────────────────────────────────
-function MalwareFamiliesTab() {
+function MalwareFamiliesTab({ onStartEngagement }: { onStartEngagement: (actor?: any) => void }) {
   const { data: malware, isLoading } = trpc.icsOtSecurity.getIcsMalwareFamilies.useQuery();
   const [search, setSearch] = useState("");
   const [selectedSector, setSelectedSector] = useState("all");
+  const [selectedProtocol, setSelectedProtocol] = useState("all");
+  const [selectedVendor, setSelectedVendor] = useState("all");
 
   const filtered = useMemo(() => {
     if (!malware) return [];
@@ -80,13 +119,29 @@ function MalwareFamiliesTab() {
         m.attribution.toLowerCase().includes(search.toLowerCase());
       const matchesSector = selectedSector === "all" ||
         m.targetedSectors.some(s => s.toLowerCase().includes(selectedSector.toLowerCase()));
-      return matchesSearch && matchesSector;
+      const matchesProtocol = selectedProtocol === "all" ||
+        m.targetedProtocols.some(p => p.toLowerCase().includes(selectedProtocol.toLowerCase()));
+      const matchesVendor = selectedVendor === "all" ||
+        m.targetedVendors.some(v => v.toLowerCase().includes(selectedVendor.toLowerCase()));
+      return matchesSearch && matchesSector && matchesProtocol && matchesVendor;
     });
-  }, [malware, search, selectedSector]);
+  }, [malware, search, selectedSector, selectedProtocol, selectedVendor]);
 
   const sectors = useMemo(() => {
     if (!malware) return [];
     const all = malware.flatMap(m => m.targetedSectors);
+    return [...new Set(all)].sort();
+  }, [malware]);
+
+  const activeProtocols = useMemo(() => {
+    if (!malware) return [];
+    const all = malware.flatMap(m => m.targetedProtocols);
+    return [...new Set(all)].sort();
+  }, [malware]);
+
+  const activeVendors = useMemo(() => {
+    if (!malware) return [];
+    const all = malware.flatMap(m => m.targetedVendors);
     return [...new Set(all)].sort();
   }, [malware]);
 
@@ -115,9 +170,31 @@ function MalwareFamiliesTab() {
           onChange={(e) => setSearch(e.target.value)}
           className="max-w-sm"
         />
-        <Select value={selectedSector} onValueChange={setSelectedSector}>
+        <Select value={selectedProtocol} onValueChange={setSelectedProtocol}>
+          <SelectTrigger className="w-44">
+            <SelectValue placeholder="Protocol" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Protocols</SelectItem>
+            {activeProtocols.map(p => (
+              <SelectItem key={p} value={p}>{p.toUpperCase()}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={selectedVendor} onValueChange={setSelectedVendor}>
           <SelectTrigger className="w-48">
-            <SelectValue placeholder="Filter by sector" />
+            <SelectValue placeholder="Vendor" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Vendors</SelectItem>
+            {activeVendors.map(v => (
+              <SelectItem key={v} value={v}>{v}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={selectedSector} onValueChange={setSelectedSector}>
+          <SelectTrigger className="w-44">
+            <SelectValue placeholder="Sector" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Sectors</SelectItem>
@@ -126,7 +203,36 @@ function MalwareFamiliesTab() {
             ))}
           </SelectContent>
         </Select>
+        {(selectedProtocol !== "all" || selectedVendor !== "all" || selectedSector !== "all") && (
+          <Button variant="ghost" size="sm" onClick={() => { setSelectedProtocol("all"); setSelectedVendor("all"); setSelectedSector("all"); }}>
+            Clear Filters
+          </Button>
+        )}
       </div>
+
+      {/* Active filter badges */}
+      {(selectedProtocol !== "all" || selectedVendor !== "all" || selectedSector !== "all") && (
+        <div className="flex gap-2 flex-wrap">
+          {selectedProtocol !== "all" && (
+            <Badge variant="outline" className="bg-purple-500/10 text-purple-400 border-purple-500/20">
+              <Radio className="w-3 h-3 mr-1" /> Protocol: {selectedProtocol.toUpperCase()}
+            </Badge>
+          )}
+          {selectedVendor !== "all" && (
+            <Badge variant="outline" className="bg-blue-500/10 text-blue-400 border-blue-500/20">
+              <Factory className="w-3 h-3 mr-1" /> Vendor: {selectedVendor}
+            </Badge>
+          )}
+          {selectedSector !== "all" && (
+            <Badge variant="outline" className="bg-orange-500/10 text-orange-400 border-orange-500/20">
+              <Globe className="w-3 h-3 mr-1" /> Sector: {selectedSector}
+            </Badge>
+          )}
+          <Badge variant="outline" className="bg-zinc-800 text-zinc-300 border-zinc-700">
+            {filtered.length} results
+          </Badge>
+        </div>
+      )}
 
       <div className="space-y-4">
         {filtered.map((m) => (
@@ -190,6 +296,15 @@ function MalwareFamiliesTab() {
                     )}
                   </div>
                 </div>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="text-green-400 hover:text-green-300 hover:bg-green-500/10 shrink-0 ml-3"
+                  onClick={() => onStartEngagement({ name: m.attribution, techniques: m.mitreIcsTechniques, protocols: m.targetedProtocols, vendors: m.targetedVendors })}
+                  title="Start ICS engagement emulating this malware"
+                >
+                  <Rocket className="w-4 h-4" />
+                </Button>
               </div>
             </CardContent>
           </Card>
@@ -200,20 +315,29 @@ function MalwareFamiliesTab() {
 }
 
 // ─── ICS-Capable Actors Tab ─────────────────────────────────────────────────
-function IcsActorsTab() {
+function IcsActorsTab({ onStartEngagement }: { onStartEngagement: (actor?: any) => void }) {
   const { data: actors, isLoading, refetch } = trpc.icsOtSecurity.getIcsCapableActors.useQuery();
   const [search, setSearch] = useState("");
+  const [selectedOrigin, setSelectedOrigin] = useState("all");
+
+  const origins = useMemo(() => {
+    if (!actors) return [];
+    const all = actors.map((a: any) => a.origin).filter(Boolean);
+    return [...new Set(all)].sort();
+  }, [actors]);
 
   const filtered = useMemo(() => {
     if (!actors) return [];
-    if (!search) return actors;
-    const q = search.toLowerCase();
-    return actors.filter((a: any) =>
-      a.name.toLowerCase().includes(q) ||
-      a.origin?.toLowerCase().includes(q) ||
-      (a.aliases as string[] || []).some((al: string) => al.toLowerCase().includes(q))
-    );
-  }, [actors, search]);
+    return actors.filter((a: any) => {
+      const q = search.toLowerCase();
+      const matchesSearch = !search ||
+        a.name.toLowerCase().includes(q) ||
+        a.origin?.toLowerCase().includes(q) ||
+        (a.aliases as string[] || []).some((al: string) => al.toLowerCase().includes(q));
+      const matchesOrigin = selectedOrigin === "all" || a.origin === selectedOrigin;
+      return matchesSearch && matchesOrigin;
+    });
+  }, [actors, search, selectedOrigin]);
 
   if (isLoading) {
     return <div className="text-center py-12 text-muted-foreground">Loading ICS-capable threat actors...</div>;
@@ -236,12 +360,25 @@ function IcsActorsTab() {
         </Button>
       </div>
 
-      <Input
-        placeholder="Search by name, alias, or origin..."
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        className="max-w-sm"
-      />
+      <div className="flex gap-3 flex-wrap">
+        <Input
+          placeholder="Search by name, alias, or origin..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="max-w-sm"
+        />
+        <Select value={selectedOrigin} onValueChange={setSelectedOrigin}>
+          <SelectTrigger className="w-44">
+            <SelectValue placeholder="Origin" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Origins</SelectItem>
+            {origins.map(o => (
+              <SelectItem key={o} value={o}>{o}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
       {filtered.length === 0 ? (
         <Card className="bg-card/50 border-border/50">
@@ -313,6 +450,16 @@ function IcsActorsTab() {
                     ))}
                   </div>
                 )}
+                <div className="mt-3 flex justify-end">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-green-400 hover:text-green-300 hover:bg-green-500/10 gap-1 text-xs"
+                    onClick={() => onStartEngagement(actor)}
+                  >
+                    <Rocket className="w-3.5 h-3.5" /> Emulate Actor
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           ))}
@@ -388,7 +535,31 @@ function OpenSourceToolsTab() {
             ))}
           </SelectContent>
         </Select>
+        {(selectedCategory !== "all" || selectedProtocol !== "all") && (
+          <Button variant="ghost" size="sm" onClick={() => { setSelectedCategory("all"); setSelectedProtocol("all"); }}>
+            Clear Filters
+          </Button>
+        )}
       </div>
+
+      {/* Active filter badges */}
+      {(selectedCategory !== "all" || selectedProtocol !== "all") && (
+        <div className="flex gap-2 flex-wrap">
+          {selectedProtocol !== "all" && (
+            <Badge variant="outline" className="bg-purple-500/10 text-purple-400 border-purple-500/20">
+              <Radio className="w-3 h-3 mr-1" /> Protocol: {selectedProtocol.toUpperCase()}
+            </Badge>
+          )}
+          {selectedCategory !== "all" && (
+            <Badge variant="outline" className="bg-green-500/10 text-green-400 border-green-500/20">
+              <Wrench className="w-3 h-3 mr-1" /> Category: {selectedCategory.replace(/_/g, ' ')}
+            </Badge>
+          )}
+          <Badge variant="outline" className="bg-zinc-800 text-zinc-300 border-zinc-700">
+            {tools?.length || 0} results
+          </Badge>
+        </div>
+      )}
 
       {/* Category summary cards */}
       {selectedCategory === "all" && (
@@ -462,11 +633,21 @@ function OpenSourceToolsTab() {
 function LiveAdvisoriesTab() {
   const [vendor, setVendor] = useState("");
   const [safetyFilter, setSafetyFilter] = useState("all");
+  const [protocolFilter, setProtocolFilter] = useState("all");
   const { data: advisories, isLoading, refetch } = trpc.icsOtSecurity.getRecentIcsAdvisories.useQuery({
     limit: 100,
     vendor: vendor || undefined,
     safetyImpact: safetyFilter !== "all" ? safetyFilter : undefined,
   });
+
+  const filteredAdvisories = useMemo(() => {
+    if (!advisories || protocolFilter === "all") return advisories || [];
+    // Filter advisories by protocol mention in title/product
+    return advisories.filter((adv: any) => {
+      const text = `${adv.iceTitle || ''} ${adv.iceAffectedProduct || ''}`.toLowerCase();
+      return text.includes(protocolFilter.toLowerCase());
+    });
+  }, [advisories, protocolFilter]);
 
   if (isLoading) {
     return <div className="text-center py-12 text-muted-foreground">Loading ICS advisories...</div>;
@@ -481,7 +662,7 @@ function LiveAdvisoriesTab() {
             Live ICS Advisories
           </h2>
           <p className="text-sm text-muted-foreground">
-            {advisories?.length || 0} ICS-CERT advisories from CISA, Siemens ProductCERT, and vendor feeds. Auto-ingested daily.
+            {advisories?.length || 0} ICS-CERT advisories from CISA, Siemens ProductCERT, Dragos, and vendor feeds. Auto-ingested daily.
           </p>
         </div>
         <Button size="sm" variant="outline" onClick={() => refetch()}>
@@ -508,21 +689,32 @@ function LiveAdvisoriesTab() {
             <SelectItem value="low">Low</SelectItem>
           </SelectContent>
         </Select>
+        <Select value={protocolFilter} onValueChange={setProtocolFilter}>
+          <SelectTrigger className="w-44">
+            <SelectValue placeholder="Protocol" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Protocols</SelectItem>
+            {ICS_PROTOCOLS.map(p => (
+              <SelectItem key={p} value={p}>{p.toUpperCase()}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
-      {(!advisories || advisories.length === 0) ? (
+      {(!filteredAdvisories || filteredAdvisories.length === 0) ? (
         <Card className="bg-card/50 border-border/50">
           <CardContent className="p-12 text-center">
             <AlertTriangle className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-40" />
             <p className="text-muted-foreground">No ICS advisories loaded yet.</p>
             <p className="text-sm text-muted-foreground mt-1">
-              Advisories are auto-ingested from CISA ICS-CERT, Siemens ProductCERT, and vendor feeds during the daily pipeline run.
+              Advisories are auto-ingested from CISA ICS-CERT, Siemens ProductCERT, Dragos, and vendor feeds during the daily pipeline run.
             </p>
           </CardContent>
         </Card>
       ) : (
         <div className="space-y-2">
-          {advisories.map((adv: any) => (
+          {filteredAdvisories.map((adv: any) => (
             <Card key={adv.id} className="bg-card/50 border-border/50 hover:border-amber-500/20 transition-colors">
               <CardContent className="p-4">
                 <div className="flex items-start justify-between">
@@ -587,5 +779,158 @@ function LiveAdvisoriesTab() {
         </div>
       )}
     </>
+  );
+}
+
+// ─── Start ICS Engagement Dialog ────────────────────────────────────────────
+function StartIcsEngagementDialog({
+  open,
+  onClose,
+  selectedActor,
+}: {
+  open: boolean;
+  onClose: () => void;
+  selectedActor: any;
+}) {
+  const [, navigate] = useLocation();
+  const [selectedTemplate, setSelectedTemplate] = useState("ics_ot_assessment");
+  const [targetProtocols, setTargetProtocols] = useState<string[]>([]);
+  const [targetVendors, setTargetVendors] = useState<string[]>([]);
+
+  // Pre-fill from selected actor/malware
+  useMemo(() => {
+    if (selectedActor?.protocols) {
+      setTargetProtocols(selectedActor.protocols);
+    }
+    if (selectedActor?.vendors) {
+      setTargetVendors(selectedActor.vendors);
+    }
+    if (selectedActor?.techniques?.some((t: string) => t.startsWith("T08"))) {
+      setSelectedTemplate("ics_adversary_emulation");
+    }
+  }, [selectedActor]);
+
+  const toggleProtocol = (p: string) => {
+    setTargetProtocols(prev =>
+      prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p]
+    );
+  };
+
+  const toggleVendor = (v: string) => {
+    setTargetVendors(prev =>
+      prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v]
+    );
+  };
+
+  const handleLaunch = () => {
+    // Navigate to engagement automation with pre-filled ICS template
+    const params = new URLSearchParams({
+      template: selectedTemplate,
+      protocols: targetProtocols.join(","),
+      vendors: targetVendors.join(","),
+      ...(selectedActor?.name ? { actor: selectedActor.name } : {}),
+    });
+    toast.success("Navigating to engagement planner with ICS configuration...");
+    navigate(`/engagement-automation?${params.toString()}`);
+    onClose();
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Rocket className="w-5 h-5 text-green-400" />
+            Start ICS/OT Engagement
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-5">
+          {selectedActor && (
+            <div className="p-3 rounded-md bg-amber-500/10 border border-amber-500/20">
+              <p className="text-sm font-medium text-amber-400">
+                Emulating: {selectedActor.name}
+              </p>
+              {selectedActor.techniques && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  {selectedActor.techniques.length} MITRE ICS techniques pre-loaded
+                </p>
+              )}
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Engagement Template</label>
+            <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ics_ot_assessment">ICS/OT Security Assessment</SelectItem>
+                <SelectItem value="ics_adversary_emulation">ICS Adversary Emulation</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Target Protocols</label>
+            <div className="flex flex-wrap gap-2">
+              {ICS_PROTOCOLS.map(p => (
+                <Badge
+                  key={p}
+                  variant="outline"
+                  className={`cursor-pointer text-xs transition-colors ${
+                    targetProtocols.includes(p)
+                      ? 'bg-purple-500/20 text-purple-400 border-purple-500/40'
+                      : 'bg-zinc-800/50 text-zinc-400 border-zinc-700 hover:border-purple-500/30'
+                  }`}
+                  onClick={() => toggleProtocol(p)}
+                >
+                  {p.toUpperCase()}
+                </Badge>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Target Vendors</label>
+            <div className="flex flex-wrap gap-2">
+              {ICS_VENDORS.map(v => (
+                <Badge
+                  key={v}
+                  variant="outline"
+                  className={`cursor-pointer text-xs transition-colors ${
+                    targetVendors.includes(v)
+                      ? 'bg-blue-500/20 text-blue-400 border-blue-500/40'
+                      : 'bg-zinc-800/50 text-zinc-400 border-zinc-700 hover:border-blue-500/30'
+                  }`}
+                  onClick={() => toggleVendor(v)}
+                >
+                  {v}
+                </Badge>
+              ))}
+            </div>
+          </div>
+
+          {targetProtocols.length > 0 && (
+            <div className="p-2 rounded bg-green-500/5 border border-green-500/20">
+              <p className="text-xs text-green-400">
+                <Zap className="w-3 h-3 inline mr-1" />
+                {targetProtocols.length} protocols + {targetVendors.length} vendors selected.
+                Tool recommendations will auto-populate in the engagement wizard.
+              </p>
+            </div>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={handleLaunch} className="gap-2 bg-green-600 hover:bg-green-700">
+            <ArrowRight className="w-4 h-4" />
+            Launch Engagement
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

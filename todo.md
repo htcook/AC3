@@ -2908,3 +2908,12 @@
 - [x] Add ICS tool selection step to engagement creation flow (IcsToolRecommendationsPanel)
 - [x] Create AWS EventBridge documentation for LLM enrichment ECS Scheduled Task
 - [x] Write vitest tests for new tRPC procedures and UI integration (123 passing)
+
+### ICS Protocol Filters + Quick-Action + Dragos RSS (May 15)
+- [x] Add ICS protocol filter dropdowns to ICS Intelligence page (Modbus, DNP3, S7comm, BACnet, EtherNet/IP, OPC UA, IEC 104)
+- [x] Add vendor filter dropdown (Siemens, Schneider, Rockwell, ABB, Honeywell, OMRON)
+- [x] Build "Start ICS Engagement" quick-action button on ICS Intelligence page
+- [x] Pre-fill engagement wizard with selected actor TTPs and recommended tools
+- [x] Add Dragos WorldView blog RSS feed + Claroty Team82 + Nozomi Labs to ICS ingest pipeline
+- [x] Add ICS/OT threat group names (Dragos naming: CHERNOVITE, ELECTRUM, XENOTIME, etc.) to RSS parser
+- [x] Write vitest tests for new features (147 passing across all ICS modules)
