@@ -11,6 +11,7 @@
  */
 import { eq, desc, sql, and, like } from "drizzle-orm";
 import { platformErrors } from "../../drizzle/schema";
+import { processErrorAlert } from "./error-alerting";
 
 async function getDb() {
   const { getDb: _getDb } = await import("../db");
@@ -53,6 +54,18 @@ export async function logPlatformError(input: LogErrorInput): Promise<number | n
       retryCount: input.retryCount || 0,
       autoRecovered: input.autoRecovered || false,
     }).$returningId();
+
+    // Fire-and-forget: send alert if this error is critical or causes a rate spike
+    processErrorAlert({
+      message: input.message,
+      source: input.source,
+      severity: input.severity || "error",
+      page: input.page || null,
+      stack: input.stack || null,
+      engagementContext: input.engagementContext || null,
+      userId: input.userId || null,
+    }).catch(() => {});
+
     return result?.id ?? null;
   } catch (err) {
     console.error("[ErrorLogger] Failed to persist error:", err);

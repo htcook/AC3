@@ -48,10 +48,75 @@ env:
 
 jobs:
   # ─────────────────────────────────────────────
+  # Pre-Deploy Validation (TypeScript + Lint)
+  # ─────────────────────────────────────────────
+  validate:
+    name: Pre-Deploy Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript strict check (catches undefined variables)
+        run: |
+          echo "🔍 Running TypeScript compiler check..."
+          npx tsc --noEmit --strict 2>&1 | tee /tmp/tsc-output.txt
+          TSC_EXIT=${PIPESTATUS[0]}
+          if [ $TSC_EXIT -ne 0 ]; then
+            echo "❌ TypeScript errors detected — blocking deploy"
+            echo "## ❌ TypeScript Errors" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            cat /tmp/tsc-output.txt >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+          echo "✅ TypeScript check passed"
+
+      - name: ESLint check (catches no-undef, unused vars)
+        run: |
+          echo "🔍 Running ESLint..."
+          npx eslint client/src/ --ext .ts,.tsx --rule '{"no-undef": "error"}' \
+            --max-warnings 0 2>&1 | tee /tmp/eslint-output.txt || true
+          # Non-blocking for now — report in summary
+          if [ -s /tmp/eslint-output.txt ]; then
+            echo "## ⚠️ ESLint Warnings" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            head -50 /tmp/eslint-output.txt >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "✅ ESLint check complete"
+
+      - name: Vite production build test
+        run: |
+          echo "🔍 Testing production build..."
+          npx vite build --mode production 2>&1 | tee /tmp/build-output.txt
+          BUILD_EXIT=${PIPESTATUS[0]}
+          if [ $BUILD_EXIT -ne 0 ]; then
+            echo "❌ Production build failed — blocking deploy"
+            echo "## ❌ Build Errors" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            tail -30 /tmp/build-output.txt >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+          echo "✅ Production build succeeded"
+
+  # ─────────────────────────────────────────────
   # Build and push to Dev ECR (source of truth)
   # ─────────────────────────────────────────────
   build:
     name: Build & Push to ECR
+    needs: validate
     runs-on: ubuntu-latest
     timeout-minutes: 20
     outputs:

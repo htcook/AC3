@@ -9,6 +9,7 @@ import * as db from "../db";
 import { z } from "zod";
 import { publicProcedure, protectedProcedure, router } from "../_core/trpc";
 import { logPlatformError, getRecentErrors, resolveError, getErrorStats, purgeOldErrors, getEngagementList } from "../lib/error-logger";
+import { getAlertStatus, updateAlertConfig, resetAlertState } from "../lib/error-alerting";
 import { hasFullAccess, getUserEngagementIds } from "../lib/engagement-access-guard";
 import { matchCredentialsForTechnology, searchCredentials, seedBuiltinCredentials, BUILTIN_DEFAULT_CREDS, getBuiltinCreds } from "../lib/oem-default-creds";
 import { invokeLLM } from "../_core/llm";
@@ -134,6 +135,31 @@ export const errorLogRouter = router({
       const count = await purgeOldErrors(input.olderThanDays);
       return { purged: count };
     }),
+
+  /** Get alerting status and stats */
+  alertStatus: protectedProcedure.query(() => {
+    return getAlertStatus();
+  }),
+
+  /** Update alerting configuration */
+  updateAlertConfig: protectedProcedure
+    .input(z.object({
+      enabled: z.boolean().optional(),
+      deduplicationCooldownSec: z.number().min(10).max(3600).optional(),
+      rateSpikeThreshold: z.number().min(3).max(100).optional(),
+      rateSpikeWindowSec: z.number().min(10).max(600).optional(),
+      immediateSeverities: z.array(z.string()).optional(),
+    }))
+    .mutation(({ input }) => {
+      updateAlertConfig(input);
+      return { success: true, config: getAlertStatus().config };
+    }),
+
+  /** Reset alerting state (clear cooldowns and counters) */
+  resetAlertState: protectedProcedure.mutation(() => {
+    resetAlertState();
+    return { success: true };
+  }),
 });
 
 export const oemCredsRouter = router({

@@ -6,7 +6,7 @@
  * failures. Use it to review, resolve, and purge errors between engagements
  * so no issues are lost during active penetration tests.
  */
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -41,6 +41,10 @@ import {
   Info,
   Clock,
   Crosshair,
+  Bell,
+  BellOff,
+  Activity,
+  Settings2,
 } from "lucide-react";
 import { toast } from "sonner";
 import AppShell from "@/components/AppShell";
@@ -69,6 +73,7 @@ export default function ErrorDashboard() {
   const [engagementFilter, setEngagementFilter] = useState<string>("all");
   const [selectedError, setSelectedError] = useState<any>(null);
   const [purgeDialogOpen, setPurgeDialogOpen] = useState(false);
+  const [showAlertConfig, setShowAlertConfig] = useState(false);
 
   // Fetch distinct engagements that have errors
   const engagements = trpc.errorLog.engagements.useQuery();
@@ -101,6 +106,15 @@ export default function ErrorDashboard() {
       setPurgeDialogOpen(false);
       toast.success(`Purged ${data.purged} old errors`);
     },
+  });
+
+  // Alerting
+  const alertStatus = trpc.errorLog.alertStatus.useQuery();
+  const updateAlertMutation = trpc.errorLog.updateAlertConfig.useMutation({
+    onSuccess: () => { alertStatus.refetch(); toast.success("Alert config updated"); },
+  });
+  const resetAlertMutation = trpc.errorLog.resetAlertState.useMutation({
+    onSuccess: () => { alertStatus.refetch(); toast.success("Alert state reset"); },
   });
 
   const errorList = useMemo(() => {
@@ -177,6 +191,98 @@ export default function ErrorDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Alerting Status Bar */}
+      {alertStatus.data && (
+        <Card className="border-border/50">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  {alertStatus.data.config.enabled ? (
+                    <Bell className="w-4 h-4 text-emerald-500" />
+                  ) : (
+                    <BellOff className="w-4 h-4 text-muted-foreground" />
+                  )}
+                  <span className="text-sm font-medium">
+                    Alerting {alertStatus.data.config.enabled ? "Active" : "Disabled"}
+                  </span>
+                </div>
+                <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                  <span>Alerts sent: <strong className="text-foreground">{alertStatus.data.stats.totalAlertsSent}</strong></span>
+                  <span>Suppressed: <strong className="text-foreground">{alertStatus.data.stats.totalSuppressed}</strong></span>
+                  <span>Rate spikes: <strong className="text-foreground">{alertStatus.data.stats.totalRateSpikeAlerts}</strong></span>
+                  <span className="flex items-center gap-1">
+                    <Activity className="w-3 h-3" />
+                    {alertStatus.data.windowErrorCount}/{alertStatus.data.config.rateSpikeThreshold} in window
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => updateAlertMutation.mutate({ enabled: !alertStatus.data!.config.enabled })}
+                >
+                  {alertStatus.data.config.enabled ? <BellOff className="w-3 h-3 mr-1" /> : <Bell className="w-3 h-3 mr-1" />}
+                  {alertStatus.data.config.enabled ? "Disable" : "Enable"}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowAlertConfig(!showAlertConfig)}
+                >
+                  <Settings2 className="w-3 h-3 mr-1" /> Config
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => resetAlertMutation.mutate()}
+                >
+                  <RefreshCw className="w-3 h-3" />
+                </Button>
+              </div>
+            </div>
+            {showAlertConfig && (
+              <div className="mt-4 pt-4 border-t border-border grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                  <label className="text-xs text-muted-foreground">Dedup Cooldown (sec)</label>
+                  <Input
+                    type="number"
+                    defaultValue={alertStatus.data.config.deduplicationCooldownSec}
+                    onBlur={(e) => updateAlertMutation.mutate({ deduplicationCooldownSec: Number(e.target.value) })}
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Rate Spike Threshold</label>
+                  <Input
+                    type="number"
+                    defaultValue={alertStatus.data.config.rateSpikeThreshold}
+                    onBlur={(e) => updateAlertMutation.mutate({ rateSpikeThreshold: Number(e.target.value) })}
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Spike Window (sec)</label>
+                  <Input
+                    type="number"
+                    defaultValue={alertStatus.data.config.rateSpikeWindowSec}
+                    onBlur={(e) => updateAlertMutation.mutate({ rateSpikeWindowSec: Number(e.target.value) })}
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Immediate Severities</label>
+                  <p className="text-xs mt-2 font-mono bg-muted px-2 py-1 rounded">
+                    {alertStatus.data.config.immediateSeverities.join(", ")}
+                  </p>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">

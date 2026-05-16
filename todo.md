@@ -3030,3 +3030,10 @@
 - [x] Add interceptor config management + stats tracking + bypass list
 - [x] Add Transport Interceptor tab to AI Safety UI panel
 - [x] Write Vitest tests for interceptor (23 tests, 98 total safety tests passing)
+
+### Pre-Deploy Build Check + Error Monitoring
+- [ ] Add TypeScript strict build check step to deploy-multi-env.yml (catches undefined variables before deploy)
+- [ ] Add ESLint no-undef check as CI gate
+- [ ] Set up runtime error monitoring (error boundary + incident persistence + alerting)
+- [ ] Build error monitoring UI panel (incident list, stack traces, frequency, affected users)
+- [ ] Add error reporting client-side hook (catches unhandled errors + promise rejections)
