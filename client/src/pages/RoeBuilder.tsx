@@ -28,7 +28,7 @@ import {
   Globe, Server, Network, Cloud, Wifi, MapPin, Clock, Loader2,
   ShieldCheck, ShieldAlert, Crosshair, Zap, Brain, Bug, Skull,
   Mail, Phone, User, Briefcase, FileCheck, Download, MoreVertical,
-  Play, Pause, XCircle, RefreshCw, Search, History, RotateCcw
+  Play, Pause, XCircle, RefreshCw, Search, History, RotateCcw, Upload
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
@@ -182,9 +182,14 @@ function RoeListView({
             Create and manage FedRAMP/NIST 800-115 compliant RoE documents for security assessments
           </p>
         </div>
-        <Button onClick={onCreateNew} className="gap-2">
-          <Plus className="w-4 h-4" /> New RoE Document
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={onCreateNew} className="gap-2">
+            <Plus className="w-4 h-4" /> New RoE Document
+          </Button>
+          <Button variant="outline" className="gap-2 text-emerald-400 border-emerald-500/40 hover:bg-emerald-500/10" onClick={() => window.location.href = '/engagements/upload'}>
+            <Upload className="w-4 h-4" /> Upload Existing RoE
+          </Button>
+        </div>
       </div>
 
       {/* Stats Cards */}

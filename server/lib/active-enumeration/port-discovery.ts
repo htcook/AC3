@@ -177,7 +177,7 @@ async function scanSingleTarget(
     const discoveryResult = await helpers.executeTool({
       tool: sfTool,
       args: sfArgs,
-      timeoutSeconds: 600,
+      timeoutSeconds: 1200, // 20 minutes for full port range scans
       sudo: sfTool === "masscan" || sfTool === "zmap" || sfTool === "naabu",
     });
 

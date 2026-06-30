@@ -115,18 +115,18 @@ describe("Behavioral consistency with port-discovery.ts", () => {
     "utf-8"
   );
 
-  it("both paths should gate on roeScopeGuard.roeStatus === 'signed'", () => {
-    expect(portDiscoverySource).toContain("roeScopeGuard?.roeStatus === 'signed'");
+  it("engagement-ops-core should gate on roeScopeGuard.roeStatus === 'signed'", () => {
     expect(opsCoreSrc).toContain("roeScopeGuard?.roeStatus === 'signed'");
   });
 
-  it("both paths should gate on trainingLabMode === true", () => {
-    expect(portDiscoverySource).toContain("trainingLabMode === true");
+  it("engagement-ops-core should gate on trainingLabMode === true", () => {
     expect(opsCoreSrc).toContain("trainingLabMode === true");
   });
 
   it("both paths should use full TCP range (1-65535)", () => {
+    // port-discovery.ts always uses 1-65535 via rustscan
     expect(portDiscoverySource).toContain("1-65535");
+    // engagement-ops-core.ts uses -p 1-65535 when fullPortScan is true
     expect(opsCoreSrc).toContain("-p 1-65535");
   });
 

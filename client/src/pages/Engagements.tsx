@@ -17,7 +17,7 @@ import { Scan, ShieldAlert, ShieldCheck } from "lucide-react";
 import AppShell from "@/components/AppShell";
 import ShareLinkManager from "@/components/ShareLinkManager";
 import ROEPanel from "@/components/ROEPanel";
-import { Scale } from "lucide-react";
+import { Scale, Upload } from "lucide-react";
 
 import { sanitizeErrorForToast } from "@/lib/error-sanitizer";
 const ENGAGEMENT_TYPES = [
@@ -792,11 +792,22 @@ export default function Engagements() {
                       </option>
                     ))}
                   </select>
+                  <div className="flex items-center gap-2 mt-1.5">
+                    <button
+                      type="button"
+                      onClick={() => window.location.href = '/engagements/upload'}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-display tracking-wider text-emerald-400 border border-emerald-500/40 rounded hover:bg-emerald-500/10 transition-colors"
+                    >
+                      <Upload className="w-3 h-3" /> UPLOAD EXISTING ROE
+                    </button>
+                    <span className="text-[10px] text-muted-foreground">or</span>
+                    <a href="/roe-builder" className="text-[10px] text-primary hover:underline">Build new RoE from scratch</a>
+                  </div>
                   <p className="text-[10px] text-muted-foreground mt-1">
                     {!editingId && !formData.roeDocumentId ? (
-                      <span className="text-amber-500">A draft RoE will be auto-created with your target domains/IPs as in-scope items. Review it in the <a href="/roe-builder" className="text-primary hover:underline">RoE Builder</a> before activating.</span>
+                      <span className="text-amber-500">A draft RoE will be auto-created with your target domains/IPs as in-scope items if no document is linked.</span>
                     ) : (
-                      <span>Link an existing Rules of Engagement document. <a href="/roe-builder" className="text-primary hover:underline">Create new RoE</a></span>
+                      <span>Linked to an existing Rules of Engagement document.</span>
                     )}
                   </p>
                 </div>
