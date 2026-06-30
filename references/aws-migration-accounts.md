@@ -82,29 +82,7 @@ The following accounts have PowerUser access keys configured:
 
 These are temporary STS session credentials obtained via IAM Identity Center. They expire and must be refreshed from the SSO portal.
 
-### Production (184974284696)
-
-```bash
-export AWS_ACCESS_KEY_ID="<REDACTED_AWS_PROD_ACCESS_KEY>"
-export AWS_SECRET_ACCESS_KEY="<REDACTED_AWS_PROD_SECRET_KEY>"
-export AWS_SESSION_TOKEN="<REDACTED_AWS_SESSION_TOKEN>OcAlQ0eRIF7i8+CWbvqxDvaw0VY/fib86beZcbEU5bpWdnsroddrZq8+c7HCxAPto="
-```
-
-### Staging (238043187472)
-
-```bash
-export AWS_ACCESS_KEY_ID="<REDACTED_AWS_STAGING_ACCESS_KEY>"
-export AWS_SECRET_ACCESS_KEY="<REDACTED_AWS_STAGING_SECRET_KEY>"
-export AWS_SESSION_TOKEN="<REDACTED_AWS_SESSION_TOKEN>hywSQc+nVvn7EWkuLunWyKCkfRVNYNV7BljLFtLogqKfsp3aTw3n6hplB9bfsMy38="
-```
-
-### Development (808038814732)
-
-```bash
-export AWS_ACCESS_KEY_ID="<REDACTED_AWS_DEV_ACCESS_KEY>"
-export AWS_SECRET_ACCESS_KEY="<REDACTED_AWS_DEV_SECRET_KEY>"
-export AWS_SESSION_TOKEN="<REDACTED_AWS_SESSION_TOKEN>fv/5d0Ch2TQ4yMhSS44SShf3VyvO9624LbaNKr2kq+YjrSlcL+sFTZA9O7DXDxpWc="
-```
+> **REDACTED** — Session credentials are stored in Manus secrets (AWS_PROD_ACCESS_KEY_ID, AWS_PROD_SECRET_ACCESS_KEY, AWS_PROD_SESSION_TOKEN, AWS_STAGING_ACCESS_KEY_ID, AWS_STAGING_SECRET_ACCESS_KEY, AWS_STAGING_SESSION_TOKEN, AWS_DEV_ACCESS_KEY_ID, AWS_DEV_SECRET_ACCESS_KEY, AWS_DEV_SESSION_TOKEN). Refresh from the SSO portal when expired.
 
 ---
 
@@ -114,7 +92,7 @@ export AWS_SESSION_TOKEN="<REDACTED_AWS_SESSION_TOKEN>fv/5d0Ch2TQ4yMhSS44SShf3Vy
 |---|---|
 | Portal URL | `d-90660b5f17.awsapps.com` |
 | Username | `Harrison-cook` |
-| Password | `<REDACTED_SSO_PASSWORD>` |
+| Password | `<REDACTED — stored in Manus secrets as AC3_USER_PASSWORD>` |
 
 > **Note:** These are temporary STS session tokens from IAM Identity Center. They expire (typically within 1-12 hours). Refresh from the SSO portal at `d-90660b5f17.awsapps.com` using the credentials above.
 

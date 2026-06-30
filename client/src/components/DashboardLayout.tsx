@@ -31,6 +31,7 @@ import {
 } from "./ui/tooltip";
 import { sidebarNavGroups, getFilteredNavGroups, type NavGroup, type UserRole } from "@/lib/sidebar-nav";
 import { NotificationBell } from "./NotificationBell";
+import PlatformTour from "@/components/PlatformTour";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -80,6 +81,7 @@ export default function DashboardLayout({
   return (
     <DashboardLayoutContent>
       <EmbedProvider>{children}</EmbedProvider>
+      <PlatformTour targetPlatform="AC3" />
     </DashboardLayoutContent>
   );
 }

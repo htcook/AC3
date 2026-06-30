@@ -39,7 +39,7 @@ The workflow needs a Personal Access Token that can **read** `hcook-aoc/AC3` (wh
 **PAT Value (read-only, scoped to hcook-aoc/AC3):**
 
 ```
-<REDACTED_UPSTREAM_PAT>
+<REDACTED — retrieve from Manus secrets or generate a new fine-grained PAT with read-only Contents access to hcook-aoc/AC3>
 ```
 
 Add it as a repository secret:
