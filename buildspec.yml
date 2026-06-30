@@ -133,7 +133,7 @@ phases:
       - cat build-manifest.json
 
       - export BUILD_STATUS="SUCCESS"
-      - echo "Build pipeline complete. Image: $IMAGE_URI:$IMAGE_TAG"
+      - echo "Build pipeline complete. Image $IMAGE_URI $IMAGE_TAG"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Artifacts: Files passed to next pipeline stage (ECS deploy)
