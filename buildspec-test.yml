@@ -1,0 +1,59 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# AC3 Platform — CodeBuild Test Buildspec (PR Validation)
+# Author: Harrison Cook — AceofCloud
+# ─────────────────────────────────────────────────────────────────────────────
+# Triggered by: Pull request to main branch
+# Purpose: Run type checking, linting, and tests before merge
+# Does NOT build or push Docker images.
+# ─────────────────────────────────────────────────────────────────────────────
+
+version: 0.2
+
+env:
+  variables:
+    NODE_ENV: test
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: 22
+    commands:
+      - echo "Installing pnpm..."
+      - corepack enable && corepack prepare pnpm@10.4.1 --activate
+      - echo "Installing dependencies..."
+      - pnpm install --no-frozen-lockfile
+
+  pre_build:
+    commands:
+      - echo "Running TypeScript type check..."
+      - pnpm run check
+      - echo "Type check passed."
+
+  build:
+    commands:
+      - echo "Running test suite..."
+      - pnpm run test -- --reporter=junit --outputFile=coverage/junit.xml
+      - echo "Tests complete."
+
+  post_build:
+    commands:
+      - echo "Test pipeline complete."
+      - |
+        if [ $CODEBUILD_BUILD_SUCCEEDING -eq 1 ]; then
+          echo "All checks passed — safe to merge."
+        else
+          echo "FAILED — do not merge."
+          exit 1
+        fi
+
+reports:
+  ac3-pr-tests:
+    files:
+      - 'coverage/junit.xml'
+    file-format: JUNITXML
+    base-directory: '.'
+
+cache:
+  paths:
+    - 'node_modules/**/*'
+    - '.pnpm-store/**/*'

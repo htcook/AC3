@@ -1,0 +1,697 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+
+/**
+ * Tests for the S3-compatible storage provider abstraction.
+ * These test the config resolution, URL generation, and provider detection
+ * without requiring actual S3 credentials.
+ */
+
+// We need to test the internal functions, so we'll import the module
+// and mock the S3Client to avoid actual network calls
+vi.mock('@aws-sdk/client-s3', () => ({
+  S3Client: vi.fn().mockImplementation(() => ({
+    send: vi.fn().mockResolvedValue({}),
+  })),
+  PutObjectCommand: vi.fn().mockImplementation((params) => params),
+  GetObjectCommand: vi.fn().mockImplementation((params) => params),
+  HeadObjectCommand: vi.fn().mockImplementation((params) => params),
+  DeleteObjectCommand: vi.fn().mockImplementation((params) => params),
+}));
+
+vi.mock('@aws-sdk/s3-request-presigner', () => ({
+  getSignedUrl: vi.fn().mockResolvedValue('https://signed-url.example.com/key'),
+}));
+
+describe('Storage Provider - Config Resolution & URL Generation', () => {
+  const originalEnv = process.env;
+
+  beforeEach(() => {
+    // Reset modules to clear singleton state
+    vi.resetModules();
+    process.env = { ...originalEnv };
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+  });
+
+  describe('Provider Detection', () => {
+    it('should detect DigitalOcean Spaces from endpoint', async () => {
+      process.env.S3_ENDPOINT = 'https://nyc3.digitaloceanspaces.com';
+      process.env.S3_ACCESS_KEY = 'test-key';
+      process.env.S3_SECRET_KEY = 'test-secret';
+      process.env.S3_BUCKET = 'test-bucket';
+      process.env.S3_REGION = 'nyc3';
+
+      const { getStorageInfo } = await import('./do-storage');
+      const info = getStorageInfo();
+      expect(info.provider).toBe('do_spaces');
+      expect(info.endpoint).toBe('https://nyc3.digitaloceanspaces.com');
+    });
+
+    it('should detect AWS S3 from endpoint', async () => {
+      process.env.S3_ENDPOINT = 'https://s3.us-east-1.amazonaws.com';
+      process.env.S3_ACCESS_KEY = 'AKIA-test';
+      process.env.S3_SECRET_KEY = 'secret-test';
+      process.env.S3_BUCKET = 'my-bucket';
+      process.env.S3_REGION = 'us-east-1';
+
+      const { getStorageInfo } = await import('./do-storage');
+      const info = getStorageInfo();
+      expect(info.provider).toBe('aws_s3');
+    });
+
+    it('should detect MinIO from endpoint', async () => {
+      process.env.S3_ENDPOINT = 'http://minio.internal:9000';
+      process.env.S3_ACCESS_KEY = 'minio-key';
+      process.env.S3_SECRET_KEY = 'minio-secret';
+      process.env.S3_BUCKET = 'evidence';
+      process.env.S3_FORCE_PATH_STYLE = 'true';
+
+      const { getStorageInfo } = await import('./do-storage');
+      const info = getStorageInfo();
+      expect(info.provider).toBe('minio');
+      expect(info.forcePathStyle).toBe(true);
+    });
+
+    it('should detect localhost as MinIO', async () => {
+      process.env.S3_ENDPOINT = 'http://localhost:9000';
+      process.env.S3_ACCESS_KEY = 'local-key';
+      process.env.S3_SECRET_KEY = 'local-secret';
+      process.env.S3_BUCKET = 'dev';
+
+      const { getStorageInfo } = await import('./do-storage');
+      const info = getStorageInfo();
+      expect(info.provider).toBe('minio');
+    });
+
+    it('should detect custom provider for unknown endpoints', async () => {
+      process.env.S3_ENDPOINT = 'https://storage.wasabi.com';
+      process.env.S3_ACCESS_KEY = 'wasabi-key';
+      process.env.S3_SECRET_KEY = 'wasabi-secret';
+      process.env.S3_BUCKET = 'my-data';
+      process.env.S3_REGION = 'us-east-2';
+
+      const { getStorageInfo } = await import('./do-storage');
+      const info = getStorageInfo();
+      expect(info.provider).toBe('custom');
+    });
+  });
+
+  describe('Config Priority', () => {
+    it('should prefer S3_* vars over DO_SPACES_* vars', async () => {
+      process.env.S3_ENDPOINT = 'https://s3.us-east-1.amazonaws.com';
+      process.env.S3_ACCESS_KEY = 'aws-key';
+      process.env.S3_SECRET_KEY = 'aws-secret';
+      process.env.S3_BUCKET = 'aws-bucket';
+      process.env.S3_REGION = 'us-east-1';
+      process.env.DO_SPACES_KEY = 'do-key';
+      process.env.DO_SPACES_SECRET = 'do-secret';
+      process.env.DO_SPACES_BUCKET = 'do-bucket';
+
+      const { getStorageInfo } = await import('./do-storage');
+      const info = getStorageInfo();
+      expect(info.bucket).toBe('aws-bucket');
+      expect(info.provider).toBe('aws_s3');
+    });
+
+    it('should fall back to DO_SPACES_* when S3_* not set', async () => {
+      delete process.env.S3_ENDPOINT;
+      delete process.env.S3_ACCESS_KEY;
+      delete process.env.S3_SECRET_KEY;
+      process.env.DO_SPACES_KEY = 'do-key';
+      process.env.DO_SPACES_SECRET = 'do-secret';
+      process.env.DO_SPACES_BUCKET = 'do-bucket';
+      process.env.DO_SPACES_REGION = 'sfo3';
+      process.env.DO_SPACES_ENDPOINT = 'https://sfo3.digitaloceanspaces.com';
+
+      const { getStorageInfo } = await import('./do-storage');
+      const info = getStorageInfo();
+      expect(info.bucket).toBe('do-bucket');
+      expect(info.region).toBe('sfo3');
+      expect(info.provider).toBe('do_spaces');
+    });
+
+    it('should use default values when no env vars set', async () => {
+      delete process.env.S3_ENDPOINT;
+      delete process.env.S3_ACCESS_KEY;
+      delete process.env.S3_SECRET_KEY;
+      delete process.env.DO_SPACES_KEY;
+      delete process.env.DO_SPACES_SECRET;
+
+      const { getStorageInfo } = await import('./do-storage');
+      const info = getStorageInfo();
+      expect(info.bucket).toBe('aceofcloud-reports');
+      expect(info.region).toBe('nyc3');
+      expect(info.hasCredentials).toBe(false);
+    });
+  });
+
+  describe('URL Generation', () => {
+    it('should generate DO Spaces virtual-hosted URL', async () => {
+      process.env.S3_ENDPOINT = 'https://nyc3.digitaloceanspaces.com';
+      process.env.S3_ACCESS_KEY = 'key';
+      process.env.S3_SECRET_KEY = 'secret';
+      process.env.S3_BUCKET = 'my-bucket';
+      process.env.S3_REGION = 'nyc3';
+
+      const { doStorageGet } = await import('./do-storage');
+      const { url } = await doStorageGet('reports/test.pdf');
+      expect(url).toBe('https://my-bucket.nyc3.digitaloceanspaces.com/reports/test.pdf');
+    });
+
+    it('should generate AWS S3 virtual-hosted URL', async () => {
+      process.env.S3_ENDPOINT = 'https://s3.us-east-1.amazonaws.com';
+      process.env.S3_ACCESS_KEY = 'key';
+      process.env.S3_SECRET_KEY = 'secret';
+      process.env.S3_BUCKET = 'customer-data';
+      process.env.S3_REGION = 'us-east-1';
+
+      const { doStorageGet } = await import('./do-storage');
+      const { url } = await doStorageGet('evidence/screenshot.png');
+      expect(url).toBe('https://customer-data.s3.us-east-1.amazonaws.com/evidence/screenshot.png');
+    });
+
+    it('should generate MinIO path-style URL', async () => {
+      process.env.S3_ENDPOINT = 'http://minio.internal:9000';
+      process.env.S3_ACCESS_KEY = 'key';
+      process.env.S3_SECRET_KEY = 'secret';
+      process.env.S3_BUCKET = 'evidence';
+      process.env.S3_FORCE_PATH_STYLE = 'true';
+
+      const { doStorageGet } = await import('./do-storage');
+      const { url } = await doStorageGet('scans/nuclei-output.json');
+      expect(url).toBe('http://minio.internal:9000/evidence/scans/nuclei-output.json');
+    });
+
+    it('should use custom public URL base when set', async () => {
+      process.env.S3_ENDPOINT = 'https://s3.us-east-1.amazonaws.com';
+      process.env.S3_ACCESS_KEY = 'key';
+      process.env.S3_SECRET_KEY = 'secret';
+      process.env.S3_BUCKET = 'data';
+      process.env.S3_REGION = 'us-east-1';
+      process.env.S3_PUBLIC_URL_BASE = 'https://cdn.aceofcloud.com';
+
+      const { doStorageGet } = await import('./do-storage');
+      const { url } = await doStorageGet('reports/final.pdf');
+      expect(url).toBe('https://cdn.aceofcloud.com/reports/final.pdf');
+    });
+
+    it('should strip leading slashes from keys', async () => {
+      process.env.S3_ENDPOINT = 'https://s3.us-east-1.amazonaws.com';
+      process.env.S3_ACCESS_KEY = 'key';
+      process.env.S3_SECRET_KEY = 'secret';
+      process.env.S3_BUCKET = 'data';
+      process.env.S3_REGION = 'us-east-1';
+
+      const { doStorageGet } = await import('./do-storage');
+      const { key, url } = await doStorageGet('///leading/slashes/file.txt');
+      expect(key).toBe('leading/slashes/file.txt');
+      expect(url).toContain('leading/slashes/file.txt');
+      expect(url).not.toContain('///');
+    });
+  });
+
+  describe('Upload (doStoragePut)', () => {
+    it('should upload buffer data and return URL', async () => {
+      process.env.S3_ENDPOINT = 'https://nyc3.digitaloceanspaces.com';
+      process.env.S3_ACCESS_KEY = 'key';
+      process.env.S3_SECRET_KEY = 'secret';
+      process.env.S3_BUCKET = 'test';
+      process.env.S3_REGION = 'nyc3';
+
+      const { doStoragePut } = await import('./do-storage');
+      const result = await doStoragePut('test/file.txt', Buffer.from('hello'), 'text/plain');
+      expect(result.key).toBe('test/file.txt');
+      expect(result.url).toBe('https://test.nyc3.digitaloceanspaces.com/test/file.txt');
+    });
+
+    it('should upload string data (auto-converts to Buffer)', async () => {
+      process.env.S3_ENDPOINT = 'https://nyc3.digitaloceanspaces.com';
+      process.env.S3_ACCESS_KEY = 'key';
+      process.env.S3_SECRET_KEY = 'secret';
+      process.env.S3_BUCKET = 'test';
+      process.env.S3_REGION = 'nyc3';
+
+      const { doStoragePut } = await import('./do-storage');
+      const result = await doStoragePut('test/string.json', '{"key":"value"}', 'application/json');
+      expect(result.key).toBe('test/string.json');
+      expect(result.url).toContain('test/string.json');
+    });
+
+    it('should throw when credentials are missing', async () => {
+      delete process.env.S3_ENDPOINT;
+      delete process.env.S3_ACCESS_KEY;
+      delete process.env.S3_SECRET_KEY;
+      delete process.env.DO_SPACES_KEY;
+      delete process.env.DO_SPACES_SECRET;
+
+      const { doStoragePut, resetStorageClient } = await import('./do-storage');
+      resetStorageClient();
+      await expect(doStoragePut('test.txt', 'data')).rejects.toThrow(/credentials missing/i);
+    });
+  });
+
+  describe('Presigned URLs (doStorageGetSigned)', () => {
+    it('should return a presigned URL', async () => {
+      process.env.S3_ENDPOINT = 'https://s3.us-east-1.amazonaws.com';
+      process.env.S3_ACCESS_KEY = 'key';
+      process.env.S3_SECRET_KEY = 'secret';
+      process.env.S3_BUCKET = 'private-bucket';
+      process.env.S3_REGION = 'us-east-1';
+
+      const { doStorageGetSigned } = await import('./do-storage');
+      const { url } = await doStorageGetSigned('private/file.pdf', 7200);
+      expect(url).toBe('https://signed-url.example.com/key');
+    });
+  });
+
+  describe('Existence Check (doStorageExists)', () => {
+    it('should return true when object exists', async () => {
+      process.env.S3_ENDPOINT = 'https://s3.us-east-1.amazonaws.com';
+      process.env.S3_ACCESS_KEY = 'key';
+      process.env.S3_SECRET_KEY = 'secret';
+      process.env.S3_BUCKET = 'bucket';
+      process.env.S3_REGION = 'us-east-1';
+
+      const { doStorageExists } = await import('./do-storage');
+      const exists = await doStorageExists('existing-file.txt');
+      expect(exists).toBe(true);
+    });
+  });
+
+  describe('Storage Info (diagnostics)', () => {
+    it('should return config without exposing credentials', async () => {
+      process.env.S3_ENDPOINT = 'https://s3.us-gov-west-1.amazonaws.com';
+      process.env.S3_ACCESS_KEY = 'SUPER_SECRET_KEY';
+      process.env.S3_SECRET_KEY = 'SUPER_SECRET_VALUE';
+      process.env.S3_BUCKET = 'govcloud-bucket';
+      process.env.S3_REGION = 'us-gov-west-1';
+
+      const { getStorageInfo } = await import('./do-storage');
+      const info = getStorageInfo();
+      expect(info.hasCredentials).toBe(true);
+      expect(info.bucket).toBe('govcloud-bucket');
+      expect(info.region).toBe('us-gov-west-1');
+      // Verify credentials are NOT exposed
+      expect(JSON.stringify(info)).not.toContain('SUPER_SECRET');
+    });
+
+    it('should report encryption config in storage info', async () => {
+      process.env.S3_ENDPOINT = 'https://s3.us-gov-west-1.amazonaws.com';
+      process.env.S3_ACCESS_KEY = 'key';
+      process.env.S3_SECRET_KEY = 'secret';
+      process.env.S3_BUCKET = 'encrypted-bucket';
+      process.env.S3_REGION = 'us-gov-west-1';
+      process.env.S3_SSE_ALGORITHM = 'aws:kms';
+      process.env.S3_SSE_KMS_KEY_ID = 'arn:aws:kms:us-gov-west-1:123456:key/abc-def';
+      process.env.S3_BUCKET_KEY_ENABLED = 'true';
+
+      const { getStorageInfo } = await import('./do-storage');
+      const info = getStorageInfo();
+      expect(info.encryption.algorithm).toBe('aws:kms');
+      expect(info.encryption.kmsKeyConfigured).toBe(true);
+      expect(info.encryption.bucketKeyEnabled).toBe(true);
+      expect(info.privateMode).toBe(true);
+    });
+  });
+
+  describe('Server-Side Encryption (SSE-KMS)', () => {
+    it('should auto-enable private mode when SSE is configured', async () => {
+      process.env.S3_ENDPOINT = 'https://s3.us-gov-west-1.amazonaws.com';
+      process.env.S3_ACCESS_KEY = 'key';
+      process.env.S3_SECRET_KEY = 'secret';
+      process.env.S3_BUCKET = 'encrypted-bucket';
+      process.env.S3_REGION = 'us-gov-west-1';
+      process.env.S3_SSE_ALGORITHM = 'aws:kms';
+
+      const { getStorageInfo } = await import('./do-storage');
+      const info = getStorageInfo();
+      expect(info.privateMode).toBe(true);
+    });
+
+    it('should NOT enable private mode when SSE is "none"', async () => {
+      process.env.S3_ENDPOINT = 'https://s3.us-east-1.amazonaws.com';
+      process.env.S3_ACCESS_KEY = 'key';
+      process.env.S3_SECRET_KEY = 'secret';
+      process.env.S3_BUCKET = 'public-bucket';
+      process.env.S3_REGION = 'us-east-1';
+      process.env.S3_SSE_ALGORITHM = 'none';
+
+      const { getStorageInfo } = await import('./do-storage');
+      const info = getStorageInfo();
+      expect(info.privateMode).toBe(false);
+    });
+
+    it('should include SSE params in PutObjectCommand when aws:kms configured', async () => {
+      process.env.S3_ENDPOINT = 'https://s3.us-gov-west-1.amazonaws.com';
+      process.env.S3_ACCESS_KEY = 'key';
+      process.env.S3_SECRET_KEY = 'secret';
+      process.env.S3_BUCKET = 'encrypted-bucket';
+      process.env.S3_REGION = 'us-gov-west-1';
+      process.env.S3_SSE_ALGORITHM = 'aws:kms';
+      process.env.S3_SSE_KMS_KEY_ID = 'arn:aws:kms:us-gov-west-1:123456:key/abc-def';
+      process.env.S3_BUCKET_KEY_ENABLED = 'true';
+
+      const { PutObjectCommand } = await import('@aws-sdk/client-s3');
+      const { doStoragePut } = await import('./do-storage');
+      await doStoragePut('test/encrypted.pdf', Buffer.from('secret data'), 'application/pdf');
+
+      // Verify PutObjectCommand was called with SSE params
+      expect(PutObjectCommand).toHaveBeenCalledWith(
+        expect.objectContaining({
+          ServerSideEncryption: 'aws:kms',
+          SSEKMSKeyId: 'arn:aws:kms:us-gov-west-1:123456:key/abc-def',
+          BucketKeyEnabled: true,
+        })
+      );
+    });
+
+    it('should NOT include ACL when private mode is enabled', async () => {
+      process.env.S3_ENDPOINT = 'https://s3.us-gov-west-1.amazonaws.com';
+      process.env.S3_ACCESS_KEY = 'key';
+      process.env.S3_SECRET_KEY = 'secret';
+      process.env.S3_BUCKET = 'encrypted-bucket';
+      process.env.S3_REGION = 'us-gov-west-1';
+      process.env.S3_SSE_ALGORITHM = 'aws:kms';
+
+      const { PutObjectCommand } = await import('@aws-sdk/client-s3');
+      const { doStoragePut } = await import('./do-storage');
+      await doStoragePut('test/private.pdf', Buffer.from('data'), 'application/pdf');
+
+      // Verify ACL is NOT set (private mode)
+      const callArgs = (PutObjectCommand as any).mock.calls.slice(-1)[0][0];
+      expect(callArgs.ACL).toBeUndefined();
+    });
+
+    it('should include public-read ACL when no encryption configured', async () => {
+      process.env.S3_ENDPOINT = 'https://nyc3.digitaloceanspaces.com';
+      process.env.S3_ACCESS_KEY = 'key';
+      process.env.S3_SECRET_KEY = 'secret';
+      process.env.S3_BUCKET = 'public-bucket';
+      process.env.S3_REGION = 'nyc3';
+      // No SSE configured
+
+      const { PutObjectCommand } = await import('@aws-sdk/client-s3');
+      const { doStoragePut } = await import('./do-storage');
+      await doStoragePut('test/public.pdf', Buffer.from('data'), 'application/pdf');
+
+      const callArgs = (PutObjectCommand as any).mock.calls.slice(-1)[0][0];
+      expect(callArgs.ACL).toBe('public-read');
+    });
+
+    it('should return presigned URL when private mode is enabled', async () => {
+      process.env.S3_ENDPOINT = 'https://s3.us-gov-west-1.amazonaws.com';
+      process.env.S3_ACCESS_KEY = 'key';
+      process.env.S3_SECRET_KEY = 'secret';
+      process.env.S3_BUCKET = 'encrypted-bucket';
+      process.env.S3_REGION = 'us-gov-west-1';
+      process.env.S3_SSE_ALGORITHM = 'aws:kms';
+
+      const { doStoragePut } = await import('./do-storage');
+      const result = await doStoragePut('test/encrypted.pdf', Buffer.from('data'));
+      // Should return presigned URL (from mock)
+      expect(result.url).toBe('https://signed-url.example.com/key');
+    });
+
+    it('should return presigned URL from doStorageGet in private mode', async () => {
+      process.env.S3_ENDPOINT = 'https://s3.us-gov-west-1.amazonaws.com';
+      process.env.S3_ACCESS_KEY = 'key';
+      process.env.S3_SECRET_KEY = 'secret';
+      process.env.S3_BUCKET = 'encrypted-bucket';
+      process.env.S3_REGION = 'us-gov-west-1';
+      process.env.S3_PRIVATE_MODE = 'true';
+
+      const { doStorageGet } = await import('./do-storage');
+      const result = await doStorageGet('private/file.pdf');
+      expect(result.url).toBe('https://signed-url.example.com/key');
+    });
+
+    it('should support AES256 encryption (S3-managed keys)', async () => {
+      process.env.S3_ENDPOINT = 'https://s3.us-east-1.amazonaws.com';
+      process.env.S3_ACCESS_KEY = 'key';
+      process.env.S3_SECRET_KEY = 'secret';
+      process.env.S3_BUCKET = 'sse-s3-bucket';
+      process.env.S3_REGION = 'us-east-1';
+      process.env.S3_SSE_ALGORITHM = 'AES256';
+
+      const { PutObjectCommand } = await import('@aws-sdk/client-s3');
+      const { doStoragePut } = await import('./do-storage');
+      await doStoragePut('test/aes.pdf', Buffer.from('data'));
+
+      const callArgs = (PutObjectCommand as any).mock.calls.slice(-1)[0][0];
+      expect(callArgs.ServerSideEncryption).toBe('AES256');
+      // AES256 doesn't use KMS key
+      expect(callArgs.SSEKMSKeyId).toBeUndefined();
+    });
+
+    it('should support aws:kms:dsse (dual-layer encryption)', async () => {
+      process.env.S3_ENDPOINT = 'https://s3.us-gov-west-1.amazonaws.com';
+      process.env.S3_ACCESS_KEY = 'key';
+      process.env.S3_SECRET_KEY = 'secret';
+      process.env.S3_BUCKET = 'dsse-bucket';
+      process.env.S3_REGION = 'us-gov-west-1';
+      process.env.S3_SSE_ALGORITHM = 'aws:kms:dsse';
+      process.env.S3_SSE_KMS_KEY_ID = 'arn:aws:kms:us-gov-west-1:123456:key/dsse-key';
+
+      const { PutObjectCommand } = await import('@aws-sdk/client-s3');
+      const { doStoragePut } = await import('./do-storage');
+      await doStoragePut('test/dsse.pdf', Buffer.from('top secret'));
+
+      expect(PutObjectCommand).toHaveBeenCalledWith(
+        expect.objectContaining({
+          ServerSideEncryption: 'aws:kms:dsse',
+          SSEKMSKeyId: 'arn:aws:kms:us-gov-west-1:123456:key/dsse-key',
+        })
+      );
+    });
+
+    it('should NOT include SSE params when algorithm is none', async () => {
+      process.env.S3_ENDPOINT = 'https://nyc3.digitaloceanspaces.com';
+      process.env.S3_ACCESS_KEY = 'key';
+      process.env.S3_SECRET_KEY = 'secret';
+      process.env.S3_BUCKET = 'no-sse';
+      process.env.S3_REGION = 'nyc3';
+      process.env.S3_SSE_ALGORITHM = 'none';
+
+      const { PutObjectCommand } = await import('@aws-sdk/client-s3');
+      const { doStoragePut } = await import('./do-storage');
+      await doStoragePut('test/plain.pdf', Buffer.from('data'));
+
+      const callArgs = (PutObjectCommand as any).mock.calls.slice(-1)[0][0];
+      expect(callArgs.ServerSideEncryption).toBeUndefined();
+      expect(callArgs.SSEKMSKeyId).toBeUndefined();
+      expect(callArgs.BucketKeyEnabled).toBeUndefined();
+    });
+
+    it('should allow manual private mode without SSE (presigned-only access)', async () => {
+      process.env.S3_ENDPOINT = 'https://s3.us-east-1.amazonaws.com';
+      process.env.S3_ACCESS_KEY = 'key';
+      process.env.S3_SECRET_KEY = 'secret';
+      process.env.S3_BUCKET = 'private-no-sse';
+      process.env.S3_REGION = 'us-east-1';
+      process.env.S3_PRIVATE_MODE = 'true';
+      // No SSE configured
+
+      const { PutObjectCommand } = await import('@aws-sdk/client-s3');
+      const { doStoragePut, getStorageInfo } = await import('./do-storage');
+
+      const info = getStorageInfo();
+      expect(info.privateMode).toBe(true);
+      expect(info.encryption.algorithm).toBe('none');
+
+      await doStoragePut('test/private-plain.pdf', Buffer.from('data'));
+      const callArgs = (PutObjectCommand as any).mock.calls.slice(-1)[0][0];
+      // No ACL in private mode
+      expect(callArgs.ACL).toBeUndefined();
+      // No SSE params
+      expect(callArgs.ServerSideEncryption).toBeUndefined();
+    });
+  });
+
+  describe('FIPS 140-3 Endpoint Enforcement', () => {
+    it('should auto-enable FIPS for us-gov-west-1 region', async () => {
+      process.env.S3_ENDPOINT = 'https://s3.us-gov-west-1.amazonaws.com';
+      process.env.S3_ACCESS_KEY = 'key';
+      process.env.S3_SECRET_KEY = 'secret';
+      process.env.S3_BUCKET = 'govcloud-bucket';
+      process.env.S3_REGION = 'us-gov-west-1';
+
+      const { getStorageInfo } = await import('./do-storage');
+      const info = getStorageInfo();
+      expect(info.fips.enabled).toBe(true);
+      expect(info.fips.autoDetected).toBe(true);
+      expect(info.fips.endpoint).toBe('https://s3-fips.us-gov-west-1.amazonaws.com');
+    });
+
+    it('should auto-enable FIPS for us-gov-east-1 region', async () => {
+      process.env.S3_ENDPOINT = 'https://s3.us-gov-east-1.amazonaws.com';
+      process.env.S3_ACCESS_KEY = 'key';
+      process.env.S3_SECRET_KEY = 'secret';
+      process.env.S3_BUCKET = 'govcloud-east';
+      process.env.S3_REGION = 'us-gov-east-1';
+
+      const { getStorageInfo } = await import('./do-storage');
+      const info = getStorageInfo();
+      expect(info.fips.enabled).toBe(true);
+      expect(info.fips.autoDetected).toBe(true);
+      expect(info.fips.endpoint).toBe('https://s3-fips.us-gov-east-1.amazonaws.com');
+    });
+
+    it('should auto-enable FIPS for us-iso-east-1 (C2S) region', async () => {
+      process.env.S3_ENDPOINT = 'https://s3.us-iso-east-1.amazonaws.com';
+      process.env.S3_ACCESS_KEY = 'key';
+      process.env.S3_SECRET_KEY = 'secret';
+      process.env.S3_BUCKET = 'c2s-bucket';
+      process.env.S3_REGION = 'us-iso-east-1';
+
+      const { getStorageInfo } = await import('./do-storage');
+      const info = getStorageInfo();
+      expect(info.fips.enabled).toBe(true);
+      expect(info.fips.autoDetected).toBe(true);
+    });
+
+    it('should explicitly enable FIPS via S3_USE_FIPS=true for commercial regions', async () => {
+      process.env.S3_ENDPOINT = 'https://s3.us-east-1.amazonaws.com';
+      process.env.S3_ACCESS_KEY = 'key';
+      process.env.S3_SECRET_KEY = 'secret';
+      process.env.S3_BUCKET = 'fips-commercial';
+      process.env.S3_REGION = 'us-east-1';
+      process.env.S3_USE_FIPS = 'true';
+
+      const { getStorageInfo } = await import('./do-storage');
+      const info = getStorageInfo();
+      expect(info.fips.enabled).toBe(true);
+      expect(info.fips.autoDetected).toBe(false);
+      expect(info.fips.endpoint).toBe('https://s3-fips.us-east-1.amazonaws.com');
+    });
+
+    it('should explicitly disable FIPS via S3_USE_FIPS=false even for GovCloud', async () => {
+      process.env.S3_ENDPOINT = 'https://s3.us-gov-west-1.amazonaws.com';
+      process.env.S3_ACCESS_KEY = 'key';
+      process.env.S3_SECRET_KEY = 'secret';
+      process.env.S3_BUCKET = 'govcloud-no-fips';
+      process.env.S3_REGION = 'us-gov-west-1';
+      process.env.S3_USE_FIPS = 'false';
+
+      const { getStorageInfo } = await import('./do-storage');
+      const info = getStorageInfo();
+      expect(info.fips.enabled).toBe(false);
+      expect(info.fips.endpoint).toBeNull();
+    });
+
+    it('should pass through already-FIPS endpoint unchanged', async () => {
+      process.env.S3_ENDPOINT = 'https://s3-fips.us-gov-west-1.amazonaws.com';
+      process.env.S3_ACCESS_KEY = 'key';
+      process.env.S3_SECRET_KEY = 'secret';
+      process.env.S3_BUCKET = 'already-fips';
+      process.env.S3_REGION = 'us-gov-west-1';
+
+      const { getStorageInfo } = await import('./do-storage');
+      const info = getStorageInfo();
+      expect(info.fips.enabled).toBe(true);
+      expect(info.fips.endpoint).toBe('https://s3-fips.us-gov-west-1.amazonaws.com');
+    });
+
+    it('should return null FIPS endpoint for non-AWS providers (DO Spaces)', async () => {
+      process.env.S3_ENDPOINT = 'https://nyc3.digitaloceanspaces.com';
+      process.env.S3_ACCESS_KEY = 'key';
+      process.env.S3_SECRET_KEY = 'secret';
+      process.env.S3_BUCKET = 'do-bucket';
+      process.env.S3_REGION = 'nyc3';
+      process.env.S3_USE_FIPS = 'true';
+
+      const { getStorageInfo } = await import('./do-storage');
+      const info = getStorageInfo();
+      expect(info.fips.enabled).toBe(true);
+      expect(info.fips.endpoint).toBeNull();
+    });
+
+    it('should return null FIPS endpoint for MinIO (self-hosted)', async () => {
+      process.env.S3_ENDPOINT = 'http://minio.internal:9000';
+      process.env.S3_ACCESS_KEY = 'key';
+      process.env.S3_SECRET_KEY = 'secret';
+      process.env.S3_BUCKET = 'minio-bucket';
+      process.env.S3_FORCE_PATH_STYLE = 'true';
+      process.env.S3_USE_FIPS = 'true';
+
+      const { getStorageInfo } = await import('./do-storage');
+      const info = getStorageInfo();
+      expect(info.fips.enabled).toBe(true);
+      expect(info.fips.endpoint).toBeNull();
+    });
+
+    it('should NOT auto-enable FIPS for standard commercial regions', async () => {
+      process.env.S3_ENDPOINT = 'https://s3.us-east-1.amazonaws.com';
+      process.env.S3_ACCESS_KEY = 'key';
+      process.env.S3_SECRET_KEY = 'secret';
+      process.env.S3_BUCKET = 'commercial-bucket';
+      process.env.S3_REGION = 'us-east-1';
+
+      const { getStorageInfo } = await import('./do-storage');
+      const info = getStorageInfo();
+      expect(info.fips.enabled).toBe(false);
+      expect(info.fips.endpoint).toBeNull();
+      expect(info.fips.autoDetected).toBe(false);
+    });
+
+    it('should use FIPS endpoint in S3Client initialization', async () => {
+      process.env.S3_ENDPOINT = 'https://s3.us-gov-west-1.amazonaws.com';
+      process.env.S3_ACCESS_KEY = 'key';
+      process.env.S3_SECRET_KEY = 'secret';
+      process.env.S3_BUCKET = 'govcloud-bucket';
+      process.env.S3_REGION = 'us-gov-west-1';
+
+      const { S3Client } = await import('@aws-sdk/client-s3');
+      const { doStoragePut } = await import('./do-storage');
+
+      await doStoragePut('test/fips.pdf', Buffer.from('data'));
+
+      expect(S3Client).toHaveBeenCalledWith(
+        expect.objectContaining({
+          endpoint: 'https://s3-fips.us-gov-west-1.amazonaws.com',
+          region: 'us-gov-west-1',
+          useFipsEndpoint: true,
+        })
+      );
+    });
+
+    it('should NOT set useFipsEndpoint when FIPS is disabled', async () => {
+      process.env.S3_ENDPOINT = 'https://s3.us-east-1.amazonaws.com';
+      process.env.S3_ACCESS_KEY = 'key';
+      process.env.S3_SECRET_KEY = 'secret';
+      process.env.S3_BUCKET = 'no-fips';
+      process.env.S3_REGION = 'us-east-1';
+
+      const { S3Client } = await import('@aws-sdk/client-s3');
+      const { doStoragePut } = await import('./do-storage');
+
+      await doStoragePut('test/normal.pdf', Buffer.from('data'));
+
+      const callArgs = (S3Client as any).mock.calls.slice(-1)[0][0];
+      expect(callArgs.useFipsEndpoint).toBeUndefined();
+      expect(callArgs.endpoint).toBe('https://s3.us-east-1.amazonaws.com');
+    });
+
+    it('should report FIPS config in getStorageInfo diagnostics', async () => {
+      process.env.S3_ENDPOINT = 'https://s3.us-gov-west-1.amazonaws.com';
+      process.env.S3_ACCESS_KEY = 'key';
+      process.env.S3_SECRET_KEY = 'secret';
+      process.env.S3_BUCKET = 'govcloud-diag';
+      process.env.S3_REGION = 'us-gov-west-1';
+      process.env.S3_SSE_ALGORITHM = 'aws:kms';
+      process.env.S3_SSE_KMS_KEY_ID = 'arn:aws:kms:us-gov-west-1:123456:key/gov-key';
+
+      const { getStorageInfo } = await import('./do-storage');
+      const info = getStorageInfo();
+
+      expect(info.provider).toBe('aws_s3');
+      expect(info.fips.enabled).toBe(true);
+      expect(info.fips.autoDetected).toBe(true);
+      expect(info.fips.endpoint).toBe('https://s3-fips.us-gov-west-1.amazonaws.com');
+      expect(info.encryption.algorithm).toBe('aws:kms');
+      expect(info.encryption.kmsKeyConfigured).toBe(true);
+      expect(info.privateMode).toBe(true);
+    });
+  });
+});

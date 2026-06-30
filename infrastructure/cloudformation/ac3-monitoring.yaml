@@ -1,0 +1,572 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  AC3 Caldera Dashboard — CloudWatch Monitoring & Alerting
+  Alarms for ECS CPU/Memory, ALB 5xx rates, unhealthy targets,
+  and application-level metrics. SNS topic for notifications.
+  Author: Harrison Cook — AceofCloud (https://aceofcloud.com)
+
+# ─────────────────────────────────────────────
+# Parameters
+# ─────────────────────────────────────────────
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, staging, prod]
+    Description: Deployment environment
+
+  ProjectName:
+    Type: String
+    Default: ac3-caldera-dashboard
+    Description: Project identifier for resource naming
+
+  ECSClusterName:
+    Type: String
+    Default: ac3-dev
+    Description: ECS cluster name to monitor
+
+  ECSServiceName:
+    Type: String
+    Default: ac3-caldera-dashboard-dev
+    Description: ECS service name to monitor
+
+  ALBArn:
+    Type: String
+    Default: ''
+    Description: Full ARN of the Application Load Balancer
+
+  ALBTargetGroupArn:
+    Type: String
+    Default: ''
+    Description: Full ARN of the ALB target group
+
+  AlertEmail:
+    Type: String
+    Default: ''
+    Description: Email address for alarm notifications (leave empty to skip)
+
+  AlertSlackWebhook:
+    Type: String
+    Default: ''
+    Description: Slack webhook URL for alarm notifications (leave empty to skip)
+    NoEcho: true
+
+  # ── Threshold Configuration ──
+  CPUAlarmThreshold:
+    Type: Number
+    Default: 80
+    Description: CPU utilization alarm threshold (percent)
+
+  MemoryAlarmThreshold:
+    Type: Number
+    Default: 85
+    Description: Memory utilization alarm threshold (percent)
+
+  ALB5xxThreshold:
+    Type: Number
+    Default: 10
+    Description: ALB 5xx error count threshold (per 5 minutes)
+
+  ALB4xxThreshold:
+    Type: Number
+    Default: 100
+    Description: ALB 4xx error count threshold (per 5 minutes)
+
+  UnhealthyHostThreshold:
+    Type: Number
+    Default: 1
+    Description: Number of unhealthy hosts to trigger alarm
+
+  ResponseTimeThreshold:
+    Type: Number
+    Default: 5
+    Description: Target response time threshold (seconds)
+
+# ─────────────────────────────────────────────
+# Conditions
+# ─────────────────────────────────────────────
+Conditions:
+  HasAlertEmail: !Not [!Equals [!Ref AlertEmail, '']]
+  HasALB: !Not [!Equals [!Ref ALBArn, '']]
+  HasTargetGroup: !Not [!Equals [!Ref ALBTargetGroupArn, '']]
+  HasSlackWebhook: !Not [!Equals [!Ref AlertSlackWebhook, '']]
+  IsProd: !Equals [!Ref Environment, prod]
+
+# ─────────────────────────────────────────────
+# Resources
+# ─────────────────────────────────────────────
+Resources:
+
+  # ── SNS Topic for Alarms ──
+  AlarmTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub '${ProjectName}-${Environment}-alarms'
+      DisplayName: !Sub '${ProjectName} ${Environment} Alarms'
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  AlarmEmailSubscription:
+    Type: AWS::SNS::Subscription
+    Condition: HasAlertEmail
+    Properties:
+      TopicArn: !Ref AlarmTopic
+      Protocol: email
+      Endpoint: !Ref AlertEmail
+
+  # ── Slack Notification Lambda (optional) ──
+  SlackNotificationFunction:
+    Type: AWS::Lambda::Function
+    Condition: HasSlackWebhook
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-slack-notify'
+      Runtime: python3.12
+      Handler: index.handler
+      Timeout: 10
+      MemorySize: 128
+      Role: !GetAtt SlackLambdaRole.Arn
+      Environment:
+        Variables:
+          SLACK_WEBHOOK_URL: !Ref AlertSlackWebhook
+      Code:
+        ZipFile: |
+          import json
+          import os
+          import urllib.request
+
+          def handler(event, context):
+              webhook_url = os.environ['SLACK_WEBHOOK_URL']
+              for record in event.get('Records', []):
+                  message = json.loads(record['Sns']['Message'])
+                  alarm_name = message.get('AlarmName', 'Unknown')
+                  new_state = message.get('NewStateValue', 'Unknown')
+                  reason = message.get('NewStateReason', 'No reason provided')
+                  
+                  color = '#dc3545' if new_state == 'ALARM' else '#28a745'
+                  emoji = '🚨' if new_state == 'ALARM' else '✅'
+                  
+                  slack_msg = {
+                      'attachments': [{
+                          'color': color,
+                          'title': f'{emoji} {alarm_name}',
+                          'text': f'State: {new_state}\n{reason}',
+                          'footer': 'AC3 Caldera Dashboard Monitoring',
+                          'ts': int(context.get_remaining_time_in_millis() / 1000)
+                      }]
+                  }
+                  
+                  req = urllib.request.Request(
+                      webhook_url,
+                      data=json.dumps(slack_msg).encode('utf-8'),
+                      headers={'Content-Type': 'application/json'}
+                  )
+                  urllib.request.urlopen(req)
+              return {'statusCode': 200}
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  SlackLambdaRole:
+    Type: AWS::IAM::Role
+    Condition: HasSlackWebhook
+    Properties:
+      RoleName: !Sub '${ProjectName}-${Environment}-slack-lambda-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
+  SlackSNSSubscription:
+    Type: AWS::SNS::Subscription
+    Condition: HasSlackWebhook
+    Properties:
+      TopicArn: !Ref AlarmTopic
+      Protocol: lambda
+      Endpoint: !GetAtt SlackNotificationFunction.Arn
+
+  SlackLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Condition: HasSlackWebhook
+    Properties:
+      FunctionName: !Ref SlackNotificationFunction
+      Action: lambda:InvokeFunction
+      Principal: sns.amazonaws.com
+      SourceArn: !Ref AlarmTopic
+
+  # ═══════════════════════════════════════════
+  # ECS Alarms
+  # ═══════════════════════════════════════════
+
+  # ── ECS CPU Utilization ──
+  ECSCPUAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-${Environment}-ecs-cpu-high'
+      AlarmDescription: !Sub 'ECS CPU utilization exceeds ${CPUAlarmThreshold}% for ${ProjectName} ${Environment}'
+      Namespace: AWS/ECS
+      MetricName: CPUUtilization
+      Dimensions:
+        - Name: ClusterName
+          Value: !Ref ECSClusterName
+        - Name: ServiceName
+          Value: !Ref ECSServiceName
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 3
+      Threshold: !Ref CPUAlarmThreshold
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: breaching
+      AlarmActions:
+        - !Ref AlarmTopic
+      OKActions:
+        - !Ref AlarmTopic
+
+  # ── ECS Memory Utilization ──
+  ECSMemoryAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-${Environment}-ecs-memory-high'
+      AlarmDescription: !Sub 'ECS memory utilization exceeds ${MemoryAlarmThreshold}% for ${ProjectName} ${Environment}'
+      Namespace: AWS/ECS
+      MetricName: MemoryUtilization
+      Dimensions:
+        - Name: ClusterName
+          Value: !Ref ECSClusterName
+        - Name: ServiceName
+          Value: !Ref ECSServiceName
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 3
+      Threshold: !Ref MemoryAlarmThreshold
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: breaching
+      AlarmActions:
+        - !Ref AlarmTopic
+      OKActions:
+        - !Ref AlarmTopic
+
+  # ── ECS Running Task Count (service down) ──
+  ECSTaskCountAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-${Environment}-ecs-no-running-tasks'
+      AlarmDescription: !Sub 'No running ECS tasks for ${ProjectName} ${Environment} — service may be down'
+      Namespace: AWS/ECS
+      MetricName: RunningTaskCount
+      Dimensions:
+        - Name: ClusterName
+          Value: !Ref ECSClusterName
+        - Name: ServiceName
+          Value: !Ref ECSServiceName
+      Statistic: Minimum
+      Period: 60
+      EvaluationPeriods: 2
+      Threshold: 1
+      ComparisonOperator: LessThanThreshold
+      TreatMissingData: breaching
+      AlarmActions:
+        - !Ref AlarmTopic
+      OKActions:
+        - !Ref AlarmTopic
+
+  # ═══════════════════════════════════════════
+  # ALB Alarms (conditional on ALB being provided)
+  # ═══════════════════════════════════════════
+
+  # ── ALB 5xx Errors ──
+  ALB5xxAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: HasALB
+    Properties:
+      AlarmName: !Sub '${ProjectName}-${Environment}-alb-5xx-high'
+      AlarmDescription: !Sub 'ALB 5xx errors exceed ${ALB5xxThreshold} in 5 minutes for ${ProjectName} ${Environment}'
+      Namespace: AWS/ApplicationELB
+      MetricName: HTTPCode_ELB_5XX_Count
+      Dimensions:
+        - Name: LoadBalancer
+          Value: !Select
+            - 1
+            - !Split
+              - 'loadbalancer/'
+              - !Ref ALBArn
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: !Ref ALB5xxThreshold
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmTopic
+      OKActions:
+        - !Ref AlarmTopic
+
+  # ── ALB 4xx Errors ──
+  ALB4xxAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: HasALB
+    Properties:
+      AlarmName: !Sub '${ProjectName}-${Environment}-alb-4xx-high'
+      AlarmDescription: !Sub 'ALB 4xx errors exceed ${ALB4xxThreshold} in 5 minutes for ${ProjectName} ${Environment}'
+      Namespace: AWS/ApplicationELB
+      MetricName: HTTPCode_ELB_4XX_Count
+      Dimensions:
+        - Name: LoadBalancer
+          Value: !Select
+            - 1
+            - !Split
+              - 'loadbalancer/'
+              - !Ref ALBArn
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: !Ref ALB4xxThreshold
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmTopic
+
+  # ── ALB Target Response Time ──
+  ALBResponseTimeAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: HasTargetGroup
+    Properties:
+      AlarmName: !Sub '${ProjectName}-${Environment}-alb-response-time-high'
+      AlarmDescription: !Sub 'ALB target response time exceeds ${ResponseTimeThreshold}s for ${ProjectName} ${Environment}'
+      Namespace: AWS/ApplicationELB
+      MetricName: TargetResponseTime
+      Dimensions:
+        - Name: TargetGroup
+          Value: !Select
+            - 5
+            - !Split
+              - ':'
+              - !Ref ALBTargetGroupArn
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 3
+      Threshold: !Ref ResponseTimeThreshold
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmTopic
+      OKActions:
+        - !Ref AlarmTopic
+
+  # ── Unhealthy Host Count ──
+  UnhealthyHostAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: HasTargetGroup
+    Properties:
+      AlarmName: !Sub '${ProjectName}-${Environment}-unhealthy-hosts'
+      AlarmDescription: !Sub 'Unhealthy hosts detected in target group for ${ProjectName} ${Environment}'
+      Namespace: AWS/ApplicationELB
+      MetricName: UnHealthyHostCount
+      Dimensions:
+        - Name: TargetGroup
+          Value: !Select
+            - 5
+            - !Split
+              - ':'
+              - !Ref ALBTargetGroupArn
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 3
+      Threshold: !Ref UnhealthyHostThreshold
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmTopic
+      OKActions:
+        - !Ref AlarmTopic
+
+  # ═══════════════════════════════════════════
+  # CloudWatch Log Group & Metric Filters
+  # ═══════════════════════════════════════════
+
+  ApplicationLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/ecs/${ProjectName}-${Environment}'
+      RetentionInDays: !If [IsProd, 90, 30]
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ── Error Rate Metric Filter ──
+  ErrorRateFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Ref ApplicationLogGroup
+      FilterPattern: '{ $.level = "error" || $.level = "50" }'
+      MetricTransformations:
+        - MetricNamespace: !Sub '${ProjectName}/${Environment}'
+          MetricName: ApplicationErrors
+          MetricValue: '1'
+          DefaultValue: 0
+
+  ErrorRateAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-${Environment}-app-error-rate'
+      AlarmDescription: !Sub 'Application error rate is elevated for ${ProjectName} ${Environment}'
+      Namespace: !Sub '${ProjectName}/${Environment}'
+      MetricName: ApplicationErrors
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 50
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmTopic
+
+  # ── Fatal/Crash Metric Filter ──
+  FatalErrorFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Ref ApplicationLogGroup
+      FilterPattern: '{ $.level = "fatal" || $.level = "60" || $.msg = "*SIGTERM*" || $.msg = "*uncaughtException*" }'
+      MetricTransformations:
+        - MetricNamespace: !Sub '${ProjectName}/${Environment}'
+          MetricName: FatalErrors
+          MetricValue: '1'
+          DefaultValue: 0
+
+  FatalErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-${Environment}-fatal-errors'
+      AlarmDescription: !Sub 'Fatal application errors detected for ${ProjectName} ${Environment}'
+      Namespace: !Sub '${ProjectName}/${Environment}'
+      MetricName: FatalErrors
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmTopic
+
+  # ── Slow Request Metric Filter ──
+  SlowRequestFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Ref ApplicationLogGroup
+      FilterPattern: '{ $.responseTime > 5000 }'
+      MetricTransformations:
+        - MetricNamespace: !Sub '${ProjectName}/${Environment}'
+          MetricName: SlowRequests
+          MetricValue: '1'
+          DefaultValue: 0
+
+  # ═══════════════════════════════════════════
+  # CloudWatch Dashboard
+  # ═══════════════════════════════════════════
+
+  MonitoringDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub '${ProjectName}-${Environment}'
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "metric",
+              "x": 0, "y": 0, "width": 12, "height": 6,
+              "properties": {
+                "title": "ECS CPU & Memory Utilization",
+                "metrics": [
+                  ["AWS/ECS", "CPUUtilization", "ClusterName", "${ECSClusterName}", "ServiceName", "${ECSServiceName}", {"stat": "Average", "label": "CPU %"}],
+                  ["AWS/ECS", "MemoryUtilization", "ClusterName", "${ECSClusterName}", "ServiceName", "${ECSServiceName}", {"stat": "Average", "label": "Memory %"}]
+                ],
+                "view": "timeSeries",
+                "period": 300,
+                "yAxis": {"left": {"min": 0, "max": 100}}
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12, "y": 0, "width": 12, "height": 6,
+              "properties": {
+                "title": "ECS Running Tasks",
+                "metrics": [
+                  ["AWS/ECS", "RunningTaskCount", "ClusterName", "${ECSClusterName}", "ServiceName", "${ECSServiceName}", {"stat": "Average"}]
+                ],
+                "view": "timeSeries",
+                "period": 60
+              }
+            },
+            {
+              "type": "metric",
+              "x": 0, "y": 6, "width": 12, "height": 6,
+              "properties": {
+                "title": "Application Errors & Fatal Crashes",
+                "metrics": [
+                  ["${ProjectName}/${Environment}", "ApplicationErrors", {"stat": "Sum", "label": "Errors", "color": "#d62728"}],
+                  ["${ProjectName}/${Environment}", "FatalErrors", {"stat": "Sum", "label": "Fatal", "color": "#ff0000"}],
+                  ["${ProjectName}/${Environment}", "SlowRequests", {"stat": "Sum", "label": "Slow (>5s)", "color": "#ff7f0e"}]
+                ],
+                "view": "timeSeries",
+                "period": 300
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12, "y": 6, "width": 12, "height": 6,
+              "properties": {
+                "title": "Alarm Status Overview",
+                "metrics": [
+                  ["AWS/ECS", "CPUUtilization", "ClusterName", "${ECSClusterName}", "ServiceName", "${ECSServiceName}", {"stat": "Maximum", "label": "Peak CPU"}],
+                  ["AWS/ECS", "MemoryUtilization", "ClusterName", "${ECSClusterName}", "ServiceName", "${ECSServiceName}", {"stat": "Maximum", "label": "Peak Memory"}]
+                ],
+                "view": "singleValue",
+                "period": 3600
+              }
+            }
+          ]
+        }
+
+# ─────────────────────────────────────────────
+# Outputs
+# ─────────────────────────────────────────────
+Outputs:
+  AlarmTopicArn:
+    Description: SNS topic ARN for alarm notifications
+    Value: !Ref AlarmTopic
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-alarm-topic'
+
+  DashboardURL:
+    Description: CloudWatch dashboard URL
+    Value: !Sub 'https://console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#dashboards:name=${ProjectName}-${Environment}'
+
+  LogGroupName:
+    Description: CloudWatch log group for application logs
+    Value: !Ref ApplicationLogGroup
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-log-group'
+
+  AlarmCount:
+    Description: Total number of CloudWatch alarms created
+    Value: !Sub >-
+      ECS: 3 (CPU, Memory, TaskCount),
+      ALB: 4 (5xx, 4xx, ResponseTime, UnhealthyHosts),
+      App: 2 (ErrorRate, FatalErrors)

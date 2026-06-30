@@ -1,0 +1,1070 @@
+import { sanitizeErrorForToast } from "@/lib/error-sanitizer";
+import AppShell from "@/components/AppShell";
+import { trpc } from "@/lib/trpc";
+import { safeUpper } from "@/lib/utils-safe";
+import { useParams, Link } from "wouter";
+import { toast } from "sonner";
+import { useState, useMemo } from "react";
+import {
+  ArrowLeft,
+  Shield,
+  Skull,
+  AlertTriangle,
+  Globe2,
+  Key,
+  Megaphone,
+  Zap,
+  Target,
+  Clock,
+  Crosshair,
+  Radio,
+  Brain,
+  FileText,
+  Loader2,
+  RefreshCw,
+  ExternalLink,
+  ChevronDown,
+  ChevronRight,
+  Activity,
+  Database,
+  Bug,
+} from "lucide-react";
+
+const TYPE_CONFIG: Record<string, { icon: typeof Shield; color: string; bg: string; label: string }> = {
+  apt: { icon: Shield, color: "text-red-400", bg: "bg-red-500/10 border-red-500/20", label: "APT / Nation-State" },
+  ransomware: { icon: Skull, color: "text-amber-400", bg: "bg-amber-500/10 border-amber-500/20", label: "Ransomware" },
+  cybercrime: { icon: AlertTriangle, color: "text-purple-400", bg: "bg-purple-500/10 border-purple-500/20", label: "Cybercrime" },
+  hacktivist: { icon: Globe2, color: "text-cyan-400", bg: "bg-cyan-500/10 border-cyan-500/20", label: "Hacktivist" },
+  access_broker: { icon: Key, color: "text-orange-400", bg: "bg-orange-500/10 border-orange-500/20", label: "Access Broker" },
+  influence_ops: { icon: Megaphone, color: "text-pink-400", bg: "bg-pink-500/10 border-pink-500/20", label: "Influence Ops" },
+  unknown: { icon: Zap, color: "text-gray-400", bg: "bg-gray-500/10 border-gray-500/20", label: "Unknown" },
+};
+
+const THREAT_LEVEL_COLORS: Record<string, string> = {
+  critical: "text-red-500 bg-red-500/10 border-red-500/30",
+  high: "text-orange-400 bg-orange-500/10 border-orange-500/30",
+  medium: "text-yellow-400 bg-yellow-500/10 border-yellow-500/30",
+  low: "text-green-400 bg-green-500/10 border-green-500/30",
+};
+
+const EVENT_TYPE_COLORS: Record<string, string> = {
+  attack: "text-red-400 bg-red-500/10",
+  campaign: "text-orange-400 bg-orange-500/10",
+  infrastructure_change: "text-blue-400 bg-blue-500/10",
+  malware_update: "text-purple-400 bg-purple-500/10",
+  law_enforcement: "text-green-400 bg-green-500/10",
+  data_leak: "text-amber-400 bg-amber-500/10",
+  ttp_evolution: "text-cyan-400 bg-cyan-500/10",
+  group_rebrand: "text-pink-400 bg-pink-500/10",
+  new_tool: "text-indigo-400 bg-indigo-500/10",
+  zero_day: "text-red-500 bg-red-500/15",
+};
+
+type TabId = "overview" | "techniques" | "events" | "iocs" | "caldera" | "sources";
+
+export default function ThreatActorCatalogDetail() {
+  const { id } = useParams<{ id: string }>();
+  const [activeTab, setActiveTab] = useState<TabId>("overview");
+  const [enriching, setEnriching] = useState(false);
+
+  const { data, isLoading, refetch } = trpc.threatIntel.getActor.useQuery(
+    { actorId: id || "" },
+    { enabled: !!id }
+  );
+
+  const enrichMutation = trpc.threatIntel.enrichActor.useMutation({
+    onSuccess: () => {
+      toast.success("Actor profile enriched via LLM");
+      refetch();
+      setEnriching(false);
+    },
+    onError: (err) => {
+      toast.error(`Enrichment failed: ${sanitizeErrorForToast(err)}`);
+      setEnriching(false);
+    },
+  });
+
+  const [refreshingContext, setRefreshingContext] = useState(false);
+  const refreshContextMutation = trpc.threatIntel.refreshActorContext.useMutation({
+    onSuccess: (result) => {
+      toast.success(`LLM context refreshed: ${result.contextLength} tokens from ${result.sourcesUsed.length} sources`);
+      setRefreshingContext(false);
+      refetch();
+    },
+    onError: (err) => {
+      toast.error(`Context refresh failed: ${sanitizeErrorForToast(err)}`);
+      setRefreshingContext(false);
+    },
+  });
+
+  const handleRefreshContext = () => {
+    if (!data?.actor) return;
+    setRefreshingContext(true);
+    refreshContextMutation.mutate({ actorId: data.actor.actorId });
+  };
+
+  const handleEnrich = () => {
+    if (!data?.actor) return;
+    setEnriching(true);
+    enrichMutation.mutate({
+      actorId: data.actor.actorId,
+      actorType: (data.actor.type as any) || "apt",
+    });
+  };
+
+  if (isLoading) {
+    return (
+      <AppShell activePath="/threat-catalog">
+        <div className="max-w-[1400px] mx-auto space-y-6">
+          <div className="animate-pulse space-y-4">
+            <div className="h-8 bg-muted rounded w-1/3" />
+            <div className="h-4 bg-muted rounded w-2/3" />
+            <div className="grid grid-cols-3 gap-4">
+              {[1, 2, 3].map(i => <div key={i} className="h-32 bg-muted rounded" />)}
+            </div>
+          </div>
+        </div>
+      </AppShell>
+    );
+  }
+
+  if (!data?.actor) {
+    return (
+      <AppShell activePath="/threat-catalog">
+        <div className="max-w-[1400px] mx-auto text-center py-20">
+          <Database className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+          <h2 className="text-xl font-display tracking-wider mb-2">ACTOR NOT FOUND</h2>
+          <p className="text-muted-foreground text-sm mb-4">The requested threat actor does not exist in the catalog.</p>
+          <Link href="/threat-catalog" className="text-primary hover:underline text-sm">
+            Return to Threat Catalog
+          </Link>
+        </div>
+      </AppShell>
+    );
+  }
+
+  const { actor, events: rawEvents, iocs: rawIocs, ransomwareProfile } = data;
+  const events = rawEvents || [];
+  const iocs = rawIocs || [];
+  const typeConf = TYPE_CONFIG[actor.type || "unknown"] || TYPE_CONFIG.unknown;
+  const TypeIcon = typeConf.icon;
+  // ─── Safe array flattening helpers ──────────────────────────────────
+  // Some actors have tools stored as [{CredentialTheft: [...], Exfiltration: [...]}]
+  // instead of flat ["tool1", "tool2"]. Flatten any nested objects into string arrays.
+  function flattenToStrings(raw: unknown): string[] {
+    if (!raw) return [];
+    if (!Array.isArray(raw)) {
+      if (typeof raw === 'object') {
+        // Object like {CredentialTheft: [...], Exfiltration: [...]}
+        const result: string[] = [];
+        for (const [category, values] of Object.entries(raw as Record<string, unknown>)) {
+          if (Array.isArray(values)) {
+            values.forEach((v: unknown) => {
+              if (typeof v === 'string' && v.trim()) result.push(v);
+            });
+          }
+          // Also include the category name if it has tools
+          if (Array.isArray(values) && values.length > 0) {
+            // Category has tools, they're already added
+          }
+        }
+        return result.length > 0 ? result : Object.keys(raw as Record<string, unknown>);
+      }
+      return [];
+    }
+    // It's an array — but elements might be objects or strings
+    const result: string[] = [];
+    for (const item of raw) {
+      if (typeof item === 'string') {
+        if (item.trim()) result.push(item);
+      } else if (typeof item === 'object' && item !== null) {
+        // Nested object inside array — flatten its values
+        for (const [category, values] of Object.entries(item as Record<string, unknown>)) {
+          if (Array.isArray(values)) {
+            values.forEach((v: unknown) => {
+              if (typeof v === 'string' && v.trim()) result.push(v);
+            });
+          }
+        }
+        // If no string values found, use the category keys
+        if (result.length === 0) {
+          Object.keys(item as Record<string, unknown>).forEach(k => result.push(k));
+        }
+      }
+    }
+    return result;
+  }
+
+  const aliases: string[] = Array.isArray(actor.aliases) ? actor.aliases.filter((a: unknown) => typeof a === 'string') : [];
+  const sectors: string[] = Array.isArray(actor.targetSectors) ? actor.targetSectors.filter((s: unknown) => typeof s === 'string') : [];
+  const regions: string[] = Array.isArray(actor.targetRegions) ? actor.targetRegions.filter((r: unknown) => typeof r === 'string') : [];
+  const techniques: any[] = Array.isArray(actor.techniques) ? actor.techniques : [];
+  const tools: string[] = flattenToStrings(actor.tools);
+  const malware: string[] = flattenToStrings(actor.malware);
+  const timeline: any[] = Array.isArray(actor.activityTimeline) ? actor.activityTimeline : [];
+  const threatLevelClass = THREAT_LEVEL_COLORS[actor.threatLevel || "medium"] || THREAT_LEVEL_COLORS.medium;
+
+  const tabs: { id: TabId; label: string; count?: number }[] = [
+    { id: "overview", label: "OVERVIEW" },
+    { id: "techniques", label: "TECHNIQUES", count: techniques.length },
+    { id: "events", label: "EVENTS", count: events.length },
+    { id: "iocs", label: "IOCs", count: iocs.length },
+    ...(actor.calderaProfile ? [{ id: "caldera" as TabId, label: "EMULATION" }] : []),
+    { id: "sources" as TabId, label: "SOURCES & ENRICHMENT" },
+  ];
+
+  return (
+    <AppShell activePath="/threat-catalog">
+      <div className="max-w-[1400px] mx-auto space-y-6">
+        {/* Back Nav */}
+        <Link href="/threat-catalog" className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground text-sm transition-colors">
+          <ArrowLeft className="w-4 h-4" />
+          Back to Threat Catalog
+        </Link>
+
+        {/* Header */}
+        <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-3 mb-2">
+              <TypeIcon className={`w-8 h-8 ${typeConf.color}`} />
+              <h1 className="text-2xl lg:text-3xl font-display tracking-wider">{actor.name}</h1>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap mb-3">
+              <span className={`text-[10px] px-2 py-0.5 border ${typeConf.bg} ${typeConf.color} tracking-wider`}>
+                {(typeConf.label || '').toUpperCase()}
+              </span>
+              {actor.origin && (
+                <span className="text-[10px] px-2 py-0.5 bg-secondary text-muted-foreground tracking-wider">
+                  {safeUpper(actor.origin)}
+                </span>
+              )}
+              <span className={`text-[10px] px-2 py-0.5 border tracking-wider ${threatLevelClass}`}>
+                {safeUpper(actor.threatLevel, "MEDIUM")} THREAT
+              </span>
+              {actor.sophistication && (
+                <span className="text-[10px] px-2 py-0.5 bg-secondary text-muted-foreground tracking-wider">
+                  {safeUpper(actor.sophistication)}
+                </span>
+              )}
+              {actor.motivation && (
+                <span className="text-[10px] px-2 py-0.5 bg-secondary text-muted-foreground tracking-wider">
+                  {safeUpper(actor.motivation)}
+                </span>
+              )}
+            </div>
+            {aliases.length > 0 && (
+              <div className="flex flex-wrap gap-1 mb-3">
+                <span className="text-[10px] text-muted-foreground mr-1">AKA:</span>
+                {aliases.map((a: string) => (
+                  <span key={a} className="text-[10px] px-1.5 py-0.5 bg-muted text-muted-foreground">{a}</span>
+                ))}
+              </div>
+            )}
+            {actor.description && (
+              <p className="text-sm text-muted-foreground max-w-3xl leading-relaxed">{typeof actor.description === 'string' ? actor.description : JSON.stringify(actor.description)}</p>
+            )}
+          </div>
+
+          {/* Actions */}
+          <div className="flex gap-2 shrink-0">
+            <button
+              onClick={handleEnrich}
+              disabled={enriching}
+              className="flex items-center gap-2 px-3 py-2 bg-primary/10 border border-primary/20 text-primary text-xs font-display tracking-wider hover:bg-primary/20 transition-colors disabled:opacity-50"
+            >
+              {enriching ? <Loader2 className="w-3 h-3 animate-spin" /> : <Brain className="w-3 h-3" />}
+              LLM ENRICH
+            </button>
+            <button
+              onClick={handleRefreshContext}
+              disabled={refreshingContext}
+              className="flex items-center gap-2 px-3 py-2 bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-xs font-display tracking-wider hover:bg-cyan-500/20 transition-colors disabled:opacity-50"
+            >
+              {refreshingContext ? <Loader2 className="w-3 h-3 animate-spin" /> : <Database className="w-3 h-3" />}
+              REFRESH CONTEXT
+            </button>
+            <button
+              onClick={() => refetch()}
+              className="flex items-center gap-2 px-3 py-2 bg-card border border-border text-muted-foreground text-xs font-display tracking-wider hover:text-foreground transition-colors"
+            >
+              <RefreshCw className="w-3 h-3" />
+              REFRESH
+            </button>
+          </div>
+        </div>
+
+        {/* Quick Stats */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
+          <div className="bg-card border border-border p-3">
+            <span className="text-[10px] text-muted-foreground tracking-wider">TECHNIQUES</span>
+            <p className="text-lg font-display text-primary">{techniques.length}</p>
+          </div>
+          <div className="bg-card border border-border p-3">
+            <span className="text-[10px] text-muted-foreground tracking-wider">TOOLS</span>
+            <p className="text-lg font-display text-cyan-400">{tools.length}</p>
+          </div>
+          <div className="bg-card border border-border p-3">
+            <span className="text-[10px] text-muted-foreground tracking-wider">MALWARE</span>
+            <p className="text-lg font-display text-amber-400">{malware.length}</p>
+          </div>
+          <div className="bg-card border border-border p-3">
+            <span className="text-[10px] text-muted-foreground tracking-wider">IOCs</span>
+            <p className="text-lg font-display text-red-400">{iocs.length}</p>
+          </div>
+          <div className="bg-card border border-border p-3">
+            <span className="text-[10px] text-muted-foreground tracking-wider">EVENTS</span>
+            <p className="text-lg font-display text-purple-400">{events.length}</p>
+          </div>
+          <div className="bg-card border border-border p-3">
+            <span className="text-[10px] text-muted-foreground tracking-wider">DATA SOURCE</span>
+            <p className="text-xs font-display text-muted-foreground mt-1">{actor.dataSource || "unknown"}</p>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex gap-1 border-b border-border">
+          {tabs.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`px-4 py-2.5 text-xs font-display tracking-wider border-b-2 transition-colors ${
+                activeTab === tab.id
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {tab.label}
+              {tab.count !== undefined && tab.count > 0 && (
+                <span className="ml-1.5 text-[10px] text-muted-foreground">({tab.count})</span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* Tab Content */}
+        {activeTab === "overview" && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Target Sectors */}
+            {sectors.length > 0 && (
+              <div className="bg-card border border-border p-4">
+                <h3 className="text-xs font-display tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
+                  <Target className="w-4 h-4" /> TARGET SECTORS
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {sectors.map((s: string) => (
+                    <span key={s} className="text-xs px-2 py-1 bg-red-500/10 border border-red-500/20 text-red-400">{s}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Target Regions */}
+            {regions.length > 0 && (
+              <div className="bg-card border border-border p-4">
+                <h3 className="text-xs font-display tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
+                  <Globe2 className="w-4 h-4" /> TARGET REGIONS
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {regions.map((r: string) => (
+                    <span key={r} className="text-xs px-2 py-1 bg-blue-500/10 border border-blue-500/20 text-blue-400">{r}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Tools */}
+            {tools.length > 0 && (
+              <div className="bg-card border border-border p-4">
+                <h3 className="text-xs font-display tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
+                  <Crosshair className="w-4 h-4" /> TOOLS & SOFTWARE
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {tools.map((t: string) => (
+                    <span key={t} className="text-xs px-2 py-1 bg-cyan-500/10 border border-cyan-500/20 text-cyan-400">{t}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Malware */}
+            {malware.length > 0 && (
+              <div className="bg-card border border-border p-4">
+                <h3 className="text-xs font-display tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
+                  <Bug className="w-4 h-4" /> MALWARE FAMILIES
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {malware.map((m: string) => (
+                    <span key={m} className="text-xs px-2 py-1 bg-amber-500/10 border border-amber-500/20 text-amber-400">{m}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Ransomware Extension */}
+            {ransomwareProfile && (
+              <div className="bg-card border border-amber-500/20 p-4 lg:col-span-2">
+                <h3 className="text-xs font-display tracking-wider text-amber-400 mb-3 flex items-center gap-2">
+                  <Skull className="w-4 h-4" /> RANSOMWARE PROFILE
+                </h3>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+                  <div>
+                    <span className="text-[10px] text-muted-foreground">TOTAL VICTIMS</span>
+                    <p className="text-lg font-display text-amber-400">{ransomwareProfile.totalVictims || 0}</p>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-muted-foreground">30D VICTIMS</span>
+                    <p className="text-lg font-display text-amber-400">{ransomwareProfile.victims30d || 0}</p>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-muted-foreground">EXTORTION MODEL</span>
+                    <p className="text-xs font-display text-muted-foreground mt-1">{safeUpper(ransomwareProfile.extortionModel)}</p>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-muted-foreground">TREND</span>
+                    <p className="text-xs font-display text-muted-foreground mt-1">{safeUpper(ransomwareProfile.trend)}</p>
+                  </div>
+                </div>
+                {ransomwareProfile.topSectors?.length > 0 && (
+                  <div className="mb-3">
+                    <span className="text-[10px] text-muted-foreground">TOP SECTORS: </span>
+                    {ransomwareProfile.topSectors.map((s: string) => (
+                      <span key={s} className="text-[10px] px-1.5 py-0.5 bg-amber-500/10 text-amber-400 mr-1">{s}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Activity Timeline */}
+            {timeline.length > 0 && (
+              <div className="bg-card border border-border p-4 lg:col-span-2">
+                <h3 className="text-xs font-display tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
+                  <Clock className="w-4 h-4" /> ACTIVITY TIMELINE
+                </h3>
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {timeline.slice(0, 20).map((entry: any, i: number) => (
+                    <div key={i} className="flex items-start gap-3 text-xs">
+                      <span className="text-muted-foreground shrink-0 w-20">{entry.date || "—"}</span>
+                      <span className="text-foreground">{entry.event || entry.description || "—"}</span>
+                      {entry.source && <span className="text-muted-foreground ml-auto text-[10px]">{entry.source}</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Metadata */}
+            <div className="bg-card border border-border p-4 lg:col-span-2">
+              <h3 className="text-xs font-display tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
+                <FileText className="w-4 h-4" /> METADATA
+              </h3>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+                <div>
+                  <span className="text-muted-foreground">Actor ID</span>
+                  <p className="font-mono text-foreground">{actor.actorId}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">STIX ID</span>
+                  <p className="font-mono text-foreground truncate">{actor.stixId || "—"}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">First Seen</span>
+                  <p className="text-foreground">{actor.firstSeen || "—"}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Last Active</span>
+                  <p className="text-foreground">{actor.lastActive || "—"}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Confidence</span>
+                  <p className="text-foreground">{actor.confidence ?? "—"}%</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Data Source</span>
+                  <p className="text-foreground">{actor.dataSource || "—"}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Created</span>
+                  <p className="text-foreground">{actor.createdAt ? new Date(actor.createdAt).toLocaleDateString() : "—"}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Updated</span>
+                  <p className="text-foreground">{actor.updatedAt ? new Date(actor.updatedAt).toLocaleDateString() : "—"}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "techniques" && (
+          <div className="bg-card border border-border">
+            {techniques.length === 0 ? (
+              <div className="p-8 text-center text-muted-foreground text-sm">
+                No MITRE ATT&CK techniques mapped. Use LLM Enrich to populate.
+              </div>
+            ) : (
+              <div className="divide-y divide-border">
+                <div className="grid grid-cols-12 gap-4 px-4 py-2 text-[10px] text-muted-foreground tracking-wider bg-muted/30">
+                  <div className="col-span-2">ID</div>
+                  <div className="col-span-4">NAME</div>
+                  <div className="col-span-3">TACTIC</div>
+                  <div className="col-span-3">DESCRIPTION</div>
+                </div>
+                {techniques.map((t: any, i: number) => {
+                  const techId = typeof t === "string" ? t : String(t?.id ?? "—");
+                  const techName = typeof t === "string" ? t : String(t?.name || t?.id || "—");
+                  const tactic = typeof t === "string" ? "—" : String(t?.tactic || "—");
+                  const desc = typeof t === "string" ? "" : String(t?.description || "");
+                  return (
+                    <div key={i} className="grid grid-cols-12 gap-4 px-4 py-2.5 text-xs hover:bg-accent/5 transition-colors">
+                      <div className="col-span-2 font-mono text-primary">{techId}</div>
+                      <div className="col-span-4 text-foreground">{techName}</div>
+                      <div className="col-span-3 text-muted-foreground capitalize">{tactic}</div>
+                      <div className="col-span-3 text-muted-foreground truncate">{desc}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === "events" && (
+          <div className="space-y-3">
+            {events.length === 0 ? (
+              <div className="bg-card border border-border p-8 text-center text-muted-foreground text-sm">
+                No events recorded. Events are populated via LLM monitoring sweeps and external feeds.
+              </div>
+            ) : (
+              events.map((evt: any) => {
+                const evtColor = EVENT_TYPE_COLORS[evt.eventType] || "text-gray-400 bg-gray-500/10";
+                return (
+                  <div key={evt.id} className="bg-card border border-border p-4">
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[10px] px-2 py-0.5 ${evtColor} tracking-wider`}>
+                          {safeUpper(evt.eventType?.replace(/_/g, " "))}
+                        </span>
+                        <span className={`text-[10px] px-2 py-0.5 border ${THREAT_LEVEL_COLORS[evt.severity || "medium"]} tracking-wider`}>
+                          {safeUpper(evt.severity, "MEDIUM")}
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-muted-foreground">
+                        {evt.eventDate ? new Date(evt.eventDate).toLocaleDateString() : "—"}
+                      </span>
+                    </div>
+                    <h4 className="text-sm font-display tracking-wider mb-1">{evt.title}</h4>
+                    {evt.description && (
+                      <p className="text-xs text-muted-foreground mb-2">{evt.description}</p>
+                    )}
+                    <div className="flex items-center gap-4 text-[10px] text-muted-foreground">
+                      {evt.victimName && <span>Victim: {evt.victimName}</span>}
+                      {evt.victimSector && <span>Sector: {evt.victimSector}</span>}
+                      {evt.source && <span>Source: {evt.source}</span>}
+                      {evt.mitreTechniques?.length > 0 && (
+                        <span className="text-primary">{evt.mitreTechniques.length} TTPs</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        )}
+
+        {activeTab === "iocs" && (
+          <div className="bg-card border border-border">
+            {iocs.length === 0 ? (
+              <div className="p-8 text-center text-muted-foreground text-sm">
+                No IOCs recorded. IOCs are populated via LLM enrichment and external feeds.
+              </div>
+            ) : (
+              <div className="divide-y divide-border">
+                <div className="grid grid-cols-12 gap-4 px-4 py-2 text-[10px] text-muted-foreground tracking-wider bg-muted/30">
+                  <div className="col-span-2">TYPE</div>
+                  <div className="col-span-4">VALUE</div>
+                  <div className="col-span-2">CONFIDENCE</div>
+                  <div className="col-span-2">SOURCE</div>
+                  <div className="col-span-2">LAST SEEN</div>
+                </div>
+                {iocs.map((ioc: any) => (
+                  <div key={ioc.id} className="grid grid-cols-12 gap-4 px-4 py-2.5 text-xs hover:bg-accent/5 transition-colors">
+                    <div className="col-span-2">
+                      <span className="text-[10px] px-1.5 py-0.5 bg-muted text-muted-foreground">
+                        {safeUpper(ioc.type)}
+                      </span>
+                    </div>
+                    <div className="col-span-4 font-mono text-foreground truncate">{ioc.value}</div>
+                    <div className="col-span-2 text-muted-foreground capitalize">{ioc.confidence || "—"}</div>
+                    <div className="col-span-2 text-muted-foreground">{ioc.source || "—"}</div>
+                    <div className="col-span-2 text-muted-foreground">{ioc.lastSeen || "—"}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === "caldera" && actor.calderaProfile && (
+          <div className="bg-card border border-cyan-500/20 p-6">
+            <h3 className="text-sm font-display tracking-wider text-cyan-400 mb-4 flex items-center gap-2">
+              <Activity className="w-5 h-5" /> ADVERSARY EMULATION PROFILE
+            </h3>
+            <div className="grid grid-cols-2 gap-4 text-xs mb-4">
+              <div>
+                <span className="text-muted-foreground">emulation framework ID</span>
+                <p className="font-mono text-foreground">{actor.calderaProfile.id || "—"}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Atomic Ordering</span>
+                <p className="text-foreground">{actor.calderaProfile.atomicOrdering?.length || 0} abilities</p>
+              </div>
+            </div>
+            {actor.calderaProfile.objectives && (
+              <div>
+                <span className="text-[10px] text-muted-foreground tracking-wider">OBJECTIVES</span>
+                <p className="text-xs text-foreground mt-1">{JSON.stringify(actor.calderaProfile.objectives)}</p>
+              </div>
+            )}
+          </div>
+        )}
+        {/* Sources & Enrichment Tab */}
+        {activeTab === "sources" && (
+          <CatalogSourcesPanel actor={actor} actorId={id || ""} onEnrichComplete={refetch} />
+        )}
+      </div>
+    </AppShell>
+  );
+}
+
+// ─── Catalog Sources & Enrichment Panel ──────────────────────────────────
+
+function CatalogSourcesPanel({ actor, actorId, onEnrichComplete }: {
+  actor: any;
+  actorId: string;
+  onEnrichComplete: () => void;
+}) {
+  const [enrichResult, setEnrichResult] = useState<any>(null);
+  const [isEnriching, setIsEnriching] = useState(false);
+
+  const enrichMutation = trpc.threatIntel.enrichActor.useMutation({
+    onSuccess: (result) => {
+      setEnrichResult(result);
+      setIsEnriching(false);
+      toast.success(`Enrichment complete: ${result.fieldsUpdated?.length || 0} fields updated, ${result.fieldsDiscovered?.length || 0} new fields discovered`);
+      onEnrichComplete();
+    },
+    onError: (err) => {
+      setIsEnriching(false);
+      toast.error(`Enrichment failed: ${sanitizeErrorForToast(err)}`);
+    },
+  });
+
+  const handleEnrich = () => {
+    setIsEnriching(true);
+    enrichMutation.mutate({ actorId, actorType: actor.actorType || "apt" });
+  };
+
+  // Parse existing enrichment sources (handles both old array format and new {sources, guardrailReport} format)
+  const { existingSources, guardrailReport } = useMemo(() => {
+    if (!actor.enrichmentSources) return { existingSources: [], guardrailReport: null };
+    try {
+      const parsed = typeof actor.enrichmentSources === "string" ? JSON.parse(actor.enrichmentSources) : actor.enrichmentSources;
+      if (Array.isArray(parsed)) return { existingSources: parsed, guardrailReport: null };
+      if (parsed && parsed.sources) {
+        return { existingSources: Array.isArray(parsed.sources) ? parsed.sources : [], guardrailReport: parsed.guardrailReport || null };
+      }
+      return { existingSources: [], guardrailReport: null };
+    } catch { return { existingSources: [], guardrailReport: null }; }
+  }, [actor.enrichmentSources]);
+
+  // Gap analysis
+  const gapAnalysis = useMemo(() => {
+    const gaps: Array<{ field: string; status: "missing" | "weak" | "good"; detail: string }> = [];
+    const check = (label: string, value: any) => {
+      if (!value || (Array.isArray(value) && value.length === 0) || value === "unknown" || value === "Unknown") {
+        gaps.push({ field: label, status: "missing", detail: "No data" });
+      } else if (Array.isArray(value) && value.length < 3) {
+        gaps.push({ field: label, status: "weak", detail: `${value.length} item(s)` });
+      } else {
+        gaps.push({ field: label, status: "good", detail: Array.isArray(value) ? `${value.length} items` : "Present" });
+      }
+    };
+    check("Description", actor.description);
+    check("Motivation", actor.motivation);
+    check("Origin", actor.origin);
+    check("Aliases", Array.isArray(actor.aliases) ? actor.aliases : []);
+    check("Target Sectors", Array.isArray(actor.targetSectors) ? actor.targetSectors : []);
+    check("Target Regions", Array.isArray(actor.targetRegions) ? actor.targetRegions : []);
+    check("Techniques", Array.isArray(actor.techniques) ? actor.techniques : []);
+    check("Tools", Array.isArray(actor.tools) ? actor.tools : []);
+    check("Malware", Array.isArray(actor.malware) ? actor.malware : []);
+    check("IOCs", Array.isArray(actor.iocs) ? actor.iocs : []);
+    check("Events", Array.isArray(actor.events) ? actor.events : []);
+    return gaps;
+  }, [actor]);
+
+  const missingCount = gapAnalysis.filter(g => g.status === "missing").length;
+  const weakCount = gapAnalysis.filter(g => g.status === "weak").length;
+  const goodCount = gapAnalysis.filter(g => g.status === "good").length;
+  const completeness = gapAnalysis.length > 0 ? Math.round((goodCount / gapAnalysis.length) * 100) : 0;
+
+  const allSources = enrichResult?.sources || existingSources;
+  const sourcesByField = useMemo(() => {
+    const map: Record<string, any[]> = {};
+    for (const s of allSources) {
+      if (!map[s.field]) map[s.field] = [];
+      map[s.field].push(s);
+    }
+    return map;
+  }, [allSources]);
+
+  const sourceTypeColors: Record<string, string> = {
+    osint: "text-blue-400 bg-blue-500/10 border-blue-500/30",
+    darkweb: "text-purple-400 bg-purple-500/10 border-purple-500/30",
+    government: "text-green-400 bg-green-500/10 border-green-500/30",
+    vendor_report: "text-orange-400 bg-orange-500/10 border-orange-500/30",
+    academic: "text-cyan-400 bg-cyan-500/10 border-cyan-500/30",
+    internal_db: "text-yellow-400 bg-yellow-500/10 border-yellow-500/30",
+    llm_knowledge: "text-gray-400 bg-gray-500/10 border-gray-500/30",
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Enrichment Action Bar */}
+      <div className="bg-card border border-primary/20 p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-display tracking-wider flex items-center gap-2">
+              <Brain className="w-4 h-4 text-amber-400" />
+              KEYWORD-DRIVEN LLM ENRICHMENT
+            </h3>
+            <p className="text-xs text-muted-foreground mt-1">
+              Research {actor.name} using targeted keywords across OSINT, darkweb, and government sources.
+            </p>
+          </div>
+          <button
+            onClick={handleEnrich}
+            disabled={isEnriching}
+            className="flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-display tracking-wider transition-colors disabled:opacity-50"
+          >
+            {isEnriching ? <Loader2 className="w-3 h-3 animate-spin" /> : <Brain className="w-3 h-3" />}
+            {isEnriching ? "ENRICHING..." : "RUN ENRICHMENT"}
+          </button>
+        </div>
+        {isEnriching && (
+          <div className="mt-3">
+            <div className="h-1 bg-muted overflow-hidden"><div className="h-full bg-primary/50 animate-pulse w-full" /></div>
+            <p className="text-[10px] text-muted-foreground mt-1 animate-pulse">
+              Gathering context, building keyword sets, querying LLM for OSINT research...
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Guardrail Trust Score (if available) */}
+      {(guardrailReport || enrichResult?.guardrailReport) && (() => {
+        const gr = enrichResult?.guardrailReport || guardrailReport;
+        return (
+          <div className="bg-card border border-blue-500/20 p-4">
+            <h3 className="text-[10px] font-display tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
+              <svg className="w-3 h-3 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+              HALLUCINATION GUARDRAILS
+            </h3>
+            <div className="grid grid-cols-4 gap-3">
+              <div className="text-center">
+                <div className={`text-2xl font-display ${gr.overallTrustScore >= 80 ? 'text-green-400' : gr.overallTrustScore >= 60 ? 'text-yellow-400' : 'text-red-400'}`}>
+                  {gr.overallTrustScore}%
+                </div>
+                <span className="text-[10px] text-muted-foreground">Trust Score</span>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-display text-green-400">{gr.accepted}</div>
+                <span className="text-[10px] text-muted-foreground">Accepted</span>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-display text-yellow-400">{gr.flagged}</div>
+                <span className="text-[10px] text-muted-foreground">Flagged</span>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-display text-red-400">{gr.rejected}</div>
+                <span className="text-[10px] text-muted-foreground">Rejected</span>
+              </div>
+            </div>
+            {gr.warnings?.length > 0 && (
+              <div className="mt-3 space-y-1">
+                {gr.warnings.map((w: string, i: number) => (
+                  <div key={i} className="flex items-start gap-2 text-[10px]">
+                    <span className="text-yellow-400 shrink-0">&#9888;</span>
+                    <span className="text-muted-foreground">{w}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {gr.rejectedFields?.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1">
+                <span className="text-[10px] text-red-400">Rejected:</span>
+                {gr.rejectedFields.map((f: string, i: number) => (
+                  <span key={i} className="text-[10px] px-1.5 py-0.5 bg-red-500/10 border border-red-500/20 text-red-400">{f}</span>
+                ))}
+              </div>
+            )}
+            {gr.flaggedFields?.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1">
+                <span className="text-[10px] text-yellow-400">Flagged:</span>
+                {gr.flaggedFields.map((f: string, i: number) => (
+                  <span key={i} className="text-[10px] px-1.5 py-0.5 bg-yellow-500/10 border border-yellow-500/20 text-yellow-400">{f}</span>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* Data Quality & Gap Analysis */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="bg-card border border-border p-4">
+          <h3 className="text-[10px] font-display tracking-wider text-muted-foreground mb-2">DATA COMPLETENESS</h3>
+          <div className="text-3xl font-display text-center mb-2" style={{ color: completeness >= 70 ? '#4ade80' : completeness >= 40 ? '#facc15' : '#f87171' }}>
+            {completeness}%
+          </div>
+          <div className="h-2 bg-muted overflow-hidden mb-2">
+            <div className="h-full bg-primary transition-all" style={{ width: `${completeness}%` }} />
+          </div>
+          <div className="flex justify-between text-[10px] text-muted-foreground">
+            <span className="text-green-400">{goodCount} complete</span>
+            <span className="text-yellow-400">{weakCount} weak</span>
+            <span className="text-red-400">{missingCount} missing</span>
+          </div>
+        </div>
+
+        <div className="lg:col-span-2 bg-card border border-border p-4">
+          <h3 className="text-[10px] font-display tracking-wider text-muted-foreground mb-2">GAP ANALYSIS</h3>
+          <div className="grid grid-cols-2 gap-1">
+            {gapAnalysis.map((gap) => (
+              <div key={gap.field} className="flex items-center gap-2 text-xs py-0.5">
+                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                  gap.status === "good" ? "bg-green-400" : gap.status === "weak" ? "bg-yellow-400" : "bg-red-400"
+                }`} />
+                <span className={gap.status === "missing" ? "text-red-300" : gap.status === "weak" ? "text-yellow-300" : "text-muted-foreground"}>
+                  {gap.field}
+                </span>
+                <span className="text-muted-foreground/60 ml-auto text-[10px]">{gap.detail}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Enrichment Results */}
+      {enrichResult && (
+        <div className="bg-card border border-amber-500/20 p-4 space-y-3">
+          <h3 className="text-[10px] font-display tracking-wider text-muted-foreground flex items-center gap-2">
+            <Brain className="w-3 h-3 text-amber-400" /> ENRICHMENT RESULTS
+          </h3>
+          <p className="text-xs text-muted-foreground">{enrichResult.summary}</p>
+          <div className="flex gap-4 text-[10px]">
+            <span className="text-green-400">{enrichResult.fieldsUpdated?.length || 0} updated</span>
+            <span className="text-blue-400">{enrichResult.fieldsDiscovered?.length || 0} discovered</span>
+            <span className="text-amber-400">Quality: {enrichResult.dataQualityScore}/100</span>
+          </div>
+          {enrichResult.keywordsUsed && (
+            <div>
+              <span className="text-[10px] text-muted-foreground">Keywords: </span>
+              {[...(enrichResult.keywordsUsed.primary || []), ...(enrichResult.keywordsUsed.secondary || [])].map((kw: string, i: number) => (
+                <span key={i} className="text-[10px] px-1.5 py-0.5 bg-primary/10 border border-primary/20 text-primary mr-1 mb-1 inline-block">{kw}</span>
+              ))}
+            </div>
+          )}
+          {enrichResult.enrichedData && (
+            <div className="bg-muted/20 p-3 text-[10px] font-mono max-h-48 overflow-y-auto">
+              <pre className="whitespace-pre-wrap text-muted-foreground">{JSON.stringify(enrichResult.enrichedData, null, 2)}</pre>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Source Attribution */}
+      <div className="bg-card border border-border p-4">
+        <h3 className="text-[10px] font-display tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
+          <Database className="w-3 h-3" /> SOURCE ATTRIBUTION
+          {allSources.length > 0 && <span className="text-primary">({allSources.length})</span>}
+        </h3>
+        {allSources.length === 0 ? (
+          <div className="text-center py-6 text-muted-foreground">
+            <Database className="w-6 h-6 mx-auto mb-2 opacity-30" />
+            <p className="text-xs">No source attribution data yet.</p>
+            <p className="text-[10px] mt-1">Run enrichment to discover intelligence sources.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {Object.entries(sourcesByField).map(([field, sources]) => (
+              <div key={field} className="border border-border/50 p-3">
+                <h5 className="text-[10px] font-display tracking-wider text-muted-foreground mb-2">{field.toUpperCase()}</h5>
+                <div className="space-y-1">
+                  {sources.map((src: any, i: number) => (
+                    <div key={i} className="flex items-start gap-2 text-xs bg-muted/20 p-2">
+                      <span className={`text-[9px] px-1.5 py-0.5 border shrink-0 ${sourceTypeColors[src.sourceType] || "text-gray-400 bg-gray-500/10 border-gray-500/30"}`}>
+                        {(src.sourceType || "unknown").replace("_", " ").toUpperCase()}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-foreground truncate">{src.value}</p>
+                        <p className="text-muted-foreground text-[10px]">
+                          {src.source}
+                          {src.sourceUrl && (
+                            <a href={src.sourceUrl} target="_blank" rel="noopener noreferrer" className="ml-1 text-blue-400 hover:text-blue-300">
+                              <ExternalLink className="w-2.5 h-2.5 inline" />
+                            </a>
+                          )}
+                        </p>
+                      </div>
+                      <span className={`text-[10px] font-mono ${(src.confidence || 0) >= 80 ? "text-green-400" : (src.confidence || 0) >= 50 ? "text-yellow-400" : "text-red-400"}`}>
+                        {src.confidence || 0}%
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Enrichment History Timeline */}
+      <EnrichmentHistoryTimeline actorId={actorId} />
+
+      {/* Data Provenance */}
+      <div className="bg-card border border-border p-4">
+        <h3 className="text-[10px] font-display tracking-wider text-muted-foreground mb-3">DATA PROVENANCE</h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+          <div className="bg-muted/20 p-2">
+            <span className="text-[10px] text-muted-foreground">Primary Source</span>
+            <p className="font-medium">{actor.dataSource || "Unknown"}</p>
+          </div>
+          <div className="bg-muted/20 p-2">
+            <span className="text-[10px] text-muted-foreground">Actor ID</span>
+            <p className="font-mono text-[10px]">{actorId}</p>
+          </div>
+          <div className="bg-muted/20 p-2">
+            <span className="text-[10px] text-muted-foreground">Created</span>
+            <p>{actor.createdAt ? new Date(actor.createdAt).toLocaleDateString() : "—"}</p>
+          </div>
+          <div className="bg-muted/20 p-2">
+            <span className="text-[10px] text-muted-foreground">Last Updated</span>
+            <p>{actor.updatedAt ? new Date(actor.updatedAt).toLocaleDateString() : "—"}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Enrichment History Timeline Component */
+function EnrichmentHistoryTimeline({ actorId }: { actorId: string }) {
+  const { data, isLoading } = trpc.threatIntel.enrichmentHistoryList.useQuery({ actorId, limit: 20 });
+
+  const triggeredByColors: Record<string, string> = {
+    manual: "text-blue-400 bg-blue-500/10 border-blue-500/30",
+    bulk: "text-violet-400 bg-violet-500/10 border-violet-500/30",
+    scheduled: "text-green-400 bg-green-500/10 border-green-500/30",
+  };
+
+  const statusColors: Record<string, string> = {
+    success: "text-green-400",
+    failed: "text-red-400",
+    partial: "text-yellow-400",
+  };
+
+  if (isLoading) {
+    return (
+      <div className="bg-card border border-border p-4">
+        <h3 className="text-[10px] font-display tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
+          <Clock className="w-3 h-3" /> ENRICHMENT HISTORY
+        </h3>
+        <div className="flex items-center justify-center py-6">
+          <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+          <span className="ml-2 text-xs text-muted-foreground">Loading history...</span>
+        </div>
+      </div>
+    );
+  }
+
+  const history = data?.history || [];
+
+  return (
+    <div className="bg-card border border-border p-4">
+      <h3 className="text-[10px] font-display tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
+        <Clock className="w-3 h-3" /> ENRICHMENT HISTORY
+        {history.length > 0 && <span className="text-primary">({history.length})</span>}
+      </h3>
+      {history.length === 0 ? (
+        <div className="text-center py-6 text-muted-foreground">
+          <Clock className="w-6 h-6 mx-auto mb-2 opacity-30" />
+          <p className="text-xs">No enrichment history yet.</p>
+          <p className="text-[10px] mt-1">Run enrichment to start building a history log.</p>
+        </div>
+      ) : (
+        <div className="relative">
+          {/* Timeline line */}
+          <div className="absolute left-3 top-0 bottom-0 w-px bg-border" />
+          <div className="space-y-4">
+            {history.map((entry: any, idx: number) => (
+              <div key={entry.id || idx} className="relative pl-8">
+                {/* Timeline dot */}
+                <div className={`absolute left-[7px] top-2 w-2.5 h-2.5 rounded-full border-2 border-card ${
+                  entry.status === 'success' ? 'bg-green-400' : entry.status === 'failed' ? 'bg-red-400' : 'bg-yellow-400'
+                }`} />
+                <div className="bg-muted/20 border border-border/50 p-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center gap-2">
+                      <span className={`text-[9px] px-1.5 py-0.5 border ${triggeredByColors[entry.triggeredBy] || 'text-gray-400 bg-gray-500/10 border-gray-500/30'}`}>
+                        {(entry.triggeredBy || 'manual').toUpperCase()}
+                      </span>
+                      <span className={`text-[10px] font-medium ${statusColors[entry.status] || 'text-gray-400'}`}>
+                        {(entry.status || 'unknown').toUpperCase()}
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground">
+                      {entry.createdAt ? new Date(entry.createdAt).toLocaleString() : '—'}
+                    </span>
+                  </div>
+                  {entry.summary && (
+                    <p className="text-xs text-muted-foreground mb-2">{entry.summary}</p>
+                  )}
+                  <div className="flex flex-wrap gap-3 text-[10px]">
+                    {entry.fieldsUpdated?.length > 0 && (
+                      <span className="text-amber-400">{entry.fieldsUpdated.length} fields updated</span>
+                    )}
+                    {entry.fieldsDiscovered?.length > 0 && (
+                      <span className="text-blue-400">{entry.fieldsDiscovered.length} fields discovered</span>
+                    )}
+                    {entry.dataQualityBefore != null && entry.dataQualityAfter != null && (
+                      <span className={entry.dataQualityAfter > entry.dataQualityBefore ? 'text-green-400' : 'text-muted-foreground'}>
+                        Quality: {entry.dataQualityBefore}% → {entry.dataQualityAfter}%
+                      </span>
+                    )}
+                    {entry.durationMs != null && (
+                      <span className="text-muted-foreground">{(entry.durationMs / 1000).toFixed(1)}s</span>
+                    )}
+                  </div>
+                  {entry.sourcesUsed?.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {entry.sourcesUsed.map((src: any, si: number) => (
+                        <span key={si} className="text-[9px] px-1.5 py-0.5 bg-primary/5 border border-primary/10 text-primary">
+                          {src.source || src.sourceType || 'unknown'}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {entry.status === 'failed' && entry.errorMessage && (
+                    <p className="text-[10px] text-red-400 mt-1">Error: {entry.errorMessage}</p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

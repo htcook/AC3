@@ -1,0 +1,54 @@
+{
+  "id": "dns-recursive-authoritative-separation",
+  "name": "DNS Recursive/Authoritative Server Separation",
+  "description": "Detects DNS servers configured to perform both recursive resolution and authoritative service on the same instance. Per NIST SP 800-81r3 Section 3.8 and NIST SP 800-53 SC-22, recursive and authoritative DNS functions should be separated on different servers and network segments to reduce attack surface and prevent cache poisoning of authoritative data.",
+  "author": "AC3 ScanForge",
+  "severity": "medium",
+  "protocol": "dns",
+  "tags": ["dns", "architecture", "separation", "recursive", "authoritative", "nist-800-81r3", "sc-22"],
+  "request": {
+    "rawPayload": "RECURSIVE_AUTH_CHECK"
+  },
+  "matchers": [
+    {
+      "type": "word",
+      "part": "body",
+      "values": [
+        "Recursion available on authoritative server",
+        "Server responds to both recursive and authoritative queries",
+        "Dual-function DNS server detected",
+        "Recursion enabled flag set on authoritative NS"
+      ],
+      "condition": "or"
+    }
+  ],
+  "references": {
+    "cves": [],
+    "cwes": ["CWE-16", "CWE-284"],
+    "urls": [
+      "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-81r3.pdf"
+    ]
+  },
+  "remediation": "Separate recursive and authoritative DNS functions onto different server instances. Place recursive resolvers on internal network segments accessible only to internal clients. Place authoritative servers on DMZ segments accessible from the internet. Disable recursion on all authoritative DNS servers. If separation is not immediately possible, use DNS views to restrict recursive queries to internal networks only.",
+  "attack": {
+    "techniqueIds": ["T1557.001"],
+    "tactics": ["Credential Access"]
+  },
+  "intelligence": {
+    "kevRelated": false,
+    "threatActors": [],
+    "dfirRelevance": "Dual-function DNS servers increase the attack surface by exposing recursive resolution to the internet. This enables cache poisoning attacks that can redirect internal clients to attacker-controlled infrastructure.",
+    "industries": [],
+    "feeds": []
+  },
+  "environments": ["traditional", "cloud", "hybrid"],
+  "complianceMapping": [
+    {
+      "framework": "nist_800_53",
+      "controlId": "SC-22",
+      "controlTitle": "Architecture and Provisioning for Name/Address Resolution Service",
+      "status": "non_compliant",
+      "confidence": 90
+    }
+  ]
+}

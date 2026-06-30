@@ -1,0 +1,64 @@
+{
+  "id": "dns-zone-transfer-axfr",
+  "name": "DNS Zone Transfer (AXFR) Exposure",
+  "description": "Detects misconfigured authoritative DNS servers that allow unauthorized zone transfers (AXFR/IXFR), exposing the complete zone contents including all subdomains, IP addresses, MX records, and internal infrastructure details. Per NIST SP 800-81r3 Section 3.1, zone transfers should be restricted to known secondary servers using ACLs and TSIG authentication.",
+  "author": "AC3 ScanForge",
+  "severity": "high",
+  "protocol": "dns",
+  "tags": ["dns", "zone-transfer", "axfr", "information-disclosure", "nist-800-81r3", "sc-20", "sc-22"],
+  "request": {
+    "rawPayload": "AXFR"
+  },
+  "matchers": [
+    {
+      "type": "word",
+      "part": "body",
+      "values": ["Transfer successful", "XFR size"],
+      "condition": "or"
+    },
+    {
+      "type": "regex",
+      "part": "body",
+      "values": ["\\d+\\s+IN\\s+(A|AAAA|CNAME|MX|NS|SOA|TXT|SRV)\\s+"],
+      "condition": "and"
+    }
+  ],
+  "references": {
+    "cves": [],
+    "cwes": ["CWE-200", "CWE-16"],
+    "urls": [
+      "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-81r3.pdf",
+      "https://datatracker.ietf.org/doc/html/rfc5936",
+      "https://datatracker.ietf.org/doc/html/rfc9103"
+    ]
+  },
+  "remediation": "Restrict zone transfers to authorized secondary DNS servers only using IP-based ACLs. Implement TSIG (Transaction Signature) authentication for all zone transfer operations. Consider using TLS for zone transfer confidentiality per RFC 9103. Deploy ZONEMD RRtype for zone content integrity verification. Monitor zone transfer logs for unauthorized attempts.",
+  "attack": {
+    "techniqueIds": ["T1596.001", "T1590.002"],
+    "tactics": ["Reconnaissance"]
+  },
+  "intelligence": {
+    "kevRelated": false,
+    "threatActors": [],
+    "dfirRelevance": "Zone transfer data is frequently used in the reconnaissance phase of targeted attacks. Full zone dumps provide attackers with a complete map of the target's infrastructure, enabling precise targeting of vulnerable services.",
+    "industries": [],
+    "feeds": []
+  },
+  "environments": ["traditional", "cloud", "hybrid"],
+  "complianceMapping": [
+    {
+      "framework": "nist_800_53",
+      "controlId": "SC-20",
+      "controlTitle": "Secure Name/Address Resolution Service (Authoritative Source)",
+      "status": "non_compliant",
+      "confidence": 95
+    },
+    {
+      "framework": "nist_800_53",
+      "controlId": "SC-22",
+      "controlTitle": "Architecture and Provisioning for Name/Address Resolution Service",
+      "status": "non_compliant",
+      "confidence": 90
+    }
+  ]
+}

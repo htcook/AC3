@@ -1,0 +1,29 @@
+rules:
+- name: nginx_reverse_proxy_rule
+  conditions:
+  - server_header_contains_nginx
+  - x_forwarded_for_header_present
+  inference:
+    asset_role: reverse_proxy
+    confidence: 0.85
+- name: redis_cache_rule
+  conditions:
+  - port_6379_open
+  - redis_banner_detected
+  inference:
+    asset_role: cache
+    confidence: 0.9
+- name: kubernetes_ingress_rule
+  conditions:
+  - kubernetes_cluster_detected
+  - ingress_annotations_present
+  inference:
+    asset_role: ingress_controller
+    confidence: 0.92
+- name: identity_provider_rule
+  conditions:
+  - saml_redirect_detected
+  - login_microsoftonline_present
+  inference:
+    asset_role: identity_provider
+    confidence: 0.88

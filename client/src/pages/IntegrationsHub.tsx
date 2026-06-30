@@ -1,0 +1,44 @@
+import { lazy } from "react";
+import type { ComponentType } from "react";
+import AppShell from "@/components/AppShell";
+import HubTabs from "@/components/HubTabs";
+import { Webhook, Database, MessageSquare, Workflow, GitBranch, Network, ArrowDownToLine, Cloud } from "lucide-react";
+
+const IntegrationRegistry = lazy(() => import("./IntegrationRegistry"));
+const SiemConnectors = lazy(() => import("./SiemConnectors"));
+const SiemFeedback = lazy(() => import("./SiemFeedback"));
+const SoarConnectors = lazy(() => import("./SoarConnectors"));
+const Webhooks = lazy(() => import("./Webhooks"));
+const WebhookReceivers = lazy(() => import("./WebhookReceivers"));
+const CicdPipeline = lazy(() => import("./CicdPipeline"));
+const CustomerOnboarding = lazy(() => import("./CustomerOnboarding"));
+
+const tabs = [
+  { id: "registry", label: "Integration Registry", icon: Network as ComponentType<{ className?: string }>, component: IntegrationRegistry },
+  { id: "siem", label: "SIEM Connectors", icon: Database as ComponentType<{ className?: string }>, component: SiemConnectors },
+  { id: "feedback", label: "SIEM Feedback", icon: MessageSquare as ComponentType<{ className?: string }>, component: SiemFeedback },
+  { id: "soar", label: "SOAR Connectors", icon: Workflow as ComponentType<{ className?: string }>, component: SoarConnectors },
+  { id: "webhooks", label: "Outbound Webhooks", icon: Webhook as ComponentType<{ className?: string }>, component: Webhooks },
+  { id: "receivers", label: "Inbound Receivers", icon: ArrowDownToLine as ComponentType<{ className?: string }>, component: WebhookReceivers },
+  { id: "cicd", label: "CI/CD Pipeline", icon: GitBranch as ComponentType<{ className?: string }>, component: CicdPipeline },
+  { id: "onboarding", label: "Customer Onboarding", icon: Cloud as ComponentType<{ className?: string }>, component: CustomerOnboarding },
+];
+
+export default function IntegrationsHub() {
+  return (
+    <AppShell activePath="/siem-connectors">
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+            <Webhook className="h-6 w-6 text-primary" />
+            Integrations
+          </h1>
+          <p className="text-muted-foreground mt-1">
+            Integration registry, SIEM, SOAR, webhook, and CI/CD pipeline integrations
+          </p>
+        </div>
+        <HubTabs tabs={tabs} storageKey="integrations-hub" />
+      </div>
+    </AppShell>
+  );
+}

@@ -1,0 +1,43 @@
+{
+  "id": "http-security-headers-comprehensive",
+  "name": "HTTP Security Headers Comprehensive Audit",
+  "description": "Comprehensive audit of all recommended HTTP security headers including CSP, HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy, Cross-Origin-Opener-Policy, Cross-Origin-Embedder-Policy, and Cross-Origin-Resource-Policy.",
+  "author": "AC3 ScanForge",
+  "severity": "info",
+  "protocol": "http",
+  "tags": ["headers", "hardening", "compliance", "best-practice"],
+  "request": {
+    "method": "GET",
+    "path": "/",
+    "followRedirects": true
+  },
+  "matchers": [
+    {
+      "type": "negative_header",
+      "values": [
+        "content-security-policy",
+        "strict-transport-security",
+        "x-frame-options",
+        "x-content-type-options",
+        "referrer-policy",
+        "permissions-policy",
+        "cross-origin-opener-policy",
+        "cross-origin-embedder-policy",
+        "cross-origin-resource-policy"
+      ],
+      "condition": "or"
+    }
+  ],
+  "references": {
+    "cwes": ["CWE-16", "CWE-693"],
+    "urls": [
+      "https://securityheaders.com/",
+      "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers#security",
+      "https://cheatsheetseries.owasp.org/cheatsheets/HTTP_Headers_Cheat_Sheet.html"
+    ]
+  },
+  "remediation": "Implement all recommended security headers: Content-Security-Policy (restrict resource loading origins), Strict-Transport-Security (max-age=31536000; includeSubDomains; preload), X-Frame-Options: DENY, X-Content-Type-Options: nosniff, Referrer-Policy: strict-origin-when-cross-origin, Permissions-Policy (restrict camera, microphone, geolocation), COOP: same-origin, COEP: require-corp, CORP: same-origin.",
+  "attack": {
+    "techniqueIds": ["T1189", "T1185", "T1557"]
+  }
+}

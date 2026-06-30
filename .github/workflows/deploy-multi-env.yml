@@ -1,0 +1,276 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Multi-Environment Deploy — Build Once, Deploy Everywhere
+# ─────────────────────────────────────────────────────────────────────────────
+# Builds Docker image in Dev ECR, then deploys to selected environments.
+# Staging and Production pull cross-account from Dev ECR.
+#
+# Required GitHub Secrets:
+#   - AWS_ACCESS_KEY_ID (Dev account PowerUserAccess)
+#   - AWS_SECRET_ACCESS_KEY
+#   - AWS_SESSION_TOKEN
+#   - AWS_STAGING_ACCESS_KEY_ID (Staging account PowerUserAccess)
+#   - AWS_STAGING_SECRET_ACCESS_KEY
+#   - AWS_STAGING_SESSION_TOKEN
+#   - AWS_PROD_ACCESS_KEY_ID (Production account PowerUserAccess)
+#   - AWS_PROD_SECRET_ACCESS_KEY
+#   - AWS_PROD_SESSION_TOKEN
+#
+# Author: Harrison Cook — AceofCloud (https://aceofcloud.com)
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: Deploy Multi-Environment
+
+on:
+  workflow_dispatch:
+    inputs:
+      environments:
+        description: "Environments to deploy to"
+        required: true
+        default: "dev"
+        type: choice
+        options:
+          - dev
+          - staging
+          - production
+          - dev+staging
+          - all
+      image_tag:
+        description: "Image tag (default: git short SHA)"
+        required: false
+        default: ""
+
+env:
+  AWS_REGION: us-east-1
+  DEV_ACCOUNT_ID: "808038814732"
+  STAGING_ACCOUNT_ID: "238043187472"
+  PROD_ACCOUNT_ID: "184974284696"
+  ECR_REPO: ac3/caldera-dashboard
+
+jobs:
+  # ─────────────────────────────────────────────
+  # Pre-Deploy Validation (TypeScript + Lint)
+  # ─────────────────────────────────────────────
+  validate:
+    name: Pre-Deploy Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: TypeScript check (informational — does not block deploy)
+        continue-on-error: true
+        run: |
+          echo "🔍 Running TypeScript compiler check..."
+          npx tsc --noEmit 2>&1 | tail -30 | tee /tmp/tsc-output.txt || true
+          echo "## ℹ️ TypeScript Report" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          tail -20 /tmp/tsc-output.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "ℹ️ TypeScript check complete (informational only)"
+
+      - name: ESLint check (catches no-undef, unused vars)
+        run: |
+          echo "🔍 Running ESLint..."
+          npx eslint client/src/ --ext .ts,.tsx --rule '{"no-undef": "error"}' \
+            --max-warnings 0 2>&1 | tee /tmp/eslint-output.txt || true
+          # Non-blocking for now — report in summary
+          if [ -s /tmp/eslint-output.txt ]; then
+            echo "## ⚠️ ESLint Warnings" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            head -50 /tmp/eslint-output.txt >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "✅ ESLint check complete"
+
+      - name: Vite production build test
+        run: |
+          echo "🔍 Testing production build..."
+          npx vite build --mode production 2>&1 | tee /tmp/build-output.txt
+          BUILD_EXIT=${PIPESTATUS[0]}
+          if [ $BUILD_EXIT -ne 0 ]; then
+            echo "❌ Production build failed — blocking deploy"
+            echo "## ❌ Build Errors" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            tail -30 /tmp/build-output.txt >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+          echo "✅ Production build succeeded"
+
+  # ─────────────────────────────────────────────
+  # Build and push to Dev ECR (source of truth)
+  # ─────────────────────────────────────────────
+  build:
+    name: Build & Push to ECR
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      image_tag: ${{ steps.tag.outputs.tag }}
+      image_uri: ${{ steps.build.outputs.image_uri }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (Dev)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Dev ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set image tag
+        id: tag
+        run: |
+          if [ -n "${{ github.event.inputs.image_tag }}" ]; then
+            TAG="${{ github.event.inputs.image_tag }}"
+          else
+            TAG=$(echo "${{ github.sha }}" | cut -c1-8)
+          fi
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+      - name: Build and push
+        id: build
+        run: |
+          IMAGE="${{ env.DEV_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO }}"
+          docker build \
+            -f Dockerfile.aws \
+            --build-arg BUILD_SHA=${{ github.sha }} \
+            --build-arg BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ) \
+            -t "$IMAGE:${{ steps.tag.outputs.tag }}" \
+            -t "$IMAGE:latest" \
+            .
+          docker push "$IMAGE:${{ steps.tag.outputs.tag }}"
+          docker push "$IMAGE:latest"
+          echo "image_uri=$IMAGE:${{ steps.tag.outputs.tag }}" >> $GITHUB_OUTPUT
+          echo "✅ Pushed: $IMAGE:${{ steps.tag.outputs.tag }}"
+
+  # ─────────────────────────────────────────────
+  # Deploy to Dev
+  # ─────────────────────────────────────────────
+  deploy-dev:
+    name: Deploy to Dev
+    needs: build
+    runs-on: ubuntu-latest
+    if: contains(github.event.inputs.environments, 'dev') || github.event.inputs.environments == 'all'
+    timeout-minutes: 10
+
+    steps:
+      - name: Configure AWS credentials (Dev)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Force new deployment
+        run: |
+          aws ecs update-service \
+            --cluster ac3-dev \
+            --service ac3-dev-app \
+            --force-new-deployment \
+            --query 'service.deployments[0].status' \
+            --output text
+          echo "✅ Dev deployment triggered"
+          echo "🌐 URL: https://ac3.aceofcloud.io"
+
+  # ─────────────────────────────────────────────
+  # Deploy to Staging
+  # ─────────────────────────────────────────────
+  deploy-staging:
+    name: Deploy to Staging
+    needs: build
+    runs-on: ubuntu-latest
+    if: contains(github.event.inputs.environments, 'staging') || github.event.inputs.environments == 'all'
+    timeout-minutes: 10
+
+    steps:
+      - name: Configure AWS credentials (Staging)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_STAGING_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_STAGING_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_STAGING_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Force new deployment
+        run: |
+          aws ecs update-service \
+            --cluster ac3-staging \
+            --service ac3-staging-app \
+            --force-new-deployment \
+            --query 'service.deployments[0].status' \
+            --output text
+          echo "✅ Staging deployment triggered"
+          echo "🌐 URL: https://staging.aceofcloud.io"
+
+  # ─────────────────────────────────────────────
+  # Deploy to Production
+  # ─────────────────────────────────────────────
+  deploy-production:
+    name: Deploy to Production
+    needs: build
+    runs-on: ubuntu-latest
+    if: contains(github.event.inputs.environments, 'production') || github.event.inputs.environments == 'all'
+    timeout-minutes: 10
+
+    steps:
+      - name: Configure AWS credentials (Production)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_PROD_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_PROD_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_PROD_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Force new deployment
+        run: |
+          aws ecs update-service \
+            --cluster ac3-production \
+            --service ac3-production-app \
+            --force-new-deployment \
+            --query 'service.deployments[0].status' \
+            --output text
+          echo "✅ Production deployment triggered"
+          echo "🌐 URL: https://app.aceofcloud.io"
+
+  # ─────────────────────────────────────────────
+  # Summary
+  # ─────────────────────────────────────────────
+  summary:
+    name: Deployment Summary
+    needs: [build, deploy-dev, deploy-staging, deploy-production]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Print summary
+        run: |
+          echo "## 🚀 Multi-Environment Deployment" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Environment | Account | Status | URL |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------------|---------|--------|-----|" >> $GITHUB_STEP_SUMMARY
+          echo "| Dev | 808038814732 | ${{ needs.deploy-dev.result }} | https://ac3.aceofcloud.io |" >> $GITHUB_STEP_SUMMARY
+          echo "| Staging | 238043187472 | ${{ needs.deploy-staging.result }} | https://staging.aceofcloud.io |" >> $GITHUB_STEP_SUMMARY
+          echo "| Production | 184974284696 | ${{ needs.deploy-production.result }} | https://app.aceofcloud.io |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Image:** \`${{ needs.build.outputs.image_uri }}\`" >> $GITHUB_STEP_SUMMARY

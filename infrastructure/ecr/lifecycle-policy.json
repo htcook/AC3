@@ -1,0 +1,56 @@
+{
+  "rules": [
+    {
+      "rulePriority": 1,
+      "description": "Expire untagged images after 7 days",
+      "selection": {
+        "tagStatus": "untagged",
+        "countType": "sinceImagePushed",
+        "countUnit": "days",
+        "countNumber": 7
+      },
+      "action": {
+        "type": "expire"
+      }
+    },
+    {
+      "rulePriority": 2,
+      "description": "Keep only last 10 dev-tagged images",
+      "selection": {
+        "tagStatus": "tagged",
+        "tagPatternList": ["dev", "sha-*"],
+        "countType": "imageCountMoreThan",
+        "countNumber": 10
+      },
+      "action": {
+        "type": "expire"
+      }
+    },
+    {
+      "rulePriority": 3,
+      "description": "Keep only last 10 staging-tagged images",
+      "selection": {
+        "tagStatus": "tagged",
+        "tagPatternList": ["staging"],
+        "countType": "imageCountMoreThan",
+        "countNumber": 10
+      },
+      "action": {
+        "type": "expire"
+      }
+    },
+    {
+      "rulePriority": 4,
+      "description": "Keep only last 20 prod-tagged images (longer retention)",
+      "selection": {
+        "tagStatus": "tagged",
+        "tagPatternList": ["prod", "latest"],
+        "countType": "imageCountMoreThan",
+        "countNumber": 20
+      },
+      "action": {
+        "type": "expire"
+      }
+    }
+  ]
+}

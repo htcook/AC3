@@ -1,0 +1,53 @@
+BC Scan Analysis from Screenshots (Apr 16, ~10:08 UTC)
+=====================================================
+
+SCREENSHOT 1 (IMG_2037 - Live Feed / Timeline):
+- Title: "Broken Crystals Full Pipeline v2"
+- Status: Active, 31 connectors
+- Stats: Assets=1, Hosts=2, Open Ports=2, Vulns Found=4, ZAP Scans=0, WAFs=0, Exploits Tried=0, Exploits OK=0, Sessions=0
+- LLM Cost: $0.0339, 159.7K tokens, 66 calls
+
+Key Log Entries (chronological):
+1. "ZAP Start Error (attempt 3): http://brokencrystals.lab.aceofcloud.io" @ 10:05:05
+   - "ZAP is not available: connect ETIMEDOUT 159.223.152.190:8090. Please check the ZAP Docker container on the scan server."
+   - CRITICAL: Still using OLD IP 159.223.152.190 — the secret update didn't take effect!
+
+2. "ZAP Web App Scan: https://brokencrystals.lab.aceofcloud.io" @ 10:05:05
+   - "Starting OWASP ZAP scan with WAF detection and evasion"
+
+3. "Behavioral Analysis: https://brokencrystals.lab.aceofcloud.io" @ 10:07:55
+   - "Rate limiting at ~5 req/burst"
+
+4. "LLM ZAP Config Generated" @ 10:08:05
+   - Heavy scan policy selected (HIGH strength, INSANE threshold)
+   - Ajax Spider enabled, authentication configured for form-based login
+   - All universal foothold rules and secrets discovery enabled
+
+5. "Credential Handoff: 3 confirmed credential(s) → ZAP" @ 10:08:05
+   - "Using training_lab_defaults credentials (bc:***) for authenticated scanning"
+   - Source: training_lab_defaults (x3)
+   - GOOD: Our training lab detection IS working — BC creds are being passed
+
+6. "ZAP Seed URLs: brokencrystals (18 endpoints)" @ 10:08:05
+   - "Pre-seeding ZAP with 18 known endpoints for brokencrystals SPA target"
+   - GOOD: Our seed URLs are being injected
+
+SCREENSHOT 2 (IMG_2036 - Assets View):
+- Host: BROKENCRYSTALS.LAB.ACEOFCLOUD.IO (159.223.152.190) — Status: Enumerated
+- Open Ports: 80 (http, identified), 443 (https, identified)
+- Vulnerabilities (4):
+  1. [medium] [unknown] Missing Security Headers: X-Frame-Options, X-Conten... — ?POTENTIAL
+  2. [info] [nikto] [Nikto] requires a value — ✓CONFIRMED
+  3. [info] [nikto] [Nikto] requires a value — ?POTENTIAL
+  4. [info] [Nikto] requires a value — ✓CONFIRMED
+- Passive Recon (OSINT): 2 passive services
+
+ISSUES IDENTIFIED:
+1. ZAP STILL using old IP 159.223.152.190:8090 — the ZAP_BASE_URL secret update hasn't propagated
+2. ZAP Scans = 0 — ZAP never completed any scans due to ETIMEDOUT
+3. Only 4 vulns found — all are headers/nikto, no real vulns (SQLi, XSS, etc.)
+4. Nikto findings have malformed titles: "[Nikto] requires a value" — likely a parsing bug
+5. 0 exploits tried — nothing to exploit with only header findings
+6. BC host resolves to 159.223.152.190 — this is the OLD scan server IP, NOT the BC app!
+   Wait — brokencrystals.lab.aceofcloud.io resolves to 159.223.152.190? That's the old scan server.
+   The BC app might actually be running ON the old scan server at that IP.

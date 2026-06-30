@@ -1,0 +1,2683 @@
+/**
+ * Battlespace Visualization Engine
+ * ═══════════════════════════════════════════════════════════════════════
+ * High-resolution Canvas 2D rendering engine + D3-force simulation.
+ * Brutalist design system with MIL-STD-2525D inspired symbology.
+ *
+ * Features:
+ *  - HiDPI Canvas 2D rendering (devicePixelRatio aware)
+ *  - D3-force physics simulation with custom forces
+ *  - Zoom-dependent detail levels (MACRO/MESO/MICRO)
+ *  - Directional particle animations along edges
+ *  - Progressive node reveal animation
+ *  - Pan/zoom camera with inertia
+ *  - Node selection and hover detail panels
+ *  - Ember C2 real-time event processing
+ */
+import {
+  forceSimulation,
+  forceLink,
+  forceManyBody,
+  forceCenter,
+  forceCollide,
+  forceX,
+  forceY,
+  type Simulation,
+  type SimulationNodeDatum,
+  type SimulationLinkDatum,
+} from "d3-force";
+import {
+  type BattlespaceNode,
+  type BattlespaceEdge,
+  type BattlespaceGraphData,
+  type ZoomLevel,
+  NODE_VISUAL_CONFIG,
+  EDGE_VISUAL_CONFIG,
+  SEVERITY_COLORS,
+  KILL_CHAIN_COLORS,
+  TECH_ICONS,
+  isVersionOutdated,
+  DEFENSE_ICONS,
+  PLATFORM_ICONS,
+  getZoomLevel,
+} from "./battlespace-types";
+import { ForceWorkerBridge, type PositionUpdate } from "./force-worker-bridge";
+
+// ── Types ───────────────────────────────────────────────────────────
+interface SimNode extends SimulationNodeDatum, BattlespaceNode {
+  _revealProgress?: number;  // 0→1 reveal animation
+  _flashColor?: string;
+  _flashAlpha?: number;
+  _pulsePhase?: number;
+}
+
+interface SimEdge extends SimulationLinkDatum<SimNode> {
+  id: string;
+  type: BattlespaceEdge["type"];
+  weight?: number;
+  probability?: number;
+  protocol?: BattlespaceEdge["protocol"];
+  dataFlow?: string;
+  killChainPhase?: BattlespaceEdge["killChainPhase"];
+  isHighlighted?: boolean;
+  isIntercepted?: boolean;
+  interceptionType?: "logged" | "inline" | "ssl_decrypted" | "mirrored";
+  interceptedBy?: string;
+  isBypassOpportunity?: boolean;
+  bypassesProxy?: string;
+  label?: string;
+  particles: Array<{ progress: number; speed: number }>;
+}
+
+export interface EngineCallbacks {
+  onNodeHover?: (node: BattlespaceNode | null, x: number, y: number) => void;
+  onNodeClick?: (node: BattlespaceNode) => void;
+  onNodeDoubleClick?: (node: BattlespaceNode) => void;
+  onZoomChange?: (scale: number, level: ZoomLevel) => void;
+  onStatsUpdate?: (stats: EngineStats) => void;
+}
+
+export interface EngineStats {
+  nodeCount: number;
+  edgeCount: number;
+  clusterCount: number;
+  fps: number;
+  zoomLevel: ZoomLevel;
+  scale: number;
+  simulationAlpha: number;
+  /** Number of nodes actually drawn (after viewport culling) */
+  visibleNodes: number;
+  /** Number of edges actually drawn (after viewport culling) */
+  visibleEdges: number;
+  /** Number of supernodes (collapsed clusters at MACRO zoom) */
+  supernodeCount: number;
+  /** Number of new nodes added since last user interaction */
+  newNodesSinceInteraction: number;
+}
+
+/** Cluster bounding box computed each frame */
+interface Cluster {
+  id: string;
+  label: string;
+  color: string;
+  nodeIds: Set<string>;
+  // Bounding box (world coords, updated each frame)
+  minX: number; minY: number;
+  maxX: number; maxY: number;
+  cx: number; cy: number;
+}
+
+export interface EngineOptions {
+  resolution?: number;
+  backgroundColor?: string;
+  gridEnabled?: boolean;
+  particlesEnabled?: boolean;
+  glowEnabled?: boolean;
+  edgeBloomEnabled?: boolean;
+  nodeHeartbeatEnabled?: boolean;
+  hudEnabled?: boolean;
+  heatmapEnabled?: boolean;
+  animatedPathReveal?: boolean;
+}
+
+const DEFAULT_OPTIONS: Required<EngineOptions> = {
+  resolution: 2,
+  backgroundColor: "#0A0E14",
+  gridEnabled: true,
+  particlesEnabled: true,
+  glowEnabled: true,
+  edgeBloomEnabled: true,
+  nodeHeartbeatEnabled: true,
+  hudEnabled: true,
+  heatmapEnabled: true,
+  animatedPathReveal: true,
+};
+
+// ── Helper: parse hex color to rgba components ─────────────────────
+function hexToRgb(hex: string): [number, number, number] {
+  const h = hex.replace("#", "");
+  return [
+    parseInt(h.substring(0, 2), 16),
+    parseInt(h.substring(2, 4), 16),
+    parseInt(h.substring(4, 6), 16),
+  ];
+}
+
+function rgbaStr(hex: string, alpha: number): string {
+  const [r, g, b] = hexToRgb(hex);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+// ── Edge dash patterns per protocol ────────────────────────────────
+const PROTOCOL_DASH: Record<string, number[]> = {
+  tcp: [],
+  udp: [8, 4],
+  icmp: [2, 4],
+  http: [12, 3, 3, 3],
+  https: [12, 3, 3, 3],
+  dns: [6, 3],
+  ssh: [10, 5],
+  smb: [4, 2, 4, 2],
+  rdp: [14, 4],
+  default: [],
+};
+
+// ── Node shape drawing functions ───────────────────────────────────
+type ShapeFn = (ctx: CanvasRenderingContext2D, x: number, y: number, r: number) => void;
+
+const SHAPES: Record<string, ShapeFn> = {
+  rect(ctx, x, y, r) {
+    // Wider rectangle (1.6:1 aspect ratio) for host/server nodes
+    const hw = r * 1.2;
+    const hh = r * 0.75;
+    ctx.beginPath();
+    ctx.rect(x - hw, y - hh, hw * 2, hh * 2);
+  },
+  diamond(ctx, x, y, r) {
+    ctx.beginPath();
+    ctx.moveTo(x, y - r);
+    ctx.lineTo(x + r, y);
+    ctx.lineTo(x, y + r);
+    ctx.lineTo(x - r, y);
+    ctx.closePath();
+  },
+  hexagon(ctx, x, y, r) {
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const angle = (Math.PI / 3) * i - Math.PI / 2;
+      const px = x + r * Math.cos(angle);
+      const py = y + r * Math.sin(angle);
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+  },
+  square(ctx, x, y, r) {
+    ctx.beginPath();
+    ctx.rect(x - r * 0.8, y - r * 0.8, r * 1.6, r * 1.6);
+  },
+  triangle(ctx, x, y, r) {
+    ctx.beginPath();
+    ctx.moveTo(x, y - r);
+    ctx.lineTo(x + r * 0.87, y + r * 0.5);
+    ctx.lineTo(x - r * 0.87, y + r * 0.5);
+    ctx.closePath();
+  },
+  circle(ctx, x, y, r) {
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+  },
+  pentagon(ctx, x, y, r) {
+    ctx.beginPath();
+    for (let i = 0; i < 5; i++) {
+      const angle = (Math.PI * 2 / 5) * i - Math.PI / 2;
+      const px = x + r * Math.cos(angle);
+      const py = y + r * Math.sin(angle);
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+  },
+  octagon(ctx, x, y, r) {
+    ctx.beginPath();
+    for (let i = 0; i < 8; i++) {
+      const angle = (Math.PI * 2 / 8) * i - Math.PI / 8;
+      const px = x + r * Math.cos(angle);
+      const py = y + r * Math.sin(angle);
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+  },
+  star(ctx, x, y, r) {
+    ctx.beginPath();
+    for (let i = 0; i < 10; i++) {
+      const angle = (Math.PI * 2 / 10) * i - Math.PI / 2;
+      const rad = i % 2 === 0 ? r : r * 0.5;
+      const px = x + rad * Math.cos(angle);
+      const py = y + rad * Math.sin(angle);
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+  },
+  shield(ctx, x, y, r) {
+    // Shield shape — pointed bottom, rounded top
+    ctx.beginPath();
+    ctx.moveTo(x - r * 0.8, y - r * 0.6);
+    ctx.quadraticCurveTo(x - r * 0.8, y - r, x, y - r);
+    ctx.quadraticCurveTo(x + r * 0.8, y - r, x + r * 0.8, y - r * 0.6);
+    ctx.lineTo(x + r * 0.8, y + r * 0.1);
+    ctx.quadraticCurveTo(x + r * 0.6, y + r * 0.8, x, y + r);
+    ctx.quadraticCurveTo(x - r * 0.6, y + r * 0.8, x - r * 0.8, y + r * 0.1);
+    ctx.closePath();
+  },
+};
+
+function getShape(name: string): ShapeFn {
+  return SHAPES[name] || SHAPES.circle;
+}
+
+// ── Deterministic hash for stable layout ────────────────────────────
+function hashCode(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const ch = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + ch;
+    hash |= 0; // Convert to 32-bit integer
+  }
+  return hash;
+}
+
+function seededRandom(seed: number): number {
+  // Mulberry32 PRNG — deterministic float in [0, 1)
+  let t = (seed + 0x6D2B79F5) | 0;
+  t = Math.imul(t ^ (t >>> 15), t | 1);
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+}
+
+// ── Engine Class ────────────────────────────────────────────────────
+export class BattlespaceEngine {
+  private canvas: HTMLCanvasElement | null = null;
+  private ctx: CanvasRenderingContext2D | null = null;
+  private dpr = 1;
+  private width = 0;
+  private height = 0;
+
+  private simulation: Simulation<SimNode, SimEdge> | null = null;
+  private simNodes: SimNode[] = [];
+  private simEdges: SimEdge[] = [];
+  private nodeMap = new Map<string, SimNode>();
+  private hiddenNodeTypes = new Set<string>();
+  private clusters: Cluster[] = [];
+  private clustersEnabled = true;
+
+  private scale = 0.6;
+  private panX = 0;
+  private panY = 0;
+  private isDragging = false;
+  private isPanning = false;
+  private dragStartX = 0;
+  private dragStartY = 0;
+  private panStartX = 0;
+  private panStartY = 0;
+  private draggedNode: SimNode | null = null;
+  private hoveredNode: SimNode | null = null;
+  private selectedNodeId: string | null = null;
+
+  private currentZoomLevel: ZoomLevel = "MESO";
+  private animationTime = 0;
+  private frameCount = 0;
+  private lastFpsTime = 0;
+  private currentFps = 60;
+  private options: Required<EngineOptions>;
+  private callbacks: EngineCallbacks;
+  private destroyed = false;
+  private rafId = 0;
+  private workerBridge: ForceWorkerBridge | null = null;
+  private workerAlpha = 0;
+
+  // ── Wow-factor visual state ─────────────────────────────────────
+  private ripples: Array<{ x: number; y: number; radius: number; maxRadius: number; alpha: number; color: string }> = [];
+  private animatedPathEdges: SimEdge[] = [];
+  private animatedPathProgress = 0;
+  private animatedPathActive = false;
+  private nodeHeartbeats = new Map<string, { phase: number; intensity: number }>();
+
+  // ── Viewport culling & LOD state ──────────────────────────────────
+  private _visibleNodes = 0;
+  private _visibleEdges = 0;
+  private _supernodeCount = 0;
+  /** Supernode aggregates: at MACRO zoom with 200+ nodes, collapse clusters into single supernodes */
+  private _supernodes: Array<{
+    cluster: Cluster;
+    cx: number; cy: number;
+    nodeCount: number;
+    criticalCount: number;
+    highCount: number;
+    mediumCount: number;
+    techSummary: string[];
+    maxSeverity: string;
+  }> = [];
+
+  constructor(callbacks: EngineCallbacks = {}, options: EngineOptions = {}) {
+    this.callbacks = callbacks;
+    this.options = { ...DEFAULT_OPTIONS, ...options };
+  }
+
+  // ── Lifecycle ─────────────────────────────────────────────────────
+  async init(container: HTMLElement): Promise<void> {
+    if (this.destroyed) return;
+
+    this.width = container.clientWidth || 1200;
+    this.height = container.clientHeight || 800;
+    this.dpr = Math.min(window.devicePixelRatio || 1, this.options.resolution);
+
+    this.canvas = document.createElement("canvas");
+    this.canvas.width = this.width * this.dpr;
+    this.canvas.height = this.height * this.dpr;
+    this.canvas.style.width = "100%";
+    this.canvas.style.height = "100%";
+    this.canvas.style.display = "block";
+    this.canvas.style.cursor = "grab";
+
+    this.ctx = this.canvas.getContext("2d", { alpha: false })!;
+    this.ctx.scale(this.dpr, this.dpr);
+
+    container.appendChild(this.canvas);
+
+    this.panX = this.width / 2;
+    this.panY = this.height / 2;
+
+    this.setupInputHandlers();
+    this.lastFpsTime = performance.now();
+    this.tick();
+  }
+
+  destroy(): void {
+    this.destroyed = true;
+    if (this.rafId) cancelAnimationFrame(this.rafId);
+    if (this.simulation) {
+      this.simulation.stop();
+      this.simulation = null;
+    }
+    if (this.workerBridge) {
+      this.workerBridge.destroy();
+      this.workerBridge = null;
+    }
+    if (this.canvas?.parentElement) {
+      this.canvas.parentElement.removeChild(this.canvas);
+    }
+    this.canvas = null;
+    this.ctx = null;
+  }
+
+  resize(width: number, height: number): void {
+    if (!this.canvas || !this.ctx) return;
+    this.width = width;
+    this.height = height;
+    this.canvas.width = width * this.dpr;
+    this.canvas.height = height * this.dpr;
+    this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+  }
+
+  // ── Data Loading ──────────────────────────────────────────────────
+  loadGraph(data: BattlespaceGraphData): void {
+    this.clearGraph();
+
+    this.simNodes = data.nodes.map((n) => {
+      const seed = hashCode(n.id);
+      return {
+        ...n,
+        x: n.x ?? (seededRandom(seed) - 0.5) * 800,
+        y: n.y ?? (seededRandom(seed + 1) - 0.5) * 600,
+        _revealProgress: 0,
+      };
+    });
+
+    this.nodeMap.clear();
+    for (const sn of this.simNodes) this.nodeMap.set(sn.id, sn);
+
+    this.simEdges = [];
+    for (const e of data.edges) {
+      const src = this.nodeMap.get(e.source);
+      const tgt = this.nodeMap.get(e.target);
+      if (src && tgt) {
+        this.simEdges.push({
+          source: src,
+          target: tgt,
+          id: e.id,
+          type: e.type,
+          weight: e.weight,
+          probability: e.probability,
+          protocol: e.protocol,
+          dataFlow: e.dataFlow,
+          killChainPhase: e.killChainPhase,
+          isIntercepted: e.isIntercepted,
+          interceptionType: e.interceptionType,
+          interceptedBy: e.interceptedBy,
+          isBypassOpportunity: e.isBypassOpportunity,
+          bypassesProxy: e.bypassesProxy,
+          label: e.label,
+          particles: this.options.particlesEnabled
+            ? Array.from({ length: 2 + Math.floor(Math.random() * 3) }, () => ({
+                progress: Math.random(),
+                speed: 0.001 + Math.random() * 0.002,
+              }))
+            : [],
+        });
+      }
+    }
+    this.buildClusters();
+    this.startSimulation();
+  }
+
+  // ── Cluster Detection ────────────────────────────────────────────
+  private buildClusters(): void {
+    const clusterMap = new Map<string, Set<string>>();
+
+    for (const n of this.simNodes) {
+      // 1. Explicit clusterId
+      if (n.clusterId) {
+        const key = `cluster:${n.clusterId}`;
+        if (!clusterMap.has(key)) clusterMap.set(key, new Set());
+        clusterMap.get(key)!.add(n.id);
+        continue;
+      }
+
+      // 2. Group by hostname domain suffix (e.g. "*.example.com")
+      if (n.hostname) {
+        const parts = n.hostname.split(".");
+        if (parts.length >= 2) {
+          const domain = parts.slice(-2).join(".");
+          const key = `domain:${domain}`;
+          if (!clusterMap.has(key)) clusterMap.set(key, new Set());
+          clusterMap.get(key)!.add(n.id);
+          continue;
+        }
+      }
+
+      // 3. Group subnets
+      if (n.type === "subnet") {
+        const key = `subnet:${n.label}`;
+        if (!clusterMap.has(key)) clusterMap.set(key, new Set());
+        clusterMap.get(key)!.add(n.id);
+        continue;
+      }
+
+      // 4. Group by IP /24 subnet
+      if (n.ip) {
+        const octets = n.ip.split(".");
+        if (octets.length === 4) {
+          const subnet24 = `${octets[0]}.${octets[1]}.${octets[2]}.0/24`;
+          const key = `net:${subnet24}`;
+          if (!clusterMap.has(key)) clusterMap.set(key, new Set());
+          clusterMap.get(key)!.add(n.id);
+          continue;
+        }
+      }
+    }
+
+    // Also add nodes connected to subnet nodes into that subnet's cluster
+    for (const e of this.simEdges) {
+      const src = typeof e.source === "object" ? (e.source as SimNode) : this.nodeMap.get(e.source as string);
+      const tgt = typeof e.target === "object" ? (e.target as SimNode) : this.nodeMap.get(e.target as string);
+      if (!src || !tgt) continue;
+      if (src.type === "subnet") {
+        const key = `subnet:${src.label}`;
+        if (clusterMap.has(key)) clusterMap.get(key)!.add(tgt.id);
+      }
+      if (tgt.type === "subnet") {
+        const key = `subnet:${tgt.label}`;
+        if (clusterMap.has(key)) clusterMap.get(key)!.add(src.id);
+      }
+    }
+
+    // Cluster color palette (muted, translucent)
+    const CLUSTER_COLORS = [
+      "#2D4A6F", "#4A2D6F", "#6F4A2D", "#2D6F4A",
+      "#6F2D4A", "#4A6F2D", "#2D6F6F", "#6F6F2D",
+      "#3B82F6", "#8B5CF6", "#F59E0B", "#10B981",
+    ];
+
+    // Filter out clusters with < 2 nodes (no point drawing a box around 1 node)
+    this.clusters = [];
+    let colorIdx = 0;
+    for (const [key, nodeIds] of clusterMap) {
+      if (nodeIds.size < 2) continue;
+      const label = key.replace(/^(cluster|domain|subnet|net):/, "").toUpperCase();
+      this.clusters.push({
+        id: key,
+        label,
+        color: CLUSTER_COLORS[colorIdx % CLUSTER_COLORS.length],
+        nodeIds,
+        minX: 0, minY: 0, maxX: 0, maxY: 0, cx: 0, cy: 0,
+      });
+      colorIdx++;
+    }
+  }
+
+  /** Update cluster bounding boxes from current node positions */
+  private updateClusterBounds(): void {
+    for (const c of this.clusters) {
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      let count = 0;
+      for (const nid of c.nodeIds) {
+        const n = this.nodeMap.get(nid);
+        if (!n || this.hiddenNodeTypes.has(n.type)) continue;
+        const config = NODE_VISUAL_CONFIG[n.type] || NODE_VISUAL_CONFIG.host;
+        const r = config.baseSize;
+        const nx = n.x || 0;
+        const ny = n.y || 0;
+        minX = Math.min(minX, nx - r);
+        minY = Math.min(minY, ny - r - 20); // extra space for label
+        maxX = Math.max(maxX, nx + r);
+        maxY = Math.max(maxY, ny + r + 20);
+        count++;
+      }
+      if (count < 2) {
+        c.minX = c.minY = c.maxX = c.maxY = c.cx = c.cy = 0;
+        continue;
+      }
+      const pad = 30;
+      c.minX = minX - pad;
+      c.minY = minY - pad;
+      c.maxX = maxX + pad;
+      c.maxY = maxY + pad;
+      c.cx = (c.minX + c.maxX) / 2;
+      c.cy = (c.minY + c.maxY) / 2;
+    }
+  }
+
+  setClustersEnabled(enabled: boolean): void {
+    this.clustersEnabled = enabled;
+  }
+
+  getClustersEnabled(): boolean {
+    return this.clustersEnabled;
+  }
+
+  getClusterCount(): number {
+    return this.clusters.length;
+  }
+
+  private clearGraph(): void {
+    if (this.simulation) {
+      this.simulation.stop();
+      this.simulation = null;
+    }
+    if (this.workerBridge) {
+      this.workerBridge.destroy();
+      this.workerBridge = null;
+    }
+    this.simNodes = [];
+    this.simEdges = [];
+    this.nodeMap.clear();
+  }
+
+  addNodes(newNodes: BattlespaceNode[], newEdges: BattlespaceEdge[]): void {
+    let addedCount = 0;
+    for (const n of newNodes) {
+      if (this.nodeMap.has(n.id)) continue;
+      const seed = hashCode(n.id);
+      const sn: SimNode = {
+        ...n,
+        x: n.x ?? (seededRandom(seed) - 0.5) * 800,
+        y: n.y ?? (seededRandom(seed + 1) - 0.5) * 600,
+        _revealProgress: 0,
+        _flashColor: "#00E5CC",
+        _flashAlpha: 2.0,
+      };
+      this.simNodes.push(sn);
+      this.nodeMap.set(sn.id, sn);
+      addedCount++;
+      // Spawn ripple on new node appearance
+      if (sn.x != null && sn.y != null) {
+        const config = NODE_VISUAL_CONFIG[sn.type] || NODE_VISUAL_CONFIG.host;
+        this.spawnRipple(sn.x, sn.y, config.strokeColor, 120);
+      }
+    }
+    // Track cumulative new-node count for the HUD badge
+    this._newNodesSinceInteraction = (this._newNodesSinceInteraction || 0) + addedCount;
+    // Auto-fit viewport when a large batch arrives (>10 nodes at once)
+    if (addedCount > 10) {
+      setTimeout(() => this.fitToView(), 800);
+    }
+
+    for (const e of newEdges) {
+      const src = this.nodeMap.get(e.source);
+      const tgt = this.nodeMap.get(e.target);
+      if (src && tgt) {
+        this.simEdges.push({
+          source: src,
+          target: tgt,
+          id: e.id,
+          type: e.type,
+          weight: e.weight,
+          probability: e.probability,
+          protocol: e.protocol,
+          dataFlow: e.dataFlow,
+          killChainPhase: e.killChainPhase,
+          isIntercepted: e.isIntercepted,
+          interceptionType: e.interceptionType,
+          interceptedBy: e.interceptedBy,
+          isBypassOpportunity: e.isBypassOpportunity,
+          bypassesProxy: e.bypassesProxy,
+          label: e.label,
+          particles: this.options.particlesEnabled
+            ? Array.from({ length: 2 }, () => ({
+                progress: Math.random(),
+                speed: 0.001 + Math.random() * 0.002,
+              }))
+            : [],
+        });
+      }
+    }
+    if (this.workerBridge?.isAvailable) {
+      // Send incremental update to the worker
+      const workerNewNodes = newNodes
+        .filter((n) => this.nodeMap.has(n.id))
+        .map((n) => ({
+          id: n.id,
+          type: n.type,
+          baseSize: (NODE_VISUAL_CONFIG[n.type] || NODE_VISUAL_CONFIG.host).baseSize,
+          clusterId: n.clusterId,
+          x: this.nodeMap.get(n.id)?.x,
+          y: this.nodeMap.get(n.id)?.y,
+        }));
+      const workerNewEdges = newEdges
+        .filter((e) => this.nodeMap.has(e.source) && this.nodeMap.has(e.target))
+        .map((e) => ({ id: e.id, source: e.source, target: e.target }));
+      this.workerBridge.addNodes(workerNewNodes, workerNewEdges);
+    } else if (this.simulation) {
+      this.simulation.nodes(this.simNodes);
+      (this.simulation.force("link") as any)?.links(this.simEdges);
+      this.simulation.alpha(0.3).restart();
+    } else {
+      this.startSimulation();
+    }
+  }
+
+  highlightPath(nodeIds: string[]): void {
+    const pathSet = new Set(nodeIds);
+    for (const sn of this.simNodes) (sn as any)._isHighlighted = pathSet.has(sn.id);
+
+    // Collect path edges in order for animated reveal
+    const pathEdges: SimEdge[] = [];
+    for (let i = 0; i < nodeIds.length - 1; i++) {
+      const fromId = nodeIds[i];
+      const toId = nodeIds[i + 1];
+      const edge = this.simEdges.find(se => {
+        const srcId = typeof se.source === "object" ? (se.source as SimNode).id : se.source;
+        const tgtId = typeof se.target === "object" ? (se.target as SimNode).id : se.target;
+        return (srcId === fromId && tgtId === toId) || (srcId === toId && tgtId === fromId);
+      });
+      if (edge) pathEdges.push(edge);
+    }
+
+    if (this.options.animatedPathReveal && pathEdges.length > 0) {
+      // Animated sequential reveal
+      this.animatedPathEdges = pathEdges;
+      this.animatedPathProgress = 0;
+      this.animatedPathActive = true;
+      // Initially hide all path edges
+      for (const se of this.simEdges) se.isHighlighted = false;
+    } else {
+      // Instant highlight
+      for (const se of this.simEdges) {
+        const srcId = typeof se.source === "object" ? (se.source as SimNode).id : se.source;
+        const tgtId = typeof se.target === "object" ? (se.target as SimNode).id : se.target;
+        se.isHighlighted = pathSet.has(srcId) && pathSet.has(tgtId);
+      }
+    }
+  }
+
+  clearHighlight(): void {
+    for (const sn of this.simNodes) (sn as any)._isHighlighted = undefined;
+    for (const se of this.simEdges) se.isHighlighted = false;
+    this.animatedPathActive = false;
+    this.animatedPathEdges = [];
+    this.animatedPathProgress = 0;
+  }
+
+  fitToView(): void {
+    if (this.simNodes.length === 0) return;
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (const n of this.simNodes) {
+      if (n.x! < minX) minX = n.x!;
+      if (n.x! > maxX) maxX = n.x!;
+      if (n.y! < minY) minY = n.y!;
+      if (n.y! > maxY) maxY = n.y!;
+    }
+    const graphW = maxX - minX + 200;
+    const graphH = maxY - minY + 200;
+    this.scale = Math.min(this.width / graphW, this.height / graphH, 2);
+    this.panX = this.width / 2 - ((minX + maxX) / 2) * this.scale;
+    this.panY = this.height / 2 - ((minY + maxY) / 2) * this.scale;
+    this.updateZoomLevel();
+  }
+
+  zoomIn(): void {
+    this.scale = Math.min(this.scale * 1.3, 8);
+    this.updateZoomLevel();
+  }
+
+  zoomOut(): void {
+    this.scale = Math.max(this.scale / 1.3, 0.05);
+    this.updateZoomLevel();
+  }
+
+  getNodeCount(): number { return this.simNodes.length; }
+  getEdgeCount(): number { return this.simEdges.length; }
+
+  /** Return a readonly snapshot of all graph nodes */
+  getNodes(): readonly BattlespaceNode[] { return this.simNodes; }
+  /** Return a readonly snapshot of all graph edges */
+  getEdges(): readonly SimEdge[] { return this.simEdges; }
+
+  // ── Tech Highlight API ─────────────────────────────────────────
+  private _highlightedTech: string | null = null;
+  private _newNodesSinceInteraction = 0;
+  private _highlightedAssetId: string | null = null;
+
+  /**
+   * Highlight a specific technology on a specific asset node.
+   * When a vulnerability node is selected, call this with the
+   * parent asset ID and the affected technology name.
+   */
+  highlightTechOnAsset(assetId: string | null, techName: string | null): void {
+    this._highlightedAssetId = assetId;
+    this._highlightedTech = techName ? techName.toLowerCase() : null;
+  }
+
+  /** Get the currently highlighted tech (for external UI) */
+  getHighlightedTech(): { assetId: string | null; techName: string | null } {
+    return { assetId: this._highlightedAssetId, techName: this._highlightedTech };
+  }
+
+  // ── Focus / Zoom-to-Node API ──────────────────────────────────
+  private _focusAnimation: {
+    startPanX: number; startPanY: number; startScale: number;
+    targetPanX: number; targetPanY: number; targetScale: number;
+    progress: number; duration: number;
+  } | null = null;
+
+  /**
+   * Smoothly zoom and pan to center a specific node on screen.
+   * Optionally highlight a specific technology on that node.
+   */
+  focusNode(nodeId: string, opts?: { highlightTech?: string; targetScale?: number }): boolean {
+    const node = this.simNodes.find(n => n.id === nodeId);
+    if (!node || node.x == null || node.y == null) return false;
+
+    const targetScale = opts?.targetScale ?? Math.max(this.scale, 1.5);
+    const targetPanX = this.width / 2 - node.x * targetScale;
+    const targetPanY = this.height / 2 - node.y * targetScale;
+
+    this._focusAnimation = {
+      startPanX: this.panX,
+      startPanY: this.panY,
+      startScale: this.scale,
+      targetPanX,
+      targetPanY,
+      targetScale,
+      progress: 0,
+      duration: 0.6, // seconds
+    };
+
+    // Flash the node
+    node._flashAlpha = 1.5;
+
+    // Highlight tech if requested
+    if (opts?.highlightTech) {
+      this.highlightTechOnAsset(nodeId, opts.highlightTech);
+    }
+
+    // Fire selection callback
+    this.callbacks.onNodeClick?.(node);
+    return true;
+  }
+
+  /**
+   * Find the first asset node that has a specific technology.
+   * Returns the node ID or null.
+   */
+  findAssetWithTech(techName: string): string | null {
+    const key = techName.toLowerCase();
+    const assetTypes = new Set(['host', 'subdomain', 'asset', 'cloud_resource', 'domain']);
+    for (const n of this.simNodes) {
+      if (assetTypes.has(n.type) && n.technologies?.some(t => t.toLowerCase() === key)) {
+        return n.id;
+      }
+    }
+    return null;
+  }
+
+  // ── Options API (for visual effect toggles) ──────────────────────
+  setOption<K extends keyof EngineOptions>(key: K, value: Required<EngineOptions>[K]): void {
+    (this.options as any)[key] = value;
+  }
+
+  getOptions(): Readonly<Required<EngineOptions>> {
+    return { ...this.options };
+  }
+
+  // ── Timeline API (for chronological replay) ──────────────────────
+  private timeWindowEnd: number | null = null; // null = show all
+  private timeWindowStart: number | null = null;
+
+  /** Set the visible time window. Nodes/edges outside this window are hidden. */
+  setTimeWindow(startMs: number | null, endMs: number | null): void {
+    this.timeWindowStart = startMs;
+    this.timeWindowEnd = endMs;
+    // Update node visibility based on discoveredAt
+    for (const n of this.simNodes) {
+      const t = (n as any).discoveredAt as number | undefined;
+      if (t != null && endMs != null) {
+        (n as any)._timeHidden = t > endMs || (startMs != null && t < startMs);
+      } else {
+        (n as any)._timeHidden = false;
+      }
+    }
+  }
+
+  /** Get the min/max discoveredAt timestamps across all nodes */
+  getTimeRange(): { min: number; max: number } | null {
+    let min = Infinity, max = -Infinity;
+    let found = false;
+    for (const n of this.simNodes) {
+      const t = (n as any).discoveredAt as number | undefined;
+      if (t != null && t > 0) {
+        if (t < min) min = t;
+        if (t > max) max = t;
+        found = true;
+      }
+    }
+    return found ? { min, max } : null;
+  }
+
+  getCanvas(): HTMLCanvasElement | null { return this.canvas; }
+
+  /** Request fullscreen on the canvas element */
+  requestFullscreen(): void {
+    const el = this.canvas?.parentElement;
+    if (!el) return;
+    if (el.requestFullscreen) el.requestFullscreen();
+    else if ((el as any).webkitRequestFullscreen) (el as any).webkitRequestFullscreen();
+  }
+
+  /** Exit fullscreen */
+  exitFullscreen(): void {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else if ((document as any).webkitFullscreenElement) (document as any).webkitExitFullscreen();
+  }
+
+  // ── Node Type Visibility (Topology Filters) ──────────────────────
+  setNodeTypeVisibility(nodeType: string, visible: boolean): void {
+    if (visible) {
+      this.hiddenNodeTypes.delete(nodeType);
+    } else {
+      this.hiddenNodeTypes.add(nodeType);
+    }
+  }
+
+  getHiddenNodeTypes(): Set<string> {
+    return new Set(this.hiddenNodeTypes);
+  }
+
+  // ── Simulation ──────────────────────────────────────────────────
+  private startSimulation(): void {
+    // Try to offload to WebWorker first
+    this.workerBridge = new ForceWorkerBridge({
+      onTick: (positions: PositionUpdate[], alpha: number) => {
+        this.applyWorkerPositions(positions);
+        this.workerAlpha = alpha;
+      },
+      onSettled: () => {
+        this.workerAlpha = 0;
+      },
+    });
+
+    if (this.workerBridge.isAvailable) {
+      // Send nodes to the worker
+      const workerNodes = this.simNodes.map((n) => ({
+        id: n.id,
+        type: n.type,
+        baseSize: (NODE_VISUAL_CONFIG[n.type] || NODE_VISUAL_CONFIG.host).baseSize,
+        clusterId: n.clusterId,
+        x: n.x,
+        y: n.y,
+      }));
+      const workerEdges = this.simEdges.map((e) => ({
+        id: e.id,
+        source: typeof e.source === "string" ? e.source : (e.source as SimNode).id,
+        target: typeof e.target === "string" ? e.target : (e.target as SimNode).id,
+      }));
+      this.workerBridge.init(workerNodes, workerEdges);
+    } else {
+      // Fallback: run d3-force on main thread (original behavior)
+      this.workerBridge.destroy();
+      this.workerBridge = null;
+      this.startMainThreadSimulation();
+    }
+  }
+
+  /** Apply position updates from the WebWorker to the SimNode array */
+  private applyWorkerPositions(positions: PositionUpdate[]): void {
+    for (const p of positions) {
+      const node = this.nodeMap.get(p.id);
+      if (node) {
+        node.x = p.x;
+        node.y = p.y;
+      }
+    }
+  }
+
+  /** Fallback: main-thread d3-force simulation (used when Worker is unavailable) */
+  private startMainThreadSimulation(): void {
+    this.simulation = forceSimulation<SimNode>(this.simNodes)
+      .force("link", forceLink<SimNode, SimEdge>(this.simEdges)
+        .id((d) => d.id)
+        .distance(160)
+        .strength(0.35))
+      .force("charge", forceManyBody().strength(-600).distanceMax(800))
+      .force("center", forceCenter(0, 0).strength(0.05))
+      .force("collide", forceCollide<SimNode>().radius((d) => {
+        const config = NODE_VISUAL_CONFIG[d.type] || NODE_VISUAL_CONFIG.host;
+        return config.baseSize + 14;
+      }).strength(0.8))
+      .force("x", forceX(0).strength(0.015))
+      .force("y", forceY(0).strength(0.015))
+      .force("cluster", this.clusterForce())
+      .alphaDecay(0.01)
+      .velocityDecay(0.3);
+  }
+
+  /** Custom D3 force that gently pulls cluster members toward their centroid */
+  private clusterForce() {
+    const strength = 0.03;
+    const engine = this;
+    return function force(alpha: number) {
+      if (!engine.clustersEnabled || engine.clusters.length === 0) return;
+      for (const c of engine.clusters) {
+        // Compute centroid
+        let sumX = 0, sumY = 0, count = 0;
+        for (const nid of c.nodeIds) {
+          const n = engine.nodeMap.get(nid);
+          if (!n) continue;
+          sumX += n.x || 0;
+          sumY += n.y || 0;
+          count++;
+        }
+        if (count < 2) continue;
+        const cx = sumX / count;
+        const cy = sumY / count;
+        // Pull each member toward centroid
+        for (const nid of c.nodeIds) {
+          const n = engine.nodeMap.get(nid);
+          if (!n || n.fx != null) continue; // skip fixed nodes
+          n.vx = (n.vx || 0) + (cx - (n.x || 0)) * strength * alpha;
+          n.vy = (n.vy || 0) + (cy - (n.y || 0)) * strength * alpha;
+        }
+      }
+    };
+  }
+
+  private updateZoomLevel(): void {
+    const level = getZoomLevel(this.scale);
+    if (level !== this.currentZoomLevel) {
+      this.currentZoomLevel = level;
+      this.callbacks.onZoomChange?.(this.scale, level);
+    }
+  }
+
+  /** Get the visible world-coordinate bounding box based on current pan/zoom */
+  private getViewportBounds(): { minX: number; minY: number; maxX: number; maxY: number } {
+    const margin = 100; // extra margin in world coords to avoid pop-in
+    const minX = (-this.panX) / this.scale - margin;
+    const minY = (-this.panY) / this.scale - margin;
+    const maxX = (this.width - this.panX) / this.scale + margin;
+    const maxY = (this.height - this.panY) / this.scale + margin;
+    return { minX, minY, maxX, maxY };
+  }
+
+  /** Check if a point (with radius) is within the current viewport */
+  private isInViewport(x: number, y: number, r: number, vp: { minX: number; minY: number; maxX: number; maxY: number }): boolean {
+    return x + r >= vp.minX && x - r <= vp.maxX && y + r >= vp.minY && y - r <= vp.maxY;
+  }
+
+  /** Build supernodes from clusters when node count is high and zoom is MACRO */
+  private buildSupernodes(): void {
+    this._supernodes = [];
+    // Only collapse when there are many nodes and we're zoomed out
+    if (this.simNodes.length < 150 || this.currentZoomLevel !== "MACRO") {
+      this._supernodeCount = 0;
+      return;
+    }
+    // Build a supernode for each cluster with 3+ members
+    for (const c of this.clusters) {
+      if (c.nodeIds.size < 3) continue;
+      let cx = 0, cy = 0, count = 0;
+      let criticalCount = 0, highCount = 0, mediumCount = 0;
+      const techSet = new Set<string>();
+      let maxSev = "info";
+      const sevOrder: Record<string, number> = { critical: 4, high: 3, medium: 2, low: 1, info: 0 };
+
+      for (const nid of c.nodeIds) {
+        const n = this.nodeMap.get(nid);
+        if (!n || n.x == null || n.y == null) continue;
+        cx += n.x; cy += n.y; count++;
+        if (n.severity === "critical") criticalCount++;
+        else if (n.severity === "high") highCount++;
+        else if (n.severity === "medium") mediumCount++;
+        if ((sevOrder[n.severity || "info"] || 0) > (sevOrder[maxSev] || 0)) maxSev = n.severity || "info";
+        for (const t of (n.technologies || []).slice(0, 3)) techSet.add(t);
+      }
+      if (count < 3) continue;
+      cx /= count; cy /= count;
+      this._supernodes.push({
+        cluster: c,
+        cx, cy,
+        nodeCount: count,
+        criticalCount, highCount, mediumCount,
+        techSummary: Array.from(techSet).slice(0, 5),
+        maxSeverity: maxSev,
+      });
+    }
+    this._supernodeCount = this._supernodes.length;
+  }
+
+  /** Draw a supernode: a large aggregate circle representing a collapsed cluster */
+  private drawSupernode(ctx: CanvasRenderingContext2D, sn: typeof this._supernodes[0]): void {
+    const { cx, cy, nodeCount, criticalCount, highCount, mediumCount, maxSeverity, techSummary, cluster } = sn;
+    const baseR = Math.min(30 + Math.sqrt(nodeCount) * 8, 80);
+    const pulse = Math.sin(this.animationTime * 1.5) * 0.05 + 1;
+    const r = baseR * pulse;
+
+    // Severity color
+    const sevColors: Record<string, string> = { critical: "#FF0040", high: "#FF6B00", medium: "#FFB800", low: "#3B82F6", info: "#4A5568" };
+    const sevColor = sevColors[maxSeverity] || sevColors.info;
+
+    // Outer glow
+    if (this.options.glowEnabled && (maxSeverity === "critical" || maxSeverity === "high")) {
+      const glowGrad = ctx.createRadialGradient(cx, cy, r * 0.5, cx, cy, r * 2);
+      glowGrad.addColorStop(0, rgbaStr(sevColor, 0.15));
+      glowGrad.addColorStop(1, rgbaStr(sevColor, 0));
+      ctx.fillStyle = glowGrad;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r * 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Main circle
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fillStyle = rgbaStr(cluster.color, 0.2);
+    ctx.fill();
+    ctx.strokeStyle = rgbaStr(cluster.color, 0.6);
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Severity ring segments (pie chart style)
+    const total = criticalCount + highCount + mediumCount;
+    if (total > 0) {
+      const segments = [
+        { count: criticalCount, color: "#FF0040" },
+        { count: highCount, color: "#FF6B00" },
+        { count: mediumCount, color: "#FFB800" },
+      ];
+      let startAngle = -Math.PI / 2;
+      for (const seg of segments) {
+        if (seg.count === 0) continue;
+        const sweep = (seg.count / nodeCount) * Math.PI * 2;
+        ctx.beginPath();
+        ctx.arc(cx, cy, r + 4, startAngle, startAngle + sweep);
+        ctx.strokeStyle = rgbaStr(seg.color, 0.8);
+        ctx.lineWidth = 3;
+        ctx.stroke();
+        startAngle += sweep;
+      }
+    }
+
+    // Count label in center
+    ctx.font = `bold ${Math.min(r * 0.5, 18)}px 'JetBrains Mono', monospace`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "#E8EAED";
+    ctx.fillText(`${nodeCount}`, cx, cy - 4);
+
+    // Cluster label below
+    ctx.font = "bold 9px 'JetBrains Mono', monospace";
+    ctx.fillStyle = rgbaStr(cluster.color, 0.8);
+    const label = cluster.label.length > 20 ? cluster.label.slice(0, 18) + "\u2026" : cluster.label;
+    ctx.fillText(label, cx, cy + r + 12);
+
+    // "nodes" sub-label
+    ctx.font = "8px 'JetBrains Mono', monospace";
+    ctx.fillStyle = "#4A5568";
+    ctx.fillText("nodes", cx, cy + 8);
+
+    // Tech summary pills below cluster label
+    if (techSummary.length > 0) {
+      ctx.font = "bold 7px 'JetBrains Mono', monospace";
+      let tx = cx - (techSummary.length * 20) / 2;
+      for (const t of techSummary.slice(0, 4)) {
+        const techKey = t.toLowerCase();
+        const techInfo = TECH_ICONS[techKey] || TECH_ICONS.default;
+        const tw = ctx.measureText(techInfo.label).width;
+        ctx.fillStyle = rgbaStr(techInfo.color, 0.15);
+        ctx.fillRect(tx - 2, cy + r + 20, tw + 6, 10);
+        ctx.fillStyle = techInfo.color;
+        ctx.fillText(techInfo.label, tx + 1, cy + r + 25);
+        tx += tw + 10;
+      }
+    }
+  }
+
+  // ── Input Handling ────────────────────────────────────────────────
+  private setupInputHandlers(): void {
+    if (!this.canvas) return;
+    const c = this.canvas;
+
+    c.addEventListener("wheel", (e) => {
+      e.preventDefault();
+      const factor = e.deltaY < 0 ? 1.08 : 1 / 1.08;
+      const rect = c.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+      // Zoom toward cursor
+      this.panX = mx - (mx - this.panX) * factor;
+      this.panY = my - (my - this.panY) * factor;
+      this.scale *= factor;
+      this.scale = Math.max(0.05, Math.min(8, this.scale));
+      this.updateZoomLevel();
+    }, { passive: false });
+
+    c.addEventListener("pointerdown", (e) => {
+      const [wx, wy] = this.screenToWorld(e.offsetX, e.offsetY);
+      const hit = this.hitTest(wx, wy);
+      if (hit) {
+        this.draggedNode = hit;
+        hit.fx = hit.x;
+        hit.fy = hit.y;
+        if (this.workerBridge?.isAvailable) {
+          this.workerBridge.pinNode(hit.id, hit.x || 0, hit.y || 0);
+        }
+        this.dragStartX = e.offsetX;
+        this.dragStartY = e.offsetY;
+        this.isDragging = true;
+        c.style.cursor = "grabbing";
+      } else {
+        this.isPanning = true;
+        this.panStartX = this.panX;
+        this.panStartY = this.panY;
+        this.dragStartX = e.offsetX;
+        this.dragStartY = e.offsetY;
+        c.style.cursor = "grabbing";
+      }
+      c.setPointerCapture(e.pointerId);
+    });
+
+    c.addEventListener("pointermove", (e) => {
+      if (this.isDragging && this.draggedNode) {
+        const [wx, wy] = this.screenToWorld(e.offsetX, e.offsetY);
+        this.draggedNode.fx = wx;
+        this.draggedNode.fy = wy;
+        this.draggedNode.x = wx;
+        this.draggedNode.y = wy;
+        if (this.workerBridge?.isAvailable) {
+          this.workerBridge.pinNode(this.draggedNode.id, wx, wy);
+        }
+        this.simulation?.alpha(0.1).restart();
+      } else if (this.isPanning) {
+        this.panX = this.panStartX + (e.offsetX - this.dragStartX);
+        this.panY = this.panStartY + (e.offsetY - this.dragStartY);
+      } else {
+        // Hover detection
+        const [wx, wy] = this.screenToWorld(e.offsetX, e.offsetY);
+        const hit = this.hitTest(wx, wy);
+        if (hit !== this.hoveredNode) {
+          this.hoveredNode = hit;
+          c.style.cursor = hit ? "pointer" : "grab";
+          this.callbacks.onNodeHover?.(hit || null, e.offsetX, e.offsetY);
+        }
+      }
+    });
+
+    c.addEventListener("pointerup", (e) => {
+      if (this.isDragging && this.draggedNode) {
+        // If barely moved, treat as click
+        const dx = e.offsetX - this.dragStartX;
+        const dy = e.offsetY - this.dragStartY;
+        if (Math.abs(dx) < 4 && Math.abs(dy) < 4) {
+          this.selectedNodeId = this.draggedNode.id;
+          this._newNodesSinceInteraction = 0;
+          this.callbacks.onNodeClick?.(this.draggedNode);
+        }
+        if (this.workerBridge?.isAvailable) {
+          this.workerBridge.unpinNode(this.draggedNode.id);
+        }
+        this.draggedNode.fx = null;
+        this.draggedNode.fy = null;
+        this.draggedNode = null;
+      }
+      this.isDragging = false;
+      this.isPanning = false;
+      c.style.cursor = "grab";
+    });
+
+    c.addEventListener("dblclick", (e) => {
+      const [wx, wy] = this.screenToWorld(e.offsetX, e.offsetY);
+      const hit = this.hitTest(wx, wy);
+      if (hit) this.callbacks.onNodeDoubleClick?.(hit);
+    });
+
+    // ── Touch: Pinch-to-zoom for mobile ─────────────────────────────
+    let lastTouchDist = 0;
+    let lastTouchCenter = { x: 0, y: 0 };
+
+    c.addEventListener("touchstart", (e) => {
+      if (e.touches.length === 2) {
+        e.preventDefault();
+        const t0 = e.touches[0];
+        const t1 = e.touches[1];
+        lastTouchDist = Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY);
+        lastTouchCenter = {
+          x: (t0.clientX + t1.clientX) / 2,
+          y: (t0.clientY + t1.clientY) / 2,
+        };
+      }
+    }, { passive: false });
+
+    c.addEventListener("touchmove", (e) => {
+      if (e.touches.length === 2) {
+        e.preventDefault();
+        const t0 = e.touches[0];
+        const t1 = e.touches[1];
+        const dist = Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY);
+        const center = {
+          x: (t0.clientX + t1.clientX) / 2,
+          y: (t0.clientY + t1.clientY) / 2,
+        };
+
+        if (lastTouchDist > 0) {
+          const factor = dist / lastTouchDist;
+          const rect = c.getBoundingClientRect();
+          const mx = center.x - rect.left;
+          const my = center.y - rect.top;
+          // Zoom toward pinch center
+          this.panX = mx - (mx - this.panX) * factor;
+          this.panY = my - (my - this.panY) * factor;
+          this.scale *= factor;
+          this.scale = Math.max(0.05, Math.min(8, this.scale));
+          this.updateZoomLevel();
+        }
+
+        // Pan with two-finger drag
+        this.panX += center.x - lastTouchCenter.x;
+        this.panY += center.y - lastTouchCenter.y;
+
+        lastTouchDist = dist;
+        lastTouchCenter = center;
+      }
+    }, { passive: false });
+
+    c.addEventListener("touchend", () => {
+      lastTouchDist = 0;
+    });
+  }
+
+  private screenToWorld(sx: number, sy: number): [number, number] {
+    return [(sx - this.panX) / this.scale, (sy - this.panY) / this.scale];
+  }
+
+  private worldToScreen(wx: number, wy: number): [number, number] {
+    return [wx * this.scale + this.panX, wy * this.scale + this.panY];
+  }
+
+  private hitTest(wx: number, wy: number): SimNode | null {
+    // Reverse order so top-rendered nodes are hit first
+    for (let i = this.simNodes.length - 1; i >= 0; i--) {
+      const n = this.simNodes[i];
+      const config = NODE_VISUAL_CONFIG[n.type] || NODE_VISUAL_CONFIG.host;
+      const r = config.baseSize * (1 + (n.weaknessLevel || 0) * 0.5);
+      const dx = (n.x || 0) - wx;
+      const dy = (n.y || 0) - wy;
+      if (dx * dx + dy * dy < r * r * 1.5) return n;
+    }
+    return null;
+  }
+
+  // ── Render Loop ───────────────────────────────────────────────────
+  private tick = (): void => {
+    if (this.destroyed) return;
+    this.rafId = requestAnimationFrame(this.tick);
+    this.animationTime += 0.016;
+
+    // FPS counter
+    this.frameCount++;
+    const now = performance.now();
+    if (now - this.lastFpsTime > 1000) {
+      this.currentFps = this.frameCount;
+      this.frameCount = 0;
+      this.lastFpsTime = now;
+    }
+
+    // Update reveal animations
+    for (const n of this.simNodes) {
+      if ((n._revealProgress ?? 0) < 1) {
+        n._revealProgress = Math.min(1, (n._revealProgress || 0) + 0.03);
+      }
+      if (n._flashAlpha && n._flashAlpha > 0) {
+        n._flashAlpha -= 0.008;
+      }
+    }
+
+    // Update particles
+    for (const e of this.simEdges) {
+      for (const p of e.particles) {
+        p.progress += p.speed;
+        if (p.progress > 1) p.progress -= 1;
+      }
+    }
+
+    // Focus animation (smooth zoom/pan to node)
+    if (this._focusAnimation) {
+      const fa = this._focusAnimation;
+      fa.progress += 0.016 / fa.duration;
+      if (fa.progress >= 1) {
+        this.panX = fa.targetPanX;
+        this.panY = fa.targetPanY;
+        this.scale = fa.targetScale;
+        this._focusAnimation = null;
+        // Update zoom level after animation completes
+        const level = getZoomLevel(this.scale);
+        if (level !== this.currentZoomLevel) {
+          this.currentZoomLevel = level;
+          this.callbacks.onZoomChange?.(this.scale, level);
+        }
+      } else {
+        // Ease-out cubic: 1 - (1-t)^3
+        const t = 1 - Math.pow(1 - fa.progress, 3);
+        this.panX = fa.startPanX + (fa.targetPanX - fa.startPanX) * t;
+        this.panY = fa.startPanY + (fa.targetPanY - fa.startPanY) * t;
+        this.scale = fa.startScale + (fa.targetScale - fa.startScale) * t;
+      }
+    }
+
+    // Animated path reveal progression
+    if (this.animatedPathActive && this.animatedPathEdges.length > 0) {
+      this.animatedPathProgress += 0.016 * 1.5; // ~1.5 edges per second
+      const revealedCount = Math.floor(this.animatedPathProgress);
+      for (let i = 0; i < this.animatedPathEdges.length; i++) {
+        this.animatedPathEdges[i].isHighlighted = i < revealedCount;
+      }
+      if (revealedCount >= this.animatedPathEdges.length) {
+        this.animatedPathActive = false;
+      }
+    }
+
+    this.draw();
+
+    // Stats callback (throttled — fires every second after FPS counter resets)
+    if (this.frameCount === 0 && this.simNodes.length > 0) {
+      this.callbacks.onStatsUpdate?.({
+        nodeCount: this.simNodes.length,
+        edgeCount: this.simEdges.length,
+        clusterCount: this.clusters.length,
+        fps: this.currentFps,
+        zoomLevel: this.currentZoomLevel,
+        scale: this.scale,
+        simulationAlpha: this.simulation?.alpha() || 0,
+        visibleNodes: this._visibleNodes,
+        visibleEdges: this._visibleEdges,
+        supernodeCount: this._supernodeCount,
+        newNodesSinceInteraction: this._newNodesSinceInteraction,
+      });
+    }
+  };
+  // ── Drawing ─────────────────────────────────────────────────────────
+  private draw(): void {
+    const ctx = this.ctx;
+    if (!ctx) return;
+
+    // Clear
+    ctx.fillStyle = this.options.backgroundColor;
+    ctx.fillRect(0, 0, this.width, this.height);
+
+    ctx.save();
+    ctx.translate(this.panX, this.panY);
+    ctx.scale(this.scale, this.scale);
+
+    // Compute viewport bounds for frustum culling
+    const vp = this.getViewportBounds();
+    const isLargeGraph = this.simNodes.length >= 150;
+
+    // Grid
+    if (this.options.gridEnabled) this.drawGrid(ctx);
+
+    // Threat heatmap zones (drawn behind everything else)
+    if (this.options.heatmapEnabled) this.drawThreatHeatmap(ctx);
+
+    // Build supernodes for MACRO zoom on large graphs
+    if (isLargeGraph) this.buildSupernodes();
+
+    // Collect supernode member IDs for skipping individual rendering
+    const supernodeMemberIds = new Set<string>();
+    if (this._supernodes.length > 0) {
+      for (const sn of this._supernodes) {
+        for (const nid of sn.cluster.nodeIds) supernodeMemberIds.add(nid);
+      }
+    }
+
+    // Cluster bounding boxes (drawn behind edges and nodes)
+    // Skip cluster boxes when supernodes are active (they replace them)
+    if (this.clustersEnabled && this.clusters.length > 0 && this._supernodes.length === 0) {
+      this.updateClusterBounds();
+      for (const c of this.clusters) {
+        // Viewport cull clusters
+        if (c.maxX < vp.minX || c.minX > vp.maxX || c.maxY < vp.minY || c.minY > vp.maxY) continue;
+        this.drawCluster(ctx, c);
+      }
+    }
+
+    // Draw supernodes (collapsed cluster aggregates)
+    for (const sn of this._supernodes) {
+      if (this.isInViewport(sn.cx, sn.cy, 100, vp)) {
+        this.drawSupernode(ctx, sn);
+      }
+    }
+
+    // Edges (skip edges connected to hidden, time-filtered, or supernode-collapsed nodes)
+    let visibleEdges = 0;
+    for (const e of this.simEdges) {
+      const src = e.source as SimNode;
+      const tgt = e.target as SimNode;
+      if (this.hiddenNodeTypes.has(src.type) || this.hiddenNodeTypes.has(tgt.type)) continue;
+      if ((src as any)._timeHidden || (tgt as any)._timeHidden) continue;
+      // Skip edges for supernode-collapsed nodes (unless highlighted)
+      if (supernodeMemberIds.has(src.id) && supernodeMemberIds.has(tgt.id) && !e.isHighlighted) continue;
+      // Viewport culling: skip edges where both endpoints are offscreen
+      if (src.x != null && src.y != null && tgt.x != null && tgt.y != null) {
+        const edgeMinX = Math.min(src.x, tgt.x);
+        const edgeMaxX = Math.max(src.x, tgt.x);
+        const edgeMinY = Math.min(src.y, tgt.y);
+        const edgeMaxY = Math.max(src.y, tgt.y);
+        if (edgeMaxX < vp.minX || edgeMinX > vp.maxX || edgeMaxY < vp.minY || edgeMinY > vp.maxY) continue;
+      }
+      visibleEdges++;
+      this.drawEdge(ctx, e);
+    }
+    this._visibleEdges = visibleEdges;
+
+    // Nodes (skip hidden, time-filtered, supernode-collapsed, and offscreen nodes)
+    let visibleNodes = 0;
+    for (const n of this.simNodes) {
+      if (this.hiddenNodeTypes.has(n.type)) continue;
+      if ((n as any)._timeHidden) continue;
+      // Skip supernode-collapsed nodes (unless selected or highlighted)
+      if (supernodeMemberIds.has(n.id) && n.id !== this.selectedNodeId && !(n as any)._isHighlighted) continue;
+      // Viewport frustum culling
+      if (n.x != null && n.y != null) {
+        const config = NODE_VISUAL_CONFIG[n.type] || NODE_VISUAL_CONFIG.host;
+        const nodeR = config.baseSize * (1 + (n.weaknessLevel || 0) * 0.5) + 40; // +40 for orbit/labels
+        if (!this.isInViewport(n.x, n.y, nodeR, vp)) continue;
+      }
+      visibleNodes++;
+      this.drawNode(ctx, n);
+    }
+    this._visibleNodes = visibleNodes;
+
+    // Ripple effects (drawn on top of nodes)
+    this.drawRipples(ctx);
+
+    ctx.restore();
+
+    // Scanline overlay (brutalist CRT effect)
+    this.drawScanlines(ctx);
+
+    // HUD overlay (screen-space, drawn after ctx.restore)
+    if (this.options.hudEnabled) this.drawHUD(ctx);
+  }
+  private drawGrid(ctx: CanvasRenderingContext2D): void {
+    const gridSize = 80;
+    const extent = 4000;
+    ctx.strokeStyle = "rgba(26,35,50,0.4)";
+    ctx.lineWidth = 0.5;
+    for (let x = -extent; x <= extent; x += gridSize) {
+      ctx.beginPath();
+      ctx.moveTo(x, -extent);
+      ctx.lineTo(x, extent);
+      ctx.stroke();
+    }
+    for (let y = -extent; y <= extent; y += gridSize) {
+      ctx.beginPath();
+      ctx.moveTo(-extent, y);
+      ctx.lineTo(extent, y);
+      ctx.stroke();
+    }
+    // Major grid lines
+    ctx.strokeStyle = "rgba(26,35,50,0.7)";
+    ctx.lineWidth = 1;
+    const majorSize = gridSize * 4;
+    for (let x = -extent; x <= extent; x += majorSize) {
+      ctx.beginPath();
+      ctx.moveTo(x, -extent);
+      ctx.lineTo(x, extent);
+      ctx.stroke();
+    }
+    for (let y = -extent; y <= extent; y += majorSize) {
+      ctx.beginPath();
+      ctx.moveTo(-extent, y);
+      ctx.lineTo(extent, y);
+      ctx.stroke();
+    }
+    // Origin crosshair
+    ctx.strokeStyle = "rgba(0,229,204,0.15)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(-extent, 0);
+    ctx.lineTo(extent, 0);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(0, -extent);
+    ctx.lineTo(0, extent);
+    ctx.stroke();
+  }
+
+  private drawEdge(ctx: CanvasRenderingContext2D, e: SimEdge): void {
+    const src = e.source as SimNode;
+    const tgt = e.target as SimNode;
+    if (!src.x || !src.y || !tgt.x || !tgt.y) return;
+
+    const config = EDGE_VISUAL_CONFIG[e.type] || EDGE_VISUAL_CONFIG.enables;
+    const alpha = e.isHighlighted ? 1 : 0.5;
+    const lineWidth = e.isHighlighted ? 2.5 : (e.weight || 1) * 1.2;
+
+    // Protocol-based dash pattern
+    const dash = PROTOCOL_DASH[e.protocol || "default"] || PROTOCOL_DASH.default;
+
+    ctx.save();
+
+    // ── Interception visual: pulsing red/blue stripe pattern ──────
+    if (e.isIntercepted) {
+      const pulse = Math.sin(this.animationTime * 3) * 0.2 + 0.8;
+      const dx = tgt.x - src.x;
+      const dy = tgt.y - src.y;
+      const edgeLen = Math.sqrt(dx * dx + dy * dy);
+      const stripeWidth = 12;
+      const numStripes = Math.max(2, Math.floor(edgeLen / stripeWidth));
+      const angle = Math.atan2(dy, dx);
+
+      // Determine interception colors based on type
+      const interceptColors = {
+        ssl_decrypted: { primary: "#FF4444", secondary: "#2196F3" },  // Red/Blue
+        inline: { primary: "#FF6600", secondary: "#2196F3" },          // Orange/Blue
+        logged: { primary: "#FFAA00", secondary: "#4A90D9" },          // Amber/Blue
+        mirrored: { primary: "#E040FB", secondary: "#4A90D9" },        // Purple/Blue
+      };
+      const colors = interceptColors[e.interceptionType || "logged"];
+
+      // Draw alternating stripe segments along the edge
+      for (let i = 0; i < numStripes; i++) {
+        const t0 = i / numStripes;
+        const t1 = (i + 1) / numStripes;
+        const x0 = src.x + dx * t0;
+        const y0 = src.y + dy * t0;
+        const x1 = src.x + dx * t1;
+        const y1 = src.y + dy * t1;
+        const isEven = i % 2 === 0;
+        ctx.strokeStyle = rgbaStr(isEven ? colors.primary : colors.secondary, alpha * pulse);
+        ctx.lineWidth = lineWidth + 1.5;
+        ctx.setLineDash([]);
+        ctx.beginPath();
+        ctx.moveTo(x0, y0);
+        ctx.lineTo(x1, y1);
+        ctx.stroke();
+      }
+
+      // Outer glow for intercepted edge
+      ctx.strokeStyle = rgbaStr(colors.primary, 0.15 * pulse);
+      ctx.lineWidth = lineWidth + 6;
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.moveTo(src.x, src.y);
+      ctx.lineTo(tgt.x, tgt.y);
+      ctx.stroke();
+
+      // Eye icon at midpoint (interception indicator)
+      const mx = (src.x + tgt.x) / 2;
+      const my = (src.y + tgt.y) / 2;
+      ctx.font = "12px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = rgbaStr(colors.primary, pulse);
+      ctx.fillText("\uD83D\uDC41", mx, my); // 👁 eye emoji
+
+      // Interception label at MESO/MICRO zoom
+      if (this.currentZoomLevel !== "MACRO" && e.interceptedBy) {
+        ctx.font = "bold 7px 'JetBrains Mono', monospace";
+        ctx.fillStyle = rgbaStr(colors.primary, 0.9);
+        ctx.textAlign = "center";
+        const label = e.interceptedBy.length > 25 ? e.interceptedBy.slice(0, 23) + "…" : e.interceptedBy;
+        ctx.fillText(label, mx, my + 10);
+      }
+    } else if (e.isBypassOpportunity) {
+      // ── Bypass opportunity: pulsing gold dashed line with warning ──
+      const pulse = Math.sin(this.animationTime * 4) * 0.3 + 0.7;
+      const dx = tgt.x - src.x;
+      const dy = tgt.y - src.y;
+
+      // Outer glow — gold warning
+      ctx.strokeStyle = rgbaStr("#FFD600", 0.2 * pulse);
+      ctx.lineWidth = lineWidth + 8;
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.moveTo(src.x, src.y);
+      ctx.lineTo(tgt.x, tgt.y);
+      ctx.stroke();
+
+      // Main bypass line — gold dashed
+      ctx.strokeStyle = rgbaStr("#FFD600", alpha * pulse);
+      ctx.lineWidth = lineWidth + 1;
+      ctx.setLineDash([8, 4, 2, 4]);
+      ctx.beginPath();
+      ctx.moveTo(src.x, src.y);
+      ctx.lineTo(tgt.x, tgt.y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Warning triangle at midpoint
+      const mx = (src.x + tgt.x) / 2;
+      const my = (src.y + tgt.y) / 2;
+      ctx.font = "14px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = rgbaStr("#FFD600", pulse);
+      ctx.fillText("\u26A0", mx, my); // ⚠ warning
+
+      // Bypass label at MESO/MICRO zoom
+      if (this.currentZoomLevel !== "MACRO" && e.label) {
+        ctx.font = "bold 7px 'JetBrains Mono', monospace";
+        ctx.fillStyle = rgbaStr("#FFD600", 0.9);
+        ctx.textAlign = "center";
+        const label = e.label.length > 30 ? e.label.slice(0, 28) + "\u2026" : e.label;
+        ctx.fillText(label, mx, my + 12);
+      }
+    } else {
+      // Normal edge rendering with optional bloom/glow
+      if (this.options.edgeBloomEnabled) {
+        // Pass 1: Wide outer glow
+        ctx.strokeStyle = rgbaStr(config.color, alpha * 0.08);
+        ctx.lineWidth = lineWidth + 8;
+        ctx.setLineDash([]);
+        ctx.beginPath();
+        ctx.moveTo(src.x, src.y);
+        ctx.lineTo(tgt.x, tgt.y);
+        ctx.stroke();
+        // Pass 2: Medium glow
+        ctx.strokeStyle = rgbaStr(config.color, alpha * 0.2);
+        ctx.lineWidth = lineWidth + 3;
+        ctx.beginPath();
+        ctx.moveTo(src.x, src.y);
+        ctx.lineTo(tgt.x, tgt.y);
+        ctx.stroke();
+      }
+      // Pass 3 (or only pass): Bright core line
+      ctx.strokeStyle = rgbaStr(config.color, alpha);
+      ctx.lineWidth = lineWidth;
+      ctx.setLineDash(dash);
+      ctx.beginPath();
+      ctx.moveTo(src.x, src.y);
+      ctx.lineTo(tgt.x, tgt.y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    // Arrow head
+    const angle = Math.atan2(tgt.y - src.y, tgt.x - src.x);
+    const arrowLen = 8;
+    const ax = tgt.x - Math.cos(angle) * 15;
+    const ay = tgt.y - Math.sin(angle) * 15;
+    const arrowColor = e.isIntercepted ? "#FF4444" : config.color;
+    ctx.fillStyle = rgbaStr(arrowColor, alpha);
+    ctx.beginPath();
+    ctx.moveTo(ax + Math.cos(angle) * arrowLen, ay + Math.sin(angle) * arrowLen);
+    ctx.lineTo(ax + Math.cos(angle + 2.5) * arrowLen * 0.5, ay + Math.sin(angle + 2.5) * arrowLen * 0.5);
+    ctx.lineTo(ax + Math.cos(angle - 2.5) * arrowLen * 0.5, ay + Math.sin(angle - 2.5) * arrowLen * 0.5);
+    ctx.closePath();
+    ctx.fill();
+
+    // Directional particles with enhanced glow trails
+    if (this.options.particlesEnabled && e.particles.length > 0) {
+      const killColor = e.killChainPhase ? KILL_CHAIN_COLORS[e.killChainPhase] : config.color;
+      for (const p of e.particles) {
+        const px = src.x + (tgt.x - src.x) * p.progress;
+        const py = src.y + (tgt.y - src.y) * p.progress;
+
+        // Multi-segment fade trail (4 segments fading out)
+        const trailSegments = 4;
+        const trailStep = 0.015;
+        for (let s = trailSegments; s >= 1; s--) {
+          const tp = Math.max(0, p.progress - trailStep * s);
+          const tx = src.x + (tgt.x - src.x) * tp;
+          const ty = src.y + (tgt.y - src.y) * tp;
+          const ta = 0.15 * (1 - s / (trailSegments + 1));
+          ctx.fillStyle = rgbaStr(killColor, ta);
+          ctx.beginPath();
+          ctx.arc(tx, ty, 2 + (trailSegments - s) * 0.3, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        // Outer glow halo
+        const particleGlow = ctx.createRadialGradient(px, py, 0, px, py, 6);
+        particleGlow.addColorStop(0, rgbaStr(killColor, 0.6));
+        particleGlow.addColorStop(0.5, rgbaStr(killColor, 0.15));
+        particleGlow.addColorStop(1, rgbaStr(killColor, 0));
+        ctx.fillStyle = particleGlow;
+        ctx.beginPath();
+        ctx.arc(px, py, 6, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Bright core
+        ctx.fillStyle = rgbaStr(killColor, 1);
+        ctx.beginPath();
+        ctx.arc(px, py, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        // White-hot center dot
+        ctx.fillStyle = "rgba(255,255,255,0.8)";
+        ctx.beginPath();
+        ctx.arc(px, py, 1, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // Edge label at MICRO zoom (protocol or affected tech)
+    if (this.currentZoomLevel === "MICRO" || (this.currentZoomLevel === "MESO" && e.label)) {
+      const mx = (src.x + tgt.x) / 2;
+      const my = (src.y + tgt.y) / 2;
+      // Show affected technology label on exploit edges
+      if (e.label && (e.type === "exploits" || e.type === "targets")) {
+        const techKey = e.label.toLowerCase();
+        const techInfo = TECH_ICONS[techKey] || TECH_ICONS.default;
+        ctx.font = "bold 8px 'JetBrains Mono', monospace";
+        const tw = ctx.measureText(e.label).width;
+        // Dark pill background
+        ctx.fillStyle = "rgba(10,14,20,0.85)";
+        ctx.fillRect(mx - tw / 2 - 4, my - 8, tw + 8, 14);
+        ctx.strokeStyle = rgbaStr(techInfo.color, 0.5);
+        ctx.lineWidth = 0.8;
+        ctx.strokeRect(mx - tw / 2 - 4, my - 8, tw + 8, 14);
+        ctx.fillStyle = rgbaStr(techInfo.color, 0.9);
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(e.label, mx, my - 1);
+      } else if (this.currentZoomLevel === "MICRO" && e.protocol && !e.isIntercepted) {
+        ctx.font = "bold 7px 'JetBrains Mono', monospace";
+        ctx.fillStyle = rgbaStr(config.color, 0.7);
+        ctx.textAlign = "center";
+        ctx.fillText(e.protocol.toUpperCase(), mx, my - 4);
+      }
+    }
+
+    ctx.restore();
+  }
+
+  private drawNode(ctx: CanvasRenderingContext2D, n: SimNode): void {
+    if (!n.x || !n.y) return;
+    const config = NODE_VISUAL_CONFIG[n.type] || NODE_VISUAL_CONFIG.host;
+    const reveal = n._revealProgress ?? 1;
+    if (reveal <= 0) return;
+
+    const baseR = config.baseSize * (1 + (n.weaknessLevel || 0) * 0.5);
+    const r = baseR * reveal;
+    const isSelected = n.id === this.selectedNodeId;
+    const isHovered = n === this.hoveredNode;
+    const isHighlighted = (n as any)._isHighlighted;
+    const sevColor = n.severity ? SEVERITY_COLORS[n.severity] : config.strokeColor;
+
+    ctx.save();
+    ctx.globalAlpha = reveal;
+
+    // Glow effect for high-severity or selected nodes
+    if (this.options.glowEnabled && (n.severity === "critical" || n.severity === "high" || isSelected || isHighlighted)) {
+      const glowR = r * 2.5;
+      const pulse = Math.sin(this.animationTime * 2 + (n._pulsePhase || 0)) * 0.15 + 0.85;
+      const gradient = ctx.createRadialGradient(n.x, n.y, r * 0.5, n.x, n.y, glowR * pulse);
+      gradient.addColorStop(0, rgbaStr(sevColor, 0.25));
+      gradient.addColorStop(1, rgbaStr(sevColor, 0));
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, glowR * pulse, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // ── Blue team tap point: pulsing blue glow with scanning ring ───
+    if (this.options.glowEnabled && n.type === "tap_point") {
+      const tapPulse = Math.sin(this.animationTime * 4 + (n._pulsePhase || 0)) * 0.3 + 0.7;
+      const glowR = r * 3;
+      // Blue team glow
+      const tapGrad = ctx.createRadialGradient(n.x, n.y, r * 0.3, n.x, n.y, glowR * tapPulse);
+      tapGrad.addColorStop(0, rgbaStr("#2196F3", 0.35));
+      tapGrad.addColorStop(0.5, rgbaStr("#2196F3", 0.12));
+      tapGrad.addColorStop(1, rgbaStr("#2196F3", 0));
+      ctx.fillStyle = tapGrad;
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, glowR * tapPulse, 0, Math.PI * 2);
+      ctx.fill();
+      // Rotating scanning ring
+      const scanAngle = this.animationTime * 1.5;
+      ctx.strokeStyle = rgbaStr("#2196F3", 0.5 * tapPulse);
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, r + 6, scanAngle, scanAngle + Math.PI * 0.6);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, r + 6, scanAngle + Math.PI, scanAngle + Math.PI * 1.6);
+      ctx.stroke();
+    }
+
+    // ── Proxy/CDN/LB node: shield arc with vendor label ───────────
+    if (this.options.glowEnabled && n.type === "proxy") {
+      const proxyPulse = Math.sin(this.animationTime * 1.5) * 0.1 + 0.9;
+      const proxyGlowR = r * 2.2;
+      const proxyGrad = ctx.createRadialGradient(n.x, n.y, r * 0.5, n.x, n.y, proxyGlowR * proxyPulse);
+      proxyGrad.addColorStop(0, rgbaStr("#FF9800", 0.2));
+      proxyGrad.addColorStop(1, rgbaStr("#FF9800", 0));
+      ctx.fillStyle = proxyGrad;
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, proxyGlowR * proxyPulse, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // ── C2 server node: red command glow ─────────────────────
+    if (this.options.glowEnabled && n.type === "c2_server") {
+      const c2Pulse = Math.sin(this.animationTime * 2) * 0.15 + 0.85;
+      const c2GlowR = r * 2.5;
+      const c2Grad = ctx.createRadialGradient(n.x, n.y, r * 0.5, n.x, n.y, c2GlowR * c2Pulse);
+      c2Grad.addColorStop(0, rgbaStr("#FF1744", 0.3));
+      c2Grad.addColorStop(1, rgbaStr("#FF1744", 0));
+      ctx.fillStyle = c2Grad;
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, c2GlowR * c2Pulse, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // ── Gateway hop: subtle network pulse ────────────────────
+    if (this.options.glowEnabled && n.type === "gateway") {
+      const gwPulse = Math.sin(this.animationTime * 1.2 + (n._pulsePhase || 0)) * 0.1 + 0.9;
+      const gwGlowR = r * 1.8;
+      const gwGrad = ctx.createRadialGradient(n.x, n.y, r * 0.5, n.x, n.y, gwGlowR * gwPulse);
+      gwGrad.addColorStop(0, rgbaStr("#78909C", 0.15));
+      gwGrad.addColorStop(1, rgbaStr("#78909C", 0));
+      ctx.fillStyle = gwGrad;
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, gwGlowR * gwPulse, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Node heartbeat pulse rings (for active agents, compromised hosts, beacons)
+    if (this.options.nodeHeartbeatEnabled && (n.type === "agent" || n.type === "c2_server" || n.severity === "critical" || n.isCompromised)) {
+      let hb = this.nodeHeartbeats.get(n.id);
+      if (!hb) {
+        hb = { phase: n._pulsePhase || Math.random() * Math.PI * 2, intensity: n.type === "agent" ? 0.8 : 0.5 };
+        this.nodeHeartbeats.set(n.id, hb);
+      }
+      // Heartbeat ring animation uses time-based phase cycling
+      // Two expanding concentric rings
+      for (let ring = 0; ring < 2; ring++) {
+        const ringPhase = (this.animationTime * 0.8 + hb.phase + ring * 1.5) % 3;
+        const ringProgress = ringPhase / 3; // 0 to 1
+        const ringR = r + ringProgress * r * 2.5;
+        const ringAlpha = (1 - ringProgress) * hb.intensity * 0.35;
+        if (ringAlpha > 0.01) {
+          ctx.strokeStyle = rgbaStr(sevColor, ringAlpha);
+          ctx.lineWidth = 1.5 * (1 - ringProgress);
+          ctx.beginPath();
+          ctx.arc(n.x, n.y, ringR, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      }
+    }
+
+    // Node shape
+    const shapeFn = getShape(config.shape);
+    shapeFn(ctx, n.x, n.y, r);
+
+    // Fill
+    ctx.fillStyle = rgbaStr(config.baseColor, 0.85);
+    ctx.fill();
+
+    // Border — thickness encodes weakness level
+    const borderWidth = 1 + (n.weaknessLevel || 0) * 3;
+    ctx.strokeStyle = isSelected ? "#FFFFFF" : isHovered ? "#00E5CC" : sevColor;
+    ctx.lineWidth = borderWidth;
+    // Hypothesis nodes get a dashed border to visually distinguish from confirmed findings
+    if (n.type === "hypothesis") {
+      ctx.setLineDash([4, 3]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    } else {
+      ctx.stroke();
+    }
+
+    // Flash overlay
+    if (n._flashColor && n._flashAlpha && n._flashAlpha > 0) {
+      shapeFn(ctx, n.x, n.y, r);
+      ctx.fillStyle = rgbaStr(n._flashColor, n._flashAlpha);
+      ctx.fill();
+    }
+
+    // Icon in center
+    ctx.font = `${r * 0.8}px sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = config.strokeColor;
+    ctx.fillText(config.icon, n.x, n.y);
+
+    // Label (MESO and MICRO zoom)
+    if (this.currentZoomLevel !== "MACRO") {
+      const labelText = n.label.length > 24 ? n.label.slice(0, 22) + "\u2026" : n.label;
+      ctx.font = "bold 11px 'JetBrains Mono', monospace";
+      const labelWidth = ctx.measureText(labelText).width;
+      // Dark background pill for readability
+      ctx.fillStyle = "rgba(10,14,20,0.85)";
+      ctx.fillRect(n.x - labelWidth / 2 - 4, n.y + r + 4, labelWidth + 8, 16);
+      ctx.fillStyle = "#E8EAED";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(labelText, n.x, n.y + r + 12);
+
+      // Hypothesis badge below label
+      if (n.type === "hypothesis") {
+        ctx.font = "bold 7px 'JetBrains Mono', monospace";
+        const inferTag = "\u26A0 INFERRED";
+        const inferW = ctx.measureText(inferTag).width;
+        const inferY = n.y + r + 24;
+        ctx.fillStyle = "rgba(139,92,246,0.15)";
+        ctx.fillRect(n.x - inferW / 2 - 4, inferY - 5, inferW + 8, 12);
+        ctx.strokeStyle = "rgba(139,92,246,0.5)";
+        ctx.lineWidth = 0.8;
+        ctx.setLineDash([2, 2]);
+        ctx.strokeRect(n.x - inferW / 2 - 4, inferY - 5, inferW + 8, 12);
+        ctx.setLineDash([]);
+        ctx.fillStyle = "#8B5CF6";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(inferTag, n.x, inferY + 1);
+      }
+
+      // Scanner attribution badge (top-right corner of vuln nodes)
+      if ((n.type === "vulnerability" || n.type === "hypothesis") && n.discoveredBy && n.discoveredBy !== 'hypothesized') {
+        const scannerColors: Record<string, { bg: string; fg: string; label: string }> = {
+          burp: { bg: 'rgba(255,107,0,0.2)', fg: '#FF6B00', label: 'BURP' },
+          zap: { bg: 'rgba(59,130,246,0.2)', fg: '#3B82F6', label: 'ZAP' },
+          nuclei: { bg: 'rgba(16,185,129,0.2)', fg: '#10B981', label: 'NUC' },
+          nikto: { bg: 'rgba(245,158,11,0.2)', fg: '#F59E0B', label: 'NKT' },
+          nmap: { bg: 'rgba(139,92,246,0.2)', fg: '#8B5CF6', label: 'NMAP' },
+          httpx: { bg: 'rgba(6,182,212,0.2)', fg: '#06B6D4', label: 'HTTPX' },
+        };
+        const sc = scannerColors[n.discoveredBy] || { bg: 'rgba(107,114,128,0.2)', fg: '#6B7280', label: n.discoveredBy.slice(0, 4).toUpperCase() };
+        ctx.font = "bold 6px 'JetBrains Mono', monospace";
+        const scW = ctx.measureText(sc.label).width;
+        const scX = n.x + r - 2;
+        const scY = n.y - r - 4;
+        ctx.fillStyle = sc.bg;
+        ctx.fillRect(scX - scW / 2 - 3, scY - 4, scW + 6, 10);
+        ctx.strokeStyle = sc.fg;
+        ctx.lineWidth = 0.6;
+        ctx.strokeRect(scX - scW / 2 - 3, scY - 4, scW + 6, 10);
+        ctx.fillStyle = sc.fg;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(sc.label, scX, scY + 1);
+      }
+
+      // Affected technology badge below label (vulnerability nodes only)
+      if (n.type === "vulnerability" && n.affectedTechnology) {
+        const techKey = n.affectedTechnology.toLowerCase();
+        const techInfo = TECH_ICONS[techKey] || TECH_ICONS.default;
+        ctx.font = "bold 8px 'JetBrains Mono', monospace";
+        const techLabel = techInfo.label !== "???" ? techInfo.label : n.affectedTechnology.slice(0, 8);
+        const tw = ctx.measureText(techLabel).width;
+        const tagY = n.y + r + 24;
+        // Colored pill
+        ctx.fillStyle = rgbaStr(techInfo.color, 0.15);
+        ctx.fillRect(n.x - tw / 2 - 5, tagY - 5, tw + 10, 12);
+        ctx.strokeStyle = rgbaStr(techInfo.color, 0.6);
+        ctx.lineWidth = 0.8;
+        ctx.strokeRect(n.x - tw / 2 - 5, tagY - 5, tw + 10, 12);
+        ctx.fillStyle = techInfo.color;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(techLabel, n.x, tagY + 1);
+      }
+    }
+
+    // Tech stack badges at MESO and MICRO zoom
+    if (this.currentZoomLevel === "MICRO" || this.currentZoomLevel === "MESO") {
+      this.drawTechOrbit(ctx, n, r);
+    }
+
+    // Priority target indicator
+    if (n.isPriorityTarget) {
+      ctx.strokeStyle = "#FF0040";
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, r + 8, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      // Rotating crosshair
+      const angle = this.animationTime * 0.5;
+      ctx.strokeStyle = rgbaStr("#FF0040", 0.6);
+      ctx.lineWidth = 1;
+      for (let i = 0; i < 4; i++) {
+        const a = angle + (Math.PI / 2) * i;
+        ctx.beginPath();
+        ctx.moveTo(n.x + Math.cos(a) * (r + 10), n.y + Math.sin(a) * (r + 10));
+        ctx.lineTo(n.x + Math.cos(a) * (r + 16), n.y + Math.sin(a) * (r + 16));
+        ctx.stroke();
+      }
+    }
+
+    // Defense shield overlay
+    if (n.defenses && n.defenses.length > 0) {
+      ctx.strokeStyle = rgbaStr("#4A90D9", 0.4);
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, r + 5, -Math.PI * 0.7, Math.PI * 0.7);
+      ctx.stroke();
+      // Defense count badge
+      ctx.fillStyle = "#4A90D9";
+      ctx.font = "bold 7px 'JetBrains Mono', monospace";
+      ctx.textAlign = "center";
+      ctx.fillText(`🛡${n.defenses.length}`, n.x + r + 8, n.y - r);
+    }
+
+    ctx.restore();
+  }
+
+  /**
+   * Draw orbiting tech-stack pill badges around an asset node.
+   * Each pill is color-coded by technology, connected to the node
+   * with a thin line, and slowly orbits for visual appeal.
+   * Supports: version display, outdated version flagging, and
+   * highlight-on-select when a vulnerability targets a specific tech.
+   */
+  private drawTechOrbit(ctx: CanvasRenderingContext2D, n: SimNode, r: number): void {
+    if (!n.x || !n.y) return;
+    const techs = (n.technologies || []).filter(Boolean);
+    const services = (n.exposedServices || []).slice(0, this.currentZoomLevel === "MICRO" ? 8 : 4);
+    const hasPlatform = !!n.platform;
+    const versions = n.technologyVersions || {};
+
+    // Build badge list: tech pills + platform + services
+    interface Badge {
+      label: string;
+      color: string;
+      fullName: string;
+      version?: string;
+      isOutdated?: boolean;
+    }
+    const badges: Badge[] = [];
+
+    // Tech stack (max 6 at MICRO, 4 at MESO)
+    const maxTechs = this.currentZoomLevel === "MICRO" ? 6 : 4;
+    for (const t of techs.slice(0, maxTechs)) {
+      const key = t.toLowerCase();
+      const tech = TECH_ICONS[key] || TECH_ICONS.default;
+      // Look up version from multiple possible key formats
+      const ver = versions[t] || versions[key] || versions[t.toLowerCase()] || "";
+      const outdated = ver ? isVersionOutdated(key, ver) : false;
+      badges.push({ label: tech.label, color: tech.color, fullName: t, version: ver || undefined, isOutdated: outdated });
+    }
+
+    // Platform badge
+    if (hasPlatform && this.currentZoomLevel === "MICRO") {
+      const icon = PLATFORM_ICONS[n.platform!] || PLATFORM_ICONS.on_prem;
+      badges.push({ label: icon, color: "#6B7280", fullName: n.platform! });
+    }
+
+    // Exposed services (MICRO + MESO)
+    if (this.currentZoomLevel === "MICRO" || this.currentZoomLevel === "MESO") {
+      for (const s of services) {
+        badges.push({
+          label: s.port ? `${s.port}` : "svc",
+          color: "#3B82F6",
+          fullName: s.name || `port ${s.port}`,
+        });
+      }
+    }
+
+    if (badges.length === 0) return;
+
+    // Check if this node has a highlighted tech
+    const isThisAssetHighlighted = this._highlightedAssetId === n.id;
+    const highlightedTechKey = this._highlightedTech;
+
+    // Orbit geometry
+    const orbitR = r + 22 + (badges.length > 4 ? 6 : 0);
+    const angleStep = (Math.PI * 2) / badges.length;
+    // Slow rotation (one full revolution every ~40s)
+    const baseAngle = this.animationTime * 0.15 + (n._pulsePhase || 0);
+
+    for (let i = 0; i < badges.length; i++) {
+      const badge = badges[i];
+      const angle = baseAngle + angleStep * i;
+      const bx = n.x + Math.cos(angle) * orbitR;
+      const by = n.y + Math.sin(angle) * orbitR;
+
+      // Is this badge the highlighted tech?
+      const isBadgeHighlighted = isThisAssetHighlighted &&
+        highlightedTechKey &&
+        badge.fullName.toLowerCase().includes(highlightedTechKey);
+
+      // Dim non-highlighted badges when a tech is highlighted on this asset
+      const dimmed = isThisAssetHighlighted && highlightedTechKey && !isBadgeHighlighted;
+      const alphaMultiplier = dimmed ? 0.25 : 1;
+
+      // Connecting line from node edge to badge
+      const lineStartX = n.x + Math.cos(angle) * (r + 2);
+      const lineStartY = n.y + Math.sin(angle) * (r + 2);
+      ctx.strokeStyle = rgbaStr(isBadgeHighlighted ? "#FFFFFF" : badge.color, (isBadgeHighlighted ? 0.8 : 0.25) * alphaMultiplier);
+      ctx.lineWidth = isBadgeHighlighted ? 1.5 : 0.8;
+      ctx.setLineDash(isBadgeHighlighted ? [] : [2, 3]);
+      ctx.beginPath();
+      ctx.moveTo(lineStartX, lineStartY);
+      ctx.lineTo(bx, by);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Build display text: label + version at MICRO zoom
+      ctx.font = "bold 9px 'JetBrains Mono', monospace";
+      let displayText = badge.label;
+      if (badge.version && this.currentZoomLevel === "MICRO") {
+        displayText = `${badge.label} ${badge.version}`;
+      }
+      const textW = ctx.measureText(displayText).width;
+      const pillH = badge.isOutdated ? 18 : 14;
+      const pillR = pillH / 2;
+      const actualPillW = Math.max(textW + 12, 24);
+
+      // Pill shape (rounded rect)
+      ctx.beginPath();
+      ctx.moveTo(bx - actualPillW / 2 + pillR, by - pillH / 2);
+      ctx.lineTo(bx + actualPillW / 2 - pillR, by - pillH / 2);
+      ctx.arc(bx + actualPillW / 2 - pillR, by, pillR, -Math.PI / 2, Math.PI / 2);
+      ctx.lineTo(bx - actualPillW / 2 + pillR, by + pillH / 2);
+      ctx.arc(bx - actualPillW / 2 + pillR, by, pillR, Math.PI / 2, -Math.PI / 2);
+      ctx.closePath();
+
+      // Fill: highlighted = bright, outdated = red-tinted, normal = dark
+      if (isBadgeHighlighted) {
+        ctx.fillStyle = rgbaStr(badge.color, 0.25);
+      } else if (badge.isOutdated) {
+        ctx.fillStyle = "rgba(40,8,8,0.92)";
+      } else {
+        ctx.fillStyle = `rgba(10,14,20,${0.92 * alphaMultiplier})`;
+      }
+      ctx.fill();
+
+      // Border: highlighted = white, outdated = red, normal = tech color
+      const borderColor = isBadgeHighlighted ? "#FFFFFF" : badge.isOutdated ? "#FF0040" : badge.color;
+      ctx.strokeStyle = rgbaStr(borderColor, (isBadgeHighlighted ? 1 : 0.7) * alphaMultiplier);
+      ctx.lineWidth = isBadgeHighlighted ? 2 : 1.2;
+      ctx.stroke();
+
+      // Glow for highlighted or outdated badges
+      if (this.options.glowEnabled && (isBadgeHighlighted || badge.isOutdated)) {
+        ctx.shadowColor = isBadgeHighlighted ? "#FFFFFF" : "#FF0040";
+        ctx.shadowBlur = isBadgeHighlighted ? 10 : 6;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      } else if (this.currentZoomLevel === "MICRO" && this.options.glowEnabled) {
+        ctx.shadowColor = badge.color;
+        ctx.shadowBlur = 4;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      }
+
+      // Text label
+      ctx.fillStyle = rgbaStr(badge.isOutdated ? "#FF4444" : badge.color, alphaMultiplier);
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(displayText, bx, by);
+
+      // Outdated warning indicator (small ⚠ above pill)
+      if (badge.isOutdated && this.currentZoomLevel === "MICRO") {
+        ctx.font = "bold 8px sans-serif";
+        ctx.fillStyle = rgbaStr("#FF0040", alphaMultiplier);
+        ctx.fillText("\u26A0", bx + actualPillW / 2 + 2, by - pillH / 2 - 1);
+      }
+    }
+  }
+
+  /** Draw a single cluster bounding box with label */
+  private drawCluster(ctx: CanvasRenderingContext2D, c: Cluster): void {
+    const w = c.maxX - c.minX;
+    const h = c.maxY - c.minY;
+    if (w <= 0 || h <= 0) return; // cluster has < 2 visible nodes
+
+    const cornerR = 12;
+
+    // Filled background
+    ctx.beginPath();
+    ctx.roundRect(c.minX, c.minY, w, h, cornerR);
+    ctx.fillStyle = rgbaStr(c.color, 0.06);
+    ctx.fill();
+
+    // Dashed border
+    ctx.strokeStyle = rgbaStr(c.color, 0.25);
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([8, 4]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Label in top-left corner
+    if (this.currentZoomLevel !== "MACRO") {
+      const labelText = c.label.length > 28 ? c.label.slice(0, 26) + "…" : c.label;
+      ctx.font = "bold 10px 'JetBrains Mono', monospace";
+      const labelW = ctx.measureText(labelText).width;
+      // Label background pill
+      ctx.fillStyle = rgbaStr(c.color, 0.15);
+      ctx.fillRect(c.minX + 6, c.minY + 6, labelW + 12, 16);
+      // Label text
+      ctx.fillStyle = rgbaStr(c.color, 0.7);
+      ctx.textAlign = "left";
+      ctx.textBaseline = "middle";
+      ctx.fillText(labelText, c.minX + 12, c.minY + 14);
+      // Node count badge
+      const countText = `${c.nodeIds.size}`;
+      ctx.font = "9px 'JetBrains Mono', monospace";
+      ctx.fillStyle = rgbaStr(c.color, 0.5);
+      ctx.fillText(countText + " nodes", c.minX + 12 + labelW + 16, c.minY + 14);
+    }
+  }
+
+  private drawScanlines(ctx: CanvasRenderingContext2D): void {
+    ctx.save();
+    ctx.globalAlpha = 0.03;
+    ctx.fillStyle = "#000000";
+    for (let y = 0; y < this.height; y += 3) {
+      ctx.fillRect(0, y, this.width, 1);
+    }
+    ctx.restore();
+  }
+
+  /** Threat heatmap: radial gradients behind high-severity node clusters */
+  private drawThreatHeatmap(ctx: CanvasRenderingContext2D): void {
+    for (const n of this.simNodes) {
+      if (!n.x || !n.y) continue;
+      if (n.severity !== "critical" && n.severity !== "high") continue;
+      const heatR = n.severity === "critical" ? 120 : 80;
+      const heatAlpha = n.severity === "critical" ? 0.06 : 0.03;
+      const pulse = Math.sin(this.animationTime * 0.5 + (n._pulsePhase || 0)) * 0.01 + heatAlpha;
+      const grad = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, heatR);
+      const heatColor = n.severity === "critical" ? "#FF0040" : "#FF6B00";
+      grad.addColorStop(0, rgbaStr(heatColor, pulse));
+      grad.addColorStop(0.6, rgbaStr(heatColor, pulse * 0.4));
+      grad.addColorStop(1, rgbaStr(heatColor, 0));
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, heatR, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  /** Ripple effects: expanding rings when new nodes appear */
+  private drawRipples(ctx: CanvasRenderingContext2D): void {
+    for (let i = this.ripples.length - 1; i >= 0; i--) {
+      const r = this.ripples[i];
+      r.radius += 2;
+      r.alpha -= 0.02;
+      if (r.alpha <= 0 || r.radius > r.maxRadius) {
+        this.ripples.splice(i, 1);
+        continue;
+      }
+      ctx.strokeStyle = rgbaStr(r.color, r.alpha);
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(r.x, r.y, r.radius, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  }
+
+  /** Spawn a ripple effect at world coordinates */
+  private spawnRipple(x: number, y: number, color: string, maxRadius = 60): void {
+    this.ripples.push({ x, y, radius: 5, maxRadius, alpha: 0.7, color });
+  }
+
+  /** HUD overlay: live stats in screen space (military C2 style) */
+  private drawHUD(ctx: CanvasRenderingContext2D): void {
+    ctx.save();
+    const pad = 16;
+    const lineH = 18;
+    const x = pad;
+    const y = this.height - pad;
+
+    // Semi-transparent background strip (dynamic height)
+    const hudLines = 7; // max possible lines
+    ctx.fillStyle = "rgba(10,14,20,0.75)";
+    ctx.fillRect(0, y - lineH * hudLines - 8, 260, lineH * hudLines + 16);
+
+    // Left border accent
+    ctx.fillStyle = "#00E5CC";
+    ctx.fillRect(0, y - lineH * hudLines - 8, 3, lineH * hudLines + 16);
+
+    ctx.font = "bold 11px 'JetBrains Mono', monospace";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+
+    // Count stats
+    const agents = this.simNodes.filter(n => n.type === "agent").length;
+    const criticals = this.simNodes.filter(n => n.severity === "critical").length;
+    const culled = this.simNodes.length - this._visibleNodes;
+    const lines = [
+      { label: "NODES", value: `${this._visibleNodes}/${this.simNodes.length}`, color: "#E8EAED" },
+      { label: "EDGES", value: `${this._visibleEdges}/${this.simEdges.length}`, color: "#E8EAED" },
+      { label: "AGENTS", value: `${agents}`, color: agents > 0 ? "#00E5CC" : "#4A5568" },
+      { label: "CRITICAL", value: `${criticals}`, color: criticals > 0 ? "#FF0040" : "#4A5568" },
+      { label: "FPS", value: `${this.currentFps}`, color: this.currentFps < 30 ? "#FFB800" : "#4A5568" },
+      ...(this._supernodeCount > 0 ? [{ label: "CLUSTERS", value: `${this._supernodeCount}`, color: "#8B5CF6" }] : []),
+      ...(culled > 0 ? [{ label: "CULLED", value: `${culled}`, color: "#4A5568" }] : []),
+      ...(this._newNodesSinceInteraction > 0 ? [{ label: "NEW", value: `+${this._newNodesSinceInteraction}`, color: "#00E5CC" }] : []),
+    ];
+
+    for (let i = 0; i < lines.length; i++) {
+      const ly = y - (lines.length - 1 - i) * lineH;
+      // Label
+      ctx.fillStyle = "#4A5568";
+      ctx.fillText(lines[i].label, x + 6, ly);
+      // Value
+      ctx.fillStyle = lines[i].color;
+      ctx.fillText(lines[i].value, x + 90, ly);
+    }
+
+    // Timestamp in top-right
+    const now = new Date();
+    const ts = now.toLocaleTimeString("en-US", { hour12: false });
+    ctx.font = "10px 'JetBrains Mono', monospace";
+    ctx.fillStyle = "rgba(0,229,204,0.5)";
+    ctx.textAlign = "right";
+    ctx.fillText(ts, this.width - pad, pad + 10);
+
+    // Zoom level indicator
+    ctx.fillStyle = "rgba(232,234,237,0.4)";
+    ctx.fillText(`${this.currentZoomLevel} ×${this.scale.toFixed(2)}`, this.width - pad, pad + 24);
+
+    ctx.restore();
+  }
+
+  // ── Ember Event Handlers ──────────────────────────────────────────
+  processWsEvent(event: { type: string; data: any }): void {
+    const { type, data } = event;
+    switch (type) {
+      case "ember:agent_registered": this.handleEmberAgentRegistered(data); break;
+      case "ember:beacon": this.handleEmberBeacon(data); break;
+      case "ember:task_complete": this.handleEmberTaskComplete(data); break;
+      case "ember:lateral_movement": this.handleEmberLateralMovement(data); break;
+      case "ember:network_discovered": this.handleEmberNetworkDiscovered(data); break;
+      case "ember:credential_harvested": this.handleEmberCredentialHarvested(data); break;
+      case "ember:data_exfiltrated": this.handleEmberDataExfiltrated(data); break;
+      case "ember:persistence_established": this.handleEmberPersistenceEstablished(data); break;
+      case "ember:burn_response": this.handleEmberBurnResponse(data); break;
+      case "ember:opsec_scored": this.handleEmberOpsecScored(data); break;
+    }
+  }
+
+  private handleEmberAgentRegistered(data: {
+    agentId: string; hostname?: string; platform?: string; username?: string;
+  }): void {
+    const id = `agent-${data.agentId}`;
+    if (this.nodeMap.has(id)) return;
+
+    const hostNode = this.simNodes.find(n => n.hostname === data.hostname);
+    this.addNodes([{
+      id,
+      type: "agent",
+      label: data.agentId.slice(0, 8),
+      hostname: data.hostname,
+      platform: data.platform as any,
+      severity: "info",
+      isNew: true,
+      discoveredAt: Date.now(),
+      x: hostNode ? (hostNode.x || 0) + 40 : undefined,
+      y: hostNode ? (hostNode.y || 0) + 40 : undefined,
+    }], hostNode ? [{
+      id: `edge-agent-${data.agentId}`,
+      source: hostNode.id,
+      target: id,
+      type: "controls",
+      protocol: "https",
+    }] : []);
+
+    // Flash the new agent green + ripple
+    const agent = this.nodeMap.get(id);
+    if (agent) {
+      agent._flashColor = "#00E5CC";
+      agent._flashAlpha = 0.8;
+      if (agent.x != null && agent.y != null) {
+        this.spawnRipple(agent.x, agent.y, "#00E5CC", 100);
+      }
+    }
+  }
+
+  private handleEmberBeacon(data: {
+    agentId: string; status?: string; hostname?: string;
+  }): void {
+    const agent = this.nodeMap.get(`agent-${data.agentId}`);
+    if (!agent) return;
+    const color = data.status === "active" ? "#00E5CC"
+      : data.status === "dormant" ? "#FFB800"
+      : data.status === "burned" ? "#FF0040" : "#00E5CC";
+    agent._flashColor = color;
+    agent._flashAlpha = 0.6;
+    agent._pulsePhase = this.animationTime;
+  }
+
+  private handleEmberTaskComplete(data: {
+    agentId: string; taskType?: string; opsecRisk?: number;
+  }): void {
+    const agent = this.nodeMap.get(`agent-${data.agentId}`);
+    if (!agent) return;
+    const risk = data.opsecRisk || 0;
+    agent._flashColor = risk > 0.7 ? "#FF0040" : risk > 0.4 ? "#FFB800" : "#00E5CC";
+    agent._flashAlpha = 0.5;
+  }
+
+  private handleEmberLateralMovement(data: {
+    agentId: string; sourceHost?: string; targetHost?: string;
+    technique?: string; newAgentId?: string;
+  }): void {
+    const newNodes: BattlespaceNode[] = [];
+    const newEdges: BattlespaceEdge[] = [];
+
+    // Ensure target host node exists
+    const targetId = `host-${(data.targetHost || "unknown").replace(/\./g, "-")}`;
+    if (!this.nodeMap.has(targetId)) {
+      newNodes.push({
+        id: targetId,
+        type: "host",
+        label: data.targetHost || "Unknown Host",
+        hostname: data.targetHost,
+        isNew: true,
+        discoveredAt: Date.now(),
+        severity: "medium",
+      });
+    }
+
+    // Pivot edge from source agent to target host
+    const sourceAgent = this.nodeMap.get(`agent-${data.agentId}`);
+    if (sourceAgent) {
+      newEdges.push({
+        id: `pivot-${Date.now()}`,
+        source: sourceAgent.id,
+        target: targetId,
+        type: "pivots_to",
+        protocol: "smb",
+        killChainPhase: "lateral_movement",
+      });
+    }
+
+    // New agent on target
+    if (data.newAgentId) {
+      const newAgentId = `agent-${data.newAgentId}`;
+      newNodes.push({
+        id: newAgentId,
+        type: "agent",
+        label: data.newAgentId.slice(0, 8),
+        hostname: data.targetHost,
+        isNew: true,
+        discoveredAt: Date.now(),
+      });
+      newEdges.push({
+        id: `edge-newagent-${Date.now()}`,
+        source: targetId,
+        target: newAgentId,
+        type: "controls",
+        protocol: "https",
+      });
+    }
+
+    if (newNodes.length > 0 || newEdges.length > 0) {
+      this.addNodes(newNodes, newEdges);
+    }
+  }
+
+  private handleEmberNetworkDiscovered(data: {
+    agentId: string; subnet?: string; hosts?: Array<{ ip: string; hostname?: string; os?: string; services?: any[] }>;
+  }): void {
+    const newNodes: BattlespaceNode[] = [];
+    const newEdges: BattlespaceEdge[] = [];
+
+    // Subnet node
+    if (data.subnet) {
+      const subnetId = `subnet-${data.subnet.replace(/[./]/g, "-")}`;
+      if (!this.nodeMap.has(subnetId)) {
+        newNodes.push({
+          id: subnetId,
+          type: "subnet",
+          label: data.subnet,
+          isNew: true,
+          discoveredAt: Date.now(),
+        });
+      }
+    }
+
+    // Host nodes
+    for (const host of (data.hosts || [])) {
+      const hostId = `host-${host.ip.replace(/\./g, "-")}`;
+      if (!this.nodeMap.has(hostId)) {
+        newNodes.push({
+          id: hostId,
+          type: "host",
+          label: host.hostname || host.ip,
+          hostname: host.hostname || host.ip,
+          ip: host.ip,
+          os: host.os,
+          isNew: true,
+          discoveredAt: Date.now(),
+        });
+
+        // Service nodes
+        for (const svc of (host.services || []).slice(0, 5)) {
+          const svcId = `svc-${host.ip}-${svc.port}`;
+          newNodes.push({
+            id: svcId,
+            type: "service",
+            label: `${svc.name || "svc"}:${svc.port}`,
+            isNew: true,
+            discoveredAt: Date.now(),
+          });
+          newEdges.push({
+            id: `edge-svc-${svcId}`,
+            source: hostId,
+            target: svcId,
+            type: "exposes",
+            protocol: svc.protocol || "tcp",
+          });
+        }
+
+        // Link to subnet
+        if (data.subnet) {
+          newEdges.push({
+            id: `edge-subnet-${hostId}`,
+            source: `subnet-${data.subnet.replace(/[./]/g, "-")}`,
+            target: hostId,
+            type: "contains",
+          });
+        }
+      }
+    }
+
+    if (newNodes.length > 0) this.addNodes(newNodes, newEdges);
+  }
+
+  private handleEmberCredentialHarvested(data: {
+    agentId: string; credentialType?: string; username?: string; domain?: string;
+  }): void {
+    const agent = this.nodeMap.get(`agent-${data.agentId}`);
+    if (!agent) return;
+
+    const credId = `cred-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    this.addNodes([{
+      id: credId,
+      type: "credential",
+      label: data.username ? `${data.domain || ""}\\${data.username}` : data.credentialType || "Credential",
+      isNew: true,
+      discoveredAt: Date.now(),
+      severity: "high",
+      x: (agent.x || 0) + 30,
+      y: (agent.y || 0) - 30,
+    }], [{
+      id: `edge-cred-${credId}`,
+      source: agent.id,
+      target: credId,
+      type: "harvested",
+      killChainPhase: "credential_access",
+    }]);
+  }
+
+  private handleEmberDataExfiltrated(data: {
+    agentId: string; destination?: string; dataType?: string; sizeBytes?: number;
+  }): void {
+    const agent = this.nodeMap.get(`agent-${data.agentId}`);
+    if (!agent) return;
+
+    const exfilId = `exfil-${Date.now()}`;
+    this.addNodes([{
+      id: exfilId,
+      type: "exfil_target",
+      label: data.destination || "C2 Server",
+      isNew: true,
+      discoveredAt: Date.now(),
+    }], [{
+      id: `edge-exfil-${exfilId}`,
+      source: agent.id,
+      target: exfilId,
+      type: "data_flow",
+      protocol: "https",
+      dataFlow: data.dataType,
+      killChainPhase: "exfiltration",
+    }]);
+
+    // Cyan flash on agent
+    agent._flashColor = "#00BCD4";
+    agent._flashAlpha = 0.7;
+  }
+
+  private handleEmberPersistenceEstablished(data: {
+    agentId: string; mechanism?: string; hostname?: string;
+  }): void {
+    const hostNode = this.simNodes.find(n => n.hostname === data.hostname) ||
+                     this.nodeMap.get(`agent-${data.agentId}`);
+    if (hostNode) {
+      hostNode._flashColor = "#E040FB";
+      hostNode._flashAlpha = 0.6;
+    }
+  }
+
+  private handleEmberBurnResponse(data: {
+    agentId: string; severity?: string; action?: string;
+  }): void {
+    const agent = this.nodeMap.get(`agent-${data.agentId}`);
+    if (!agent) return;
+    const color = data.severity === "critical" ? "#FF0040"
+      : data.severity === "high" ? "#FF6B00" : "#FFB800";
+    agent._flashColor = color;
+    agent._flashAlpha = 1.0;
+  }
+
+  private handleEmberOpsecScored(data: {
+    agentId: string; riskScore?: number;
+  }): void {
+    const agent = this.nodeMap.get(`agent-${data.agentId}`);
+    if (!agent) return;
+    const risk = data.riskScore || 0;
+    agent._flashColor = risk > 0.7 ? "#FF0040" : risk > 0.4 ? "#FFB800" : "#00E5CC";
+    agent._flashAlpha = 0.4;
+  }
+}

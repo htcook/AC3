@@ -1,0 +1,162 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# AC3 Platform — AWS CodeBuild Buildspec
+# Author: Harrison Cook — AceofCloud
+# ─────────────────────────────────────────────────────────────────────────────
+# Triggered by: GitHub push to main branch (via CodePipeline or webhook)
+# Produces: Docker image pushed to ECR, tagged with commit SHA + "latest"
+#
+# Required Environment Variables (set in CodeBuild project):
+#   AWS_ACCOUNT_ID        - Dev account ID (808038814732)
+#   ECR_ACCOUNT_ID        - SharedServices account ID (890319879326) — where ECR lives
+#   AWS_DEFAULT_REGION    - Region (us-east-1)
+#   ECR_REPO_NAME         - ECR repository name (ace-c3/caldera-dashboard)
+#   IMAGE_TAG             - Override tag (default: commit SHA)
+#
+# Required IAM Permissions (ac3-codebuild-service-role):
+#   - ecr:GetAuthorizationToken
+#   - ecr:BatchCheckLayerAvailability
+#   - ecr:GetDownloadUrlForLayer
+#   - ecr:BatchGetImage
+#   - ecr:PutImage
+#   - ecr:InitiateLayerUpload
+#   - ecr:UploadLayerPart
+#   - ecr:CompleteLayerUpload
+#   - s3:GetObject, s3:PutObject (for build cache)
+#   - logs:CreateLogGroup, logs:CreateLogStream, logs:PutLogEvents
+#   - secretsmanager:GetSecretValue (for build-time secrets if needed)
+# ─────────────────────────────────────────────────────────────────────────────
+
+version: 0.2
+
+env:
+  variables:
+    ECR_REPO_NAME: "ac3/caldera-dashboard"
+    ECR_ACCOUNT_ID: "808038814732"
+    DOCKER_BUILDKIT: "1"
+  exported-variables:
+    - IMAGE_URI
+    - IMAGE_TAG
+    - BUILD_STATUS
+
+phases:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Install: Set up Docker and tools
+  # ═══════════════════════════════════════════════════════════════════════════
+  install:
+    runtime-versions:
+      nodejs: 22
+    commands:
+      - echo "Installing dependencies..."
+      - nohup /usr/local/bin/dockerd --host=unix:///var/run/docker.sock --host=tcp://127.0.0.1:2375 --storage-driver=overlay2 &
+      - timeout 15 sh -c "until docker info; do echo 'Waiting for Docker...'; sleep 1; done"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Pre-Build: Authenticate to ECR, set variables
+  # ═══════════════════════════════════════════════════════════════════════════
+  pre_build:
+    commands:
+      - echo "Logging in to Amazon ECR..."
+      # Authenticate to SharedServices ECR (cross-account push)
+      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $ECR_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
+      - echo "Setting build variables..."
+      - COMMIT_SHA=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-8)
+      - IMAGE_TAG=${IMAGE_TAG:-$COMMIT_SHA}
+      - IMAGE_URI=$ECR_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$ECR_REPO_NAME
+      - BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+      - echo "Image URI = $IMAGE_URI"
+      - echo "Image Tag = $IMAGE_TAG"
+      - echo "Build Date = $BUILD_DATE"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Build: Build Docker image with multi-stage Dockerfile
+  # ═══════════════════════════════════════════════════════════════════════════
+  build:
+    commands:
+      - echo "Building Docker image..."
+      - |
+        docker build \
+          --file Dockerfile.aws \
+          --build-arg BUILD_SHA=$COMMIT_SHA \
+          --build-arg BUILD_DATE=$BUILD_DATE \
+          --tag $IMAGE_URI:$IMAGE_TAG \
+          --tag $IMAGE_URI:latest \
+          --tag $IMAGE_URI:$CODEBUILD_BUILD_NUMBER \
+          .
+      - echo "Build complete."
+
+      # Run security scan on the built image
+      - echo "Scanning image for vulnerabilities..."
+      - |
+        docker run --rm \
+          -v /var/run/docker.sock:/var/run/docker.sock \
+          aquasec/trivy:latest image \
+          --severity HIGH,CRITICAL \
+          --exit-code 0 \
+          --format table \
+          $IMAGE_URI:$IMAGE_TAG || true
+      # Note: exit-code 0 means scan results are informational only
+      # Change to --exit-code 1 to fail builds on HIGH/CRITICAL CVEs
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Post-Build: Push to ECR, output artifacts
+  # ═══════════════════════════════════════════════════════════════════════════
+  post_build:
+    commands:
+      - echo "Pushing image to ECR..."
+      - docker push $IMAGE_URI:$IMAGE_TAG
+      - docker push $IMAGE_URI:latest
+      - docker push $IMAGE_URI:$CODEBUILD_BUILD_NUMBER
+      - echo "Push complete."
+
+      # Generate image definitions for ECS deployment
+      - echo "Generating imagedefinitions.json for ECS..."
+      - printf '[{"name":"ac3-app","imageUri":"%s"}]' $IMAGE_URI:$IMAGE_TAG > imagedefinitions.json
+      - cat imagedefinitions.json
+
+      # Generate build manifest for audit trail
+      - |
+        cat > build-manifest.json << EOF
+        {
+          "project": "ac3-platform",
+          "image_uri": "$IMAGE_URI:$IMAGE_TAG",
+          "commit_sha": "$COMMIT_SHA",
+          "build_number": "$CODEBUILD_BUILD_NUMBER",
+          "build_id": "$CODEBUILD_BUILD_ID",
+          "build_date": "$BUILD_DATE",
+          "source_repo": "$CODEBUILD_SOURCE_REPO_URL",
+          "source_branch": "$CODEBUILD_WEBHOOK_HEAD_REF",
+          "builder": "codebuild",
+          "region": "$AWS_DEFAULT_REGION",
+          "account": "$AWS_ACCOUNT_ID"
+        }
+        EOF
+      - cat build-manifest.json
+
+      - export BUILD_STATUS="SUCCESS"
+      - echo "Build pipeline complete. Image: $IMAGE_URI:$IMAGE_TAG"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Artifacts: Files passed to next pipeline stage (ECS deploy)
+# ═══════════════════════════════════════════════════════════════════════════════
+artifacts:
+  files:
+    - imagedefinitions.json
+    - build-manifest.json
+  discard-paths: yes
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Cache: Speed up subsequent builds
+# ═══════════════════════════════════════════════════════════════════════════════
+cache:
+  paths:
+    - '/root/.cache/docker/**/*'
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Reports: Test results (if tests are added to build phase)
+# ═══════════════════════════════════════════════════════════════════════════════
+reports:
+  ac3-test-report:
+    files:
+      - 'coverage/junit.xml'
+    file-format: JUNITXML
+    base-directory: '.'

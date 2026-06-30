@@ -1,0 +1,45 @@
+{
+  "id": "owasp-insecure-deserialization",
+  "name": "Insecure Deserialization (Java/PHP/Python Object Injection)",
+  "description": "Detects indicators of insecure deserialization by identifying serialized object patterns in cookies, hidden form fields, and API responses. Covers Java (rO0AB), PHP (O:, a:), Python (pickle), and .NET (AAEAAAD) serialization formats.",
+  "author": "AC3 ScanForge",
+  "severity": "critical",
+  "protocol": "http",
+  "tags": ["owasp-a08", "deserialization", "rce", "owasp-top10", "dfir-execution"],
+  "request": {
+    "method": "GET",
+    "path": "/",
+    "followRedirects": true
+  },
+  "matchers": [
+    {
+      "type": "word",
+      "part": "body",
+      "values": [
+        "rO0ABX",
+        "AAEAAAD",
+        "O:4:\"",
+        "a:2:{",
+        "s:4:\"",
+        "gASV",
+        "viewstate",
+        "__VIEWSTATE"
+      ],
+      "condition": "or"
+    }
+  ],
+  "references": {
+    "cwes": ["CWE-502"],
+    "urls": [
+      "https://owasp.org/Top10/A08_2021-Software_and_Data_Integrity_Failures/",
+      "https://portswigger.net/web-security/deserialization"
+    ]
+  },
+  "remediation": "Never deserialize untrusted data. Use JSON or other safe data formats instead of native serialization. Implement integrity checks (HMAC) on serialized objects. Use allowlists for deserialization classes.",
+  "attack": {
+    "techniqueIds": ["T1059", "T1203"]
+  },
+  "intelligence": {
+    "dfirRelevance": "Insecure deserialization leads to remote code execution. Java deserialization (Apache Commons Collections, Log4Shell) has been responsible for some of the largest breaches. Look for rO0AB base64 patterns in logs."
+  }
+}

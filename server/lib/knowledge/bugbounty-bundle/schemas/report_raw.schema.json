@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "BugBountyReportRaw",
+  "type": "object",
+  "required": [
+    "source",
+    "url",
+    "retrieved_at",
+    "content"
+  ],
+  "properties": {
+    "source": {
+      "type": "string"
+    },
+    "url": {
+      "type": "string"
+    },
+    "retrieved_at": {
+      "type": "string"
+    },
+    "content": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "author": {
+      "type": "string"
+    },
+    "program": {
+      "type": "string"
+    },
+    "disclosed_at": {
+      "type": "string"
+    },
+    "license_note": {
+      "type": "string"
+    }
+  }
+}

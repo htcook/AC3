@@ -1,0 +1,297 @@
+[
+  {
+    "id": "CLOUD-AP-0001",
+    "title": "Public object storage to sensitive data exposure",
+    "cloud_provider": "AWS",
+    "initial_condition": "S3 bucket is publicly readable",
+    "steps": [
+      {
+        "step": 1,
+        "action": "Identify publicly accessible bucket and enumerate exposed objects within authorized scope.",
+        "goal": "Confirm whether storage is exposed to anonymous access.",
+        "evidence": [
+          "anonymous object retrieval",
+          "bucket policy/ACL indicators"
+        ],
+        "mitre": [
+          "T1530"
+        ],
+        "fedramp_controls": [
+          "AC-3",
+          "CM-6",
+          "SC-7",
+          "SC-28"
+        ],
+        "ksi_tags": [
+          "asset_visibility",
+          "configuration_validation",
+          "data_protection"
+        ]
+      },
+      {
+        "step": 2,
+        "action": "Review exposed files for sensitive business or configuration data.",
+        "goal": "Determine exposure impact without exceeding scope.",
+        "evidence": [
+          "config file names",
+          "sensitive document indicators"
+        ],
+        "mitre": [
+          "T1005"
+        ],
+        "fedramp_controls": [
+          "AC-6",
+          "AU-2",
+          "SI-4"
+        ],
+        "ksi_tags": [
+          "data_exposure",
+          "continuous_monitoring"
+        ]
+      }
+    ],
+    "impact": [
+      "Sensitive data exposure",
+      "Potential compliance violation",
+      "Expanded attacker reconnaissance"
+    ],
+    "detections": [
+      "public bucket inventory alerts",
+      "access logs showing anonymous object retrieval",
+      "config drift detection"
+    ],
+    "remediation": [
+      "Enable block public access",
+      "Restrict bucket policy to approved principals",
+      "Review exposed objects and rotate any exposed secrets"
+    ]
+  },
+  {
+    "id": "CLOUD-AP-0002",
+    "title": "Public storage exposure to credential discovery and privilege escalation risk",
+    "cloud_provider": "Azure",
+    "initial_condition": "Blob container is publicly accessible and contains deployment artifacts",
+    "steps": [
+      {
+        "step": 1,
+        "action": "Validate anonymous access to storage container within authorized scope.",
+        "goal": "Confirm public exposure.",
+        "evidence": [
+          "downloadable blob content",
+          "public container setting"
+        ],
+        "mitre": [
+          "T1530"
+        ],
+        "fedramp_controls": [
+          "AC-3",
+          "CM-6",
+          "SC-7"
+        ],
+        "ksi_tags": [
+          "configuration_validation",
+          "storage_security"
+        ]
+      },
+      {
+        "step": 2,
+        "action": "Inspect exposed artifacts for credentials, tokens, or infrastructure references without reproducing secrets in outputs.",
+        "goal": "Assess whether exposure could enable further compromise.",
+        "evidence": [
+          "credential placeholder patterns",
+          "deployment manifest references"
+        ],
+        "mitre": [
+          "T1528"
+        ],
+        "fedramp_controls": [
+          "IA-5",
+          "SC-12",
+          "SC-28"
+        ],
+        "ksi_tags": [
+          "secret_exposure",
+          "identity_risk"
+        ]
+      },
+      {
+        "step": 3,
+        "action": "Model potential privilege escalation paths from exposed cloud credentials or deployment identities.",
+        "goal": "Estimate blast radius and control impact.",
+        "evidence": [
+          "role assignment references",
+          "subscription/resource group scope"
+        ],
+        "mitre": [
+          "T1078",
+          "T1098"
+        ],
+        "fedramp_controls": [
+          "AC-2",
+          "AC-6",
+          "CM-6",
+          "SI-4"
+        ],
+        "ksi_tags": [
+          "identity_governance",
+          "privilege_management",
+          "continuous_validation"
+        ]
+      }
+    ],
+    "impact": [
+      "Credential exposure risk",
+      "Cloud control plane compromise risk",
+      "Potential subscription-wide impact"
+    ],
+    "detections": [
+      "public access alerts on storage account",
+      "identity anomaly detection",
+      "unexpected role assignment monitoring"
+    ],
+    "remediation": [
+      "Disable public access",
+      "Rotate exposed secrets or credentials",
+      "Review RBAC assignments and apply least privilege",
+      "Implement storage scanning for secret exposure"
+    ]
+  },
+  {
+    "id": "CLOUD-AP-0003",
+    "title": "Internet-exposed administrative access surface",
+    "cloud_provider": "AWS",
+    "initial_condition": "EC2 instance has port 22 open to 0.0.0.0/0",
+    "steps": [
+      {
+        "step": 1,
+        "action": "Identify public administrative access rules and internet-facing host context.",
+        "goal": "Confirm exposed management plane surface.",
+        "evidence": [
+          "security group rule",
+          "public IP assignment"
+        ],
+        "mitre": [
+          "T1595"
+        ],
+        "fedramp_controls": [
+          "AC-17",
+          "CM-6",
+          "SC-7"
+        ],
+        "ksi_tags": [
+          "attack_surface",
+          "configuration_validation"
+        ]
+      },
+      {
+        "step": 2,
+        "action": "Model likely credential attack and remote access scenarios without attempting destructive or out-of-scope activity.",
+        "goal": "Estimate practical exposure and threat relevance.",
+        "evidence": [
+          "internet reachability",
+          "admin service banner or configuration clues"
+        ],
+        "mitre": [
+          "T1110",
+          "T1021"
+        ],
+        "fedramp_controls": [
+          "IA-2",
+          "IA-5",
+          "SI-4"
+        ],
+        "ksi_tags": [
+          "remote_access",
+          "identity_protection",
+          "threat_modeling"
+        ]
+      }
+    ],
+    "impact": [
+      "Expanded remote attack surface",
+      "Higher brute force and credential attack risk",
+      "Potential foothold into cloud-hosted environment"
+    ],
+    "detections": [
+      "network rule change alerts",
+      "login anomaly monitoring",
+      "external attack surface discovery controls"
+    ],
+    "remediation": [
+      "Restrict SSH to approved management IP ranges",
+      "Use bastion architecture or zero-trust admin access",
+      "Continuously detect drift in security group rules"
+    ]
+  },
+  {
+    "id": "CLOUD-AP-0004",
+    "title": "Overly permissive IAM enabling privilege escalation paths",
+    "cloud_provider": "AWS",
+    "initial_condition": "IAM role allows broad actions and resources beyond workload function",
+    "steps": [
+      {
+        "step": 1,
+        "action": "Review IAM permissions and trust relationships for workload role.",
+        "goal": "Identify excessive privileges and abuse opportunities.",
+        "evidence": [
+          "wildcard actions",
+          "broad resource scope",
+          "assume-role trust paths"
+        ],
+        "mitre": [
+          "T1098",
+          "T1078"
+        ],
+        "fedramp_controls": [
+          "AC-2",
+          "AC-3",
+          "AC-6",
+          "CM-6"
+        ],
+        "ksi_tags": [
+          "identity_governance",
+          "least_privilege",
+          "continuous_validation"
+        ]
+      },
+      {
+        "step": 2,
+        "action": "Model how compromised workload credentials could access additional resources or escalate privileges.",
+        "goal": "Estimate blast radius from identity misuse.",
+        "evidence": [
+          "cross-service access paths",
+          "sensitive API permission presence"
+        ],
+        "mitre": [
+          "T1528",
+          "T1550"
+        ],
+        "fedramp_controls": [
+          "IA-5",
+          "SC-12",
+          "SI-4"
+        ],
+        "ksi_tags": [
+          "credential_risk",
+          "privilege_management",
+          "threat_modeling"
+        ]
+      }
+    ],
+    "impact": [
+      "Privilege escalation",
+      "Cross-service compromise",
+      "Large cloud blast radius"
+    ],
+    "detections": [
+      "IAM analyzer findings",
+      "permission drift alerts",
+      "abnormal API usage monitoring"
+    ],
+    "remediation": [
+      "Reduce policies to least privilege",
+      "Review trust relationships",
+      "Alert on policy drift and privileged API usage"
+    ]
+  }
+]

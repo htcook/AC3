@@ -1,0 +1,39 @@
+{
+  "id": "owasp-csrf-missing-token",
+  "name": "Cross-Site Request Forgery (Missing CSRF Token)",
+  "description": "Detects forms that submit state-changing requests (POST/PUT/DELETE) without CSRF tokens or SameSite cookie protections, allowing attackers to forge authenticated requests from victim browsers.",
+  "author": "AC3 ScanForge",
+  "severity": "medium",
+  "protocol": "http",
+  "tags": ["owasp-a01", "csrf", "broken-access-control", "owasp-top10"],
+  "request": {
+    "method": "GET",
+    "path": "/",
+    "followRedirects": true
+  },
+  "matchers": [
+    {
+      "type": "word",
+      "part": "body",
+      "values": ["<form", "method=\"post\"", "method=\"POST\""],
+      "condition": "and"
+    },
+    {
+      "type": "negative_word",
+      "part": "body",
+      "values": ["csrf", "_token", "authenticity_token", "__RequestVerificationToken", "csrfmiddlewaretoken"],
+      "condition": "and"
+    }
+  ],
+  "references": {
+    "cwes": ["CWE-352"],
+    "urls": [
+      "https://owasp.org/Top10/A01_2021-Broken_Access_Control/",
+      "https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html"
+    ]
+  },
+  "remediation": "Implement anti-CSRF tokens (synchronizer token pattern) on all state-changing forms. Set SameSite=Strict or SameSite=Lax on session cookies. Verify the Origin and Referer headers on the server side.",
+  "attack": {
+    "techniqueIds": ["T1185"]
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "id": "http-vuln-cors-wildcard",
+  "name": "Permissive CORS Policy (Wildcard Origin)",
+  "description": "The server returns Access-Control-Allow-Origin: * with credentials allowed, enabling any website to make authenticated cross-origin requests and steal sensitive data.",
+  "author": "AC3 ScanForge",
+  "severity": "high",
+  "protocol": "http",
+  "tags": ["vuln", "cors", "owasp-top10"],
+  "request": {
+    "method": "GET",
+    "path": "/",
+    "headers": {
+      "Origin": "https://evil.com"
+    },
+    "followRedirects": true
+  },
+  "matchers": [
+    {
+      "type": "header",
+      "values": ["access-control-allow-origin: *"],
+      "condition": "and"
+    },
+    {
+      "type": "header",
+      "values": ["access-control-allow-credentials: true"],
+      "condition": "and"
+    }
+  ],
+  "references": {
+    "cwes": ["CWE-942"],
+    "urls": ["https://portswigger.net/web-security/cors"]
+  },
+  "remediation": "Restrict Access-Control-Allow-Origin to specific trusted domains. Never use wildcard (*) with credentials. Implement a whitelist of allowed origins.",
+  "attack": {
+    "techniqueIds": ["T1189"]
+  }
+}

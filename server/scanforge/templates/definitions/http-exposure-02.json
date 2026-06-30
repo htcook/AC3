@@ -1,0 +1,35 @@
+{
+  "id": "http-exposure-git-repo",
+  "name": "Exposed .git Repository",
+  "description": "Detects publicly accessible .git directories that allow full source code download, including commit history with potentially sensitive data.",
+  "author": "AC3 ScanForge",
+  "severity": "high",
+  "protocol": "http",
+  "tags": ["exposure", "source-code", "owasp-top10"],
+  "request": {
+    "method": "GET",
+    "path": "/.git/HEAD",
+    "followRedirects": false
+  },
+  "matchers": [
+    {
+      "type": "status",
+      "values": ["200"],
+      "condition": "and"
+    },
+    {
+      "type": "regex",
+      "part": "body",
+      "values": ["ref:\\s+refs/"],
+      "condition": "and"
+    }
+  ],
+  "references": {
+    "cwes": ["CWE-538", "CWE-200"],
+    "urls": ["https://blog.netspi.com/dumping-git-data-from-misconfigured-web-servers/"]
+  },
+  "remediation": "Block access to .git directories in your web server configuration. Remove the .git directory from the web root if it was accidentally deployed.",
+  "attack": {
+    "techniqueIds": ["T1213"]
+  }
+}

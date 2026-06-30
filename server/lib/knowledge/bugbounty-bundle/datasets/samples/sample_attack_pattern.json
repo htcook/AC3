@@ -1,0 +1,28 @@
+{
+  "pattern_id": "PATTERN-IDOR-OBJECT-ID",
+  "signals": [
+    "API endpoint accepts numeric object ID",
+    "Object IDs appear sequential/guessable",
+    "Response contains other-user data when ID changes"
+  ],
+  "hypothesis": "Insecure Direct Object Reference (missing object-level authorization)",
+  "safe_tests": [
+    "Attempt access to a different object ID within authorized test scope",
+    "Verify server enforces ownership checks regardless of UI",
+    "Check access logs for denied attempts"
+  ],
+  "impact": [
+    "Unauthorized disclosure of customer data",
+    "Potential compliance impact (PII/financial)"
+  ],
+  "fixes": [
+    "Server-side object authorization on every request",
+    "Use indirect references and access control middleware",
+    "Add monitoring for enumeration patterns"
+  ],
+  "owasp": "Broken Access Control",
+  "cwe": "CWE-639",
+  "mitre": [
+    "T1190"
+  ]
+}

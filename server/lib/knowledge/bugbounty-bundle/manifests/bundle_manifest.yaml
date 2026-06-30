@@ -1,0 +1,15 @@
+bundle_name: Ace C3 Bug Bounty Knowledge Training
+version: '1.0'
+generated: '2026-03-06'
+folders:
+- schemas
+- pipelines
+- prompts
+- extractors
+- datasets
+- quality
+- docs
+outputs:
+- normalized reports (JSON)
+- attack patterns (JSON)
+- training examples (JSONL)

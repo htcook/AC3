@@ -1,0 +1,34 @@
+{
+  "id": "http-tech-wordpress-detect",
+  "name": "WordPress Installation Detected",
+  "description": "A WordPress installation was detected. WordPress is a common target for automated attacks including plugin exploitation, brute-force login, and XML-RPC abuse.",
+  "author": "AC3 ScanForge",
+  "severity": "info",
+  "protocol": "http",
+  "tags": ["tech-detect", "wordpress", "cms"],
+  "request": {
+    "method": "GET",
+    "path": "/wp-login.php",
+    "followRedirects": true
+  },
+  "matchers": [
+    {
+      "type": "status",
+      "values": ["200"],
+      "condition": "and"
+    },
+    {
+      "type": "word",
+      "part": "body",
+      "values": ["wp-login", "WordPress"],
+      "condition": "and"
+    }
+  ],
+  "references": {
+    "urls": ["https://wordpress.org/about/security/"]
+  },
+  "remediation": "Keep WordPress core, themes, and plugins updated. Disable XML-RPC if not needed. Use strong admin passwords and enable 2FA. Consider a WAF.",
+  "attack": {
+    "techniqueIds": ["T1190"]
+  }
+}

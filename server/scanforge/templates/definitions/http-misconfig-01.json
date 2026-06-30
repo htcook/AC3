@@ -1,0 +1,35 @@
+{
+  "id": "http-misconfig-directory-listing",
+  "name": "Directory Listing Enabled",
+  "description": "Detects web servers with directory listing (autoindex) enabled, which exposes file structure and potentially sensitive files to attackers.",
+  "author": "AC3 ScanForge",
+  "severity": "medium",
+  "protocol": "http",
+  "tags": ["misconfig", "exposure", "owasp-top10"],
+  "request": {
+    "method": "GET",
+    "path": "/",
+    "followRedirects": true
+  },
+  "matchers": [
+    {
+      "type": "word",
+      "part": "body",
+      "values": ["Index of /", "Directory listing for", "Parent Directory"],
+      "condition": "or"
+    },
+    {
+      "type": "status",
+      "values": ["200"],
+      "condition": "and"
+    }
+  ],
+  "references": {
+    "cwes": ["CWE-548"],
+    "urls": ["https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/02-Configuration_and_Deployment_Management_Testing/04-Review_Old_Backup_and_Unreferenced_Files_for_Sensitive_Information"]
+  },
+  "remediation": "Disable directory listing in your web server configuration. For Apache: 'Options -Indexes'. For Nginx: remove 'autoindex on'.",
+  "attack": {
+    "techniqueIds": ["T1083"]
+  }
+}

@@ -1,0 +1,29 @@
+rules:
+- name: detect_public_s3_bucket
+  conditions:
+  - s3_bucket_detected
+  - public_acl_or_policy
+  inference:
+    misconfiguration: Public S3 bucket
+    confidence: 0.9
+- name: detect_open_ssh_security_group
+  conditions:
+  - security_group_allows_22
+  - cidr_0.0.0.0_0
+  inference:
+    misconfiguration: SSH exposed to internet
+    confidence: 0.85
+- name: detect_public_blob_container
+  conditions:
+  - azure_blob_container_detected
+  - public_access_enabled
+  inference:
+    misconfiguration: Public Azure blob container
+    confidence: 0.9
+- name: detect_overpermissive_iam
+  conditions:
+  - iam_policy_contains_wildcards
+  - role_scope_exceeds_workload_need
+  inference:
+    misconfiguration: Overly permissive IAM role or policy
+    confidence: 0.88

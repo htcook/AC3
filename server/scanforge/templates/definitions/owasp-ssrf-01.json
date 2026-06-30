@@ -1,0 +1,44 @@
+{
+  "id": "owasp-ssrf-cloud-metadata",
+  "name": "Server-Side Request Forgery (Cloud Metadata Access)",
+  "description": "Tests for SSRF by injecting cloud metadata endpoint URLs into parameters that accept URLs. Detects when internal cloud metadata services (AWS, GCP, Azure) are accessible through the application.",
+  "author": "AC3 ScanForge",
+  "severity": "critical",
+  "protocol": "http",
+  "tags": ["owasp-a10", "ssrf", "cloud", "owasp-top10", "dfir-discovery"],
+  "request": {
+    "method": "GET",
+    "path": "/?url=http://169.254.169.254/latest/meta-data/",
+    "followRedirects": false
+  },
+  "matchers": [
+    {
+      "type": "word",
+      "part": "body",
+      "values": [
+        "ami-id",
+        "instance-id",
+        "iam/security-credentials",
+        "computeMetadata",
+        "metadata.azure.com",
+        "instance-type",
+        "local-hostname"
+      ],
+      "condition": "or"
+    }
+  ],
+  "references": {
+    "cwes": ["CWE-918"],
+    "urls": [
+      "https://owasp.org/Top10/A10_2021-Server-Side_Request_Forgery_%28SSRF%29/",
+      "https://portswigger.net/web-security/ssrf"
+    ]
+  },
+  "remediation": "Validate and sanitize all user-supplied URLs. Block requests to internal IP ranges (169.254.x.x, 10.x.x.x, 172.16-31.x.x, 192.168.x.x). Use allowlists for permitted external domains. Disable unnecessary URL fetch functionality.",
+  "attack": {
+    "techniqueIds": ["T1190", "T1552.005"]
+  },
+  "intelligence": {
+    "dfirRelevance": "SSRF to cloud metadata is the #1 technique for stealing IAM credentials in cloud environments. The Capital One breach (2019) was caused by SSRF accessing AWS metadata to obtain temporary credentials."
+  }
+}

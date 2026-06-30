@@ -1,0 +1,63 @@
+{
+  "id": "SAMPLE-0001",
+  "source": "public_disclosure",
+  "url": "https://example.com/disclosure/sample",
+  "title": "IDOR on invoice export endpoint",
+  "vulnerability_class": "IDOR",
+  "owasp_category": "Broken Access Control",
+  "cwe": "CWE-639",
+  "asset_context": {
+    "app_type": "SaaS web app",
+    "auth_model": "session cookie",
+    "tech_stack": [
+      "nginx",
+      "api",
+      "postgresql"
+    ],
+    "entry_point": "/api/invoices/export?id={object_id}"
+  },
+  "attack_chain": [
+    {
+      "step": 1,
+      "action": "Access an export endpoint that references an object by numeric identifier.",
+      "evidence": [
+        "request/response shows invoice data returned"
+      ],
+      "mitre": [
+        "T1190"
+      ],
+      "preconditions": [
+        "authorized account"
+      ]
+    },
+    {
+      "step": 2,
+      "action": "Modify the object identifier to reference a different invoice.",
+      "evidence": [
+        "response returns another user's invoice"
+      ],
+      "mitre": [
+        "T1190"
+      ],
+      "preconditions": [
+        "identifier guessable/sequential"
+      ]
+    }
+  ],
+  "impact": {
+    "summary": "Unauthorized access to other users' invoice data.",
+    "data_exposed": [
+      "invoice PDFs",
+      "billing details"
+    ],
+    "account_takeover": false
+  },
+  "remediation": [
+    "Enforce object-level authorization checks on every request.",
+    "Use non-guessable identifiers and validate ownership server-side.",
+    "Add audit logging for access-denied events."
+  ],
+  "severity": "High",
+  "cvss_estimate": "8.2",
+  "confidence": 0.9
+}
