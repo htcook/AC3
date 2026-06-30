@@ -16,7 +16,7 @@
 # ═══════════════════════════════════════════════════════════════════════════════
 # Stage 1: Builder
 # ═══════════════════════════════════════════════════════════════════════════════
-FROM node:22-slim AS builder
+FROM public.ecr.aws/docker/library/node:22-slim AS builder
 
 # Build arguments for traceability
 ARG BUILD_SHA="unknown"
@@ -64,7 +64,7 @@ RUN echo "{\"sha\":\"${BUILD_SHA}\",\"date\":\"${BUILD_DATE}\",\"image\":\"aws\"
 # ═══════════════════════════════════════════════════════════════════════════════
 # Stage 2: Production Runner
 # ═══════════════════════════════════════════════════════════════════════════════
-FROM node:22-slim AS runner
+FROM public.ecr.aws/docker/library/node:22-slim AS runner
 
 # FedRAMP: Install runtime essentials + Chromium for PDF generation
 RUN apt-get update && apt-get install -y --no-install-recommends \
