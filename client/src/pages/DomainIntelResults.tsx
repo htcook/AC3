@@ -433,7 +433,33 @@ export default function DomainIntelResults() {
   const { scan, assets } = data;
   const pipeline = scan.pipelineOutput as any;
   const campaigns = (scan.campaignRecommendations || []) as any[];
-  const threatActorMatches = pipeline?.threatActorMatches as any;
+  // Adapter: handle both new key (threatActorMatches) and legacy key (threatMatching)
+  const threatActorMatches = (pipeline?.threatActorMatches || (pipeline?.threatMatching ? {
+    matchSummary: `${pipeline.threatMatching.summary?.totalMatched || 0} threat group(s) matched out of ${pipeline.threatMatching.summary?.totalGroupsAnalyzed || 0} analyzed. Top match: ${pipeline.threatMatching.summary?.topGroupName || 'N/A'} (score: ${pipeline.threatMatching.summary?.topGroupScore || 0}).`,
+    totalCandidates: pipeline.threatMatching.summary?.totalGroupsAnalyzed || 0,
+    topMatches: (pipeline.threatMatching.matchedGroups || []).map((g: any) => ({
+      actorId: g.groupId,
+      name: g.groupName,
+      aliases: g.aliases,
+      type: g.groupType,
+      origin: g.origin,
+      threatLevel: g.threatLevel,
+      active: g.active,
+      motivation: g.motivation,
+      targetSectors: g.targetSectors,
+      matchScore: g.matchScore,
+      riskLevel: g.riskLevel,
+      matchRationale: g.matchRationale,
+      matchedCVEs: g.matchedCVEs,
+      matchedTechniques: g.matchedTechniques,
+      matchedTools: g.matchedTools,
+      relevantTechniques: g.primaryTTPs,
+      defenseRecommendations: g.defenseRecommendations,
+      scoreBreakdown: g.scoreBreakdown,
+    })),
+    attackPaths: pipeline.threatMatching.attackPaths,
+    techniqueHeatmap: pipeline.threatMatching.techniqueHeatmap,
+  } : null)) as any;
   const llmThreatAnalysis = pipeline?.llmThreatActorAnalysis as any;
   const breachData = pipeline?.breachData as any;
   const dehashedResult = pipeline?.passiveRecon?.connectorResults?.find((r: any) => r.connector === 'dehashed') as any;

@@ -18,6 +18,46 @@ function makeAssetId(domain: string, name: string, source: string): string {
   return createHash("sha256").update(`${domain}|${name}|${source}`).digest("hex").slice(0, 20);
 }
 
+/**
+ * Determine if a URL is likely an admin/management interface path.
+ * Uses path-segment-based matching to avoid false positives from content URLs
+ * that happen to contain words like "admin" or "auth" in article slugs.
+ * 
+ * TRUE positives: /admin, /wp-admin/..., /console, /cpanel, /phpmyadmin
+ * FALSE positives avoided: /attack-against-azure-ad-pass-through-authentication-agent
+ */
+function isAdminPath(url: string): boolean {
+  try {
+    const normalized = url.startsWith("http") ? url : `https://${url}`;
+    const parsed = new URL(normalized);
+    const path = parsed.pathname.toLowerCase();
+    // Split into path segments and check each segment individually
+    const segments = path.split("/").filter(Boolean);
+    // Known admin path segments (must be an exact segment match)
+    const ADMIN_SEGMENTS = [
+      "admin", "administrator", "wp-admin", "wp-login", "wp-login.php",
+      "console", "mgmt", "management", "cpanel", "phpmyadmin", "webmin",
+      "cockpit", "adminer", "_admin", "admin.php", "login", "signin",
+      "dashboard", "panel", "controlpanel", "backend", "cms",
+      "manager", "siteadmin", "webadmin",
+    ];
+    // Check if any path segment exactly matches an admin keyword
+    for (const seg of segments) {
+      // Strip file extensions for comparison
+      const cleanSeg = seg.replace(/\.(php|asp|aspx|jsp|html|htm)$/i, "");
+      if (ADMIN_SEGMENTS.includes(cleanSeg)) return true;
+    }
+    // Also check for common admin URL patterns with path prefix
+    if (/^\/(wp-admin|administrator|admin|cpanel|phpmyadmin|webmin|cockpit)(\/|$)/i.test(path)) {
+      return true;
+    }
+    return false;
+  } catch {
+    // Fallback: only match if the URL path starts with /admin or similar
+    return /\/(admin|wp-admin|cpanel|phpmyadmin|webmin|cockpit)(\/|$)/i.test(url);
+  }
+}
+
 function extractSubdomain(urlStr: string, domain: string): string | null {
   try {
     // CDX returns URLs without protocol sometimes
@@ -129,9 +169,9 @@ export const waybackConnector: PassiveConnector = {
               "historical",
               `status:${statusCode}`,
               `mime:${mimeType}`,
-              ...(original.match(/admin|console|mgmt|login|auth/i) ? ["admin_path"] : []),
-              ...(original.match(/api|graphql|swagger/i) ? ["api_path"] : []),
-              ...(original.match(/dev|test|stage|staging|qa/i) ? ["staging_path"] : []),
+              ...(isAdminPath(original) ? ["admin_path"] : []),
+              ...(original.match(/\/(api|graphql|swagger)(\/|$|\?)/i) ? ["api_path"] : []),
+              ...(original.match(/\/(dev|test|stage|staging|qa)(\/|$|\?)/i) ? ["staging_path"] : []),
             ],
             evidence: {
               original_url: original,

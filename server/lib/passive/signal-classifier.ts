@@ -37,10 +37,29 @@ const SIGNAL_RULES: SignalRule[] = [
     severity: "high",
     confidence: 0.85,
     match: (obs) => {
-      const name = (obs.name || "").toLowerCase();
-      const tags = obs.tags.join(" ");
-      return /admin|console|mgmt|management|cpanel|phpmyadmin|webmin|cockpit/i.test(name) ||
-             tags.includes("admin_path");
+      // Only match if the observation is already tagged as admin_path (by wayback/commoncrawl)
+      // OR if it's a port/service observation with admin-specific product names
+      if (obs.tags.includes("admin_path")) return true;
+      // For non-URL observations (service banners, port scans), check product names
+      if (obs.assetType === "service" || obs.assetType === "port") {
+        const name = (obs.name || "").toLowerCase();
+        return /cpanel|phpmyadmin|webmin|cockpit|adminer|tomcat.*manager/i.test(name);
+      }
+      // For URL observations, use path-segment matching (not broad regex on full URL)
+      if (obs.assetType === "url" && obs.name) {
+        try {
+          const url = obs.name.startsWith("http") ? obs.name : `https://${obs.name}`;
+          const path = new URL(url).pathname.toLowerCase();
+          const segments = path.split("/").filter(Boolean);
+          const ADMIN_SEGMENTS = [
+            "admin", "administrator", "wp-admin", "wp-login",
+            "console", "mgmt", "cpanel", "phpmyadmin", "webmin",
+            "cockpit", "adminer", "_admin",
+          ];
+          return segments.some(seg => ADMIN_SEGMENTS.includes(seg.replace(/\.(php|asp|aspx|jsp|html|htm)$/i, "")));
+        } catch { return false; }
+      }
+      return false;
     },
     rationale: (obs) => `Admin/management interface detected at ${obs.name}. These interfaces are high-value targets for attackers and should not be publicly accessible.`,
   },

@@ -1120,17 +1120,77 @@ export async function enrichCvesWithThreatActors(
     // Check static CVE-actor map
     const staticMapping = CVE_ACTOR_MAP.find(m => m.cveId === vuln.cveId);
 
-    // Check database actors for technique overlap
+    // Check database actors for technique overlap AND CVE-based matching
     const dbMatchedActors: CveActorEnrichment["actors"] = [];
-    for (const actor of dbActors) {
-      const techniques = parseTechniquesJson(actor.techniques);
-      const relevantTechniques = techniques.filter((t: any) => {
-        const tid = (t.id || "").toLowerCase();
-        return tid === "t1190" || tid === "t1210" || tid === "t1133" ||
-               tid === "t1078" || tid === "t1059" || tid === "t1203";
-      });
+    // Expanded technique list covering common exploitation techniques
+    const RELEVANT_TECHNIQUE_IDS = new Set([
+      "t1190", "t1210", "t1133", "t1078", "t1059", "t1203", // Original set
+      "t1068", "t1189", "t1195", "t1566", "t1055", "t1105", // Exploitation, drive-by, supply chain, phishing, injection, ingress tool
+      "t1071", "t1021", "t1053", "t1218", "t1047", "t1569", // App layer protocol, remote services, scheduled task, signed binary proxy, WMI, system services
+      "t1110", "t1003", "t1552", "t1098", "t1548", "t1134", // Brute force, OS cred dump, unsecured creds, account manipulation, abuse elevation, access token manipulation
+    ]);
 
-      if (relevantTechniques.length > 0 && actor.threatLevel === "critical") {
+    for (const actor of dbActors) {
+      // Skip low-threat actors
+      if (actor.threatLevel === "low") continue;
+
+      let matchReason = "";
+      let matchScore = 0;
+
+      // Method 1: Direct CVE match via exploits_used field
+      const exploitsUsed = Array.isArray(actor.exploits_used) ? actor.exploits_used :
+        (typeof actor.exploits_used === "string" ? (() => { try { return JSON.parse(actor.exploits_used); } catch { return []; } })() : []);
+      const cveMatch = exploitsUsed.find((e: any) => {
+        const eid = typeof e === "string" ? e : (e.cveId || e.id || "");
+        return eid.toUpperCase() === vuln.cveId.toUpperCase();
+      });
+      if (cveMatch) {
+        matchReason = `Directly exploits ${vuln.cveId}`;
+        matchScore = 95;
+      }
+
+      // Method 2: Technique overlap (expanded set)
+      if (!matchReason) {
+        const techniques = parseTechniquesJson(actor.techniques);
+        const relevantTechniques = techniques.filter((t: any) => {
+          const tid = (t.id || "").toLowerCase();
+          return RELEVANT_TECHNIQUE_IDS.has(tid);
+        });
+        if (relevantTechniques.length >= 2 && (actor.threatLevel === "critical" || actor.threatLevel === "high")) {
+          matchReason = `Uses ${relevantTechniques.slice(0, 4).map((t: any) => t.id).join(", ")} techniques`;
+          matchScore = actor.threatLevel === "critical" ? 75 : 55;
+        } else if (relevantTechniques.length >= 3 && actor.threatLevel === "medium") {
+          matchReason = `Uses ${relevantTechniques.slice(0, 4).map((t: any) => t.id).join(", ")} techniques`;
+          matchScore = 40;
+        }
+      }
+
+      // Method 3: Sector/technology targeting overlap
+      if (!matchReason && (actor.threatLevel === "critical" || actor.threatLevel === "high")) {
+        const targetSectors = Array.isArray(actor.targetSectors) ? actor.targetSectors :
+          (typeof actor.targetSectors === "string" ? (() => { try { return JSON.parse(actor.targetSectors); } catch { return []; } })() : []);
+        // Check if the actor targets sectors that commonly use this technology
+        const techSectorMap: Record<string, string[]> = {
+          "Apache": ["technology", "government", "finance", "healthcare"],
+          "nginx": ["technology", "e-commerce", "media"],
+          "WordPress": ["media", "small-business", "education"],
+          "PHP": ["technology", "e-commerce", "government"],
+          "OpenSSL": ["technology", "finance", "government", "defense"],
+          "IIS": ["government", "enterprise", "finance"],
+          "Tomcat": ["enterprise", "finance", "government"],
+        };
+        const techSectors = techSectorMap[vuln.technology] || [];
+        const sectorOverlap = targetSectors.some((s: any) => {
+          const sectorStr = (typeof s === "string" ? s : (s.name || "")).toLowerCase();
+          return techSectors.some(ts => sectorStr.includes(ts));
+        });
+        if (sectorOverlap) {
+          matchReason = `Targets sectors using ${vuln.technology}`;
+          matchScore = 35;
+        }
+      }
+
+      if (matchReason && matchScore > 0) {
         const alreadyInStatic = staticMapping?.actors.some(a => 
           a.name.toLowerCase().includes(actor.name.toLowerCase()) ||
           actor.name.toLowerCase().includes(a.name.split(" ")[0].toLowerCase())
@@ -1138,16 +1198,18 @@ export async function enrichCvesWithThreatActors(
         if (!alreadyInStatic) {
           dbMatchedActors.push({
             name: actor.name,
-            type: actor.type || "unknown",
+            type: actor.actorType || actor.type || "unknown",
             origin: actor.origin || "Unknown",
             sophistication: actor.sophistication || "intermediate",
-            campaign: `Known to use ${relevantTechniques.map((t: any) => t.id).join(", ")} techniques`,
-            exploitContext: `Threat actor with ${relevantTechniques.length} relevant exploitation techniques in their arsenal`,
+            campaign: matchReason,
+            exploitContext: `${actor.name} (${actor.threatLevel} threat) — ${matchReason}. Match confidence: ${matchScore}%`,
             lastExploited: actor.lastActive || "Unknown",
           });
         }
       }
     }
+    // Limit DB actors to top 10 per CVE to avoid noise
+    dbMatchedActors.splice(10);
 
     const allActors = [
       ...(staticMapping?.actors || []),

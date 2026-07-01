@@ -49,11 +49,29 @@ jobs:
           docker push ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO }}:${{ steps.tag.outputs.IMAGE_TAG }}
           docker push ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO }}:latest
 
-      - name: Force ECS redeployment
+      - name: Register updated ECS task definition
+        id: task-def
+        run: |
+          # Update the image tag in the task definition
+          IMAGE_URI="${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO }}:${{ steps.tag.outputs.IMAGE_TAG }}"
+          cat infrastructure/ecs-task-definition.json | \
+            jq --arg img "$IMAGE_URI" '.containerDefinitions[0].image = $img' > /tmp/task-def.json
+          
+          # Register the new task definition revision
+          TASK_DEF_ARN=$(aws ecs register-task-definition \
+            --cli-input-json file:///tmp/task-def.json \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text \
+            --no-cli-pager)
+          echo "Registered task definition: $TASK_DEF_ARN"
+          echo "TASK_DEF_ARN=$TASK_DEF_ARN" >> $GITHUB_OUTPUT
+
+      - name: Update ECS service with new task definition
         run: |
           aws ecs update-service \
             --cluster ${{ env.ECS_CLUSTER }} \
             --service ${{ env.ECS_SERVICE }} \
+            --task-definition ${{ steps.task-def.outputs.TASK_DEF_ARN }} \
             --force-new-deployment \
             --no-cli-pager
-          echo "ECS redeployment triggered for ${{ env.ECS_SERVICE }}"
+          echo "ECS service updated with new task definition and redeployment triggered"
