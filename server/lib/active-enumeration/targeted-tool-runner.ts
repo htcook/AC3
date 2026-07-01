@@ -22,6 +22,52 @@ import {
   getScanProfile,
   buildGobusterCommand,
 } from "./enumeration-context";
+import type { ParsedFinding } from "../tool-output-parsers";
+
+/**
+ * Build a human-readable evidence string from parsed tool output.
+ * Replaces generic "Confirmed by X" with actual proof data.
+ */
+function buildToolEvidenceDetail(f: ParsedFinding, toolName: string): string {
+  const parts: string[] = [];
+
+  if (f.matched_at || f.endpoint) {
+    parts.push(`MATCHED AT: ${f.matched_at || f.endpoint}`);
+  }
+  if (f.evidence?.proofText) {
+    const proof = f.evidence.proofText.length > 500
+      ? f.evidence.proofText.slice(0, 500) + '...'
+      : f.evidence.proofText;
+    parts.push(`EXTRACTED DATA:\n${proof}`);
+  }
+  if (f.evidence?.matchedPattern) {
+    parts.push(`MATCHED PATTERN: ${f.evidence.matchedPattern}`);
+  }
+  if (f.evidence?.request) {
+    const req = f.evidence.request;
+    const method = req.method || 'GET';
+    const url = req.url || f.matched_at || '';
+    parts.push(`REQUEST: ${method} ${url}`);
+  }
+  if (f.evidence?.response) {
+    const resp = f.evidence.response;
+    if (resp.statusCode) parts.push(`RESPONSE: HTTP ${resp.statusCode}`);
+    if (resp.body) {
+      const body = resp.body.length > 500 ? resp.body.slice(0, 500) + '...' : resp.body;
+      parts.push(`RESPONSE BODY:\n${body}`);
+    }
+  }
+  if (f.evidence?.attackPayload) {
+    parts.push(`ATTACK PAYLOAD: ${f.evidence.attackPayload}`);
+  }
+
+  if (parts.length === 0) {
+    if (f.description) parts.push(f.description);
+    parts.push(`Source: ${toolName} scan${f.cve ? ` (${f.cve})` : ''}`);
+  }
+
+  return parts.join('\n\n');
+}
 
 // Known infrastructure IPs that need vhost injection for nikto
 const KNOWN_INFRA_IPS = new Set([
@@ -190,7 +236,7 @@ async function runTargetedDiscovery(
           cvss: f.cvss,
           cwe: f.cwe,
           corroborationTier: "confirmed",
-          evidenceDetail: "Confirmed by active scan tool output",
+          evidenceDetail: buildToolEvidenceDetail(f, "active_scan"),
           rawEvidence: f.evidence ? JSON.stringify(f.evidence).slice(0, 4000) : undefined,
           source: "active_scan",
         })
@@ -639,7 +685,7 @@ async function executeToolsInParallel(
           cvss: f.cvss,
           cwe: f.cwe,
           corroborationTier: "confirmed",
-          evidenceDetail: `Confirmed by ${cmd.tool} active scan`,
+          evidenceDetail: buildToolEvidenceDetail(f, cmd.tool),
           rawEvidence: f.evidence ? JSON.stringify(f.evidence).slice(0, 4000) : undefined,
           source: cmd.tool,
         })

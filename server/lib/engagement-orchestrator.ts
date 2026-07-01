@@ -630,6 +630,48 @@ function genId(): string {
 }
 
 /**
+ * Build a human-readable evidence string from parsed tool output.
+ * Replaces generic "Confirmed by X" with actual proof data.
+ */
+function buildEvidenceDetail(f: any, toolName: string): string {
+  const parts: string[] = [];
+  if (f.matched_at || f.endpoint) {
+    parts.push(`MATCHED AT: ${f.matched_at || f.endpoint}`);
+  }
+  if (f.evidence?.proofText) {
+    const proof = f.evidence.proofText.length > 500
+      ? f.evidence.proofText.slice(0, 500) + '...'
+      : f.evidence.proofText;
+    parts.push(`EXTRACTED DATA:\n${proof}`);
+  }
+  if (f.evidence?.matchedPattern) {
+    parts.push(`MATCHED PATTERN: ${f.evidence.matchedPattern}`);
+  }
+  if (f.evidence?.request) {
+    const req = f.evidence.request;
+    const method = req.method || 'GET';
+    const url = req.url || f.matched_at || '';
+    parts.push(`REQUEST: ${method} ${url}`);
+  }
+  if (f.evidence?.response) {
+    const resp = f.evidence.response;
+    if (resp.statusCode) parts.push(`RESPONSE: HTTP ${resp.statusCode}`);
+    if (resp.body) {
+      const body = resp.body.length > 500 ? resp.body.slice(0, 500) + '...' : resp.body;
+      parts.push(`RESPONSE BODY:\n${body}`);
+    }
+  }
+  if (f.evidence?.attackPayload) {
+    parts.push(`ATTACK PAYLOAD: ${f.evidence.attackPayload}`);
+  }
+  if (parts.length === 0) {
+    if (f.description) parts.push(f.description);
+    parts.push(`Source: ${toolName} scan${f.cve ? ` (${f.cve})` : ''}`);
+  }
+  return parts.join('\n\n');
+}
+
+/**
  * Deduplicated vuln push — prevents duplicate vulnerabilities on the same asset.
  * Deduplicates by matching on (title + cve). Returns true if the vuln was added (new),
  * false if it was a duplicate and skipped.
@@ -4510,7 +4552,7 @@ export async function executeEngagement(
                     cve: pf.cve,
                     description: pf.description,
                     corroborationTier: 'confirmed',
-                    evidenceDetail: `Confirmed by ${h.request.tool} re-scan`,
+                    evidenceDetail: buildEvidenceDetail(pf, h.request.tool),
                     rawEvidence: pf.evidence ? JSON.stringify(pf.evidence).slice(0, 4000) : undefined,
                     source: h.request.tool,
                   })) {
@@ -4772,7 +4814,7 @@ export async function executeEngagement(
                   id: genId(), severity: f.severity, title: f.title, cve: f.cve,
                   description: f.description, cvss: f.cvss, cwe: f.cwe,
                   corroborationTier: 'confirmed',
-                  evidenceDetail: `Confirmed by ${tool} (deferred retry)`,
+                  evidenceDetail: buildEvidenceDetail(f, tool),
                   rawEvidence: f.evidence ? JSON.stringify(f.evidence).slice(0, 4000) : undefined,
                   source: tool,
                 });

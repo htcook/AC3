@@ -98,7 +98,9 @@ export async function runCloudAssetDetection(
                   cve: (finding as any).cve,
                   description: finding.description,
                   corroborationTier: "confirmed",
-                  evidenceDetail: `Confirmed by cloud security scan`,
+                  evidenceDetail: finding.description
+                    ? `CLOUD FINDING: ${finding.title}\n\nDETAIL: ${finding.description}\n\nPROVIDER: ${finding.provider || 'unknown'}\nSERVICE: ${finding.service || 'storage'}`
+                    : `CLOUD FINDING: ${finding.title}\nPROVIDER: ${finding.provider || 'unknown'}\nSERVICE: ${finding.service || 'storage'}`,
                 })
               ) {
                 state.stats.vulnsFound++;

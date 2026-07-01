@@ -16,6 +16,79 @@
  */
 
 import type { VulnDetectionContext } from "./index";
+import type { ParsedFinding } from "../tool-output-parsers";
+
+// ─── Evidence Detail Builder ────────────────────────────────────────────────
+/**
+ * Build a human-readable evidence string from nuclei's parsed output.
+ * This replaces the useless "Confirmed by nuclei scan" hardcoded text
+ * with actual proof: matched URL, extracted data, curl command, response snippets.
+ */
+export function buildNucleiEvidenceDetail(f: ParsedFinding): string {
+  const parts: string[] = [];
+
+  // 1. Matched URL (the most important piece of evidence)
+  if (f.matched_at || f.endpoint) {
+    parts.push(`MATCHED AT: ${f.matched_at || f.endpoint}`);
+  }
+
+  // 2. Proof text / extracted data (e.g., file contents, version strings)
+  if (f.evidence?.proofText) {
+    const proof = f.evidence.proofText.length > 500
+      ? f.evidence.proofText.slice(0, 500) + '...'
+      : f.evidence.proofText;
+    parts.push(`EXTRACTED DATA:\n${proof}`);
+  }
+
+  // 3. Matched pattern (template matcher that triggered)
+  if (f.evidence?.matchedPattern) {
+    parts.push(`MATCHED PATTERN: ${f.evidence.matchedPattern}`);
+  }
+
+  // 4. HTTP Request details
+  if (f.evidence?.request) {
+    const req = f.evidence.request;
+    const method = req.method || 'GET';
+    const url = req.url || f.matched_at || '';
+    parts.push(`REQUEST: ${method} ${url}`);
+    if (req.body && req.body.length > 0 && !req.body.startsWith('GET ')) {
+      const body = req.body.length > 300 ? req.body.slice(0, 300) + '...' : req.body;
+      parts.push(`REQUEST BODY:\n${body}`);
+    }
+  }
+
+  // 5. HTTP Response details
+  if (f.evidence?.response) {
+    const resp = f.evidence.response;
+    if (resp.statusCode) {
+      parts.push(`RESPONSE: HTTP ${resp.statusCode}`);
+    }
+    if (resp.body && resp.body.length > 0) {
+      const body = resp.body.length > 500 ? resp.body.slice(0, 500) + '...' : resp.body;
+      parts.push(`RESPONSE BODY:\n${body}`);
+    }
+  }
+
+  // 6. Attack payload used
+  if (f.evidence?.attackPayload) {
+    parts.push(`ATTACK PAYLOAD: ${f.evidence.attackPayload}`);
+  }
+
+  // 7. Vulnerable parameter
+  if (f.evidence?.vulnerableParam) {
+    parts.push(`VULNERABLE PARAM: ${f.evidence.vulnerableParam}`);
+  }
+
+  // Fallback if no structured evidence available
+  if (parts.length === 0) {
+    if (f.description) {
+      parts.push(f.description);
+    }
+    parts.push(`Source: nuclei template match${f.cve ? ` (${f.cve})` : ''}`);
+  }
+
+  return parts.join('\n\n');
+}
 
 // ─── Result Types ───────────────────────────────────────────────────────────
 
@@ -400,10 +473,12 @@ export async function executeNucleiScanning(ctx: VulnDetectionContext): Promise<
       for (const f of findings) {
         const key = `${f.severity}::${f.title}::${f.cve || ""}`;
         if (!assetVulnKeys.has(key)) {
+          // Build rich evidence detail from parsed evidence instead of hardcoded text
+          const evidenceDetail = buildNucleiEvidenceDetail(f);
           asset.vulns.push({
             id: genId(), severity: f.severity, title: f.title, cve: f.cve,
             description: f.description, cvss: f.cvss, cwe: f.cwe, source: "nuclei",
-            corroborationTier: "confirmed" as const, evidenceDetail: "Confirmed by nuclei scan",
+            corroborationTier: "confirmed" as const, evidenceDetail,
             rawEvidence: f.evidence ? JSON.stringify(f.evidence).slice(0, 4000) : undefined,
           } as any);
           assetVulnKeys.add(key);
@@ -580,10 +655,11 @@ export async function executeNucleiScanning(ctx: VulnDetectionContext): Promise<
             if (asset) {
               const exists = asset.vulns.some((v: any) => v.title.toLowerCase() === finding.title.toLowerCase() || (v.cve && v.cve === finding.cve));
               if (!exists) {
+                const sfEvidenceDetail = buildNucleiEvidenceDetail(finding);
                 asset.vulns.push({
                   id: `sf-${finding.templateId}-${Date.now()}`, severity: finding.severity, title: `[ScanForge] ${finding.title}`,
                   cve: finding.cve, description: finding.description, cvss: finding.cvss, cwe: finding.cwe, evidence: finding.evidence,
-                  source: "scanforge", corroborationTier: "confirmed" as const, evidenceDetail: "Confirmed by ScanForge reasoning pipeline",
+                  source: "scanforge", corroborationTier: "confirmed" as const, evidenceDetail: sfEvidenceDetail,
                   rawEvidence: finding.evidence ? (typeof finding.evidence === "string" ? finding.evidence : JSON.stringify(finding.evidence)).slice(0, 4000) : undefined,
                 });
                 state.stats.vulnsFound++;
