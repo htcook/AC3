@@ -7777,6 +7777,26 @@ export const webAppScans = mysqlTable("web_app_scans", {
 	authCredentialSource: varchar("auth_credential_source", { length: 50 }),
 	authUsername: varchar("auth_username", { length: 100 }),
 	authMethod: varchar("auth_method", { length: 30 }),
+	// ─── Three-Gate Verification (ZAP Reliability Spec) ───
+	quarantineReason: varchar("quarantine_reason", { length: 100 }),
+	gateAPassed: tinyint("gate_a_passed"),
+	gateBPassed: tinyint("gate_b_passed"),
+	gateCPassed: tinyint("gate_c_passed"),
+	// Gate B evidence
+	activeScanMessages: int("active_scan_messages"),
+	authSuccesses: int("auth_successes"),
+	authFailures: int("auth_failures"),
+	authLoggedInCount: int("auth_logged_in_count"),
+	// Gate C evidence
+	unauthBaselineUrls: int("unauth_baseline_urls"),
+	wafBlockRatio: double("waf_block_ratio"),
+	passiveAlertCount: int("passive_alert_count"),
+	// Scan quality classification
+	scanQuality: varchar("scan_quality", { length: 30 }),
+	// Coverage metadata
+	coverageDenominatorType: varchar("coverage_denominator_type", { length: 20 }),
+	coverageSpecEndpoints: int("coverage_spec_endpoints"),
+	coverageReachedEndpoints: int("coverage_reached_endpoints"),
 });
 
 export const webCrawlJobs = mysqlTable("web_crawl_jobs", {

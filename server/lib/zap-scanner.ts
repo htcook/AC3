@@ -1393,12 +1393,12 @@ export async function startScan(params: {
       eq(webAppScans.targetUrl, params.targetUrl)
     ))
     .limit(1);
-  if (existingScan && existingScan.status !== 'error') {
+  if (existingScan && existingScan.status !== 'error' && existingScan.status !== 'quarantined') {
     console.log(`[ZAP Dedup] Scan already exists: ${effectiveScanName} → id=${existingScan.id} (status=${existingScan.status}). Returning existing.`);
     return { scanId: existingScan.id, status: existingScan.status, llmConfig: params.llmConfig, deduplicated: true } as any;
   }
-  if (existingScan && existingScan.status === 'error') {
-    console.log(`[ZAP Dedup] Previous scan errored: ${effectiveScanName} → id=${existingScan.id}. Allowing retry with new scan.`);
+  if (existingScan && (existingScan.status === 'error' || existingScan.status === 'quarantined')) {
+    console.log(`[ZAP Dedup] Previous scan ${existingScan.status}: ${effectiveScanName} → id=${existingScan.id}. Allowing retry with new scan.`);
   }
 
   // Generate LLM scan config if not provided — enhanced with tech-specific rule intelligence
@@ -1548,11 +1548,95 @@ export async function startScan(params: {
       console.warn(`[ZAP Context] Failed to create context: ${err.message} — continuing with default`);
     }
 
-    // Apply playbook rules to ZAP scan policy BEFORE scanning
+    // ─── A6: Deterministic Scan Policy Isolation ───
+    // Create a named scan policy per-scan to prevent concurrent scan interference.
+    // This ensures each scan has its own isolated rule configuration.
+    let scanPolicyId: string | null = null;
+    const policyName = `scan_${scanId}_${Date.now()}`;
     if (effectivePlaybook && params.scanMode === "active") {
-      console.log(`[ZAP Playbook] Pre-applying ${effectivePlaybook.name} (${effectivePlaybook.enabledRules.length} enabled, ${(effectivePlaybook.disabledRuleIds || []).length} disabled)`);
-      const pbResult = await applyPlaybookToZap(effectivePlaybook, zapApiCfg, zapRequest);
-      console.log(`[ZAP Playbook] Applied: ${pbResult.applied ? 'success' : 'partial'}, ${pbResult.errors.length} errors`);
+      try {
+        // 1. Create an isolated named scan policy
+        await zapRequest("/JSON/ascan/action/addScanPolicy/", { scanPolicyName: policyName }, zapApiCfg);
+        scanPolicyId = policyName;
+        console.log(`[ZAP A6] Created isolated scan policy: ${policyName}`);
+
+        // 2. Disable ALL rules in the new policy first (clean slate)
+        await zapRequest("/JSON/ascan/action/disableAllScanners/", { scanPolicyName: policyName }, zapApiCfg);
+
+        // 3. Enable only the playbook's selected rules within this policy
+        if (effectivePlaybook.enabledRules.length > 0) {
+          const ruleIds = effectivePlaybook.enabledRules.map(r => r.id).join(",");
+          await zapRequest("/JSON/ascan/action/enableScanners/", { ids: ruleIds, scanPolicyName: policyName }, zapApiCfg);
+
+          // 4. Set threshold and strength for each enabled rule within the policy
+          for (const rule of effectivePlaybook.enabledRules) {
+            await zapRequest("/JSON/ascan/action/setScannerAlertThreshold/", {
+              id: String(rule.id),
+              alertThreshold: rule.threshold,
+              scanPolicyName: policyName,
+            }, zapApiCfg).catch(() => {});
+            await zapRequest("/JSON/ascan/action/setScannerAttackStrength/", {
+              id: String(rule.id),
+              attackStrength: rule.strength,
+              scanPolicyName: policyName,
+            }, zapApiCfg).catch(() => {});
+          }
+        }
+
+        // 5. Apply active scan overrides (thread count, durations)
+        if (effectivePlaybook.activeScanOverrides) {
+          const aso = effectivePlaybook.activeScanOverrides;
+          if (aso.threadPerHost !== undefined) {
+            await zapRequest("/JSON/ascan/action/setOptionThreadPerHost/", { Integer: String(aso.threadPerHost) }, zapApiCfg).catch(() => {});
+          }
+          if (aso.maxRuleDurationInMins !== undefined) {
+            await zapRequest("/JSON/ascan/action/setOptionMaxRuleDurationInMins/", { Integer: String(aso.maxRuleDurationInMins) }, zapApiCfg).catch(() => {});
+          }
+          if (aso.maxScanDurationInMins !== undefined) {
+            await zapRequest("/JSON/ascan/action/setOptionMaxScanDurationInMins/", { Integer: String(aso.maxScanDurationInMins) }, zapApiCfg).catch(() => {});
+          }
+          if (aso.delayInMs !== undefined) {
+            await zapRequest("/JSON/ascan/action/setOptionDelayInMs/", { Integer: String(aso.delayInMs) }, zapApiCfg).catch(() => {});
+          }
+        }
+
+        // 6. VERIFY: Read back enabled scanners to confirm policy was applied correctly
+        try {
+          const enabledResp = await zapRequest("/JSON/ascan/view/scanners/", {
+            scanPolicyName: policyName,
+            policyId: "",
+          }, zapApiCfg);
+          const enabledScanners = (enabledResp?.scanners || []).filter((s: any) => s.enabled === "true");
+          const expectedCount = effectivePlaybook.enabledRules.length;
+          const actualCount = enabledScanners.length;
+          console.log(`[ZAP A6] Policy verification: expected=${expectedCount} enabled rules, actual=${actualCount}`);
+
+          if (actualCount === 0 && expectedCount > 0) {
+            console.error(`[ZAP A6] CRITICAL: Policy ${policyName} has 0 enabled rules — scan will produce no findings!`);
+            // Update DB with warning
+            await db.update(webAppScans).set({
+              quarantineReason: `A6: Policy ${policyName} verified with 0 enabled rules (expected ${expectedCount})`,
+            }).where(eq(webAppScans.id, scanId));
+          } else if (Math.abs(actualCount - expectedCount) > 5) {
+            console.warn(`[ZAP A6] Policy drift: expected ${expectedCount}, got ${actualCount} enabled rules (delta: ${actualCount - expectedCount})`);
+          }
+        } catch (verifyErr: any) {
+          console.warn(`[ZAP A6] Policy verification failed (non-fatal): ${verifyErr.message}`);
+        }
+
+        console.log(`[ZAP Playbook] Applied ${effectivePlaybook.name} to isolated policy ${policyName} (${effectivePlaybook.enabledRules.length} rules)`);
+      } catch (policyErr: any) {
+        // Fallback: apply to default policy (legacy behavior)
+        console.warn(`[ZAP A6] Failed to create isolated policy: ${policyErr.message} — falling back to default policy`);
+        scanPolicyId = null;
+        const pbResult = await applyPlaybookToZap(effectivePlaybook, zapApiCfg, zapRequest);
+        console.log(`[ZAP Playbook] Fallback applied: ${pbResult.applied ? 'success' : 'partial'}, ${pbResult.errors.length} errors`);
+      }
+
+      // Store the policy name in DB for audit trail
+      await db.update(webAppScans).set({
+        scanPolicyName: scanPolicyId || effectivePlaybook.name,
+      }).where(eq(webAppScans.id, scanId));
     }
 
     // Apply LLM-configured spider settings
@@ -1819,15 +1903,48 @@ export async function pollScanProgress(scanId: number, config?: Partial<ZapConfi
           console.warn(`[ZAP OAST] Scan #${scanId}: Failed to enable OAST (non-fatal): ${oastErr.message}`);
         }
 
+        // ─── Gate A: Pre-Active-Scan Reachability Probe ───
+        // Verify target is reachable through ZAP before committing to active scan
+        try {
+          const { evaluateGateA } = await import("./zap-scan-gates");
+          const gateAResult = await evaluateGateA(
+            scanId,
+            scan.targetUrl,
+            zapRequest,
+            cfg,
+            (scan.authConfigured || 0) > 0
+          );
+          if (!gateAResult.passed) {
+            console.error(`[ZAP Gate A] Scan #${scanId}: FAILED — ${gateAResult.reason}`);
+            // Persist Gate A failure but don't quarantine yet — let the scan attempt proceed
+            // The post-scan gates will catch the failure if the scan also produces no results
+            await db.update(webAppScans).set({
+              gateAPassed: 0,
+              quarantineReason: gateAResult.reason || "Gate A: Setup verification failed",
+            }).where(eq(webAppScans.id, scanId));
+          } else {
+            await db.update(webAppScans).set({ gateAPassed: 1 }).where(eq(webAppScans.id, scanId));
+            console.log(`[ZAP Gate A] Scan #${scanId}: PASSED (reachable=${gateAResult.reachable}, authIndicator=${gateAResult.authIndicatorSet})`);
+          }
+        } catch (gateAErr: any) {
+          console.warn(`[ZAP Gate A] Scan #${scanId}: Evaluation error (non-fatal): ${gateAErr.message}`);
+        }
+
         // Wrap active scan start in try-catch to fail fast instead of stalling
         // NOTE: Do NOT pass scanPolicyName — applyPlaybookToZap already configured
         // rules on the default policy. Passing a non-existent policy name (e.g. "Heavy")
         // causes ZAP to return 400 Bad Request.
         try {
-          const activeScanResult = await zapRequest("/JSON/ascan/action/scan/", {
+          // A6: Pass isolated scan policy name if one was created
+          const activeScanParams: Record<string, string> = {
             url: scan.targetUrl,
             recurse: "true",
-          }, cfg);
+          };
+          if (scan.scanPolicyName && scan.scanPolicyName.startsWith("scan_")) {
+            activeScanParams.scanPolicyName = scan.scanPolicyName;
+            console.log(`[ZAP A6] Active scan using isolated policy: ${scan.scanPolicyName}`);
+          }
+          const activeScanResult = await zapRequest("/JSON/ascan/action/scan/", activeScanParams, cfg);
 
           await db.update(webAppScans).set({
             status: "active_scanning",
@@ -1864,10 +1981,11 @@ export async function pollScanProgress(scanId: number, config?: Partial<ZapConfi
               // Wait a moment for ZAP to process the seeded URLs
               await new Promise(r => setTimeout(r, 3000));
               // Retry active scan
-              const retryResult = await zapRequest("/JSON/ascan/action/scan/", {
-                url: scan.targetUrl,
-                recurse: "true",
-              }, cfg);
+              const retryParams: Record<string, string> = { url: scan.targetUrl, recurse: "true" };
+              if (scan.scanPolicyName && scan.scanPolicyName.startsWith("scan_")) {
+                retryParams.scanPolicyName = scan.scanPolicyName;
+              }
+              const retryResult = await zapRequest("/JSON/ascan/action/scan/", retryParams, cfg);
               console.log(`[ZAP pollScanProgress] Scan #${scanId}: Active scan retry succeeded after accessUrl seed`);
               await db.update(webAppScans).set({
                 status: "active_scanning",
@@ -1987,13 +2105,17 @@ export async function pollScanProgress(scanId: number, config?: Partial<ZapConfi
           console.warn(`[ZAP OAST] Scan #${scanId}: OAST setup failed (non-fatal, post-AJAX): ${oastErr.message}`);
         }
 
-        // Start active scan after AJAX spider — wrapped in try-catch to fail fast
-        // NOTE: Do NOT pass scanPolicyName — rules already configured on default policy
+        // Start active scan after AJAX spider — use isolated policy if available (A6)
         try {
-          const activeScanResult = await zapRequest("/JSON/ascan/action/scan/", {
+          const ajaxActiveScanParams: Record<string, string> = {
             url: scan.targetUrl,
             recurse: "true",
-          }, cfg);
+          };
+          if (scan.scanPolicyName && scan.scanPolicyName.startsWith("scan_")) {
+            ajaxActiveScanParams.scanPolicyName = scan.scanPolicyName;
+            console.log(`[ZAP A6] Post-AJAX active scan using isolated policy: ${scan.scanPolicyName}`);
+          }
+          const activeScanResult = await zapRequest("/JSON/ascan/action/scan/", ajaxActiveScanParams, cfg);
 
           await db.update(webAppScans).set({
             status: "active_scanning",
@@ -2024,10 +2146,11 @@ export async function pollScanProgress(scanId: number, config?: Partial<ZapConfi
                 )
               );
               await new Promise(r => setTimeout(r, 3000));
-              const retryResult = await zapRequest("/JSON/ascan/action/scan/", {
-                url: scan.targetUrl,
-                recurse: "true",
-              }, cfg);
+              const ajaxRetryParams: Record<string, string> = { url: scan.targetUrl, recurse: "true" };
+              if (scan.scanPolicyName && scan.scanPolicyName.startsWith("scan_")) {
+                ajaxRetryParams.scanPolicyName = scan.scanPolicyName;
+              }
+              const retryResult = await zapRequest("/JSON/ascan/action/scan/", ajaxRetryParams, cfg);
               console.log(`[ZAP pollScanProgress] Scan #${scanId}: Active scan retry succeeded after AJAX spider + accessUrl seed`);
               await db.update(webAppScans).set({
                 status: "active_scanning",
@@ -2125,18 +2248,50 @@ export async function pollScanProgress(scanId: number, config?: Partial<ZapConfi
         }
 
         await collectAlerts(scanId, cfg);
+
+        // ─── Three-Gate Verification (ZAP Reliability Spec) ───
+        // Run Gate B (proof-of-work) + Gate C (result oracle) before marking complete
+        let finalStatus = "completed";
+        let scanQuality: string | undefined;
+        let quarantineReason: string | null = null;
+        try {
+          const { runPostScanGates } = await import("./zap-scan-gates");
+          const alertCounts = await getAlertCounts(scanId);
+          const totalAlerts = (alertCounts.high || 0) + (alertCounts.medium || 0) + (alertCounts.low || 0) + (alertCounts.info || 0);
+          const gateResult = await runPostScanGates(
+            scanId,
+            scan.targetUrl,
+            scan.zapActiveScanId || "",
+            zapRequest,
+            cfg,
+            urlsFound,
+            totalAlerts,
+            (scan.authConfigured || 0) > 0,
+            undefined // unauthBaselineUrls — will be populated in future Gate A integration
+          );
+          finalStatus = gateResult.status;
+          scanQuality = gateResult.quality;
+          quarantineReason = gateResult.quarantineReason;
+        } catch (gateErr: any) {
+          console.warn(`[ZAP Gates] Scan #${scanId}: Gate evaluation failed (non-fatal, defaulting to completed): ${gateErr.message}`);
+        }
+
         await db.update(webAppScans).set({
-          status: "completed",
+          status: finalStatus,
           completedAt: new Date(),
           activeScanProgress: 100,
+          ...(scanQuality ? { scanQuality } : {}),
+          ...(quarantineReason ? { quarantineReason } : {}),
         }).where(eq(webAppScans.id, scanId));
 
         return {
-          status: "completed",
+          status: finalStatus,
           spiderProgress: 100,
           activeScanProgress: 100,
           urlsFound,
           alertCounts: await getAlertCounts(scanId),
+          scanQuality,
+          quarantineReason,
         };
       }
     }
@@ -2368,8 +2523,29 @@ export async function stopScan(scanId: number, config?: Partial<ZapConfig>): Pro
 
   await collectAlerts(scanId, cfg);
 
+  // Run three-gate verification on stopped scans too
+  let finalStatus = "completed";
+  try {
+    const { runPostScanGates } = await import("./zap-scan-gates");
+    const alertCounts = await getAlertCounts(scanId);
+    const totalAlerts = (alertCounts.high || 0) + (alertCounts.medium || 0) + (alertCounts.low || 0) + (alertCounts.info || 0);
+    const gateResult = await runPostScanGates(
+      scanId,
+      scan.targetUrl,
+      scan.zapActiveScanId || "",
+      zapRequest,
+      cfg,
+      scan.urlsDiscovered || 0,
+      totalAlerts,
+      (scan.authConfigured || 0) > 0
+    );
+    finalStatus = gateResult.status;
+  } catch (gateErr: any) {
+    console.warn(`[ZAP Gates] Scan #${scanId}: Gate evaluation on stop failed (non-fatal): ${gateErr.message}`);
+  }
+
   await db.update(webAppScans).set({
-    status: "completed",
+    status: finalStatus,
     completedAt: new Date(),
   }).where(eq(webAppScans.id, scanId));
 
@@ -3281,26 +3457,43 @@ export async function configureZapAuthentication(
     }
 
     // Step 4: Set logged-in / logged-out indicators for session detection
+    // GATE A CRITICAL: Indicators MUST be set successfully — swallowing failures here
+    // causes the scan to run unauthenticated while believing it's authenticated.
+    let indicatorSetSuccess = false;
+    let loggedInRegex = "";
+    let loggedOutRegex = "";
     try {
       // Use knowledge-driven indicators based on detected auth method
       const { ZAP_AUTH_STRATEGIES } = await import("./knowledge/zap-pentesting-knowledge");
       const matchedStrategy = ZAP_AUTH_STRATEGIES.find(s => s.type === detectedMethod);
-      const loggedInRegex = matchedStrategy?.loggedInIndicator || "\\Qlogout\\E|\\Qsign.out\\E|\\Qdashboard\\E|\\Qwelcome\\E|\\Qmy.account\\E|\\Qprofile\\E";
-      const loggedOutRegex = matchedStrategy?.loggedOutIndicator || "\\Qlogin\\E|\\Qsign.in\\E|\\Qauthentication.required\\E|\\Qaccess.denied\\E|\\Q401\\E";
+      loggedInRegex = matchedStrategy?.loggedInIndicator || "\\Qlogout\\E|\\Qsign.out\\E|\\Qdashboard\\E|\\Qwelcome\\E|\\Qmy.account\\E|\\Qprofile\\E";
+      loggedOutRegex = matchedStrategy?.loggedOutIndicator || "\\Qlogin\\E|\\Qsign.in\\E|\\Qauthentication.required\\E|\\Qaccess.denied\\E|\\Q401\\E";
 
-      // Set logged-in indicators from knowledge module
-      await zapRequest("/JSON/authentication/action/setLoggedInIndicator/", {
+      // Set logged-in indicators from knowledge module — DO NOT swallow failures
+      const loggedInResult = await zapRequest("/JSON/authentication/action/setLoggedInIndicator/", {
         contextId,
         loggedInIndicatorRegex: loggedInRegex,
-      }, cfg).catch(() => {});
+      }, cfg).catch((e: any) => {
+        errors.push(`GATE_A_HAZARD: Failed to set loggedInIndicator: ${e.message}`);
+        return null;
+      });
 
-      // Set logged-out indicators from knowledge module
-      await zapRequest("/JSON/authentication/action/setLoggedOutIndicator/", {
+      // Set logged-out indicators from knowledge module — DO NOT swallow failures
+      const loggedOutResult = await zapRequest("/JSON/authentication/action/setLoggedOutIndicator/", {
         contextId,
         loggedOutIndicatorRegex: loggedOutRegex,
-      }, cfg).catch(() => {});
+      }, cfg).catch((e: any) => {
+        errors.push(`GATE_A_HAZARD: Failed to set loggedOutIndicator: ${e.message}`);
+        return null;
+      });
 
-      console.log(`[ZAP Auth] Set logged-in/logged-out indicators`);
+      indicatorSetSuccess = loggedInResult !== null || loggedOutResult !== null;
+      if (indicatorSetSuccess) {
+        console.log(`[ZAP Auth] Set logged-in/logged-out indicators (loggedIn: ${loggedInResult !== null}, loggedOut: ${loggedOutResult !== null})`);
+      } else {
+        console.error(`[ZAP Auth] GATE A HAZARD: Both indicator calls failed — scan will run unauthenticated!`);
+        errors.push(`GATE_A_CRITICAL: Neither loggedIn nor loggedOut indicator could be set. Auth scan will be unreliable.`);
+      }
     } catch (e: any) {
       errors.push(`Failed to set session indicators: ${e.message}`);
     }
@@ -3369,6 +3562,13 @@ export async function configureZapAuthentication(
       contextId,
       userId,
       errors,
+      // Gate A evidence for downstream verification
+      gateAEvidence: {
+        indicatorSetSuccess,
+        loggedInRegex: loggedInRegex || undefined,
+        loggedOutRegex: loggedOutRegex || undefined,
+        indicatorHazards: errors.filter(e => e.includes('GATE_A')),
+      },
     };
   } catch (e: any) {
     return {
@@ -3376,6 +3576,10 @@ export async function configureZapAuthentication(
       method: 'none',
       username: bestCred.username,
       errors: [`Unexpected error: ${e.message}`],
+      gateAEvidence: {
+        indicatorSetSuccess: false,
+        indicatorHazards: [`Unexpected error: ${e.message}`],
+      },
     };
   }
 }

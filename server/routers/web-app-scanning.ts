@@ -1294,4 +1294,116 @@ export const webAppScanningRouter = router({
       recentScans,
     };
   }),
+
+  // ─── Scan Quality & Quarantine ─────────────────────────────────────────
+
+  /** Get scan quality and gate verification status */
+  getScanQuality: protectedProcedure
+    .input(z.object({ scanId: z.number() }))
+    .query(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const { webAppScans } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+
+      const [scan] = await db.select({
+        id: webAppScans.id,
+        status: webAppScans.status,
+        scanQuality: webAppScans.scanQuality,
+        quarantineReason: webAppScans.quarantineReason,
+        gateAPassed: webAppScans.gateAPassed,
+        gateBPassed: webAppScans.gateBPassed,
+        activeScanMessages: webAppScans.activeScanMessages,
+        authConfigured: webAppScans.authConfigured,
+        authMethod: webAppScans.authMethod,
+        urlsDiscovered: webAppScans.urlsDiscovered,
+        targetUrl: webAppScans.targetUrl,
+        scanName: webAppScans.scanName,
+      }).from(webAppScans).where(eq(webAppScans.id, input.scanId));
+
+      if (!scan) throw new TRPCError({ code: "NOT_FOUND", message: "Scan not found" });
+
+      const isQuarantined = scan.scanQuality === "quarantined";
+      const gateAFailed = scan.gateAPassed === 0;
+      const gateBFailed = scan.gateBPassed === 0;
+
+      return {
+        scanId: scan.id,
+        targetUrl: scan.targetUrl,
+        scanName: scan.scanName,
+        status: scan.status,
+        quality: scan.scanQuality || (scan.status === "completed" ? "full" : "unknown"),
+        isQuarantined,
+        quarantineReason: scan.quarantineReason,
+        gates: {
+          a: {
+            label: "Setup Verification",
+            passed: scan.gateAPassed === 1,
+            failed: gateAFailed,
+            description: gateAFailed
+              ? "Target reachability or auth indicator setup failed"
+              : "Target reachable, auth indicators set correctly",
+          },
+          b: {
+            label: "Execution Proof-of-Work",
+            passed: scan.gateBPassed === 1,
+            failed: gateBFailed,
+            activeScanMessages: scan.activeScanMessages,
+            description: gateBFailed
+              ? `Active scan produced ${scan.activeScanMessages || 0} messages (minimum: 10 required)`
+              : `Active scan produced ${scan.activeScanMessages || 0} messages`,
+          },
+        },
+        coverage: {
+          urlsDiscovered: scan.urlsDiscovered || 0,
+          authConfigured: (scan.authConfigured || 0) > 0,
+          authMethod: scan.authMethod,
+        },
+        recommendation: isQuarantined
+          ? "This scan's results are unreliable. Re-run after addressing the quarantine reason."
+          : gateAFailed
+            ? "Setup verification failed. Check target reachability and auth configuration."
+            : gateBFailed
+              ? "Scan execution produced insufficient traffic. Check scan policy and target responsiveness."
+              : "Scan completed with acceptable quality.",
+      };
+    }),
+
+  /** List all quarantined scans for review */
+  listQuarantinedScans: protectedProcedure.query(async () => {
+    const { getDb } = await import("../db");
+    const { webAppScans } = await import("../../drizzle/schema");
+    const { eq, desc } = await import("drizzle-orm");
+
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+
+    const quarantined = await db.select({
+      id: webAppScans.id,
+      targetUrl: webAppScans.targetUrl,
+      scanName: webAppScans.scanName,
+      scanQuality: webAppScans.scanQuality,
+      quarantineReason: webAppScans.quarantineReason,
+      gateAPassed: webAppScans.gateAPassed,
+      gateBPassed: webAppScans.gateBPassed,
+      activeScanMessages: webAppScans.activeScanMessages,
+      completedAt: webAppScans.completedAt,
+    }).from(webAppScans)
+      .where(eq(webAppScans.scanQuality, "quarantined"))
+      .orderBy(desc(webAppScans.completedAt))
+      .limit(50);
+
+    return {
+      count: quarantined.length,
+      scans: quarantined.map(s => ({
+        ...s,
+        gateFailures: [
+          s.gateAPassed === 0 ? "Gate A (Setup)" : null,
+          s.gateBPassed === 0 ? "Gate B (Execution)" : null,
+        ].filter(Boolean),
+      })),
+    };
+  }),
 });

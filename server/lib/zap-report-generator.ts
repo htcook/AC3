@@ -223,17 +223,26 @@ export function generateThemedReport(data: ReportData): string {
 /**
  * Generate OWASP Top 10 mapping from findings CWE IDs.
  */
-function generateOwaspMapping(findings: ReportData["findings"]): ReportData["owaspMapping"] {
+function generateOwaspMapping(findings: ReportData["findings"], scanQuality?: string | null): ReportData["owaspMapping"] {
   return OWASP_TOP_10.map(category => {
     const matchedFindings = findings.filter(f =>
       f.cweId && category.cwes.includes(f.cweId)
     );
+    // CRITICAL: A quarantined/degraded scan cannot assert "pass" — only "partial" (inconclusive)
+    const isCleanScan = !scanQuality || scanQuality === "full" || scanQuality === "degraded_acceptable";
+    const status = matchedFindings.length === 0
+      ? (isCleanScan ? "pass" as const : "partial" as const)
+      : matchedFindings.some(f => f.severity === "high" || f.severity === "critical")
+        ? "fail" as const
+        : "partial" as const;
     return {
       category: category.name,
       categoryId: category.id,
-      status: matchedFindings.length === 0 ? "pass" as const : matchedFindings.some(f => f.severity === "high" || f.severity === "critical") ? "fail" as const : "partial" as const,
+      status,
       findingCount: matchedFindings.length,
-      findings: matchedFindings.map(f => f.alertName),
+      findings: matchedFindings.length === 0 && !isCleanScan
+        ? ["⚠ INCONCLUSIVE — insufficient scan coverage to assert pass"]
+        : matchedFindings.map(f => f.alertName),
     };
   });
 }
@@ -1318,6 +1327,59 @@ export async function generateReportFromZapApi(
       findingCount: data.count,
     })),
   };
+
+  // ─── Quarantine-Aware Reporting ───
+  // If the scan was quarantined, inject a coverage disclaimer and override OWASP pass statuses
+  const isQuarantined = scan.scanQuality === "quarantined";
+  const gateAFailed = scan.gateAPassed === 0;
+  const gateBFailed = scan.gateBPassed === 0;
+
+  if (isQuarantined || gateAFailed || gateBFailed) {
+    // Override OWASP mapping: quarantined scans cannot assert "pass" on any category
+    if (reportData.owaspMapping) {
+      reportData.owaspMapping = reportData.owaspMapping.map(cat => ({
+        ...cat,
+        status: cat.findingCount === 0 ? "partial" as const : cat.status,
+        // Append coverage caveat to categories that would have been "pass"
+        findings: cat.findingCount === 0
+          ? [`⚠ INCONCLUSIVE — scan quality: ${scan.scanQuality || "unknown"}, reason: ${scan.quarantineReason || "gate failure"}`]
+          : cat.findings,
+      }));
+    }
+
+    // Inject quarantine banner into report title
+    reportData.reportTitle = `⚠ [QUARANTINED] ${reportData.reportTitle}`;
+
+    // Add a synthetic finding explaining the quarantine
+    reportData.findings.unshift({
+      id: 0,
+      alertName: "SCAN QUALITY ALERT: Results May Be Incomplete",
+      severity: "info",
+      confidence: 100,
+      description: `This scan was quarantined due to: ${scan.quarantineReason || "Unknown gate failure"}. ` +
+        `Gate A (setup): ${gateAFailed ? "FAILED" : "passed"}, ` +
+        `Gate B (execution): ${gateBFailed ? "FAILED" : "passed"}, ` +
+        `Quality: ${scan.scanQuality || "unknown"}. ` +
+        `Zero findings in any category should NOT be interpreted as "no vulnerabilities exist" — ` +
+        `the scan may not have achieved sufficient coverage to make that assertion.`,
+      solution: "Re-run the scan after addressing the gate failure. Check authentication configuration, target reachability, and scan policy settings.",
+      reference: "AC3 ZAP Scan Reliability Specification v0.2",
+      url: scan.targetUrl,
+      method: "",
+      param: "",
+      attack: "",
+      evidence: `quarantine_reason=${scan.quarantineReason}, active_scan_messages=${scan.activeScanMessages || 0}`,
+      cweId: null,
+      wascId: null,
+      mitreAttackId: null,
+      mitreAttackName: null,
+      mitreTactic: null,
+      exploitAvailable: false,
+      exploitModulePath: null,
+      aiTriageVerdict: null,
+      falsePositiveScore: null,
+    });
+  }
 
   return generateThemedReport(reportData);
 }
