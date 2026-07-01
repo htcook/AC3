@@ -22,6 +22,8 @@ import { DashboardWidgetProvider, useDashboardWidgets } from "@/contexts/Dashboa
 import { Settings2 } from "lucide-react";
 import TechniqueHeatmapWidget from "@/components/TechniqueHeatmapWidget";
 import ExecutiveThreatBriefing from "@/components/ExecutiveThreatBriefing";
+import VendorHealthWidget from "@/components/VendorHealthWidget";
+import ChainTelemetryWidget from "@/components/ChainTelemetryWidget";
 
 import { sanitizeErrorForToast } from "@/lib/error-sanitizer";
 const DEFAULT_SERVER = {
@@ -96,6 +98,8 @@ function DashboardInner() {
     threats: false,
     threatBriefing: true,
     vulnFeed: false,
+    chainTelemetry: true,
+    vendorHealth: true,
     operations: false,
   });
 
@@ -1319,6 +1323,42 @@ function DashboardInner() {
         >
           <SectionErrorBoundary sectionName="Vulnerability Feed">
             <ZeroDayFeed />
+          </SectionErrorBoundary>
+        </CollapsibleSection>
+        </>)}
+
+        {isVisible('vendor-health') && (
+        <>
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        {/* VENDOR HEALTH — Integration status monitoring                   */}
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        <CollapsibleSection
+          title="VENDOR HEALTH"
+          expanded={expandedSections.vendorHealth ?? true}
+          onToggle={() => toggleSection('vendorHealth')}
+          icon={<ShieldCheck className="w-4 h-4 text-green-400" />}
+          badge={<span className="text-xs text-muted-foreground">Security tool integration status</span>}
+        >
+          <SectionErrorBoundary sectionName="Vendor Health">
+            <VendorHealthWidget />
+          </SectionErrorBoundary>
+        </CollapsibleSection>
+        </>)}
+
+        {isVisible('chain-telemetry') && (
+        <>
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        {/* CHAIN TELEMETRY — Attack chain correlation data                 */}
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        <CollapsibleSection
+          title="CHAIN TELEMETRY"
+          expanded={expandedSections.chainTelemetry ?? true}
+          onToggle={() => toggleSection('chainTelemetry')}
+          icon={<Shuffle className="w-4 h-4 text-purple-400" />}
+          badge={<span className="text-xs text-muted-foreground">Cross-correlation attack chain analysis</span>}
+        >
+          <SectionErrorBoundary sectionName="Chain Telemetry">
+            <ChainTelemetryWidget />
           </SectionErrorBoundary>
         </CollapsibleSection>
         </>)}

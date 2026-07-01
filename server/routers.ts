@@ -106,6 +106,7 @@ import { discoveryEngineRouter } from "./routers/discovery-engine";
 import { workflowRouter } from "./routers/workflow";
 import { webCrawlerRouter } from "./routers/web-crawler";
 import { vendorIntegrationsRouter } from "./routers/vendor-integrations";
+import { correlationThresholdsRouter } from "./routers/correlation-thresholds";
 import { agentManagerRouter } from "./routers/agent";
 import { ssilRouter } from "./routers/ssil";
 import { projectDiscoveryRouter } from "./routers/projectdiscovery";
@@ -420,6 +421,7 @@ export const appRouter = router({
   workflow: workflowRouter,
   webCrawler: webCrawlerRouter,
   vendorIntegrations: vendorIntegrationsRouter,
+  correlationThresholds: correlationThresholdsRouter,
   agentManager: agentManagerRouter,
   ssil: ssilRouter,
   projectDiscovery: projectDiscoveryRouter,

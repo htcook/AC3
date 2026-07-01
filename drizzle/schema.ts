@@ -7586,7 +7586,7 @@ export const vendorIntegrations = mysqlTable("vendor_integrations", {
 	enabled: tinyint().default(0).notNull(),
 	authConfig: json(),
 	connectionConfig: json(),
-	integrationStatus: mysqlEnum(['connected','disconnected','error','unconfigured']).default('unconfigured').notNull(),
+	status: mysqlEnum('integration_status', ['connected','disconnected','error','unconfigured']).default('unconfigured').notNull(),
 	lastHealthCheck: bigint({ mode: "number" }),
 	lastError: text(),
 	syncEnabled: tinyint().default(0).notNull(),
