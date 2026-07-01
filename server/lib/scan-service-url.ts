@@ -39,7 +39,10 @@ export const SCAN_SERVICE_URL = (() => {
 // The scan service uses its own API key, separate from the Caldera C2 API key.
 export const SCAN_API_KEY = process.env.SCAN_API_KEY || "2f7aec9e8d3ab1e9b2fe2bb94dfc57a1cb142f4a7cbd5443";
 
-// ─── Health Check & Failover ────────────────────────────────────────────────
+// Startup diagnostic: log resolved scan service configuration
+console.log(`[ScanServiceURL-Boot] SCAN_SERVICE_URL=${SCAN_SERVICE_URL} | SCANFORGE_DEDICATED_URL=${SCANFORGE_DEDICATED_URL} | LEGACY_ZAP_URL=${LEGACY_ZAP_URL} | SCAN_API_KEY_present=${!!SCAN_API_KEY}`);
+
+// ─── Health Check & Failover ──────────────────────────────────────────────────────
 let _dedicatedHealthy = true;
 let _lastHealthCheck = 0;
 const HEALTH_CHECK_INTERVAL_MS = 30_000; // 30s
@@ -74,10 +77,16 @@ export async function isDedicatedHealthy(): Promise<boolean> {
 export async function getActiveScanUrl(): Promise<string> {
   const healthy = await isDedicatedHealthy();
   if (!healthy) {
-    console.warn("[ScanServiceURL] ScanForge EC2 instance unhealthy — returning URL for retry logic.");
+    console.warn(`[ScanServiceURL] ScanForge EC2 instance unhealthy — returning URL for retry logic. URL=${SCANFORGE_DEDICATED_URL || SCAN_SERVICE_URL}`);
+  }
+  // Diagnostic: log resolved URL on first call
+  if (!_diagLogged) {
+    _diagLogged = true;
+    console.log(`[ScanServiceURL-Diag] SCAN_SERVER_HOST=${process.env.SCAN_SERVER_HOST || '(unset)'} SCANFORGE_URL=${process.env.SCANFORGE_URL || '(unset)'} SCANFORGE_HOST=${process.env.SCANFORGE_HOST || '(unset)'} resolvedUrl=${SCANFORGE_DEDICATED_URL || SCAN_SERVICE_URL}`);
   }
   return SCANFORGE_DEDICATED_URL || SCAN_SERVICE_URL;
 }
+let _diagLogged = false;
 
 /**
  * Get the ZAP base URL.

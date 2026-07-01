@@ -32,6 +32,30 @@
         {
           "name": "DATABASE_URL",
           "valueFrom": "arn:aws:secretsmanager:us-east-1:808038814732:secret:ac3/dev/app-WlvTEQ:DATABASE_URL::"
+        },
+        {
+          "name": "SCAN_SERVER_HOST",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:808038814732:secret:ac3/dev/app-WlvTEQ:SCAN_SERVER_HOST::"
+        },
+        {
+          "name": "SCAN_SERVER_SSH_KEY",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:808038814732:secret:ac3/dev/app-WlvTEQ:SCAN_SERVER_SSH_KEY::"
+        },
+        {
+          "name": "SCAN_SERVER_USER",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:808038814732:secret:ac3/dev/app-WlvTEQ:SCAN_SERVER_USER::"
+        },
+        {
+          "name": "SCANFORGE_URL",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:808038814732:secret:ac3/dev/app-WlvTEQ:SCANFORGE_URL::"
+        },
+        {
+          "name": "ZAP_BASE_URL",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:808038814732:secret:ac3/dev/app-WlvTEQ:ZAP_BASE_URL::"
+        },
+        {
+          "name": "ZAP_API_KEY",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:808038814732:secret:ac3/dev/app-WlvTEQ:ZAP_API_KEY::"
         }
       ],
       "logConfiguration": {

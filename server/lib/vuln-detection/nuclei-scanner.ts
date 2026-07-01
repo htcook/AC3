@@ -459,6 +459,22 @@ export async function executeNucleiScanning(ctx: VulnDetectionContext): Promise<
       const execResult = await executeNucleiWithRetry(executeTool, nucleiArgs, target, state.engagementId, 2, (entry) => addLog(state, entry));
       if ((state as any)._heartbeatRef) (state as any)._heartbeatRef.lastActivityAt = Date.now();
 
+      // ─── DIAGNOSTIC LOGGING (Nuclei 0-findings investigation) ───────────────
+      const stdoutLen = execResult.stdout?.length || 0;
+      const stderrLen = execResult.stderr?.length || 0;
+      const stdoutPreview = (execResult.stdout || "").slice(0, 300).replace(/\n/g, "\\n");
+      const stderrPreview = (execResult.stderr || "").slice(0, 200).replace(/\n/g, "\\n");
+      console.log(`[NucleiDiag] url=${url} exit=${execResult.exitCode} stdout=${stdoutLen}b stderr=${stderrLen}b timedOut=${execResult.timedOut} duration=${execResult.durationMs}ms`);
+      console.log(`[NucleiDiag] stdout_preview: ${stdoutPreview || "(empty)"}`);
+      if (stderrPreview) console.log(`[NucleiDiag] stderr_preview: ${stderrPreview}`);
+      if (execResult.error) console.log(`[NucleiDiag] error: ${execResult.error}`);
+      addLog(state, {
+        phase: "vuln_detection", type: "info",
+        title: `[Diag] Nuclei Raw Output: ${url}`,
+        detail: `exit=${execResult.exitCode} stdout=${stdoutLen}b stderr=${stderrLen}b timedOut=${execResult.timedOut} duration=${execResult.durationMs}ms | preview: ${stdoutPreview.slice(0, 150) || "(empty)"}`,
+      });
+      // ─── END DIAGNOSTIC LOGGING ─────────────────────────────────────────────
+
       // Truncate large outputs
       if (execResult.stdout?.length > 100_000) execResult.stdout = execResult.stdout.slice(0, 100_000);
       if (execResult.stderr?.length > 50_000) execResult.stderr = execResult.stderr.slice(0, 50_000);

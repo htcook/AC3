@@ -171,6 +171,10 @@ export async function executeToolViaHttp(
     // Use dynamic URL with health-check failover (dedicated → legacy)
     const activeUrl = await getActiveScanUrl();
     console.log(`${LOG} Executing tool: ${tool} ${(args || "").slice(0, 80)}... via ${activeUrl}`);
+    // Diagnostic: log scan service URL and key presence for debugging
+    if (tool === "nuclei") {
+      console.log(`[NucleiDiag-HTTP] scanUrl=${activeUrl} apiKeyPresent=${!!SCAN_API_KEY} target=${config.target || "(none)"} args_len=${(args || "").length}`);
+    }
 
     const timeoutMs = Math.min((timeoutSeconds + 60) * 1000, 360_000); // +60s buffer, hard cap at 6 min to prevent ScanForge hangs
 
