@@ -1,7 +1,7 @@
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   CheckCircle2, XCircle, AlertTriangle, Loader2, RefreshCw, Circle,
   ShieldCheck
@@ -46,6 +46,7 @@ function formatLastCheck(timestamp: number | null | undefined): string {
 }
 
 export default function VendorHealthWidget() {
+  // ALL hooks must be called unconditionally at the top - no early returns before hooks
   const { data: integrations, isLoading, refetch } = trpc.vendorIntegrations.list.useQuery(undefined, {
     refetchInterval: 300000,
     staleTime: 60000,
@@ -56,13 +57,24 @@ export default function VendorHealthWidget() {
       refetch();
       toast.success("Health checks completed");
     },
-    onError: (err) => {
+    onError: (err: { message: string }) => {
       toast.error("Health check failed: " + err.message);
     },
   });
 
   const [checking, setChecking] = useState(false);
 
+  // Compute derived data with useMemo - MUST be called before any conditional returns
+  const stats = useMemo(() => {
+    if (!integrations || integrations.length === 0) return null;
+    return {
+      connectedCount: integrations.filter(i => i.status === "connected" && i.enabled).length,
+      errorCount: integrations.filter(i => i.status === "error" && i.enabled).length,
+      enabledCount: integrations.filter(i => i.enabled).length,
+    };
+  }, [integrations]);
+
+  // Now safe to do conditional returns - all hooks have been called above
   const runHealthCheck = async () => {
     setChecking(true);
     try {
@@ -81,7 +93,7 @@ export default function VendorHealthWidget() {
     );
   }
 
-  if (!integrations || integrations.length === 0) {
+  if (!integrations || integrations.length === 0 || !stats) {
     return (
       <div className="text-center py-8 text-muted-foreground">
         <ShieldCheck className="w-8 h-8 mx-auto mb-2 opacity-50" />
@@ -91,18 +103,14 @@ export default function VendorHealthWidget() {
     );
   }
 
-  const connectedCount = integrations.filter(i => i.status === "connected" && i.enabled).length;
-  const errorCount = integrations.filter(i => i.status === "error" && i.enabled).length;
-  const enabledCount = integrations.filter(i => i.enabled).length;
-
   return (
     <div className="space-y-3">
       {/* Summary bar */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3 text-xs">
-          <span className="text-green-400">{connectedCount} connected</span>
-          {errorCount > 0 && <span className="text-red-400">{errorCount} error</span>}
-          <span className="text-muted-foreground">{enabledCount} enabled</span>
+          <span className="text-green-400">{stats.connectedCount} connected</span>
+          {stats.errorCount > 0 && <span className="text-red-400">{stats.errorCount} error</span>}
+          <span className="text-muted-foreground">{stats.enabledCount} enabled</span>
         </div>
         <Button
           variant="ghost"
@@ -127,7 +135,7 @@ export default function VendorHealthWidget() {
             >
               <div className="flex items-center gap-2">
                 <div className={`w-2 h-2 rounded-full ${statusInfo.dotColor}`} />
-                <span className="text-sm font-medium">{integration.displayName || integration.vendor}</span>
+                <span className="text-sm font-medium">{integration.displayName || integration.vendor || "Unknown"}</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className={`text-[10px] ${statusInfo.color}`}>{statusInfo.label}</span>
@@ -143,7 +151,7 @@ export default function VendorHealthWidget() {
       {/* Error details */}
       {integrations.filter(i => i.lastError && i.status === "error").map(i => (
         <div key={`err-${i.id}`} className="text-[10px] text-red-400/80 bg-red-500/5 rounded p-2 border border-red-500/20">
-          <span className="font-medium">{i.displayName || i.vendor}:</span>{" "}
+          <span className="font-medium">{i.displayName || i.vendor || "Unknown"}:</span>{" "}
           {typeof i.lastError === "string" ? i.lastError : "Connection error"}
         </div>
       ))}
