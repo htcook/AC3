@@ -179,7 +179,7 @@ export interface NucleiArgConfig {
 export function buildNucleiArgs(config: NucleiArgConfig): string {
   const { url, techTags, isTrainingLab, rateLimit, authHeaderArg, evasionHeaders } = config;
   const tagArgs = techTags.length > 0 ? `-tags ${techTags.join(",")}` : "";
-  const severityArg = isTrainingLab ? "-severity critical,high,medium,low" : "-severity critical,high,medium";
+  const severityArg = "-severity critical,high,medium,low";
   const timeoutArg = isTrainingLab ? "-timeout 15" : "-timeout 10";
   return `-u ${url} ${severityArg} ${tagArgs} -jsonl -nc -duc -ni ${timeoutArg} -retries 1 -rate-limit ${rateLimit}${authHeaderArg}${evasionHeaders}`;
 }

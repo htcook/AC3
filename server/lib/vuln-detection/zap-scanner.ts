@@ -314,11 +314,12 @@ export async function executeZapScanning(ctx: VulnDetectionContext): Promise<Zap
                     const findings = await db.select().from(webAppFindings).where(eq(webAppFindings.scanId, zapScanId));
                     let count = 0;
                     for (const f of findings) {
-                      if ((f.severity || "info") === "info") continue;
+                      // Import info-severity findings as informational tier (previously dropped)
+                      const severity = f.severity || "info";
                       // Mark findings from quarantined scans with lower confidence
-                      const tier = p.status === "quarantined" ? "unverified" as const : "confirmed" as const;
-                      webApp.zapFindings.push({ alert: f.alertName || "Unknown", risk: f.severity, url: f.url || targetUrl });
-                      webApp.vulns.push({ id: genId(), severity: f.severity, title: `[ZAP] ${f.alertName || "Unknown"}`, source: "zap", corroborationTier: tier, evidenceDetail: [f.method, f.url, f.param ? `Param: ${f.param}` : ""].filter(Boolean).join(" "), rawEvidence: [f.attack, f.evidence].filter(Boolean).join("\n").slice(0, 4000), attack: f.attack, method: f.method, param: f.param, url: f.url } as any);
+                      const tier = p.status === "quarantined" ? "unverified" as const : severity === "info" ? "informational" as const : "confirmed" as const;
+                      webApp.zapFindings.push({ alert: f.alertName || "Unknown", risk: severity, url: f.url || targetUrl });
+                      webApp.vulns.push({ id: genId(), severity, title: `[ZAP] ${f.alertName || "Unknown"}`, source: "zap", corroborationTier: tier, evidenceDetail: [f.method, f.url, f.param ? `Param: ${f.param}` : ""].filter(Boolean).join(" "), rawEvidence: [f.attack, f.evidence].filter(Boolean).join("\n").slice(0, 4000), attack: f.attack, method: f.method, param: f.param, url: f.url } as any);
                       count++;
                     }
                     state.stats.vulnsFound += count; result.findingsCount += count;

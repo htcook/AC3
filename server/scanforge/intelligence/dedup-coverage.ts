@@ -602,7 +602,7 @@ export class DeduplicationEngine {
    * Uses source-prefix stripping + keyword extraction + Jaccard similarity.
    */
   private deduplicateByFuzzyTitle(findings: ScanFinding[], mergeLog: MergeEntry[]): ScanFinding[] {
-    const SIMILARITY_THRESHOLD = 0.55; // Jaccard similarity threshold
+    const SIMILARITY_THRESHOLD = 0.70; // Jaccard similarity threshold (raised from 0.55 to reduce over-merging of distinct findings)
 
     // Strip scanner prefixes and normalize titles for comparison
     const normalizedTitles = findings.map(f => this.stripSourcePrefix(this.normalizeTitle(f.title)));
