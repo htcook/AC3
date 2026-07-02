@@ -134,6 +134,8 @@ RUN chmod 1777 /tmp
 ENV NODE_ENV=production
 ENV PORT=8080
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+# Allow self-signed TLS certs for internal scan server (ScanForge EC2)
+ENV NODE_TLS_REJECT_UNAUTHORIZED=0
 
 # V8 heap tuned for ECS Fargate tasks:
 #   2 vCPU / 4 GB task  → --max-old-space-size=3072
