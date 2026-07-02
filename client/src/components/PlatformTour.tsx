@@ -152,13 +152,15 @@ export default function PlatformTour({ targetPlatform }: PlatformTourProps) {
   useEffect(() => {
     if (!user || hasChecked) return;
 
-    // Only show on the correct platform
+    // Show tour for any platform — the targetPlatform prop just selects which step set to use.
+    // The actual platform name displayed comes from the white-label config.
     const normalizedPlatform = platformName?.toUpperCase?.() || "";
     const normalizedTarget = targetPlatform.toUpperCase();
     
-    // PBS platform check: platformName contains "PBS"
-    // AC3 platform check: platformName contains "AC3"
-    const isCorrectPlatform = normalizedPlatform.includes(normalizedTarget);
+    // Determine if this is the correct tour variant for the current deployment
+    const isCorrectPlatform = normalizedPlatform.includes(normalizedTarget) || 
+      // If platform doesn't match either variant, show the tour that matches the DashboardLayout prop
+      (!normalizedPlatform.includes("PBS") && !normalizedPlatform.includes("AC3"));
     
     if (!isCorrectPlatform) {
       setHasChecked(true);
@@ -211,7 +213,7 @@ export default function PlatformTour({ targetPlatform }: PlatformTourProps) {
 
   if (!isOpen || !user) return null;
 
-  const platformDisplayName = targetPlatform === "PBS" ? "PBS SECURITY PLATFORM" : "AC3";
+  const platformDisplayName = (platformName || targetPlatform).toUpperCase();
   const firstName = user?.name?.split(" ")[0] || "there";
 
   // Welcome screen
