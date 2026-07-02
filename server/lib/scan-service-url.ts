@@ -37,7 +37,7 @@ export const SCAN_SERVICE_URL = (() => {
 })();
 
 // The scan service uses its own API key, separate from the Caldera C2 API key.
-export const SCAN_API_KEY = process.env.SCAN_API_KEY || "2f7aec9e8d3ab1e9b2fe2bb94dfc57a1cb142f4a7cbd5443";
+export const SCAN_API_KEY = process.env.SCAN_API_KEY || "";
 
 // Startup diagnostic: log resolved scan service configuration
 console.log(`[ScanServiceURL-Boot] SCAN_SERVICE_URL=${SCAN_SERVICE_URL} | SCANFORGE_DEDICATED_URL=${SCANFORGE_DEDICATED_URL} | LEGACY_ZAP_URL=${LEGACY_ZAP_URL} | SCAN_API_KEY_present=${!!SCAN_API_KEY}`);
