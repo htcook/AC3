@@ -259,6 +259,7 @@ import { gitopsOffensiveRouter } from "./routers/gitops-offensive";
 import { cloudExploitFrameworksRouter } from "./routers/cloud-exploit-frameworks";
 import { correlationThresholdsRouter } from "./routers/correlation-thresholds";
 import { notificationPreferencesRouter } from "./routers/notification-preferences";
+import { progressiveEvasionRouter } from "./routers/progressive-evasion";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -696,6 +697,7 @@ export const appRouter = router({
   correlationThresholds: correlationThresholdsRouter,
   // ─── Notification Preferences (Per-Engagement Alert Routing) ──
   notificationPreferences: notificationPreferencesRouter,
+  progressiveEvasion: progressiveEvasionRouter,
 });
 export type AppRouter = typeof appRouter;
 

@@ -3203,3 +3203,19 @@
 - [x] Support event types: exploit_plan_approved, exploit_plan_denied, exploit_plan_modified, phase_completed, gate_timeout, roe_uploaded
 - [x] Support channels: email, in_app, both, none
 - [x] Write vitest tests for notification preferences logic (31 tests passing)
+
+### Progressive Evasion Scan Pipeline (Jul 7)
+- [ ] WAF/IDS fingerprinting module (wafw00f-style detection before scanning)
+- [ ] Evasion profile system with 5 levels: stealth, low, medium, aggressive, noisy
+- [ ] Each profile configures: timing/rate-limit, fragmentation, decoys, user-agents, encoding, source-port randomization
+- [ ] Operator can adjust evasion settings per-scan (override profile defaults)
+- [ ] Progressive pipeline: starts at stealth, escalates through levels on subsequent runs
+- [ ] Pipeline pause gates between scan types (recon → port scan → vuln scan → exploit)
+- [ ] Operator can re-scan at current or different evasion level from pause gate
+- [ ] Support manual tool result upload/ingest at any pause gate
+- [ ] Client approval gate before exploit phase (sends printable plan for review)
+- [ ] Track which evasion level triggered detection/blocking per target
+- [ ] tRPC procedures for evasion profile CRUD and scan pipeline control
+- [ ] Wire into engagement orchestrator pipeline
+- [ ] Available to both Red Team AND Pentest engagement types
+- [ ] Write vitest tests for evasion profiles and pipeline gates

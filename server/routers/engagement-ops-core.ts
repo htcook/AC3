@@ -86,7 +86,18 @@ export const engagementOpsRouter = router({
 
     /** Start autonomous execution — one-click pentest/red team */
     execute: protectedProcedure
-      .input(z.object({ engagementId: z.number(), exhaustiveExploit: z.boolean().optional().default(true), trainingLabMode: z.boolean().optional() }))
+      .input(z.object({
+        engagementId: z.number(),
+        exhaustiveExploit: z.boolean().optional().default(true),
+        trainingLabMode: z.boolean().optional(),
+        startingEvasionLevel: z.enum(["stealth", "low", "medium", "aggressive", "noisy"]).optional().default("stealth"),
+        evasionConfig: z.object({
+          pauseBetweenScans: z.boolean().optional().default(true),
+          pauseBeforeExploit: z.boolean().optional().default(true),
+          pauseOnDetection: z.boolean().optional().default(true),
+          requireClientApproval: z.boolean().optional().default(false),
+        }).optional(),
+      }))
       .mutation(async ({ input, ctx }) => {
         const engagement = await db.getEngagementById(input.engagementId, ctx.user);
         if (!engagement) throw new TRPCError({ code: 'NOT_FOUND', message: 'Engagement not found' });
@@ -198,6 +209,37 @@ export const engagementOpsRouter = router({
         // or set engagement.labName to a non-empty value.
         if (state.trainingLabMode === undefined) {
           state.trainingLabMode = false; // Default: require approvals
+        }
+
+        // ═══ PROGRESSIVE EVASION PIPELINE INIT ═══
+        // Initialize the progressive evasion system for pentest and red_team engagements.
+        // Starts at the operator-specified level (default: stealth) and escalates on command.
+        const engType = engagement.engagementType as string;
+        if (engType === 'pentest' || engType === 'red_team') {
+          try {
+            const { initProgressiveEvasion } = await import('../lib/progressive-evasion-pipeline');
+            initProgressiveEvasion(
+              input.engagementId,
+              engType as 'pentest' | 'red_team',
+              input.startingEvasionLevel || 'stealth',
+              String(ctx.user.id),
+              input.evasionConfig || {
+                pauseBetweenScans: true,
+                pauseBeforeExploit: true,
+                pauseOnDetection: true,
+                requireClientApproval: false,
+              }
+            );
+            state.log.push({
+              phase: 'idle' as any,
+              type: 'info' as any,
+              title: '\u{1F6E1}\uFE0F Progressive Evasion Pipeline Initialized',
+              detail: `Starting at level: ${input.startingEvasionLevel || 'stealth'}. Pause between scans: ${input.evasionConfig?.pauseBetweenScans !== false ? 'YES' : 'NO'}. Pause before exploit: ${input.evasionConfig?.pauseBeforeExploit !== false ? 'YES' : 'NO'}.`,
+              timestamp: Date.now(),
+            });
+          } catch (evasionErr: any) {
+            console.warn('[EngOps] Failed to init progressive evasion:', evasionErr.message);
+          }
         }
 
         await db.logActivity({
