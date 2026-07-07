@@ -89,6 +89,8 @@ export const WHITELISTED_IPS: readonly string[] = [
   "159.223.152.190",  // AC3 DigitalOcean test lab droplet
   "159.223.154.80",   // ac3-lab-linux-target (Sprint 11B)
   "104.248.62.133",   // ac3-lab-windows-target (Sprint 11B)
+  "157.230.13.143",   // ac3-lab-dmz-target (Sprint 11B)
+  "157.245.241.183",  // ac3-lab-internal-target (Sprint 11B)
   "45.33.32.156",     // scanme.nmap.org
 ] as const;
 

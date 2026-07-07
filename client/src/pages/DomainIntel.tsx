@@ -598,8 +598,65 @@ export default function DomainIntel() {
     if (!primaryDomain) return;
     setPipelineError(null);
     setPipelineStage(0);
-    setIsEnriching(true);
-    quickScan.mutate({ domain: primaryDomain });
+
+    // Helper: detect if a string is an IP address or CIDR range
+    const isIpOrCidr = (s: string) => /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(\/\d{1,2})?$/.test(s);
+    // Helper: valid target is a domain (contains dot) or IP/CIDR
+    const isValidTarget = (s: string) => s.includes('.') || isIpOrCidr(s);
+
+    // Detect multi-target paste: split on newlines, commas, spaces, or semicolons
+    const rawInput = primaryDomain;
+    const parsed = rawInput
+      .split(/[\n\r,;\s]+/)
+      .map(d => d.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, ''))
+      .filter(d => d.length > 0 && isValidTarget(d));
+
+    if (parsed.length > 1) {
+      // Multiple targets detected — run a unified scan with all of them
+      const primary = parsed[0];
+      const additional = parsed.slice(1).filter(d => d !== primary);
+      setPrimaryDomain(primary);
+      setAdditionalDomains(additional);
+      setCustomerName(primary); // Auto-fill customer name
+      setSector('Technology'); // Default sector for quick multi-scan
+      const ipCount = parsed.filter(isIpOrCidr).length;
+      const domainCount = parsed.length - ipCount;
+      const label = [domainCount > 0 ? `${domainCount} domain${domainCount > 1 ? 's' : ''}` : '', ipCount > 0 ? `${ipCount} IP${ipCount > 1 ? 's' : ''}/range${ipCount > 1 ? 's' : ''}` : ''].filter(Boolean).join(' + ');
+      toast.info(`Detected ${label} — running unified scan`);
+      startScan.mutate({
+        primaryDomain: primary,
+        additionalDomains: additional,
+        clientType: clientType as any,
+        sector: 'Technology',
+        customerName: primary,
+        criticalFunctions: [],
+        complianceFlags: [],
+        scanMode: 'standard',
+        scanOnly: true,
+      });
+    } else if (parsed.length === 1 && isIpOrCidr(parsed[0])) {
+      // Single IP or CIDR range — still use startScan since quickScan expects a domain
+      const target = parsed[0];
+      setPrimaryDomain(target);
+      setCustomerName(target);
+      setSector('Technology');
+      toast.info(`IP target detected — running scan on ${target}`);
+      startScan.mutate({
+        primaryDomain: target,
+        additionalDomains: [],
+        clientType: clientType as any,
+        sector: 'Technology',
+        customerName: target,
+        criticalFunctions: [],
+        complianceFlags: [],
+        scanMode: 'standard',
+        scanOnly: true,
+      });
+    } else {
+      // Single domain — use quick scan as before
+      setIsEnriching(true);
+      quickScan.mutate({ domain: primaryDomain });
+    }
   };
 
   const resetForm = () => {
@@ -979,16 +1036,36 @@ export default function DomainIntel() {
               <CardContent className="space-y-5">
                 {/* Primary Domain — single prominent input */}
                 <div className="space-y-2">
-                  <Label className="text-sm font-semibold">Target Domain</Label>
+                  <Label className="text-sm font-semibold">Target(s)</Label>
                   <div className="flex gap-2">
                     <div className="relative flex-1">
                       <Globe className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <Input
-                        placeholder="example.com"
+                        placeholder="example.com, 10.0.0.1, or 192.168.0.0/24 (paste multiple targets)"
                         value={primaryDomain}
-                        onChange={e => setPrimaryDomain(e.target.value.trim().toLowerCase())}
+                        onChange={e => setPrimaryDomain(e.target.value.toLowerCase())}
                         className="pl-10 text-lg h-14 font-mono"
                         onKeyDown={e => e.key === "Enter" && !showAdvancedConfig && handleQuickScan()}
+                        onPaste={e => {
+                          // Allow paste to populate the field, then auto-detect multi-target on submit
+                          const pasted = e.clipboardData.getData('text');
+                          const isIp = (s: string) => /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(\/\d{1,2})?$/.test(s);
+                          const targets = pasted.split(/[\n\r,;\s]+/)
+                            .map(d => d.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, ''))
+                            .filter(d => d.length > 0 && (d.includes('.') || isIp(d)));
+                          if (targets.length > 1) {
+                            e.preventDefault();
+                            setPrimaryDomain(pasted.trim().toLowerCase());
+                            const ipCount = targets.filter(isIp).length;
+                            const domainCount = targets.length - ipCount;
+                            const label = [domainCount > 0 ? `${domainCount} domain${domainCount > 1 ? 's' : ''}` : '', ipCount > 0 ? `${ipCount} IP/range${ipCount > 1 ? 's' : ''}` : ''].filter(Boolean).join(' + ');
+                            toast.info(`${label} detected — click Quick Scan to run unified scan`);
+                          } else if (targets.length === 1 && isIp(targets[0])) {
+                            e.preventDefault();
+                            setPrimaryDomain(targets[0]);
+                            toast.info(`IP target detected: ${targets[0]}`);
+                          }
+                        }}
                       />
                     </div>
                     {!showAdvancedConfig && (
@@ -1007,7 +1084,7 @@ export default function DomainIntel() {
                     )}
                   </div>
                   <p className="text-[11px] text-muted-foreground">
-                    Just enter a domain — the system scrapes the website for company and product info, then enriches it with Shodan, SecurityTrails, Censys, breach databases, and LLM analysis to build a complete organizational profile for BIA and hybrid risk scoring.
+                    Enter a domain, IP address, or CIDR range. Paste multiple targets (separated by commas, newlines, or spaces) to run a unified scan across all of them. The system enriches with Shodan, SecurityTrails, Censys, breach databases, and LLM analysis to build a complete organizational profile for BIA and hybrid risk scoring.
                   </p>
                 </div>
 

@@ -65,7 +65,21 @@ export async function claimEngagement(engagementId: number, options?: { force?: 
       .limit(1);
 
     if (rows.length === 0) {
-      return { claimed: false, currentOwner: null, reason: "No snapshot exists for this engagement" };
+      // No snapshot exists yet — this is a brand new engagement.
+      // Create the snapshot row and claim it for this server instance.
+      try {
+        await db.execute(
+          sql`INSERT INTO engagement_ops_snapshots (engagement_id, server_instance_id, phase, is_running, state_json, updated_at)
+              VALUES (${engagementId}, ${SERVER_INSTANCE_ID}, 'idle', 0, '{}', NOW())`
+        );
+        console.log(`[ClaimLock] Engagement #${engagementId}: created snapshot and claimed by "${SERVER_INSTANCE_ID}"`);
+        startHeartbeat(engagementId);
+        return { claimed: true, currentOwner: SERVER_INSTANCE_ID, reason: "Created snapshot and claimed" };
+      } catch (insertErr: any) {
+        // Race condition: another server created it first — retry claim
+        console.warn(`[ClaimLock] Engagement #${engagementId}: snapshot insert race — retrying claim`);
+        return claimEngagement(engagementId, options);
+      }
     }
 
     const row = rows[0];

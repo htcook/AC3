@@ -62,7 +62,7 @@ import {
   ScanEye, ShieldOff, Bolt, TrendingUp, BarChart3, Scan, Microscope, Scissors,
   FileUp, Upload, Filter, FilterX, ToggleLeft, ToggleRight,
   X, FileCheck, Fingerprint, Edit2, BookOpen, Rocket,
-  Package, Code,
+  Package, Code, Printer,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -89,6 +89,7 @@ import { EvasionStatusIndicator } from "@/components/EvasionStatusIndicator";
 import EngagementTimeline from "@/components/EngagementTimeline";
 import ManualToolRunner from "@/components/ManualToolRunner";
 import ScanCoverageHeatmap, { computeCoverage } from "@/components/ScanCoverageHeatmap";
+import InfrastructureIpsPanel from "@/components/InfrastructureIpsPanel";
 
 // ─── Types (mirror server) ──────────────────────────────────────────────────
 
@@ -388,10 +389,12 @@ function ExploitPlanReviewCard({
   gate,
   planActions,
   approveMut,
+  engagementId,
 }: {
   gate: any;
   planActions: Array<{ target: string; port: string | number; cve?: string; module?: string; service?: string }>;
   approveMut: any;
+  engagementId: number;
 }) {
   const [isModifying, setIsModifying] = useState(false);
   const [enabledTargets, setEnabledTargets] = useState<boolean[]>(() => planActions.map(() => true));
@@ -558,6 +561,29 @@ function ExploitPlanReviewCard({
           <div className="flex items-center justify-between">
             <p className="text-[10px] text-muted-foreground">Review the plan above. Approving will execute all listed exploits against in-scope targets.</p>
             <div className="flex items-center gap-2 ml-4 flex-none">
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10"
+                onClick={() => {
+                  // Open printable exploit plan in new tab
+                  const url = `/api/trpc/engagementOps.getExploitPlanPrintable?input=${encodeURIComponent(JSON.stringify({ engagementId }))}`;
+                  fetch(url, { credentials: 'include' })
+                    .then(r => r.json())
+                    .then(data => {
+                      const html = data?.result?.data?.printableHtml;
+                      if (html) {
+                        const w = window.open('', '_blank');
+                        if (w) { w.document.write(html); w.document.close(); }
+                      } else {
+                        alert('Exploit plan not available yet.');
+                      }
+                    })
+                    .catch(() => alert('Failed to load exploit plan.'));
+                }}
+              >
+                <Printer className="h-3.5 w-3.5 mr-1" /> Print for Client
+              </Button>
               <Button
                 size="sm"
                 variant="outline"
@@ -2748,7 +2774,7 @@ export default function EngagementOps() {
 
               if (isExploitPlan && planActions && planActions.length > 0) {
                 // ── Rich Exploit Plan Review Card with Modify Plan ──
-                return <ExploitPlanReviewCard key={gate.id} gate={gate} planActions={planActions} approveMut={approveMut} />;
+                return <ExploitPlanReviewCard key={gate.id} gate={gate} planActions={planActions} approveMut={approveMut} engagementId={engagementId} />;
               }
 
               // ── Standard Approval Card (per-exploit or other gates) ──
@@ -2822,6 +2848,7 @@ export default function EngagementOps() {
                   { value: 'planhistory', label: 'Plan History', icon: <ClipboardList className="h-3 w-3" /> },
                   { value: 'testplan', label: 'Test Plan', icon: <FileText className="h-3 w-3" /> },
                   { value: 'timeline', label: 'Timeline', icon: <Clock className="h-3 w-3" /> },
+                  { value: 'infraips', label: 'Source IPs', icon: <Server className="h-3 w-3" /> },
                 ],
               },
               {
@@ -3387,15 +3414,57 @@ export default function EngagementOps() {
                                   const label = typeof r === 'string' ? r : (r.signal || r.rationale || r.type || String(r));
                                   const source = typeof r === 'string' ? '' : (r.source || r.type || '');
                                   return (
-                                  <div key={i} className="flex items-center gap-2 text-[10px] px-2 py-0.5 bg-red-500/5 rounded">
-                                    <Badge variant="outline" className={`text-[8px] ${
-                                      sev === 'critical' ? 'text-red-400 border-red-500/30' :
-                                      sev === 'high' ? 'text-orange-400 border-orange-500/30' :
-                                      sev === 'medium' ? 'text-yellow-400 border-yellow-500/30' :
-                                      'text-blue-400 border-blue-500/30'
-                                    }`}>{sev}</Badge>
-                                    <span className="text-foreground">{label}</span>
-                                    {source && <span className="text-muted-foreground/50 ml-auto">{source}</span>}
+                                  <div key={i} className="text-[10px] px-2 py-1 bg-red-500/5 rounded space-y-0.5">
+                                    <div className="flex items-center gap-2">
+                                      <Badge variant="outline" className={`text-[8px] ${
+                                        sev === 'critical' ? 'text-red-400 border-red-500/30' :
+                                        sev === 'high' ? 'text-orange-400 border-orange-500/30' :
+                                        sev === 'medium' ? 'text-yellow-400 border-yellow-500/30' :
+                                        'text-blue-400 border-blue-500/30'
+                                      }`}>{sev}</Badge>
+                                      <span className="text-foreground">{label}</span>
+                                      {source && <span className="text-muted-foreground/50 ml-auto">{source}</span>}
+                                    </div>
+                                    {/* Asset evidence details */}
+                                    {typeof r === 'object' && r.assetEvidence && (
+                                      <div className="pl-4 space-y-0.5 border-l border-current/10 ml-1">
+                                        {r.assetEvidence.assetName && (
+                                          <div className="flex items-center gap-1">
+                                            <span className="text-[9px] opacity-50">Asset:</span>
+                                            <span className="text-[9px] font-mono">{r.assetEvidence.assetName}</span>
+                                          </div>
+                                        )}
+                                        {r.assetEvidence.provider && (
+                                          <div className="flex items-center gap-1">
+                                            <span className="text-[9px] opacity-50">Provider:</span>
+                                            <span className="text-[9px]">{r.assetEvidence.provider}</span>
+                                          </div>
+                                        )}
+                                        {r.assetEvidence.accessLevel && (
+                                          <div className="flex items-center gap-1">
+                                            <span className="text-[9px] opacity-50">Access:</span>
+                                            <span className={`text-[8px] px-1 py-0.5 rounded border font-medium uppercase ${
+                                              r.assetEvidence.accessLevel === 'public' ? 'text-red-300 border-red-500/30 bg-red-500/10' : 'text-emerald-300 border-emerald-500/30 bg-emerald-500/10'
+                                            }`}>{r.assetEvidence.accessLevel}</span>
+                                          </div>
+                                        )}
+                                        {r.assetEvidence.url && (
+                                          <div className="flex items-center gap-1">
+                                            <span className="text-[9px] opacity-50">URL:</span>
+                                            <span className="text-[9px] font-mono text-cyan-400 truncate max-w-[180px]">{r.assetEvidence.url}</span>
+                                          </div>
+                                        )}
+                                        {r.assetEvidence.details && Object.keys(r.assetEvidence.details).length > 0 && (
+                                          <div className="flex flex-wrap gap-0.5">
+                                            {Object.entries(r.assetEvidence.details).slice(0, 4).map(([k, v]: [string, any]) => (
+                                              <span key={k} className="text-[8px] px-1 py-0.5 rounded bg-muted/20 border border-border/20 font-mono">
+                                                {k}: {typeof v === 'boolean' ? (v ? 'yes' : 'no') : String(v).slice(0, 30)}
+                                              </span>
+                                            ))}
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
                                   </div>
                                   );
                                 })}
@@ -5451,6 +5520,15 @@ export default function EngagementOps() {
                     completedAt={ops?.completedAt}
                     currentPhase={ops?.phase || 'idle'}
                   />
+                </div>
+              </ScrollArea>
+            </TabsContent>
+
+            {/* ── Infrastructure Source IPs Tab ── */}
+            <TabsContent value="infraips" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+              <ScrollArea className="h-full">
+                <div className="py-4">
+                  <InfrastructureIpsPanel engagementId={engagementId} />
                 </div>
               </ScrollArea>
             </TabsContent>

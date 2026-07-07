@@ -598,6 +598,27 @@ export function classifySignals(observations: AssetObservation[]): RiskSignal[] 
           } catch {
             // Non-fatal: skip NIST mapping on error
           }
+          // Propagate source URL from the matched observation for display in risk signal cards
+          const obsUrl = obs.attribution?.url || obs.attribution?.verifyUrl || obs.evidence?.url || obs.evidence?.repoUrl || obs.evidence?.fileUrl || null;
+          if (obsUrl) {
+            signal.sourceUrl = obsUrl;
+          }
+          // Propagate relevant evidence context (bucket name, repo name, file path, etc.)
+          const evidenceContext: Record<string, any> = {};
+          if (obs.evidence?.bucketName) evidenceContext.bucketName = obs.evidence.bucketName;
+          if (obs.evidence?.provider) evidenceContext.provider = obs.evidence.provider;
+          if (obs.evidence?.repoUrl) evidenceContext.repoUrl = obs.evidence.repoUrl;
+          if (obs.evidence?.fileUrl) evidenceContext.fileUrl = obs.evidence.fileUrl;
+          if (obs.evidence?.repoName) evidenceContext.repoName = obs.evidence.repoName;
+          if (obs.evidence?.file_path) evidenceContext.filePath = obs.evidence.file_path;
+          if (obs.evidence?.secret_type) evidenceContext.secretType = obs.evidence.secret_type;
+          if (obs.evidence?.status) evidenceContext.status = obs.evidence.status;
+          if (obs.evidence?.acl) evidenceContext.acl = obs.evidence.acl;
+          if (obs.ip) evidenceContext.ip = obs.ip;
+          if (obs.name && obs.name !== obs.domain) evidenceContext.assetName = obs.name;
+          if (Object.keys(evidenceContext).length > 0) {
+            signal.sourceEvidence = evidenceContext;
+          }
           // Attach credential evidence for breach/credential signals
           if (rule.credentialEvidence) {
             try {
@@ -605,6 +626,44 @@ export function classifySignals(observations: AssetObservation[]): RiskSignal[] 
             } catch {
               // Non-fatal: skip evidence extraction on error
             }
+          }
+          // Attach asset evidence for cloud storage, repos, API endpoints, etc.
+          try {
+            const evidence = obs.evidence || {};
+            const assetEvidence: NonNullable<RiskSignal['assetEvidence']> = {
+              assetName: obs.name || obs.assetId,
+              source: obs.source || obs.attribution?.provider,
+              verifyUrl: obs.attribution?.verifyUrl,
+            };
+            // Determine provider from observation
+            if (/s3|amazonaws/i.test(obs.name || '')) assetEvidence.provider = 'AWS S3';
+            else if (/blob\.core\.windows/i.test(obs.name || '')) assetEvidence.provider = 'Azure Blob';
+            else if (/storage\.google|gcp/i.test(obs.name || '')) assetEvidence.provider = 'Google Cloud Storage';
+            else if (/github/i.test(obs.source || '')) assetEvidence.provider = 'GitHub';
+            else if (/gitlab/i.test(obs.source || '')) assetEvidence.provider = 'GitLab';
+            else if (evidence.provider) assetEvidence.provider = evidence.provider;
+            // Access level
+            if (evidence.public === true || evidence.publicAccess === true || evidence.acl === 'public-read' || evidence.acl === 'public-read-write') {
+              assetEvidence.accessLevel = 'public';
+            } else if (evidence.acl) {
+              assetEvidence.accessLevel = evidence.acl;
+            } else if (evidence.private === true) {
+              assetEvidence.accessLevel = 'private';
+            }
+            // URL
+            if (evidence.url) assetEvidence.url = evidence.url;
+            else if (evidence.endpoint) assetEvidence.url = evidence.endpoint;
+            else if (obs.attribution?.url) assetEvidence.url = obs.attribution.url;
+            // Collect relevant details (bucket-specific, repo-specific, etc.)
+            const detailKeys = ['bucketName', 'repoName', 'repoUrl', 'visibility', 'region', 'listable', 'fileCount', 'size', 'lastModified', 'owner', 'stars', 'forks', 'language', 'topics', 'endpoint', 'methods', 'statusCode', 'headers', 'technology'];
+            const details: Record<string, any> = {};
+            for (const key of detailKeys) {
+              if (evidence[key] != null) details[key] = evidence[key];
+            }
+            if (Object.keys(details).length > 0) assetEvidence.details = details;
+            signal.assetEvidence = assetEvidence;
+          } catch {
+            // Non-fatal: skip asset evidence extraction on error
           }
           signals.push(signal);
         }

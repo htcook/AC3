@@ -3115,3 +3115,91 @@
 - [x] Build destroyMsfInstance endpoint for cleanup
 - [x] Add MSF instance health check with auto-reconnect logic
 - [x] Write Vitest tests for all new features (14 tests passing)
+
+### Stell Engineering Capability Gap Modules (Jul 2)
+- [x] Golden SAML / IdP Offensive Testing Module (saml-offensive-engine.ts)
+- [x] Kubernetes/EKS Post-Compromise Automation Module (k8s-post-exploit.ts)
+- [x] ArgoCD/Atlantis/GitOps Offensive Assessment Module (gitops-offensive-engine.ts)
+- [x] Cloud Exploitation Framework Integration - Pacu adapter (cloud-exploit-frameworks.ts)
+- [x] Cloud Exploitation Framework Integration - CloudFox adapter (cloud-exploit-frameworks.ts)
+- [x] Cloud Exploitation Framework Integration - kube-hunter adapter (cloud-exploit-frameworks.ts)
+- [x] Cloud Exploitation Framework Integration - Peirates adapter (cloud-exploit-frameworks.ts)
+- [x] Wire new modules into tRPC routers
+- [x] Wire new modules into engagement workflow engine phase definitions
+- [x] Write vitest tests for new modules (47 tests passing)
+
+### DI Scan Multi-URL Fix + Risk Signal URL Display (Jul 2)
+- [x] Fix DI scan to run all pasted URLs as a single unified scan instead of spawning separate scans per URL
+- [x] Fix Risk Signal cards to display actual URLs when publicly exposed storage/repos are identified
+
+### DI Scan IP/CIDR Support (Jul 2)
+- [ ] Support single IP addresses in DI scan input (e.g., 10.0.0.1)
+- [ ] Support multiple IPs pasted together
+- [ ] Support CIDR ranges (e.g., 192.168.1.0/24)
+- [ ] Ensure IP targets are passed to the backend scan pipeline correctly
+
+### ScanForge Bridge Timeout Fix & Scan State Tracking (Jul 3)
+- [x] Deep audit of ScanForge bridge: trace all code paths, dependencies, and tool integrations
+- [x] Identify root cause: 6-min hard cap in do-scan-api.ts kills long-running nuclei/ZAP scans
+- [x] Extend timeout for long-running tools (nuclei, ZAP, sqlmap, etc.) from 6 min to 15 min
+- [x] Add async submit + poll mode (future-proofed for when ScanBridge supports async)
+- [x] Implement Scan State Tracker: running/stalled/errored/timed_out detection
+- [x] Wire state tracker into executeToolViaHttp and executeRawCommandViaHttp
+- [x] Expose scan execution summary via doApiHealth tRPC endpoint
+- [x] Add stall detection (90s silence threshold) with auto-state transition
+- [x] Fix executeRawCommandViaHttp to also track tool state from piped commands
+- [x] Write vitest tests for scan state tracker (13 tests passing)
+- [x] Checkpoint and push to GitHub
+
+### Exploit Phase Approval & Printable Export (Jul 7)
+- [x] Investigate why engagement #37 completed while paused (exploit approval gate bypassed)
+- [x] Fix exploit phase to require explicit operator approval before executing (no auto-approve/timeout bypass)
+- [x] Add printable exploit plan export for operators to share with clients for confirmation
+- [x] Add clientConfirmation field to ApprovalGate interface (72h timeout, auto-deny on expiry)
+- [x] Add timeoutDisabled field to ApprovalGate interface
+- [x] Fix shouldAutoApprove to respect pause state (isPaused → never auto-approve)
+- [x] Fix shouldAutoApprove to never auto-approve clientConfirmation gates
+- [x] Make trainingLabMode opt-in only (removed IP whitelist auto-detection)
+- [x] Add Print for Client button to ExploitPlanReviewCard (opens printable HTML in new tab)
+- [x] Write exploit-plan-printable.ts with getExploitImpactDescription() and generateExploitPlanHtml()
+- [x] Add getExploitPlanPrintable tRPC procedure
+
+### OFAC Data Contamination Fix (Jul 7)
+- [x] Restrict OFAC ingestion to CYBER2 and CYBER-RELATED programs only (removed DPRK, IRAN, RUSSIA-EO14024)
+- [x] Add OFAC SDN List display filter to threat-intel router (belt & suspenders)
+
+### Infrastructure IPs Fix (Jul 7)
+- [x] Show external/public IPs only in infrastructure panel (filter RFC1918)
+- [x] Add isPublicIp() helper to scan-server-discovery.ts
+- [x] Add Platform NAT IP (52.23.137.98), C2 NAT IP (98.91.65.223), Wazuh SIEM IP (13.216.71.182)
+- [x] Support env var overrides (PLATFORM_NAT_IP, C2_NAT_IP, WAZUH_EXTERNAL_IP)
+
+### S3 RoE Upload Fix (Jul 7)
+- [x] Add S3_SESSION_TOKEN support to do-storage.ts (STS temporary credentials)
+- [x] Add sessionToken to StorageConfig interface and resolveConfig()
+- [x] Pass sessionToken to S3Client credentials when available
+- [x] Add default credential chain fallback for ECS task roles (no explicit keys needed in prod)
+- [x] Add credential error retry logic (InvalidToken, ExpiredToken → reset client and retry)
+- [x] Add ACL-disabled bucket handling (AccessControlListNotSupported → retry without ACL)
+- [x] Add S3_SESSION_TOKEN to env.ts
+- [x] Write vitest tests for all session fixes (41 tests passing)
+
+### Next Steps Implementation (Jul 7)
+- [x] Refresh S3 credentials with new AWS DEV keys (submitted via webdev_request_secrets — token expired, code fix deployed)
+- [x] Implement RoE document parsing after upload — ALREADY IMPLEMENTED (roe-document-parser.ts + roe-auto-engagement.ts)
+- [x] Add email notification on exploit plan approval/denial (from AC3@AceofCloud.com)
+  - [x] Created exploit-plan-notifications.ts with sendExploitPlanNotification()
+  - [x] Sends to: operator, client POC(s) from roe_personnel, reporting recipients from comms protocol
+  - [x] Includes exploit impact descriptions, removed targets, AI reasoning, platform link
+  - [x] Wired into resolveApproval tRPC procedure (non-blocking, fire-and-forget)
+  - [x] getEngagementNotificationRecipients() queries roe_personnel + comms protocol
+- [x] Write vitest tests for email notification (14 tests passing)
+
+### Notification Preferences per Engagement (Jul 7)
+- [x] Add engagement_notification_prefs table to schema (engagement_id, event_type, channel, enabled)
+- [x] Add DB helpers for getNotificationPrefs / upsertNotificationPrefs
+- [x] Add tRPC procedures for reading/updating notification preferences
+- [x] Wire preferences into exploit-plan-notifications dispatch (check prefs before sending email)
+- [x] Support event types: exploit_plan_approved, exploit_plan_denied, exploit_plan_modified, phase_completed, gate_timeout, roe_uploaded
+- [x] Support channels: email, in_app, both, none
+- [x] Write vitest tests for notification preferences logic (31 tests passing)

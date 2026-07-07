@@ -22,6 +22,93 @@ import {
   getScanProfile,
   buildGobusterCommand,
 } from "./enumeration-context";
+import type { ParsedFinding } from "../tool-output-parsers";
+
+/**
+ * Extract the real tool name from a "raw" command by parsing the piped command string.
+ * e.g. "echo 'http://...' | httpx -silent ..." → "httpx"
+ * e.g. "echo 'http://...' | nuclei -jsonl ..." → "nuclei"
+ * e.g. "raw echo 'http://...' | httpx ..." → "httpx"
+ * Falls back to the original tool name if no known tool is found in the command.
+ */
+function resolveToolDisplayName(tool: string, command: string): string {
+  if (tool !== "raw") return tool;
+  const KNOWN_TOOLS = [
+    "httpx", "nuclei", "naabu", "subfinder", "katana", "dnsx",
+    "curl", "wget", "nmap", "masscan", "ffuf", "feroxbuster",
+    "gobuster", "nikto", "sqlmap", "wfuzz", "dirsearch",
+    "arjun", "paramspider", "hydra", "medusa", "john",
+    "hashcat", "ssh-audit", "testssl", "sslscan", "whatweb",
+    "wpscan", "joomscan", "droopescan", "cmsmap",
+    "amass", "assetfinder", "waybackurls", "gau",
+    "dalfox", "kxss", "crlfuzz", "interactsh",
+    "rustscan", "crackmapexec", "enum4linux", "smbclient",
+    "impacket", "responder", "bloodhound", "kerbrute",
+  ];
+  const cmd = command.startsWith("raw ") ? command.slice(4) : command;
+  // Look for tool name after pipe operator (most common pattern: echo '...' | httpx ...)
+  const pipeMatch = cmd.match(/\|\s*(\w[\w.-]*)/);
+  if (pipeMatch) {
+    const candidate = pipeMatch[1].toLowerCase();
+    if (KNOWN_TOOLS.includes(candidate)) return candidate;
+  }
+  // Look for tool name at the start of the command
+  const startMatch = cmd.match(/^\s*(\w[\w.-]*)/);
+  if (startMatch) {
+    const candidate = startMatch[1].toLowerCase();
+    if (KNOWN_TOOLS.includes(candidate)) return candidate;
+  }
+  // Check if any known tool appears anywhere in the command
+  for (const t of KNOWN_TOOLS) {
+    if (cmd.includes(t)) return t;
+  }
+  return tool;
+}
+
+/**
+ * Build a human-readable evidence string from parsed tool output.
+ * Replaces generic "Confirmed by X" with actual proof data.
+ */
+function buildToolEvidenceDetail(f: ParsedFinding, toolName: string): string {
+  const parts: string[] = [];
+
+  if (f.matched_at || f.endpoint) {
+    parts.push(`MATCHED AT: ${f.matched_at || f.endpoint}`);
+  }
+  if (f.evidence?.proofText) {
+    const proof = f.evidence.proofText.length > 500
+      ? f.evidence.proofText.slice(0, 500) + '...'
+      : f.evidence.proofText;
+    parts.push(`EXTRACTED DATA:\n${proof}`);
+  }
+  if (f.evidence?.matchedPattern) {
+    parts.push(`MATCHED PATTERN: ${f.evidence.matchedPattern}`);
+  }
+  if (f.evidence?.request) {
+    const req = f.evidence.request;
+    const method = req.method || 'GET';
+    const url = req.url || f.matched_at || '';
+    parts.push(`REQUEST: ${method} ${url}`);
+  }
+  if (f.evidence?.response) {
+    const resp = f.evidence.response;
+    if (resp.statusCode) parts.push(`RESPONSE: HTTP ${resp.statusCode}`);
+    if (resp.body) {
+      const body = resp.body.length > 500 ? resp.body.slice(0, 500) + '...' : resp.body;
+      parts.push(`RESPONSE BODY:\n${body}`);
+    }
+  }
+  if (f.evidence?.attackPayload) {
+    parts.push(`ATTACK PAYLOAD: ${f.evidence.attackPayload}`);
+  }
+
+  if (parts.length === 0) {
+    if (f.description) parts.push(f.description);
+    parts.push(`Source: ${toolName} scan${f.cve ? ` (${f.cve})` : ''}`);
+  }
+
+  return parts.join('\n\n');
+}
 
 // Known infrastructure IPs that need vhost injection for nikto
 const KNOWN_INFRA_IPS = new Set([
@@ -190,7 +277,7 @@ async function runTargetedDiscovery(
           cvss: f.cvss,
           cwe: f.cwe,
           corroborationTier: "confirmed",
-          evidenceDetail: "Confirmed by active scan tool output",
+          evidenceDetail: buildToolEvidenceDetail(f, "active_scan"),
           rawEvidence: f.evidence ? JSON.stringify(f.evidence).slice(0, 4000) : undefined,
           source: "active_scan",
         })
@@ -236,7 +323,7 @@ async function buildToolCommandList(
       phase: "enumeration",
       type: "tool_match",
       title: `Scan Plan Tools: ${fmtTarget(asset)}`,
-      detail: `${cmdsToRun.length} tools from LLM scan plan: ${cmdsToRun.map((c) => c.tool).join(", ")}\nRisk: ${assetPlan.riskNotes}`,
+      detail: `${cmdsToRun.length} tools from LLM scan plan: ${cmdsToRun.map((c) => resolveToolDisplayName(c.tool, c.command)).join(", ")}\nRisk: ${assetPlan.riskNotes}`,
       data: {
         source: "scan_plan",
         tools: cmdsToRun.map((c) => c.tool),
@@ -550,16 +637,17 @@ async function executeToolsInParallel(
     phase: "enumeration",
     type: "info",
     title: `⚡ Parallel Execution: ${fmtTarget(asset)}`,
-    detail: `Running ${highPriorityCmds.length} tools with concurrency=${CONCURRENCY_LIMIT} (${highPriorityCmds.map((c) => c.tool).join(", ")})`,
+    detail: `Running ${highPriorityCmds.length} tools with concurrency=${CONCURRENCY_LIMIT} (${highPriorityCmds.map((c) => resolveToolDisplayName(c.tool, c.command)).join(", ")})`,
   });
 
   async function executeToolCmd(cmd: { tool: string; command: string; purpose: string; priority: number }) {
+    const displayName = resolveToolDisplayName(cmd.tool, cmd.command);
     addLog(state, {
       phase: "enumeration",
       type: "scan_start",
-      title: `Running: ${cmd.tool}`,
+      title: `Running: ${displayName}`,
       detail: `${cmd.purpose} — ${cmd.command.slice(0, 120)}`,
-      data: { tool: cmd.tool, fullCommand: cmd.command },
+      data: { tool: displayName, fullCommand: cmd.command },
     });
 
     const toolTimeout = cmd.tool === "nuclei" ? 300 : 180;
@@ -622,9 +710,9 @@ async function executeToolsInParallel(
     addLog(state, {
       phase: "enumeration",
       type: "scan_result",
-      title: `${cmd.tool} Complete: ${fmtTarget(asset)}`,
+      title: `${displayName} Complete: ${fmtTarget(asset)}`,
       detail: `Exit code ${result.exitCode}, ${result.durationMs}ms, ${findings.length} findings${result.timedOut ? " (TIMED OUT)" : ""}`,
-      data: { tool: cmd.tool, exitCode: result.exitCode, durationMs: result.durationMs, findings },
+      data: { tool: displayName, exitCode: result.exitCode, durationMs: result.durationMs, findings },
     });
 
     let newCount = 0;
@@ -639,7 +727,7 @@ async function executeToolsInParallel(
           cvss: f.cvss,
           cwe: f.cwe,
           corroborationTier: "confirmed",
-          evidenceDetail: `Confirmed by ${cmd.tool} active scan`,
+          evidenceDetail: buildToolEvidenceDetail(f, cmd.tool),
           rawEvidence: f.evidence ? JSON.stringify(f.evidence).slice(0, 4000) : undefined,
           source: cmd.tool,
         })
@@ -659,7 +747,7 @@ async function executeToolsInParallel(
     const batchResults = await Promise.allSettled(
       batch.map((cmd) =>
         executeToolCmd(cmd).catch((e) => {
-          addLog(state, { phase: "enumeration", type: "error", title: `${cmd.tool} Error`, detail: e.message });
+          addLog(state, { phase: "enumeration", type: "error", title: `${resolveToolDisplayName(cmd.tool, cmd.command)} Error`, detail: e.message });
           return null;
         })
       )
@@ -672,7 +760,7 @@ async function executeToolsInParallel(
         phase: "enumeration",
         type: "info",
         title: `Batch ${Math.floor(i / CONCURRENCY_LIMIT) + 1} complete`,
-        detail: `${succeeded}/${batch.length} tools finished (${failed} errors). Tools: ${batch.map((c) => c.tool).join(", ")}`,
+        detail: `${succeeded}/${batch.length} tools finished (${failed} errors). Tools: ${batch.map((c) => resolveToolDisplayName(c.tool, c.command)).join(", ")}`,
       });
     }
 

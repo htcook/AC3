@@ -143,19 +143,68 @@ export interface InjectableUrl { url: string; method: string; params: string[]; 
 
 export async function buildInjectableUrls(webApp: any, targetUrl: string, state: any, engagementId: number): Promise<InjectableUrl[]> {
   const injectableUrls: InjectableUrl[] = [];
+  const MAX_INJECTABLE_URLS = 20; // Cap to avoid excessive scanning time
   try {
     const { getDb } = await import("../../db");
     const db = await getDb();
     if (db) {
-      const { webAppScans } = await import("../../../drizzle/schema");
-      const { eq, desc } = await import("drizzle-orm");
+      const { webAppFindings, webAppScans } = await import("../../../drizzle/schema");
+      const { eq, desc, and, like, sql } = await import("drizzle-orm");
+
+      // Strategy 1: Extract unique URL+param combos from ZAP findings (these are real discovered endpoints)
       const latestScan = await db.select().from(webAppScans).where(eq(webAppScans.engagementId, engagementId)).orderBy(desc(webAppScans.id)).limit(1);
-      if (latestScan[0]?.urlsDiscovered) {
-        injectableUrls.push({ url: `${targetUrl}/`, method: "GET", params: ["id", "search", "q", "query", "page", "cat", "item"] }, { url: `${targetUrl}/search`, method: "GET", params: ["q", "query", "term", "keyword"] });
+      if (latestScan[0]) {
+        const findings = await db.select({
+          url: webAppFindings.url,
+          method: webAppFindings.method,
+          param: webAppFindings.param,
+        }).from(webAppFindings)
+          .where(eq(webAppFindings.scanId, latestScan[0].id))
+          .limit(100);
+
+        // Group findings by URL to collect all params for each endpoint
+        const urlParamMap = new Map<string, { method: string; params: Set<string> }>();
+        for (const f of findings) {
+          if (!f.url) continue;
+          const existing = urlParamMap.get(f.url);
+          if (existing) {
+            if (f.param) existing.params.add(f.param);
+          } else {
+            urlParamMap.set(f.url, { method: f.method || "GET", params: new Set(f.param ? [f.param] : []) });
+          }
+        }
+
+        // Convert to InjectableUrl format
+        for (const [url, data] of urlParamMap) {
+          if (injectableUrls.length >= MAX_INJECTABLE_URLS) break;
+          const params = data.params.size > 0 ? [...data.params] : ["id", "q"];
+          injectableUrls.push({ url, method: data.method, params });
+        }
+      }
+
+      // Strategy 2: Also add common endpoints with generic params if we have few URLs
+      if (injectableUrls.length < 5) {
+        const baseEndpoints = [
+          { url: `${targetUrl}/`, method: "GET", params: ["id", "search", "q", "query", "page", "cat", "item"] },
+          { url: `${targetUrl}/search`, method: "GET", params: ["q", "query", "term", "keyword"] },
+          { url: `${targetUrl}/api`, method: "GET", params: ["id", "user", "action"] },
+          { url: `${targetUrl}/login`, method: "POST", params: ["username", "password", "email"] },
+          { url: `${targetUrl}/profile`, method: "GET", params: ["id", "user"] },
+        ];
+        for (const ep of baseEndpoints) {
+          if (injectableUrls.length >= MAX_INJECTABLE_URLS) break;
+          if (!injectableUrls.some(u => u.url === ep.url)) injectableUrls.push(ep);
+        }
       }
     }
   } catch {}
-  if (injectableUrls.length === 0) injectableUrls.push({ url: `${targetUrl}/`, method: "GET", params: ["id", "search", "q"] });
+  if (injectableUrls.length === 0) {
+    injectableUrls.push(
+      { url: `${targetUrl}/`, method: "GET", params: ["id", "search", "q", "query", "page"] },
+      { url: `${targetUrl}/search`, method: "GET", params: ["q", "query", "term", "keyword"] },
+      { url: `${targetUrl}/api`, method: "GET", params: ["id", "user", "action"] },
+    );
+  }
   if (state.trainingLabMode) {
     const labEndpoints = getTrainingLabEndpoints(webApp.hostname);
     for (const ep of labEndpoints) {

@@ -58,7 +58,11 @@ export class TemplateEngine {
       // Fallback chain for dev vs Docker deployment
       const candidates = [
         join(process.cwd(), "server", "scanforge", "templates", "definitions"),
+        join(process.cwd(), "dist", "server", "scanforge", "templates", "definitions"),
+        join(process.cwd(), "dist", "templates", "definitions"),
         join("/usr/src/app", "server", "scanforge", "templates", "definitions"),
+        join("/usr/src/app", "dist", "server", "scanforge", "templates", "definitions"),
+        join("/usr/src/app", "dist", "templates", "definitions"),
       ];
       this.templateDir = candidates.find((p: string) => existsSync(p)) || candidates[0];
     }

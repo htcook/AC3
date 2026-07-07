@@ -476,7 +476,7 @@ export async function runZapToBurpPipeline(params: {
     // ═══ ENV-VAR FALLBACK: Use scan server's headless Burp instance ═══
     const envScanHost = process.env.SCAN_SERVER_HOST;
     const envBurpApiKey = process.env.BURP_API_KEY || process.env.CALDERA_API_KEY;
-    const envBurpBaseUrl = process.env.BURP_BASE_URL || (envScanHost ? `http://${envScanHost}:1337` : "");
+    const envBurpBaseUrl = process.env.BURP_BASE_URL || "";
 
     if (envBurpBaseUrl && envBurpApiKey) {
       console.log(`[ZAP→Burp Pipeline] No DB credentials — using env fallback: ${envBurpBaseUrl}`);

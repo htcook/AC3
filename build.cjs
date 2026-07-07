@@ -72,6 +72,12 @@ try {
     );
   }
 
+  // ═══ Copy ScanForge templates to dist for runtime access ═══
+  const SCANFORGE_TEMPLATES_SRC = path.join(ROOT, "server", "scanforge", "templates");
+  const SCANFORGE_TEMPLATES_DEST = path.join(DIST, "server", "scanforge", "templates");
+  // Also copy to dist/templates for __esm_dirname relative resolution
+  const SCANFORGE_TEMPLATES_DEST_ALT = path.join(DIST, "templates");
+
   // ═══ PRIMARY BUILD: Code-split server ═══
   log("Building server (code-split mode)...");
   const t = Date.now();
@@ -99,6 +105,29 @@ try {
     } catch (err2) {
       log(`CRITICAL: Both build modes failed: ${err2.message}`);
     }
+  }
+
+  // Copy ScanForge templates after server build (so dist/server/ exists)
+  if (fs.existsSync(SCANFORGE_TEMPLATES_SRC)) {
+    log("Copying ScanForge templates → dist/...");
+    try {
+      // Copy to dist/server/scanforge/templates/ (process.cwd() resolution in Docker)
+      fs.mkdirSync(SCANFORGE_TEMPLATES_DEST, { recursive: true });
+      execSync(`cp -r ${JSON.stringify(SCANFORGE_TEMPLATES_SRC + "/")}* ${JSON.stringify(SCANFORGE_TEMPLATES_DEST)}/`, {
+        cwd: ROOT, stdio: "inherit", timeout: 30000, shell: true,
+      });
+      // Copy to dist/templates/ (for __esm_dirname + "../templates/definitions" resolution)
+      fs.mkdirSync(SCANFORGE_TEMPLATES_DEST_ALT, { recursive: true });
+      execSync(`cp -r ${JSON.stringify(SCANFORGE_TEMPLATES_SRC + "/")}* ${JSON.stringify(SCANFORGE_TEMPLATES_DEST_ALT)}/`, {
+        cwd: ROOT, stdio: "inherit", timeout: 30000, shell: true,
+      });
+      const templateCount = fs.readdirSync(path.join(SCANFORGE_TEMPLATES_DEST, "definitions")).length;
+      log(`ScanForge templates copied: ${templateCount} definition files.`);
+    } catch (err) {
+      log(`WARNING: ScanForge template copy failed: ${err.message}`);
+    }
+  } else {
+    log("WARNING: ScanForge templates source not found at " + SCANFORGE_TEMPLATES_SRC);
   }
 
   // Verify

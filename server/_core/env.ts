@@ -103,6 +103,7 @@ export const ENV = {
   S3_ACCESS_KEY: process.env.S3_ACCESS_KEY ?? "",
   S3_SECRET_KEY: process.env.S3_SECRET_KEY ?? "",
   S3_BUCKET: process.env.S3_BUCKET ?? "",
+  S3_SESSION_TOKEN: process.env.S3_SESSION_TOKEN ?? "",  // STS session token for temporary credentials (AssumeRole, ECS task role)
   S3_FORCE_PATH_STYLE: process.env.S3_FORCE_PATH_STYLE ?? "false",
   S3_PUBLIC_URL_BASE: process.env.S3_PUBLIC_URL_BASE ?? "",
   // Server-Side Encryption (FIPS 140-3 compliance for GovCloud / High-impact)

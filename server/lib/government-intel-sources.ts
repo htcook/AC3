@@ -128,8 +128,11 @@ export async function ingestOFACCyberSanctions(): Promise<GovSourceResult> {
 function parseOFACXml(xml: string): OFACCyberEntity[] {
   const entities: OFACCyberEntity[] = [];
 
-  // Extract entries with CYBER2 or cyber-related programs
-  const cyberPrograms = ["CYBER2", "CYBER-RELATED", "DPRK", "IRAN", "RUSSIA-EO14024"];
+  // Extract entries ONLY from explicitly cyber-designated programs.
+  // Previously included "DPRK", "IRAN", "RUSSIA-EO14024" which are broad sanctions
+  // programs that pull in non-cyber entities (banks, shipping companies, etc.).
+  // Only CYBER2 and CYBER-RELATED are actual cyber-specific OFAC designations.
+  const cyberPrograms = ["CYBER2", "CYBER-RELATED"];
   const entryRegex = /<sdnEntry>([\s\S]*?)<\/sdnEntry>/gi;
   let match;
 
@@ -215,7 +218,8 @@ function parseOFACCsv(csv: string): OFACCyberEntity[] {
     if (parts.length < 4) continue;
 
     const program = parts[3] || '';
-    const cyberPrograms = ["CYBER2", "CYBER", "DPRK"];
+    // Only match explicitly cyber-designated programs (not broad country programs)
+    const cyberPrograms = ["CYBER2", "CYBER-RELATED"];
     const isCyber = cyberPrograms.some(cp => program.toUpperCase().includes(cp));
     if (!isCyber) continue;
 

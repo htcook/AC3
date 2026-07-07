@@ -2,10 +2,12 @@ FROM node:22-slim
 
 # Install build dependencies needed by native modules (ssh2, node-gyp)
 # AND Chromium + dependencies for server-side PDF generation via puppeteer-core
+# openssh-client is required for scan-server-executor child_process SSH fallback
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     make \
     g++ \
+    openssh-client \
     chromium \
     fonts-liberation \
     fonts-noto-color-emoji \

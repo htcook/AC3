@@ -114,14 +114,16 @@ export const scanServerRouter = router({
     /** Check the DO scan service HTTP API health */
     doApiHealth: protectedProcedure.query(async () => {
       try {
-        const { checkDoScanServiceHealth, getDoApiMetrics } = await import('../lib/do-scan-api');
+        const { checkDoScanServiceHealth, getDoApiMetrics, getScanExecutionSummary, getActiveScanStatuses } = await import('../lib/do-scan-api');
         const [health, metrics] = await Promise.all([
           checkDoScanServiceHealth(),
           Promise.resolve(getDoApiMetrics()),
         ]);
-        return { ...health, metrics };
+        const executionSummary = getScanExecutionSummary();
+        const activeScans = getActiveScanStatuses();
+        return { ...health, metrics, executionSummary, activeScans };
       } catch (err: any) {
-        return { healthy: false, error: err.message, metrics: null };
+        return { healthy: false, error: err.message, metrics: null, executionSummary: null, activeScans: [] };
       }
     }),
 
@@ -222,4 +224,15 @@ export const scanServerRouter = router({
       invalidateInventoryCache();
       return { success: true };
     }),
+    /** Admin: execute arbitrary command on scan server (for tool installation etc.) */
+    adminExec: protectedProcedure
+      .input(z.object({ command: z.string(), timeoutSeconds: z.number().optional().default(120) }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user?.role !== 'admin') {
+          throw new Error('Admin access required');
+        }
+        const { executeTool } = await import('../lib/scan-server-executor');
+        const result = await executeTool({ tool: 'bash', args: `-c "${input.command.replace(/"/g, '\\"')}"`, timeoutSeconds: input.timeoutSeconds });
+        return { stdout: result.stdout, stderr: result.stderr, exitCode: result.exitCode };
+      }),
   });

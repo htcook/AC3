@@ -194,7 +194,7 @@ export const PHASE_DEFINITIONS: Record<KillChainPhase, PhaseDefinition> = {
     name: "Post-Exploitation",
     description: "Privilege escalation, persistence, credential harvesting, and local enumeration on compromised hosts.",
     mitrePhases: ["TA0004", "TA0003", "TA0006", "TA0007"],
-    requiredModules: ["privesc-engine", "credential-attack-engine", "evasion-orchestrator"],
+    requiredModules: ["privesc-engine", "credential-attack-engine", "evasion-orchestrator", "saml-offensive-engine", "k8s-post-exploit", "cloud-exploit-frameworks"],
     successCriteria: [
       "Privileges escalated where possible",
       "Credentials harvested from compromised hosts",
@@ -212,7 +212,7 @@ export const PHASE_DEFINITIONS: Record<KillChainPhase, PhaseDefinition> = {
     name: "Lateral Movement",
     description: "Move through the network using obtained credentials and access. Establish pivots, reach high-value targets.",
     mitrePhases: ["TA0008"],
-    requiredModules: ["lateral-movement-engine", "ssh-tunnel-manager", "credential-attack-engine"],
+    requiredModules: ["lateral-movement-engine", "ssh-tunnel-manager", "credential-attack-engine", "k8s-post-exploit", "cloud-exploit-frameworks", "gitops-offensive-engine"],
     successCriteria: [
       "Additional hosts compromised",
       "Pivot points established",

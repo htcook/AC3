@@ -106,6 +106,7 @@ TASK_DEF=$(cat <<EOF
         { "name": "GOPHISH_BASE_URL", "valueFrom": "${APP_SECRET_ARN}:GOPHISH_BASE_URL::" },
         { "name": "SHODAN_API_KEY", "valueFrom": "${APP_SECRET_ARN}:SHODAN_API_KEY::" },
         { "name": "SCAN_SERVER_HOST", "valueFrom": "${APP_SECRET_ARN}:SCAN_SERVER_HOST::" },
+        { "name": "SCANFORGE_URL", "valueFrom": "${APP_SECRET_ARN}:SCANFORGE_URL::" },
         { "name": "OPENAI_API_KEY", "valueFrom": "${APP_SECRET_ARN}:OPENAI_API_KEY::" },
         { "name": "DO_SPACES_KEY", "valueFrom": "${APP_SECRET_ARN}:DO_SPACES_KEY::" },
         { "name": "DO_SPACES_SECRET", "valueFrom": "${APP_SECRET_ARN}:DO_SPACES_SECRET::" },

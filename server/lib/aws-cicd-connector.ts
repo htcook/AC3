@@ -684,7 +684,11 @@ async function runBurpCicd(targetUrl: string): Promise<CicdFinding[]> {
   const findings: CicdFinding[] = [];
 
   try {
-    const BURP_URL = process.env.BURP_BASE_URL || `http://${process.env.SCAN_SERVER_HOST || ''}:1337`;
+    const BURP_URL = process.env.BURP_BASE_URL || '';
+    if (!BURP_URL) {
+      console.log(`[CICD-BURP] BURP_BASE_URL not configured. Skipping Burp scan.`);
+      return findings;
+    }
 
     // Submit scan
     const scanResp = await fetch(`${BURP_URL}/v0.1/scan`, {

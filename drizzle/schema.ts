@@ -9021,3 +9021,19 @@ export const sonarqubeWebhooks = mysqlTable("sonarqube_webhooks", {
 	index("sqw_connector_id_idx").on(table.connectorId),
 	index("sqw_project_key_idx").on(table.projectKey),
 ]);
+
+// Notification preferences per engagement — controls which events trigger email vs in-app-only alerts
+export const engagementNotificationPrefs = mysqlTable("engagement_notification_prefs", {
+	id: int().autoincrement().notNull(),
+	engagementId: int("engagement_id").notNull(),
+	eventType: varchar("event_type", { length: 64 }).notNull(),
+	channel: varchar("channel", { length: 16 }).notNull().default("both"),
+	enabled: tinyint().default(1).notNull(),
+	createdBy: varchar("created_by", { length: 128 }),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+}, (table) => [
+	index("enp_engagement_id_idx").on(table.engagementId),
+	index("enp_event_type_idx").on(table.eventType),
+	index("enp_engagement_event_idx").on(table.engagementId, table.eventType),
+]);

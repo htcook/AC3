@@ -54,6 +54,16 @@ export interface RiskSignal {
   }[];
   /** FedRAMP remediation deadline (auto-calculated from severity) */
   fedrampDeadline?: string;
+  /** Asset-specific evidence for cloud storage, repos, API endpoints, etc. */
+  assetEvidence?: {
+    assetName?: string;           // Bucket name, repo name, endpoint URL
+    provider?: string;            // AWS, GCP, Azure, GitHub, etc.
+    accessLevel?: string;         // public, private, restricted
+    url?: string;                 // Direct URL to the asset
+    details?: Record<string, any>; // Additional provider-specific details
+    source?: string;              // OSINT connector that found this
+    verifyUrl?: string;           // URL to independently verify
+  };
   /** Credential-specific evidence attached to breach/credential signals */
   credentialEvidence?: {
     emails?: string[];           // Exposed email addresses (up to 10)

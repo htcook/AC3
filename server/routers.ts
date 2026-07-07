@@ -253,6 +253,12 @@ import { riskRegisterRouter } from "./routers/risk-register";
 import { attackChainsRouter } from "./routers/attack-chains";
 import { freeScanRouter } from "./routers/free-scan";
 import { commercialScannersRouter } from "./routers/commercial-scanners";
+import { samlOffensiveRouter } from "./routers/saml-offensive";
+import { k8sPostExploitRouter } from "./routers/k8s-post-exploit";
+import { gitopsOffensiveRouter } from "./routers/gitops-offensive";
+import { cloudExploitFrameworksRouter } from "./routers/cloud-exploit-frameworks";
+import { correlationThresholdsRouter } from "./routers/correlation-thresholds";
+import { notificationPreferencesRouter } from "./routers/notification-preferences";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -682,6 +688,14 @@ export const appRouter = router({
   freeScan: freeScanRouter,
   // ─── Commercial Scanner Connectors (FedRAMP/NIST/DoD) ──
   commercialScanners: commercialScannersRouter,
+  // ─── Offensive Capability Modules (Stell Engineering / FedRAMP Red Team) ──
+  samlOffensive: samlOffensiveRouter,
+  k8sPostExploit: k8sPostExploitRouter,
+  gitopsOffensive: gitopsOffensiveRouter,
+  cloudExploitFrameworks: cloudExploitFrameworksRouter,
+  correlationThresholds: correlationThresholdsRouter,
+  // ─── Notification Preferences (Per-Engagement Alert Routing) ──
+  notificationPreferences: notificationPreferencesRouter,
 });
 export type AppRouter = typeof appRouter;
 

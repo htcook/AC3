@@ -17,6 +17,7 @@
 
 import { invokeLLM } from "../_core/llm";
 import { searchExploits, lookupCveExploits, type ExploitDocument, type SearchResult } from "./exploit-knowledge-store";
+import { classifyVulnerability, canCategoryAchieveShell, type ExploitCategory } from "./exploit-tooling-framework";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -293,6 +294,27 @@ export async function selectMsfModule(
       const doc = result.document;
       if (!doc.msfModulePath) continue;
 
+      // ── Priority 3: Platform hard-rejection ──
+      // Reject modules that target a completely different platform
+      const docPlatform = (doc.platform || 'multi').toLowerCase();
+      const targetOsLower = (target.os || '').toLowerCase();
+      if (docPlatform.includes('windows') && (targetOsLower.includes('linux') || targetOsLower.includes('ubuntu') || targetOsLower.includes('debian'))) continue;
+      if (docPlatform.includes('linux') && targetOsLower.includes('windows')) continue;
+
+      // ── Priority 3: Service-type hard-rejection ──
+      // Reject modules targeting services not present on the target
+      const modulePath = doc.msfModulePath.toLowerCase();
+      const moduleDesc = (doc.description || '').toLowerCase();
+      const targetService = (target.service || '').toLowerCase();
+      const targetTechs = (target.technologies || []).map(t => t.toLowerCase()).join(' ');
+      const allTargetContext = `${targetService} ${targetTechs} ${targetOsLower}`;
+      // Hard reject: MSSQL module against non-MSSQL target
+      if ((modulePath.includes('mssql') || moduleDesc.includes('mssql') || moduleDesc.includes('sql server')) && !allTargetContext.includes('mssql') && !allTargetContext.includes('sql server')) continue;
+      // Hard reject: Ollama/AI-specific modules against non-AI targets
+      if ((modulePath.includes('ollama') || modulePath.includes('llama')) && !allTargetContext.includes('ollama') && !allTargetContext.includes('llama')) continue;
+      // Hard reject: specific application modules (phptax, etc.) against targets without that app
+      if (modulePath.includes('phptax') && !allTargetContext.includes('phptax')) continue;
+
       const rank = doc.msfRank || 300;
       let confidence = rankToConfidence(rank);
 
@@ -301,6 +323,14 @@ export async function selectMsfModule(
 
       if (platformMatches(doc.platform || "multi", target.os)) {
         confidence += 5;
+      }
+
+      // ── Priority 3: Vulnerability-class mismatch penalty ──
+      // If the module's exploit type doesn't match the vulnerability being exploited, penalize heavily
+      const vulnCategory = classifyVulnerability({ title: vuln.title, description: vuln.description });
+      const moduleCategory = classifyVulnerability({ title: doc.title, description: doc.description });
+      if (vulnCategory && moduleCategory && vulnCategory !== moduleCategory) {
+        confidence -= 30; // Heavy penalty for class mismatch
       }
 
       // Scale by search relevance score
@@ -331,7 +361,8 @@ export async function selectMsfModule(
   candidates.sort((a, b) => b.confidence - a.confidence);
 
   // ── Decision: Use MSF module or fall back to custom exploit ──
-  const CONFIDENCE_THRESHOLD = 40;
+  // Priority 3: Raised threshold from 40 to 55 for better module quality
+  const CONFIDENCE_THRESHOLD = 55;
   const bestCandidate = candidates[0];
 
   if (bestCandidate && bestCandidate.confidence >= CONFIDENCE_THRESHOLD) {
@@ -407,7 +438,7 @@ export function buildMsfCommand(module: MsfModuleCandidate): string {
   const rcContent = buildMsfResourceScript(module);
   // Write RC file and execute
   const rcPath = `/tmp/ac3_msf_${Date.now()}.rc`;
-  return `cat > ${rcPath} << 'MSFRC'\n${rcContent}\nMSFRC\nmsfconsole -q -r ${rcPath}`;
+  return `cat > ${rcPath} << 'MSFRC'\n${rcContent}\nMSFRC\nexport HOME=/root && msfconsole -q -r ${rcPath}`;
 }
 
 /**

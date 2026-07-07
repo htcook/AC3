@@ -8,8 +8,24 @@ import { router, protectedProcedure } from "../_core/trpc";
 import * as doInfra from "../lib/aws-ec2-infra";
 import * as dns from "../lib/dns-automation";
 import * as scans from "../lib/opsec-scheduled-scans";
+import { getPlatformInfraIps, getScanServerInfo, forceRediscovery } from "../lib/scan-server-discovery";
 
 export const liveInfraRouter = router({
+  // ─── Platform Infrastructure IPs (for client whitelisting) ────────────────
+  platformIps: protectedProcedure.query(async () => {
+    return getPlatformInfraIps();
+  }),
+
+  scanServerInfo: protectedProcedure.query(async () => {
+    return getScanServerInfo();
+  }),
+
+  forceRediscoverScanServer: protectedProcedure.mutation(async () => {
+    const newUrl = await forceRediscovery();
+    const info = await getScanServerInfo();
+    return { url: newUrl, ...info };
+  }),
+
   // ─── Droplets ─────────────────────────────────────────────────────────────
   droplets: router({
     list: protectedProcedure

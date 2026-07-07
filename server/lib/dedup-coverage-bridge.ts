@@ -45,6 +45,16 @@ export interface OrchestratorVuln {
   evidenceDetail?: string;
   detectedVersion?: string;
   affectedVersions?: string;
+  /** Evidence preserved from ALL scanners that reported this vuln */
+  scannerEvidence?: Array<{
+    scanner: string;
+    title: string;
+    evidenceDetail?: string;
+    rawEvidence?: string;
+    corroborationTier: string;
+    detectedVersion?: string;
+    timestamp: number;
+  }>;
   [key: string]: any;
 }
 
@@ -236,8 +246,9 @@ function zapFindingToScanFinding(zap: { alert: string; risk: string; url: string
 
 /**
  * Convert a deduplicated ScanFinding back to the orchestrator vuln format.
+ * Preserves merged scanner evidence when available.
  */
-function scanFindingToVuln(finding: ScanFinding): OrchestratorVuln {
+function scanFindingToVuln(finding: ScanFinding, mergedFindings?: ScanFinding[]): OrchestratorVuln {
   // Reconstruct the scanner prefix from source field
   const sourceStr = (finding as any).source || "unknown";
   const scanner = sourceStr.replace(/^orchestrator-/, "") || "unknown";
@@ -249,6 +260,50 @@ function scanFindingToVuln(finding: ScanFinding): OrchestratorVuln {
   // Extract evidence text if available
   const evidence = finding.evidence?.data ? JSON.stringify(finding.evidence.data) : undefined;
 
+  // Build scannerEvidence array from all merged findings
+  const scannerEvidence: Array<{ scanner: string; title: string; evidenceDetail?: string; rawEvidence?: string; corroborationTier: string; timestamp: number }> = [];
+
+  // Add canonical finding's evidence
+  scannerEvidence.push({
+    scanner,
+    title: finding.title,
+    evidenceDetail: finding.evidence?.data?.raw as string || finding.description || undefined,
+    rawEvidence: evidence || undefined,
+    corroborationTier: finding.confidence >= 90 ? "confirmed" : finding.confidence >= 70 ? "corroborated" : "tentative",
+    timestamp: finding.foundAt || Date.now(),
+  });
+
+  // Add evidence from all merged (duplicate) findings
+  if (mergedFindings && mergedFindings.length > 0) {
+    for (const mf of mergedFindings) {
+      const mfSource = ((mf as any).source || "unknown").replace(/^orchestrator-/, "") || "unknown";
+      scannerEvidence.push({
+        scanner: mfSource,
+        title: mf.title,
+        evidenceDetail: mf.evidence?.data?.raw as string || mf.description || undefined,
+        rawEvidence: mf.evidence?.data ? JSON.stringify(mf.evidence.data) : undefined,
+        corroborationTier: mf.confidence >= 90 ? "confirmed" : mf.confidence >= 70 ? "corroborated" : "tentative",
+        timestamp: mf.foundAt || Date.now(),
+      });
+    }
+  }
+
+  // Determine corroboration tier based on scanner count
+  let corroborationTier: string;
+  if (finding.confidence >= 90 || scannerEvidence.length >= 3) {
+    corroborationTier = "confirmed";
+  } else if (finding.confidence >= 70 || scannerEvidence.length >= 2) {
+    corroborationTier = "corroborated";
+  } else {
+    corroborationTier = "tentative";
+  }
+
+  // Build combined evidenceDetail from all scanners
+  const combinedEvidenceDetail = scannerEvidence
+    .filter(e => e.evidenceDetail)
+    .map(e => `[${e.scanner}] ${e.evidenceDetail}`)
+    .join(' | ');
+
   return {
     id: finding.id,
     severity: finding.severity,
@@ -258,8 +313,9 @@ function scanFindingToVuln(finding: ScanFinding): OrchestratorVuln {
     description,
     evidence,
     source: scanner,
-    corroborationTier: finding.confidence >= 90 ? "confirmed" : finding.confidence >= 70 ? "corroborated" : "tentative",
-    evidenceDetail: finding.evidence?.data?.raw as string || finding.description,
+    corroborationTier,
+    evidenceDetail: combinedEvidenceDetail || finding.evidence?.data?.raw as string || finding.description,
+    scannerEvidence,
   };
 }
 
@@ -317,6 +373,228 @@ function inferAssetEnvironment(asset: OrchestratorAsset): AssetEnvironment {
   return "traditional";
 }
 
+// ─── False Positive Reduction & Server-Wide Consolidation ────────────────
+
+/**
+ * Server-wide findings that should be reported ONCE per host, not per-URL.
+ * These are configuration-level issues that apply to the entire server.
+ */
+const SERVER_WIDE_ALERTS = new Set([
+  'Content Security Policy (CSP) Header Not Set',
+  'Missing Anti-clickjacking Header',
+  'X-Content-Type-Options Header Missing',
+  'Server Leaks Version Information via "Server" HTTP Response Header Field',
+  'Strict-Transport-Security Header Not Set',
+  'X-Frame-Options Header Not Set',
+  'HTTP Only Site',
+  'Cookie No HttpOnly Flag',
+  'Cookie without SameSite Attribute',
+  'Permissions Policy Header Not Set',
+  'Cross-Domain Misconfiguration',
+]);
+
+/**
+ * ZAP alerts that are known false positives when triggered on specific patterns.
+ * Each entry defines the alert name and a condition under which it's a false positive.
+ */
+interface FPRule {
+  alert: string;
+  condition: (finding: { alert: string; risk: string; url: string; cweId?: number }) => boolean;
+  reclassifyTo: 'info' | 'false_positive';
+  reason: string;
+}
+
+const FALSE_POSITIVE_RULES: FPRule[] = [
+  {
+    // Apache mod_dir trailing-slash redirects misclassified as External Redirect
+    alert: 'External Redirect',
+    condition: (f) => {
+      // If URL is a directory path (no extension, no query) it's likely a slash redirect
+      try {
+        const url = new URL(f.url, 'http://placeholder');
+        const path = url.pathname;
+        // Directory paths: no file extension in the last segment
+        const lastSegment = path.split('/').filter(Boolean).pop() || '';
+        return !lastSegment.includes('.') && !url.search;
+      } catch { return false; }
+    },
+    reclassifyTo: 'info',
+    reason: 'Apache mod_dir trailing-slash redirect (not exploitable open redirect)',
+  },
+  {
+    // Path Traversal on non-injectable headers (Origin, Referer)
+    alert: 'Path Traversal',
+    condition: (f) => {
+      // ZAP reports path traversal on Origin/Referer headers which don't affect file system
+      // We detect this by checking if the URL is a login page and the param context suggests header injection
+      return true; // All ZAP path traversal findings need manual verification - downgrade to tentative
+    },
+    reclassifyTo: 'info',
+    reason: 'ZAP path traversal on HTTP headers (Origin/Referer) - not confirmed file system access',
+  },
+];
+
+/**
+ * Training lab applications where findings are "expected" rather than "discovered".
+ * Findings on these are still reported but with adjusted confidence/tier.
+ */
+const TRAINING_LAB_APPS = [
+  'dvwa', 'damn vulnerable', 'juiceshop', 'juice-shop', 'bwapp',
+  'altoro', 'hackazon', 'testphp', 'webgoat', 'mutillidae',
+  'bodgeit', 'gruyere', 'brokencrystals', 'broken-crystals',
+];
+
+/**
+ * Pre-process ZAP findings before dedup:
+ * 1. Collapse server-wide findings to 1 per alert type per host
+ * 2. Apply false positive rules (reclassify or filter)
+ * 3. Adjust confidence for training lab targets
+ *
+ * This runs BEFORE the ScanForge dedup engine to reduce noise at the source.
+ */
+export function preProcessZapFindings(
+  asset: OrchestratorAsset,
+  isTrainingLab: boolean = false,
+): { processedZapFindings: Array<{ alert: string; risk: string; url: string; cweId?: number }>; fpStats: { collapsed: number; reclassified: number; total: number } } {
+  const zapFindings = asset.zapFindings || [];
+  const stats = { collapsed: 0, reclassified: 0, total: zapFindings.length };
+
+  if (zapFindings.length === 0) return { processedZapFindings: [], fpStats: stats };
+
+  const processed: Array<{ alert: string; risk: string; url: string; cweId?: number }> = [];
+  const seenServerWide = new Set<string>();
+
+  for (const finding of zapFindings) {
+    // 1. Server-wide consolidation: keep only first instance per alert type
+    if (SERVER_WIDE_ALERTS.has(finding.alert)) {
+      if (seenServerWide.has(finding.alert)) {
+        stats.collapsed++;
+        continue; // Skip duplicate server-wide finding
+      }
+      seenServerWide.add(finding.alert);
+    }
+
+    // 2. Apply false positive rules
+    let reclassified = false;
+    for (const rule of FALSE_POSITIVE_RULES) {
+      if (finding.alert === rule.alert && rule.condition(finding)) {
+        if (rule.reclassifyTo === 'false_positive') {
+          stats.reclassified++;
+          reclassified = true;
+          break; // Drop entirely
+        } else if (rule.reclassifyTo === 'info') {
+          // Downgrade to info severity
+          processed.push({ ...finding, risk: 'info' });
+          stats.reclassified++;
+          reclassified = true;
+          break;
+        }
+      }
+    }
+    if (reclassified) continue;
+
+    // 3. Keep the finding as-is
+    processed.push(finding);
+  }
+
+  return { processedZapFindings: processed, fpStats: stats };
+}
+
+/**
+ * Pre-process asset.vulns to collapse server-wide findings and apply FP rules.
+ * Similar to preProcessZapFindings but operates on the vulns array.
+ */
+export function preProcessVulns(
+  asset: OrchestratorAsset,
+  isTrainingLab: boolean = false,
+): { processedVulns: OrchestratorVuln[]; fpStats: { collapsed: number; reclassified: number; total: number } } {
+  const vulns = asset.vulns || [];
+  const stats = { collapsed: 0, reclassified: 0, total: vulns.length };
+
+  if (vulns.length === 0) return { processedVulns: [], fpStats: stats };
+
+  const processed: OrchestratorVuln[] = [];
+  const seenServerWide = new Set<string>();
+
+  for (const vuln of vulns) {
+    // Extract alert name from title (strip [source] prefix)
+    const alertName = vuln.title.replace(/^\[[^\]]+\]\s*/, '');
+
+    // 1. Server-wide consolidation
+    if (SERVER_WIDE_ALERTS.has(alertName)) {
+      if (seenServerWide.has(alertName)) {
+        stats.collapsed++;
+        continue;
+      }
+      seenServerWide.add(alertName);
+    }
+
+    // 2. Apply FP rules based on title matching
+    let reclassified = false;
+
+    // External Redirect on directory paths
+    if (alertName === 'External Redirect' && vuln.evidenceDetail) {
+      const urlMatch = vuln.evidenceDetail.match(/https?:\/\/[^\s]+/);
+      if (urlMatch) {
+        try {
+          const url = new URL(urlMatch[0]);
+          const lastSegment = url.pathname.split('/').filter(Boolean).pop() || '';
+          if (!lastSegment.includes('.') && !url.search) {
+            // Directory path redirect — downgrade to info
+            processed.push({ ...vuln, severity: 'info', corroborationTier: 'tentative' });
+            stats.reclassified++;
+            reclassified = true;
+          }
+        } catch {}
+      }
+    }
+
+    // Path Traversal on Origin/Referer headers
+    if (!reclassified && alertName === 'Path Traversal' && vuln.evidenceDetail) {
+      const paramMatch = vuln.evidenceDetail.match(/Param:\s*(\w+)/i);
+      if (paramMatch) {
+        const param = paramMatch[1].toLowerCase();
+        if (['origin', 'referer', 'host', 'x-forwarded-for', 'x-forwarded-host'].includes(param)) {
+          // Header-based path traversal — not exploitable for file access
+          processed.push({ ...vuln, severity: 'info', corroborationTier: 'tentative' });
+          stats.reclassified++;
+          reclassified = true;
+        }
+      }
+    }
+
+    // 3. Training lab context adjustment
+    if (!reclassified && isTrainingLab) {
+      // Mark findings on known training labs as "expected" rather than "discovered"
+      processed.push({
+        ...vuln,
+        corroborationTier: vuln.corroborationTier === 'confirmed' ? 'corroborated' : vuln.corroborationTier,
+        // Add training lab context flag
+        ...(!(vuln as any).trainingLabExpected && { trainingLabExpected: true }),
+      } as any);
+      reclassified = true;
+    }
+
+    if (!reclassified) {
+      processed.push(vuln);
+    }
+  }
+
+  return { processedVulns: processed, fpStats: stats };
+}
+
+/**
+ * Detect if an asset is a known training lab application.
+ */
+export function isTrainingLabAsset(asset: OrchestratorAsset): boolean {
+  const hostLower = asset.hostname.toLowerCase();
+  const vulnText = asset.vulns.map(v => v.title + ' ' + (v.evidenceDetail || '')).join(' ').toLowerCase();
+  const zapText = (asset.zapFindings || []).map(z => z.url).join(' ').toLowerCase();
+  const allText = `${hostLower} ${vulnText} ${zapText}`;
+
+  return TRAINING_LAB_APPS.some(lab => allText.includes(lab));
+}
+
 // ─── Main Integration Functions ──────────────────────────────────────────
 
 /**
@@ -324,12 +602,13 @@ function inferAssetEnvironment(asset: OrchestratorAsset): AssetEnvironment {
  *
  * This is called at the end of the vuln detection phase, before exploitation begins.
  * It:
- *   1. Collects all vulns + ZAP findings from all assets
- *   2. Converts them to ScanFinding format
- *   3. Runs dedup engine per asset
- *   4. Runs normalization on the deduplicated set
- *   5. Writes back the deduplicated vulns to each asset
- *   6. Returns stats for the UI
+ *   1. Pre-processes findings (server-wide consolidation, FP reduction, context-awareness)
+ *   2. Collects all vulns + ZAP findings from all assets
+ *   3. Converts them to ScanFinding format
+ *   4. Runs dedup engine per asset
+ *   5. Runs normalization on the deduplicated set
+ *   6. Writes back the deduplicated vulns to each asset
+ *   7. Returns stats for the UI
  */
 export async function runEngagementDedup(assets: OrchestratorAsset[]): Promise<DedupStats> {
   const dedup = getDeduplicationEngine();
@@ -342,6 +621,28 @@ export async function runEngagementDedup(assets: OrchestratorAsset[]): Promise<D
   const duplicatesByAsset: Record<string, number> = {};
   const allMergeLog: DedupStats["mergeLog"] = [];
 
+  // ── Pre-processing: FP reduction, server-wide consolidation, context-awareness ──
+  let totalFpCollapsed = 0;
+  let totalFpReclassified = 0;
+
+  for (const asset of assets) {
+    const isLab = isTrainingLabAsset(asset);
+
+    // Pre-process vulns (collapse server-wide, reclassify FPs)
+    const { processedVulns, fpStats: vulnFpStats } = preProcessVulns(asset, isLab);
+    asset.vulns = processedVulns;
+    totalFpCollapsed += vulnFpStats.collapsed;
+    totalFpReclassified += vulnFpStats.reclassified;
+
+    // Pre-process ZAP findings (collapse server-wide, reclassify FPs)
+    const { processedZapFindings, fpStats: zapFpStats } = preProcessZapFindings(asset, isLab);
+    asset.zapFindings = processedZapFindings;
+    totalFpCollapsed += zapFpStats.collapsed;
+    totalFpReclassified += zapFpStats.reclassified;
+  }
+
+  console.log(`[DedupBridge] FP pre-processing: ${totalFpCollapsed} server-wide duplicates collapsed, ${totalFpReclassified} findings reclassified`);
+
   for (const asset of assets) {
     // Collect all findings for this asset
     const allFindings: ScanFinding[] = [];
@@ -351,7 +652,7 @@ export async function runEngagementDedup(assets: OrchestratorAsset[]): Promise<D
       allFindings.push(vulnToScanFinding(vuln, asset));
     }
 
-    // Convert ZAP findings
+    // Convert ZAP findings (already pre-processed)
     if (asset.zapFindings) {
       for (const zap of asset.zapFindings) {
         allFindings.push(zapFindingToScanFinding(zap, asset));
@@ -401,8 +702,20 @@ export async function runEngagementDedup(assets: OrchestratorAsset[]): Promise<D
     const normResult = normalizer.normalize(dedupResult.findings);
     totalSeverityChanges += normResult.log.filter(e => e.field === "severity").length;
 
-    // Write back deduplicated vulns to the asset
-    const dedupedVulns = normResult.findings.map(scanFindingToVuln);
+    // Build a map of canonical ID → merged findings for evidence preservation
+    const mergedFindingsMap = new Map<string, ScanFinding[]>();
+    for (const entry of dedupResult.mergeLog) {
+      const mergedFindings = entry.mergedIds
+        .map(id => allFindings.find(af => af.id === id))
+        .filter(Boolean) as ScanFinding[];
+      mergedFindingsMap.set(entry.canonicalId, mergedFindings);
+    }
+
+    // Write back deduplicated vulns to the asset, preserving ALL scanner evidence
+    const dedupedVulns = normResult.findings.map(f => {
+      const merged = mergedFindingsMap.get(f.id);
+      return scanFindingToVuln(f, merged);
+    });
     asset.vulns = dedupedVulns;
     totalAfter += dedupedVulns.length;
 

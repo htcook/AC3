@@ -67,7 +67,7 @@ export async function runNucleiVerification(
   params: NucleiVerificationParams,
 ): Promise<NucleiVerificationResult> {
   const startTime = Date.now();
-  const { target, port, cve, vulnClass, service, sessionCookie, scanServerHost, timeoutSec = 60 } = params;
+  const { target, port, cve, vulnClass, service, sessionCookie, scanServerHost, timeoutSec = 300 } = params;
 
   try {
     // Build the Nuclei command using the existing intelligence framework

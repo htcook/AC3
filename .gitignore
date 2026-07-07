@@ -200,6 +200,8 @@ client/dist/
 !dist/index.js
 dist/_server.js
 dist/public/
+dist/server/
+dist/templates/
 # .client-assets/ is pre-built Vite output needed by build.cjs
 !.client-assets/
 !.client-assets/**
@@ -209,3 +211,4 @@ client/.client-assets/
 # Secrets export — NEVER commit
 infrastructure/ac3-secrets-export.json
 *.secrets.json
+dist/server/*.js

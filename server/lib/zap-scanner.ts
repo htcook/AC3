@@ -1023,21 +1023,34 @@ async function restartZapDocker(): Promise<boolean> {
   }
 
   try {
-    const { executeViaChildProcessSSH } = await import("./scan-server-executor");
-    console.log(`[ZAP Recovery] Restarting ZAP Docker container via SSH...`);
-    const result = await executeViaChildProcessSSH("docker restart zap", 60);
-    if (result.exitCode === 0) {
+    // Use scan bridge HTTP API instead of SSH (SSH keys not available in ECS Fargate)
+    const scanHost = process.env.SCAN_SERVER_HOST || process.env.SCANFORGE_HOST || "";
+    const scanApiKey = process.env.SCAN_API_KEY || "";
+    const bridgeUrl = `https://${scanHost}:4443/api/scan/tool`;
+    console.log(`[ZAP Recovery] Restarting ZAP Docker container via scan bridge API (${scanHost})...`);
+    const axios = (await import("axios")).default;
+    const https = await import("https");
+    const resp = await axios.post(bridgeUrl, {
+      tool: "docker",
+      args: "restart zap"
+    }, {
+      headers: { "X-Scan-Key": scanApiKey, "Content-Type": "application/json" },
+      httpsAgent: new https.Agent({ rejectUnauthorized: false }),
+      timeout: 90000
+    });
+    const exitCode = resp.data?.exitCode ?? resp.data?.exit_code ?? -1;
+    if (exitCode === 0) {
       lastZapRestart = Date.now();
-      console.log(`[ZAP Recovery] ZAP container restarted successfully. Waiting for startup...`);
+      console.log(`[ZAP Recovery] ZAP container restarted successfully via scan bridge. Waiting for startup...`);
       // Wait for ZAP to fully start (typically 30-60s for addon loading)
       await new Promise(r => setTimeout(r, 60000));
       return true;
     } else {
-      console.error(`[ZAP Recovery] Docker restart failed: exit=${result.exitCode} ${result.stderr}`);
+      console.error(`[ZAP Recovery] Docker restart via scan bridge failed: exit=${exitCode} output=${resp.data?.stdout || resp.data?.output || ""}`);
       return false;
     }
   } catch (err: any) {
-    console.error(`[ZAP Recovery] Failed to restart ZAP: ${err.message}`);
+    console.error(`[ZAP Recovery] Failed to restart ZAP via scan bridge: ${err.message}`);
     return false;
   }
 }
@@ -2177,7 +2190,7 @@ export async function pollScanProgress(scanId: number, config?: Partial<ZapConfi
       }
     }
 
-    const MAX_POLL_FAILURES = 8; // After 8 consecutive failures (~120s at 15s intervals), mark as error
+    const MAX_POLL_FAILURES = 20; // After 20 consecutive failures (~5min at 15s intervals), mark as error
     if (failures >= MAX_POLL_FAILURES) {
       console.error(`[ZAP pollScanProgress] Scan #${scanId}: ${failures} consecutive failures (including restart attempt). Marking as error.`);
       try {

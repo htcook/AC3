@@ -1,7 +1,9 @@
 {
   "family": "ac3-dev-app",
   "networkMode": "awsvpc",
-  "requiresCompatibilities": ["FARGATE"],
+  "requiresCompatibilities": [
+    "FARGATE"
+  ],
   "cpu": "2048",
   "memory": "4096",
   "executionRoleArn": "arn:aws:iam::808038814732:role/ac3-dev-ecs-execution-role",
@@ -18,20 +20,149 @@
         }
       ],
       "healthCheck": {
-        "command": ["CMD-SHELL", "curl -f http://localhost:8080/api/health || exit 1"],
+        "command": [
+          "CMD-SHELL",
+          "curl -f http://localhost:8080/api/health || exit 1"
+        ],
         "interval": 30,
         "timeout": 10,
         "retries": 3,
         "startPeriod": 120
       },
       "environment": [
-        { "name": "NODE_ENV", "value": "production" },
-        { "name": "PORT", "value": "8080" }
+        {
+          "name": "NODE_ENV",
+          "value": "production"
+        },
+        {
+          "name": "PORT",
+          "value": "8080"
+        }
       ],
       "secrets": [
         {
           "name": "DATABASE_URL",
           "valueFrom": "arn:aws:secretsmanager:us-east-1:808038814732:secret:ac3/dev/app-WlvTEQ:DATABASE_URL::"
+        },
+        {
+          "name": "JWT_SECRET",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:808038814732:secret:ac3/dev/app-WlvTEQ:JWT_SECRET::"
+        },
+        {
+          "name": "VITE_APP_ID",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:808038814732:secret:ac3/dev/app-WlvTEQ:VITE_APP_ID::"
+        },
+        {
+          "name": "OAUTH_SERVER_URL",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:808038814732:secret:ac3/dev/app-WlvTEQ:OAUTH_SERVER_URL::"
+        },
+        {
+          "name": "VITE_OAUTH_PORTAL_URL",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:808038814732:secret:ac3/dev/app-WlvTEQ:VITE_OAUTH_PORTAL_URL::"
+        },
+        {
+          "name": "OWNER_OPEN_ID",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:808038814732:secret:ac3/dev/app-WlvTEQ:OWNER_OPEN_ID::"
+        },
+        {
+          "name": "OWNER_NAME",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:808038814732:secret:ac3/dev/app-WlvTEQ:OWNER_NAME::"
+        },
+        {
+          "name": "BUILT_IN_FORGE_API_URL",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:808038814732:secret:ac3/dev/app-WlvTEQ:BUILT_IN_FORGE_API_URL::"
+        },
+        {
+          "name": "BUILT_IN_FORGE_API_KEY",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:808038814732:secret:ac3/dev/app-WlvTEQ:BUILT_IN_FORGE_API_KEY::"
+        },
+        {
+          "name": "CALDERA_API_KEY",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:808038814732:secret:ac3/dev/app-WlvTEQ:CALDERA_API_KEY::"
+        },
+        {
+          "name": "CALDERA_BASE_URL",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:808038814732:secret:ac3/dev/app-WlvTEQ:CALDERA_BASE_URL::"
+        },
+        {
+          "name": "CALDERA_USERNAME",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:808038814732:secret:ac3/dev/app-WlvTEQ:CALDERA_USERNAME::"
+        },
+        {
+          "name": "CALDERA_PASSWORD",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:808038814732:secret:ac3/dev/app-WlvTEQ:CALDERA_PASSWORD::"
+        },
+        {
+          "name": "GOPHISH_API_KEY",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:808038814732:secret:ac3/dev/app-WlvTEQ:GOPHISH_API_KEY::"
+        },
+        {
+          "name": "GOPHISH_BASE_URL",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:808038814732:secret:ac3/dev/app-WlvTEQ:GOPHISH_BASE_URL::"
+        },
+        {
+          "name": "SHODAN_API_KEY",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:808038814732:secret:ac3/dev/app-WlvTEQ:SHODAN_API_KEY::"
+        },
+        {
+          "name": "SCAN_SERVER_HOST",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:808038814732:secret:ac3/dev/app-WlvTEQ:SCAN_SERVER_HOST::"
+        },
+        {
+          "name": "OPENAI_API_KEY",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:808038814732:secret:ac3/dev/app-WlvTEQ:OPENAI_API_KEY::"
+        },
+        {
+          "name": "DO_SPACES_KEY",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:808038814732:secret:ac3/dev/app-WlvTEQ:DO_SPACES_KEY::"
+        },
+        {
+          "name": "DO_SPACES_SECRET",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:808038814732:secret:ac3/dev/app-WlvTEQ:DO_SPACES_SECRET::"
+        },
+        {
+          "name": "DO_SPACES_BUCKET",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:808038814732:secret:ac3/dev/app-WlvTEQ:DO_SPACES_BUCKET::"
+        },
+        {
+          "name": "DO_SPACES_REGION",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:808038814732:secret:ac3/dev/app-WlvTEQ:DO_SPACES_REGION::"
+        },
+        {
+          "name": "DO_SPACES_ENDPOINT",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:808038814732:secret:ac3/dev/app-WlvTEQ:DO_SPACES_ENDPOINT::"
+        },
+        {
+          "name": "S3_ENDPOINT",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:808038814732:secret:ac3/dev/app-WlvTEQ:S3_ENDPOINT::"
+        },
+        {
+          "name": "S3_REGION",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:808038814732:secret:ac3/dev/app-WlvTEQ:S3_REGION::"
+        },
+        {
+          "name": "S3_ACCESS_KEY",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:808038814732:secret:ac3/dev/app-WlvTEQ:S3_ACCESS_KEY::"
+        },
+        {
+          "name": "S3_SECRET_KEY",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:808038814732:secret:ac3/dev/app-WlvTEQ:S3_SECRET_KEY::"
+        },
+        {
+          "name": "S3_BUCKET",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:808038814732:secret:ac3/dev/app-WlvTEQ:S3_BUCKET::"
+        },
+        {
+          "name": "SCAN_API_KEY",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:808038814732:secret:ac3/dev/app-WlvTEQ:SCAN_API_KEY::"
+        },
+        {
+          "name": "SCANFORGE_URL",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:808038814732:secret:ac3/dev/app-WlvTEQ:SCANFORGE_URL::"
+        },
+        {
+          "name": "SCAN_SERVER_SSH_KEY",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:808038814732:secret:ac3/dev/app-WlvTEQ:SCAN_SERVER_SSH_KEY::"
         }
       ],
       "logConfiguration": {
@@ -55,8 +186,17 @@
     }
   ],
   "tags": [
-    { "key": "Project", "value": "AC3" },
-    { "key": "Environment", "value": "dev" },
-    { "key": "ManagedBy", "value": "manual" }
+    {
+      "key": "Project",
+      "value": "AC3"
+    },
+    {
+      "key": "Environment",
+      "value": "dev"
+    },
+    {
+      "key": "ManagedBy",
+      "value": "manual"
+    }
   ]
 }

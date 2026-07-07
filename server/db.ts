@@ -3321,42 +3321,106 @@ export async function saveEngagementFindings(findings: EngagementFindingInput[])
   let inserted = 0;
 
   // P1-FIX: Deduplicate findings before insert.
-  // Key = engagementId + normalized title + severity + hostname + port.
-  // When duplicates exist, keep the one with the richest metadata (longest description,
-  // has CVE, has exploit evidence, higher corroboration tier).
+  // Key = engagementId + normalized title + hostname + port (severity excluded from key to merge across severity levels).
+  // When duplicates exist, MERGE evidence from ALL scanners into the canonical record.
   const dedupMap = new Map<string, EngagementFindingInput>();
   const TIER_RANK: Record<string, number> = { 'confirmed': 4, 'corroborated': 3, 'single-source': 2, 'unverified': 1 };
+  const SEVERITY_RANK: Record<string, number> = { 'critical': 5, 'high': 4, 'medium': 3, 'low': 2, 'info': 1 };
+  const scannerEvidenceMap = new Map<string, Array<{ scanner: string; tool: string; evidence: string; corroborationTier: string }>>();
+
   for (const f of findings) {
     // Normalize title: strip leading [Tool Name] prefixes, @ URL suffixes, and collapse whitespace
     const normTitle = (f.title || '')
       .replace(/^\[\w+(?:\s+\w+)*\]\s*/g, '')   // strip [Nuclei], [ZAP Active], etc.
       .replace(/\s*@\s*https?:\/\/\S+/g, '')       // strip @ http://... URL suffixes
       .replace(/\s+/g, ' ').trim().toLowerCase();
-    const key = `${f.engagementId}|${normTitle}|${(f.severity || '').toLowerCase()}|${(f.hostname || '').toLowerCase()}|${f.port || 0}`;
+    const key = `${f.engagementId}|${normTitle}|${(f.hostname || '').toLowerCase()}|${f.port || 0}`;
     const existing = dedupMap.get(key);
+
+    // Build evidence entry for this scanner
+    const scannerName = (f.tool || f.source || 'unknown').toLowerCase();
+    const evidenceEntry = {
+      scanner: scannerName,
+      tool: f.tool || f.source || 'unknown',
+      evidence: f.rawEvidence || f.description || '',
+      corroborationTier: f.corroborationTier || 'unverified',
+    };
+
     if (!existing) {
       dedupMap.set(key, f);
+      scannerEvidenceMap.set(key, [evidenceEntry]);
     } else {
-      // Keep the richer finding
-      const existingScore = (existing.description?.length || 0) + (existing.cve ? 100 : 0) + (existing.exploitSucceeded ? 200 : 0) + (TIER_RANK[existing.corroborationTier || 'unverified'] || 0) * 50;
-      const newScore = (f.description?.length || 0) + (f.cve ? 100 : 0) + (f.exploitSucceeded ? 200 : 0) + (TIER_RANK[f.corroborationTier || 'unverified'] || 0) * 50;
-      if (newScore > existingScore) {
-        dedupMap.set(key, f);
+      // MERGE: keep the richer base record but accumulate all scanner evidence
+      const existingEvidence = scannerEvidenceMap.get(key) || [];
+      // Only add if this scanner hasn't already contributed identical evidence
+      const alreadyHas = existingEvidence.some(e => e.scanner === scannerName && e.evidence === evidenceEntry.evidence);
+      if (!alreadyHas) {
+        existingEvidence.push(evidenceEntry);
+        scannerEvidenceMap.set(key, existingEvidence);
+      }
+
+      // Upgrade severity to highest reported
+      if ((SEVERITY_RANK[(f.severity || '').toLowerCase()] || 0) > (SEVERITY_RANK[(existing.severity || '').toLowerCase()] || 0)) {
+        existing.severity = f.severity;
+      }
+      // Upgrade corroboration tier
+      if ((TIER_RANK[f.corroborationTier || 'unverified'] || 0) > (TIER_RANK[existing.corroborationTier || 'unverified'] || 0)) {
+        existing.corroborationTier = f.corroborationTier;
+      }
+      // Multiple scanners = at least corroborated
+      if (existingEvidence.length >= 2 && (TIER_RANK[existing.corroborationTier || 'unverified'] || 0) < 3) {
+        existing.corroborationTier = 'corroborated';
+      }
+      // Merge CVE/CWE
+      if (!existing.cve && f.cve) existing.cve = f.cve;
+      if (!existing.cwe && f.cwe) existing.cwe = f.cwe;
+      // Keep longest description
+      if (f.description && (!existing.description || f.description.length > existing.description.length)) {
+        existing.description = f.description;
+      }
+      // Merge exploit evidence
+      if (f.exploitSucceeded && !existing.exploitSucceeded) {
+        existing.exploitSucceeded = f.exploitSucceeded;
+        existing.exploitTechnique = f.exploitTechnique;
+      }
+      if (f.exploitAttempted && !existing.exploitAttempted) {
+        existing.exploitAttempted = f.exploitAttempted;
       }
     }
   }
+
+  // Build merged rawEvidence from all scanner contributions
+  for (const [key, finding] of Array.from(dedupMap.entries())) {
+    const evidenceEntries = scannerEvidenceMap.get(key) || [];
+    if (evidenceEntries.length > 1) {
+      // Combine evidence from all scanners into rawEvidence
+      const combinedEvidence = evidenceEntries
+        .filter(e => e.evidence)
+        .map(e => `=== [${e.tool}] ===\n${e.evidence}`)
+        .join('\n\n');
+      if (combinedEvidence) {
+        finding.rawEvidence = combinedEvidence;
+      }
+      // Update source/tool to reflect all contributing scanners
+      const uniqueScanners = Array.from(new Set(evidenceEntries.map(e => e.tool)));
+      finding.source = uniqueScanners.join('+');
+    }
+  }
+
   const dedupedFindings = Array.from(dedupMap.values());
   const dedupedCount = findings.length - dedupedFindings.length;
   if (dedupedCount > 0) {
-    console.log(`[saveEngagementFindings] Deduplicated ${dedupedCount} findings (${findings.length} → ${dedupedFindings.length})`);
+    const mergedScanners = Array.from(scannerEvidenceMap.entries()).filter(([, v]) => v.length > 1).length;
+    console.log(`[saveEngagementFindings] Deduplicated ${dedupedCount} findings (${findings.length} → ${dedupedFindings.length}), ${mergedScanners} findings have multi-scanner evidence`);
   }
 
   // Cross-call dedup: check existing DB findings to prevent duplicates across separate calls
-  const engIds = [...new Set(dedupedFindings.map(f => f.engagementId))];
+  // Key matches the in-batch dedup key: engagementId + normalized title + hostname + port (no severity)
+  const engIds = Array.from(new Set(dedupedFindings.map(f => f.engagementId)));
   const existingTitleKeys = new Set<string>();
   for (const eid of engIds) {
     try {
-      const existing = await db.select({ title: engagementFindings.title, severity: engagementFindings.severity, hostname: engagementFindings.hostname, port: engagementFindings.port })
+      const existing = await db.select({ title: engagementFindings.title, hostname: engagementFindings.hostname, port: engagementFindings.port })
         .from(engagementFindings)
         .where(eq(engagementFindings.engagementId, eid));
       for (const e of existing) {
@@ -3364,7 +3428,7 @@ export async function saveEngagementFindings(findings: EngagementFindingInput[])
           .replace(/^\[\w+(?:\s+\w+)*\]\s*/g, '')
           .replace(/\s*@\s*https?:\/\/\S+/g, '')
           .replace(/\s+/g, ' ').trim().toLowerCase();
-        existingTitleKeys.add(`${eid}|${normExisting}|${(e.severity || '').toLowerCase()}|${(e.hostname || '').toLowerCase()}|${e.port || 0}`);
+        existingTitleKeys.add(`${eid}|${normExisting}|${(e.hostname || '').toLowerCase()}|${e.port || 0}`);
       }
     } catch { /* non-fatal */ }
   }
@@ -3373,7 +3437,7 @@ export async function saveEngagementFindings(findings: EngagementFindingInput[])
       .replace(/^\[\w+(?:\s+\w+)*\]\s*/g, '')
       .replace(/\s*@\s*https?:\/\/\S+/g, '')
       .replace(/\s+/g, ' ').trim().toLowerCase();
-    const key = `${f.engagementId}|${normTitle}|${(f.severity || '').toLowerCase()}|${(f.hostname || '').toLowerCase()}|${f.port || 0}`;
+    const key = `${f.engagementId}|${normTitle}|${(f.hostname || '').toLowerCase()}|${f.port || 0}`;
     return !existingTitleKeys.has(key);
   });
   if (newFindings.length < dedupedFindings.length) {

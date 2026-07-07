@@ -213,18 +213,23 @@ export interface LabTestRun {
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
-const SCAN_SERVER_BASE = "https://scan.aceofcloud.io";
+// DO Lab Droplet IPs — vulnerable apps run directly on these targets
+const DO_DMZ_LAB = "http://159.223.154.80";
+const DO_INTERNAL_LAB = "http://104.248.62.133";
+const DO_LINUX_C2 = "http://157.230.13.143";
+const DO_WINDOWS_C2 = "http://157.245.241.183";
 
 /**
- * Pre-configured lab targets on the AC3 scan server with known exploitable vulnerabilities.
+ * Pre-configured lab targets on DigitalOcean droplets with known exploitable vulnerabilities.
  * These are intentionally vulnerable applications for authorized testing only.
+ * The scanner discovers services dynamically — no internal URLs are hardcoded.
  */
 export const SCAN_SERVER_TARGETS: LabTarget[] = [
   {
     id: "dvwa-lab",
     name: "DVWA (Damn Vulnerable Web Application)",
     type: "scan_server",
-    url: `${SCAN_SERVER_BASE}/lab/dvwa/`,
+    url: `${DO_DMZ_LAB}`,
     platform: "linux",
     arch: "x64",
     os: "Debian 12 (Docker)",
@@ -286,7 +291,7 @@ export const SCAN_SERVER_TARGETS: LabTarget[] = [
     id: "bwapp-lab",
     name: "bWAPP (Buggy Web Application)",
     type: "scan_server",
-    url: `${SCAN_SERVER_BASE}/lab/bwapp/`,
+    url: `${DO_DMZ_LAB}`,
     platform: "linux",
     arch: "x64",
     os: "Ubuntu 20.04 (Docker)",
@@ -338,7 +343,7 @@ export const SCAN_SERVER_TARGETS: LabTarget[] = [
     id: "mutillidae-lab",
     name: "Mutillidae II (OWASP)",
     type: "scan_server",
-    url: `${SCAN_SERVER_BASE}/lab/mutillidae/`,
+    url: `${DO_INTERNAL_LAB}`,
     platform: "linux",
     arch: "x64",
     os: "Debian 11 (Docker)",
@@ -381,7 +386,7 @@ export const SCAN_SERVER_TARGETS: LabTarget[] = [
     id: "juice-shop-lab",
     name: "OWASP Juice Shop",
     type: "scan_server",
-    url: `${SCAN_SERVER_BASE}/lab/juice-shop/`,
+    url: `${DO_DMZ_LAB}`,
     platform: "linux",
     arch: "x64",
     os: "Alpine Linux (Docker/Node.js)",
@@ -423,7 +428,7 @@ export const SCAN_SERVER_TARGETS: LabTarget[] = [
     id: "webgoat-lab",
     name: "OWASP WebGoat",
     type: "scan_server",
-    url: `${SCAN_SERVER_BASE}/lab/webgoat/`,
+    url: `${DO_DMZ_LAB}`,
     platform: "linux",
     arch: "x64",
     os: "Alpine Linux (Docker/Java)",
@@ -467,7 +472,7 @@ export const SCAN_SERVER_TARGETS: LabTarget[] = [
     id: "altoro-mutual-lab",
     name: "Altoro Mutual Banking (AltoroJ)",
     type: "scan_server",
-    url: `${SCAN_SERVER_BASE}/lab/altoro/`,
+    url: `${DO_INTERNAL_LAB}`,
     platform: "linux",
     arch: "x64",
     os: "Debian 12 (Docker/Tomcat)",
@@ -528,7 +533,7 @@ export const SCAN_SERVER_TARGETS: LabTarget[] = [
     id: "vulnbank-63sats-lab",
     name: "63Sats VulnBank",
     type: "scan_server",
-    url: `${SCAN_SERVER_BASE}/lab/vulnbank/`,
+    url: `${DO_INTERNAL_LAB}`,
     platform: "linux",
     arch: "x64",
     os: "Alpine Linux (Docker/Node.js)",

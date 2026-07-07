@@ -80,6 +80,8 @@ interface StorageConfig {
   sseKmsKeyId: string | null;       // KMS Key ARN (required for aws:kms / aws:kms:dsse)
   bucketKeyEnabled: boolean;         // Reduces KMS API calls via S3 Bucket Keys
   privateMode: boolean;              // When true, skip public-read ACL and use presigned URLs
+  // STS Session Token (for temporary credentials from AssumeRole, SSO, etc.)
+  sessionToken: string | null;
   // FIPS 140-3 Compliance
   useFips: boolean;                  // Use FIPS-validated endpoints for all S3 operations
   fipsEndpoint: string | null;       // Resolved FIPS endpoint (auto-generated or explicit)
@@ -107,11 +109,15 @@ function resolveConfig(): StorageConfig {
     const useFips = resolveFipsMode(process.env.S3_USE_FIPS, region);
     const fipsEndpoint = useFips ? resolveFipsEndpoint(s3Endpoint, region) : null;
 
+    // STS session token for temporary credentials (AssumeRole, SSO, ECS task role, etc.)
+    const sessionToken = process.env.S3_SESSION_TOKEN || null;
+
     return {
       endpoint: s3Endpoint,
       region,
       accessKeyId: s3AccessKey,
       secretAccessKey: s3SecretKey,
+      sessionToken,
       bucket: s3Bucket || "ac3-storage",
       forcePathStyle,
       publicUrlBase,
@@ -137,6 +143,7 @@ function resolveConfig(): StorageConfig {
     region: doRegion || "nyc3",
     accessKeyId: doKey || "",
     secretAccessKey: doSecret || "",
+    sessionToken: null,
     bucket: doBucket || "aceofcloud-reports",
     forcePathStyle: false,
     publicUrlBase: null,
@@ -232,7 +239,19 @@ function getClient(): S3Client {
 
   const config = getConfig();
 
-  if (!config.accessKeyId || !config.secretAccessKey) {
+  // Use FIPS endpoint when available (GovCloud auto-detection or explicit opt-in)
+  const effectiveEndpoint = getEffectiveEndpoint(config);
+
+  // Credential resolution strategy:
+  //   1. If explicit S3_ACCESS_KEY/S3_SECRET_KEY are set, use them (with optional session token)
+  //   2. Otherwise, omit credentials entirely — AWS SDK v3 will use the default credential
+  //      provider chain (ECS task role → EC2 instance profile → env vars → shared config)
+  //      This is the correct behavior for ECS Fargate/EC2 deployments where the task role
+  //      provides credentials automatically via the container metadata service.
+  const hasExplicitCredentials = config.accessKeyId && config.secretAccessKey;
+
+  if (!hasExplicitCredentials && config.provider !== "aws_s3") {
+    // For non-AWS providers (DO Spaces, MinIO), explicit credentials are always required
     throw new Error(
       "S3 storage credentials missing. Set S3_ACCESS_KEY/S3_SECRET_KEY (preferred) " +
       "or DO_SPACES_KEY/DO_SPACES_SECRET (legacy). " +
@@ -240,16 +259,18 @@ function getClient(): S3Client {
     );
   }
 
-  // Use FIPS endpoint when available (GovCloud auto-detection or explicit opt-in)
-  const effectiveEndpoint = getEffectiveEndpoint(config);
-
   _client = new S3Client({
     endpoint: effectiveEndpoint,
     region: config.region,
-    credentials: {
-      accessKeyId: config.accessKeyId,
-      secretAccessKey: config.secretAccessKey,
-    },
+    // Only set explicit credentials when provided; otherwise let SDK use default chain
+    ...(hasExplicitCredentials ? {
+      credentials: {
+        accessKeyId: config.accessKeyId,
+        secretAccessKey: config.secretAccessKey,
+        // Include session token for temporary STS credentials (AssumeRole, ECS task role, SSO)
+        ...(config.sessionToken ? { sessionToken: config.sessionToken } : {}),
+      },
+    } : {}),
     forcePathStyle: config.forcePathStyle,
     // AWS SDK v3: useFipsEndpoint ensures all derived service endpoints use FIPS
     ...(config.useFips ? { useFipsEndpoint: true } : {}),
@@ -368,12 +389,44 @@ export async function doStoragePut(
     }
   }
 
-  await client.send(new PutObjectCommand(putParams as any));
+  try {
+    await client.send(new PutObjectCommand(putParams as any));
+  } catch (err: any) {
+    const errorCode = err.Code || err.name || '';
+
+    // Handle expired/invalid credentials by resetting client and retrying once.
+    // This covers ECS task role credential rotation and expired STS session tokens.
+    const isCredentialError = [
+      'InvalidToken', 'ExpiredToken', 'ExpiredTokenException',
+      'InvalidAccessKeyId', 'SignatureDoesNotMatch',
+    ].includes(errorCode);
+
+    // Handle ACL-disabled buckets (S3 Object Ownership = BucketOwnerEnforced).
+    // Newer AWS S3 buckets disable ACLs by default. Retry without ACL and switch to
+    // presigned URLs for access instead.
+    const isAclError = errorCode === 'AccessControlListNotSupported';
+
+    if (isAclError) {
+      console.warn('[S3] ACL not supported on this bucket (BucketOwnerEnforced). Retrying without ACL...');
+      delete putParams.ACL;
+      // Mark config as private mode so subsequent calls skip ACL and use presigned URLs
+      config.privateMode = true;
+      await client.send(new PutObjectCommand(putParams as any));
+    } else if (isCredentialError) {
+      console.warn(`[S3] Credential error (${errorCode}), resetting client and retrying...`);
+      resetStorageClient();
+      const retryClient = getClient();
+      await retryClient.send(new PutObjectCommand(putParams as any));
+    } else {
+      throw err;
+    }
+  }
 
   // In private mode, return a presigned URL instead of a public URL
   if (config.privateMode) {
+    const freshClient = getClient();
     const getCmd = new GetObjectCommand({ Bucket: config.bucket, Key: key });
-    const url = await getSignedUrl(client, getCmd, { expiresIn: 3600 });
+    const url = await getSignedUrl(freshClient, getCmd, { expiresIn: 3600 });
     return { key, url };
   }
 

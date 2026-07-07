@@ -165,6 +165,10 @@ export interface ApprovalGate {
   approvers?: string[];
   /** Number of approvals required (1 for normal, 2 for dual-approval) */
   requiredApprovals?: number;
+  /** When true, this gate requires client confirmation — timeout extended to 72h and auto-approval disabled */
+  clientConfirmation?: boolean;
+  /** When true, timeout is disabled entirely — gate waits indefinitely for manual resolution */
+  timeoutDisabled?: boolean;
 }
 
 export interface OpsLogEntry {
@@ -631,27 +635,182 @@ function genId(): string {
 
 /**
  * Deduplicated vuln push — prevents duplicate vulnerabilities on the same asset.
- * Deduplicates by matching on (title + cve). Returns true if the vuln was added (new),
- * false if it was a duplicate and skipped.
+ * Deduplicates by matching on (title + cve). When a duplicate is found, MERGES
+ * evidence from the new scanner into the existing record (preserving all scanner evidence).
+ * Returns true if the vuln was added (new), false if it was merged into an existing record.
  */
 export function pushVulnDeduped(
   asset: AssetStatus,
   vuln: { id: string; severity: string; title: string; cve?: string; [key: string]: any },
 ): boolean {
-  const isDuplicate = asset.vulns.some((existing: any) => {
+  const existingVuln = asset.vulns.find((existing: any) => {
     // Match on CVE if both have one
     if (vuln.cve && existing.cve && vuln.cve === existing.cve) return true;
-    // Match on title (normalized)
-    if (existing.title === vuln.title) return true;
+    // Match on normalized title (strip [scanner] prefix for comparison)
+    const normExisting = (existing.title || '').replace(/^\[[^\]]+\]\s*/, '').toLowerCase().trim();
+    const normNew = (vuln.title || '').replace(/^\[[^\]]+\]\s*/, '').toLowerCase().trim();
+    if (normExisting && normNew && normExisting === normNew) return true;
     return false;
   });
-  if (isDuplicate) return false;
+
+  if (existingVuln) {
+    // ── MERGE evidence from new scanner into existing record ──
+    mergeVulnEvidence(existingVuln as any, vuln);
+    return false;
+  }
+
   // Auto-classify vulnClass if not already set
   if (!vuln.vulnClass || vuln.vulnClass === 'unknown') {
     vuln.vulnClass = classifyVulnClass(vuln.title, vuln.description);
   }
+  // Initialize scannerEvidence array with the first scanner's data
+  if (!vuln.scannerEvidence) {
+    vuln.scannerEvidence = [buildScannerEvidenceEntry(vuln)];
+  }
   asset.vulns.push(vuln as any);
   return true;
+}
+
+/**
+ * Extract scanner name from a vuln title prefix like "[nuclei]" or "[ZAP Active]".
+ */
+function extractScannerFromTitle(title: string): string {
+  const match = (title || '').match(/^\[([^\]]+)\]/);
+  return match ? match[1].toLowerCase() : (title || '').includes('ZAP') ? 'zap' : 'unknown';
+}
+
+/**
+ * Build a scanner evidence entry from a vuln record.
+ */
+function buildScannerEvidenceEntry(vuln: { title?: string; source?: string; evidenceDetail?: string; rawEvidence?: string; corroborationTier?: string; detectedVersion?: string; [key: string]: any }): ScannerEvidenceEntry {
+  return {
+    scanner: vuln.source || extractScannerFromTitle(vuln.title || ''),
+    title: vuln.title || '',
+    evidenceDetail: vuln.evidenceDetail || undefined,
+    rawEvidence: vuln.rawEvidence || undefined,
+    corroborationTier: vuln.corroborationTier || 'unverified',
+    detectedVersion: vuln.detectedVersion || undefined,
+    timestamp: Date.now(),
+  };
+}
+
+/**
+ * Merge evidence from a new vuln report into an existing vuln record.
+ * Preserves ALL scanner evidence while keeping the canonical record enriched.
+ */
+function mergeVulnEvidence(
+  existing: { severity: string; evidenceDetail?: string; rawEvidence?: string; corroborationTier?: string; scannerEvidence?: ScannerEvidenceEntry[]; source?: string; cve?: string; cwe?: string; description?: string; detectedVersion?: string; [key: string]: any },
+  incoming: { severity: string; title?: string; evidenceDetail?: string; rawEvidence?: string; corroborationTier?: string; source?: string; cve?: string; cwe?: string; description?: string; detectedVersion?: string; [key: string]: any },
+): void {
+  // Initialize scannerEvidence array if not present
+  if (!existing.scannerEvidence) {
+    existing.scannerEvidence = [buildScannerEvidenceEntry(existing)];
+  }
+
+  // Add the new scanner's evidence
+  const newEntry = buildScannerEvidenceEntry(incoming);
+  // Avoid adding duplicate entries from the same scanner with the same evidence
+  const alreadyHas = existing.scannerEvidence.some(
+    (e) => e.scanner === newEntry.scanner && e.evidenceDetail === newEntry.evidenceDetail
+  );
+  if (!alreadyHas) {
+    existing.scannerEvidence.push(newEntry);
+  }
+
+  // Upgrade severity if the new report has a higher severity
+  const SEVERITY_RANK: Record<string, number> = { critical: 5, high: 4, medium: 3, low: 2, info: 1 };
+  if ((SEVERITY_RANK[incoming.severity?.toLowerCase()] || 0) > (SEVERITY_RANK[existing.severity?.toLowerCase()] || 0)) {
+    existing.severity = incoming.severity;
+  }
+
+  // Upgrade corroboration tier: multiple scanners = corroborated at minimum
+  const TIER_RANK: Record<string, number> = { confirmed: 3, corroborated: 2, unverified: 1 };
+  if (existing.scannerEvidence.length >= 2 && (TIER_RANK[existing.corroborationTier || 'unverified'] || 0) < 2) {
+    existing.corroborationTier = 'corroborated';
+  }
+  if ((TIER_RANK[incoming.corroborationTier || 'unverified'] || 0) > (TIER_RANK[existing.corroborationTier || 'unverified'] || 0)) {
+    existing.corroborationTier = incoming.corroborationTier;
+  }
+
+  // Merge CVE/CWE if the existing record lacks them
+  if (!existing.cve && incoming.cve) existing.cve = incoming.cve;
+  if (!existing.cwe && incoming.cwe) existing.cwe = incoming.cwe;
+
+  // Merge description (keep longest)
+  if (incoming.description && (!existing.description || incoming.description.length > existing.description.length)) {
+    existing.description = incoming.description;
+  }
+
+  // Merge detected version
+  if (!existing.detectedVersion && incoming.detectedVersion) {
+    existing.detectedVersion = incoming.detectedVersion;
+  }
+
+  // Build combined evidenceDetail from all scanners
+  existing.evidenceDetail = existing.scannerEvidence
+    .filter(e => e.evidenceDetail)
+    .map(e => `[${e.scanner}] ${e.evidenceDetail}`)
+    .join(' | ');
+}
+
+/** Scanner evidence entry — preserved per-scanner when deduplicating vulns */
+export interface ScannerEvidenceEntry {
+  scanner: string;
+  title: string;
+  evidenceDetail?: string;
+  rawEvidence?: string;
+  corroborationTier: string;
+  detectedVersion?: string;
+  timestamp: number;
+}
+
+/**
+ * Merge evidence from a new pending vuln report into an existing pending vuln.
+ * Same logic as mergeVulnEvidence but for the simpler pendingVulns shape.
+ */
+function mergePendingVulnEvidence(
+  existing: { severity: string; title?: string; evidenceDetail?: string; corroborationTier?: string; detectedVersion?: string; scannerEvidence?: ScannerEvidenceEntry[]; [key: string]: any },
+  incoming: { severity: string; title?: string; evidenceDetail?: string; corroborationTier?: string; detectedVersion?: string; source?: string; [key: string]: any },
+): void {
+  // Initialize scannerEvidence array if not present
+  if (!existing.scannerEvidence) {
+    existing.scannerEvidence = [buildScannerEvidenceEntry(existing as any)];
+  }
+
+  // Add the new scanner's evidence
+  const newEntry = buildScannerEvidenceEntry(incoming as any);
+  const alreadyHas = existing.scannerEvidence.some(
+    (e) => e.scanner === newEntry.scanner && e.evidenceDetail === newEntry.evidenceDetail
+  );
+  if (!alreadyHas) {
+    existing.scannerEvidence.push(newEntry);
+  }
+
+  // Upgrade severity
+  const SEVERITY_RANK: Record<string, number> = { critical: 5, high: 4, medium: 3, low: 2, info: 1 };
+  if ((SEVERITY_RANK[incoming.severity?.toLowerCase()] || 0) > (SEVERITY_RANK[existing.severity?.toLowerCase()] || 0)) {
+    existing.severity = incoming.severity;
+  }
+
+  // Upgrade corroboration tier
+  const TIER_RANK: Record<string, number> = { confirmed: 3, corroborated: 2, unverified: 1 };
+  if (existing.scannerEvidence.length >= 2 && (TIER_RANK[existing.corroborationTier || 'unverified'] || 0) < 2) {
+    existing.corroborationTier = 'corroborated';
+  }
+  if ((TIER_RANK[incoming.corroborationTier || 'unverified'] || 0) > (TIER_RANK[existing.corroborationTier || 'unverified'] || 0)) {
+    existing.corroborationTier = incoming.corroborationTier;
+  }
+
+  // Merge detected version
+  if (!existing.detectedVersion && incoming.detectedVersion) {
+    existing.detectedVersion = incoming.detectedVersion;
+  }
+
+  // Build combined evidenceDetail from all scanners
+  existing.evidenceDetail = existing.scannerEvidence
+    .filter(e => e.evidenceDetail)
+    .map(e => `[${e.scanner}] ${e.evidenceDetail}`)
+    .join(' | ');
 }
 
 export function getOpsState(engagementId: number): EngagementOpsState | null {
@@ -847,11 +1006,12 @@ export function isInRoeScope(state: EngagementOpsState, hostname: string, ip?: s
   })) return true;
 
   // Check exact IP match (also try stripping port from hostname as IP)
-  if (normalizedIp && guard.authorizedIps.some(i => i.trim() === normalizedIp)) return true;
+  // Strip CIDR notation from authorizedIps for matching (e.g., "10.0.0.1/32" → "10.0.0.1")
+  if (normalizedIp && guard.authorizedIps.some(i => i.trim().replace(/\/\d+$/, '') === normalizedIp)) return true;
 
   // If hostname looks like an IP (possibly with port), check against authorizedIps
   if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/.test(hostWithoutPort)) {
-    if (guard.authorizedIps.some(i => i.trim() === hostWithoutPort)) return true;
+    if (guard.authorizedIps.some(i => i.trim().replace(/\/\d+$/, '') === hostWithoutPort)) return true;
   }
 
   // Check if hostname is a subdomain of an authorized domain (e.g., sub.target.com matches target.com)
@@ -1515,16 +1675,32 @@ export async function persistScanResult(opts: {
  * to prevent the pipeline from blocking indefinitely on each credential test.
  * Red risk actions (destructive exploits, C2 deployment) always require manual approval.
  */
-function shouldAutoApprove(state: EngagementOpsState, riskTier: string): boolean {
+function shouldAutoApprove(state: EngagementOpsState, riskTier: string, gate?: Omit<ApprovalGate, "id" | "status" | "createdAt">): boolean {
+  // ── PAUSE OVERRIDE ──
+  // If the engagement is explicitly paused by an operator, NEVER auto-approve anything.
+  // The operator paused for a reason (e.g., waiting for client confirmation).
+  if (state.isPaused && !state.isRunning) return false;
+
+  // ── CLIENT CONFIRMATION GATES ──
+  // Gates marked as clientConfirmation NEVER auto-approve — they require explicit
+  // client sign-off regardless of training lab mode, precedent, or RoE status.
+  if (gate?.clientConfirmation) return false;
+
   // Training lab mode: auto-approve ALL gates including red tier (exploitation)
   // Training labs are authorized targets where we want the full pipeline to run unattended
   if (state.trainingLabMode === true) return true;
 
-  // ── Precedent-based auto-approval ──
+  // ── RED TIER NEVER AUTO-APPROVES (except training lab) ──
+  // Exploit execution, C2 deployment, and destructive actions always require manual approval.
+  // This check is placed BEFORE precedent to prevent any cascading into red tier.
+  if (riskTier === 'red') return false;
+
+  // ── Precedent-based auto-approval (yellow/orange only) ──
   // If the operator has already manually approved a gate at the same risk tier
   // (or higher) in this engagement, auto-approve subsequent gates at that tier.
   // This means: approve one credential test → all credential tests auto-approved.
-  // Approve one exploit → all exploits at that tier auto-approved.
+  // IMPORTANT: Precedent only cascades WITHIN the same tier or from higher to lower.
+  // It NEVER escalates (approving yellow does NOT cascade to orange or red).
   const TIER_ORDER: Record<string, number> = { yellow: 0, orange: 1, red: 2 };
   const currentTierIdx = TIER_ORDER[riskTier] ?? -1;
   const hasManualPrecedent = state.approvalGates.some(g =>
@@ -1538,9 +1714,6 @@ function shouldAutoApprove(state: EngagementOpsState, riskTier: string): boolean
   // Only auto-approve if RoE is signed
   const roeStatus = state.roeScopeGuard?.roeStatus;
   if (roeStatus !== 'signed') return false;
-
-  // Red tier always requires manual approval (destructive actions)
-  if (riskTier === 'red') return false;
 
   // Yellow and orange tiers are auto-approved for signed RoE
   // This covers: credential testing, enumeration, vulnerability scanning
@@ -1556,7 +1729,7 @@ export async function requestApproval(
   // 1. Training lab mode (all tiers)
   // 2. Operator already approved a gate at this tier or higher (precedent)
   // 3. Signed RoE for yellow/orange tiers
-  if (shouldAutoApprove(state, gate.riskTier)) {
+  if (shouldAutoApprove(state, gate.riskTier, gate)) {
     // Determine the reason for auto-approval for audit trail
     const isTrainingLab = state.trainingLabMode === true;
     const hasPrecedent = !isTrainingLab && state.approvalGates.some(g =>
@@ -1635,11 +1808,17 @@ export async function requestApproval(
     gate: approval,
   });
 
-  // Wait for operator response (with 5-minute timeout to prevent indefinite blocking)
+  // Wait for operator response with tier-appropriate timeout:
+  // - Red tier / client confirmation / timeoutDisabled: 72 hours (client sign-off may take days)
+  // - Yellow/orange: 30 minutes (routine operational gates)
+  const isExtendedTimeout = gate.riskTier === 'red' || gate.clientConfirmation || gate.timeoutDisabled;
+  const timeoutMs = isExtendedTimeout ? 72 * 60 * 60 * 1000 : 30 * 60 * 1000; // 72h or 30min
+  const timeoutLabel = isExtendedTimeout ? '72 hours' : '30 minutes';
+
   return new Promise<boolean>((resolve) => {
     const timeoutId = setTimeout(() => {
-      // If no response after 5 minutes, auto-approve yellow/orange, deny red
-      const autoDecision = gate.riskTier !== 'red';
+      // On timeout: auto-approve yellow/orange, deny red/clientConfirmation
+      const autoDecision = !isExtendedTimeout; // Only auto-approve routine (yellow/orange) gates
       approval.status = autoDecision ? "approved" : "denied";
       approval.resolvedAt = Date.now();
       approval.resolvedBy = `auto-timeout:${autoDecision ? 'approved' : 'denied'}`;
@@ -1650,7 +1829,7 @@ export async function requestApproval(
         phase: gate.phase,
         type: "approval_response",
         title: autoDecision ? `✅ Auto-Approved (Timeout): ${gate.title}` : `❌ Auto-Denied (Timeout): ${gate.title}`,
-        detail: `No operator response after 5 minutes. ${autoDecision ? 'Auto-approved' : 'Auto-denied'} based on risk tier (${gate.riskTier}).`,
+        detail: `No operator response after ${timeoutLabel}. ${autoDecision ? 'Auto-approved' : 'Auto-denied'} based on risk tier (${gate.riskTier}).`,
         riskTier: gate.riskTier,
       });
 
@@ -1661,7 +1840,7 @@ export async function requestApproval(
       });
 
       resolve(autoDecision);
-    }, 5 * 60 * 1000); // 5 minute timeout
+    }, timeoutMs);
 
     approvalResolvers.set(approval.id, (approved) => {
       clearTimeout(timeoutId);
@@ -1688,9 +1867,114 @@ export async function requestApproval(
   });
 }
 
+/**
+ * Rehydrate a stale approval gate by recreating its resolver.
+ * When the server restarts or the timeout fires, the in-memory resolver is lost.
+ * This function finds the pending gate, creates a new resolver that will:
+ * 1. Update the gate status (approved/denied)
+ * 2. Unpause the engagement
+ * 3. Trigger a resume of the engagement from the phase where it was paused
+ *
+ * Returns true if the gate was successfully rehydrated, false otherwise.
+ */
+export function rehydrateApprovalGate(gateId: string): boolean {
+  // Don't rehydrate if there's already an active resolver
+  if (approvalResolvers.has(gateId)) return true;
+
+  // Find the pending gate across all engagement states
+  let matchedGate: ApprovalGate | undefined;
+  let matchedState: EngagementOpsState | undefined;
+  for (const [, state] of opsStates) {
+    const gate = state.approvalGates.find(g => g.id === gateId && g.status === 'pending');
+    if (gate) {
+      matchedGate = gate;
+      matchedState = state;
+      break;
+    }
+  }
+
+  if (!matchedGate || !matchedState) return false;
+
+  const engagementId = matchedState.engagementId;
+  const gatePhase = matchedGate.phase;
+
+  // Create a new resolver that handles the approval and triggers engagement resume
+  approvalResolvers.set(gateId, (approved: boolean) => {
+    if (!matchedGate || !matchedState) return;
+
+    matchedGate.status = approved ? 'approved' : 'denied';
+    matchedGate.resolvedAt = Date.now();
+    matchedState.isPaused = false;
+
+    addLog(matchedState, {
+      phase: gatePhase,
+      type: 'approval_response',
+      title: approved
+        ? `✅ Approved (Rehydrated): ${matchedGate.title}`
+        : `❌ Denied (Rehydrated): ${matchedGate.title}`,
+      detail: approved
+        ? `Operator approved the action after gate rehydration. The engagement will resume from the ${gatePhase} phase.`
+        : `Operator denied the action after gate rehydration.`,
+      riskTier: matchedGate.riskTier,
+    });
+
+    broadcastOpsUpdate(engagementId, {
+      type: 'approval_resolved',
+      gateId: matchedGate.id,
+      approved,
+    });
+
+    // Persist the updated state
+    persistOpsStateDebounced(engagementId);
+
+    // If approved, trigger a resume of the engagement from the gate's phase
+    // This re-enters the pipeline at the point where it was paused
+    if (approved && !matchedState.isRunning) {
+      // Determine the best phase to resume from
+      const validPipelinePhases = new Set(['recon', 'passive_discovery', 'scoping', 'test_plan', 'test_plan_approval', 'enumeration', 'vuln_detection', 'social_engineering', 'exploitation', 'post_exploit']);
+      const resumePhase = validPipelinePhases.has(gatePhase) ? gatePhase : 'recon';
+
+      addLog(matchedState, {
+        phase: resumePhase as any,
+        type: 'info',
+        title: `🔄 Resuming engagement after gate approval`,
+        detail: `Engagement resuming from ${resumePhase} phase after stale gate was approved by operator.`,
+      });
+
+      // Fire off the execution with resume flag (async, non-blocking)
+      executeEngagement(engagementId, { id: 'system', name: 'system-rehydrate' }, {
+        startPhase: resumePhase as any,
+        resume: true,
+      }).catch((err: any) => {
+        console.error(`[RehydrateGate] Failed to resume engagement #${engagementId}:`, err.message);
+      });
+    }
+  });
+
+  addLog(matchedState, {
+    phase: gatePhase,
+    type: 'info',
+    title: `🔄 Gate Rehydrated: ${matchedGate.title}`,
+    detail: `Approval gate was rehydrated after becoming stale (server restart or timeout). Operator can now approve or deny.`,
+    riskTier: matchedGate.riskTier,
+  });
+
+  console.log(`[RehydrateGate] Successfully rehydrated gate ${gateId} for engagement #${engagementId} (phase: ${gatePhase})`);
+  return true;
+}
+
 export function resolveApproval(gateId: string, approved: boolean, resolvedBy?: string): boolean | 'partial' {
-  const resolver = approvalResolvers.get(gateId);
-  if (!resolver) return false;
+  let resolver = approvalResolvers.get(gateId);
+
+  // ── Stale Gate Rehydration ──
+  // If no resolver exists (server restarted or timeout cleared it), attempt to
+  // rehydrate the gate so the operator can still approve/deny it.
+  if (!resolver) {
+    const rehydrated = rehydrateApprovalGate(gateId);
+    if (!rehydrated) return false;
+    resolver = approvalResolvers.get(gateId);
+    if (!resolver) return false;
+  }
 
   // Find the gate across all engagement states
   let matchedGate: ApprovalGate | undefined;
@@ -2703,7 +2987,7 @@ async function executeRecon(state: EngagementOpsState, engagement: any, operator
   broadcastOpsUpdate(state.engagementId, { type: "phase_change", phase: "recon" });
 
    const domains = (engagement.targetDomain || "").split(/[,;\s]+/).filter(Boolean);
-  const ipRanges = (engagement.targetIpRange || "").split(/[,;\s]+/).filter(Boolean);
+  const ipRanges = (engagement.targetIpRange || "").split(/[,;\s]+/).filter(Boolean).map(ip => ip.replace(/\/\d+$/, ''));
 
   // ═══ INITIALIZE RoE SCOPE GUARD ═══
   // Hard-lock the authorized targets from the engagement's RoE before any scanning begins
@@ -2844,7 +3128,8 @@ async function executeRecon(state: EngagementOpsState, engagement: any, operator
       }
     }
   }
-  for (const ip of ipRanges) {
+  for (const rawIp of ipRanges) {
+    const ip = rawIp.replace(/\/\d+$/, '');  // Strip CIDR notation (e.g., /32, /24)
     if (!state.assets.find(a => a.hostname === ip || a.ip === ip)) {
       state.assets.push({
         hostname: ip,
@@ -3123,13 +3408,25 @@ async function executeRecon(state: EngagementOpsState, engagement: any, operator
           // Resolve any remaining "unknown" service labels
           enrichPortServices(existing.ports, passiveRecon.services || []);
           // Defer passive vulns to pendingVulns — they will be promoted to vulns at vuln_detection phase start
+          // When duplicates exist, MERGE evidence from all scanners into the existing record
           for (const v of passiveVulns) {
-            const isDupe = existing.pendingVulns.some((pv: any) => {
+            const existingPV = existing.pendingVulns.find((pv: any) => {
               if (v.cve && pv.cve && v.cve === pv.cve) return true;
-              if (pv.title === v.title) return true;
+              const normExisting = (pv.title || '').replace(/^\[[^\]]+\]\s*/, '').toLowerCase().trim();
+              const normNew = (v.title || '').replace(/^\[[^\]]+\]\s*/, '').toLowerCase().trim();
+              if (normExisting && normNew && normExisting === normNew) return true;
               return false;
             });
-            if (!isDupe) existing.pendingVulns.push(v as any);
+            if (existingPV) {
+              // Merge evidence from new scanner into existing pending vuln
+              mergePendingVulnEvidence(existingPV as any, v as any);
+            } else {
+              // New vuln — initialize scannerEvidence array
+              if (!(v as any).scannerEvidence) {
+                (v as any).scannerEvidence = [buildScannerEvidenceEntry(v as any)];
+              }
+              existing.pendingVulns.push(v as any);
+            }
           }
           existing.status = 'discovered';
           // Update port stats only — vulns are deferred
@@ -5233,7 +5530,7 @@ export async function executeEngagement(
         broadcastOpsUpdate(state.engagementId, { type: 'log_update' });
 
         // Collect all findings from all assets (vulns + ZAP findings + nuclei findings)
-        // Collect all raw findings from all sources
+        // Collect all raw findings from all sources, preserving scanner evidence
         const rawFindings = state.assets.flatMap(a => [
           ...a.vulns.map(v => ({
             name: v.title,
@@ -5241,16 +5538,22 @@ export async function executeEngagement(
             cwe: v.cwe || undefined,
             owasp: v.owasp || undefined,
             endpoint: v.endpoint || undefined,
+            scannerEvidence: (v as any).scannerEvidence || [],
+            scannerCount: ((v as any).scannerEvidence || []).length || 1,
           })),
           ...a.zapFindings.map(z => ({
             name: z.alert,
             severity: z.risk,
-            cwe: z.cweid ? `CWE-${z.cweid}` : undefined,
+            cwe: z.cweId ? `CWE-${z.cweId}` : undefined,
+            scannerEvidence: [{ scanner: 'zap', title: z.alert }],
+            scannerCount: 1,
           })),
           ...(a.nucleiFindings || []).map((n: any) => ({
             name: n.templateId || n.name || n.info?.name || 'nuclei-finding',
             severity: n.info?.severity || n.severity || 'info',
             cwe: n.classification?.cweId?.[0] ? `CWE-${n.classification.cweId[0]}` : undefined,
+            scannerEvidence: [{ scanner: 'nuclei', title: n.templateId || n.name || n.info?.name }],
+            scannerCount: 1,
           })),
         ]);
 
@@ -5258,22 +5561,40 @@ export async function executeEngagement(
         const normalizeForScoring = (name: string) =>
           (name || '').replace(/^\[\w+(?:\s*\w+)*\]\s*/i, '').replace(/^\(\w+\)\s*/i, '').replace(/\s+/g, ' ').trim();
 
-        // Deduplicate findings by normalized name + severity (keep highest severity)
+        // Deduplicate findings by normalized name (keep highest severity, merge scanner evidence)
         const severityRank: Record<string, number> = { critical: 4, high: 3, medium: 2, low: 1, info: 0 };
         const deduped = new Map<string, typeof rawFindings[0]>();
         for (const f of rawFindings) {
           const key = normalizeForScoring(f.name).toLowerCase();
           const existing = deduped.get(key);
-          if (!existing || (severityRank[f.severity?.toLowerCase() || 'info'] || 0) > (severityRank[existing.severity?.toLowerCase() || 'info'] || 0)) {
+          if (!existing) {
             deduped.set(key, { ...f, name: normalizeForScoring(f.name) });
+          } else {
+            // Merge: upgrade severity, combine scanner evidence
+            if ((severityRank[f.severity?.toLowerCase() || 'info'] || 0) > (severityRank[existing.severity?.toLowerCase() || 'info'] || 0)) {
+              existing.severity = f.severity;
+            }
+            // Merge scanner evidence arrays
+            const existingEvidence = existing.scannerEvidence || [];
+            const newEvidence = f.scannerEvidence || [];
+            for (const ne of newEvidence) {
+              if (!existingEvidence.some((ee: any) => ee.scanner === ne.scanner && ee.title === ne.title)) {
+                existingEvidence.push(ne);
+              }
+            }
+            existing.scannerEvidence = existingEvidence;
+            existing.scannerCount = existingEvidence.length;
+            // Merge CWE
+            if (!existing.cwe && f.cwe) existing.cwe = f.cwe;
           }
         }
         const allFindings = [...deduped.values()];
         if (rawFindings.length !== allFindings.length) {
+          const multiScannerCount = allFindings.filter(f => (f.scannerCount || 1) > 1).length;
           addLog(state, {
             phase: 'completed', type: 'info',
-            title: `🔄 Finding Normalization: ${rawFindings.length} → ${allFindings.length} (${rawFindings.length - allFindings.length} duplicates removed)`,
-            detail: `Stripped tool prefixes and deduplicated findings before accuracy scoring.`,
+            title: `🔄 Finding Normalization: ${rawFindings.length} → ${allFindings.length} (${rawFindings.length - allFindings.length} duplicates merged)`,
+            detail: `Stripped tool prefixes and deduplicated findings before accuracy scoring. ${multiScannerCount} findings confirmed by multiple scanners.`,
           });
           broadcastOpsUpdate(state.engagementId, { type: 'log_update' });
         }

@@ -65,7 +65,8 @@ jobs:
     name: Setup
     runs-on: ubuntu-latest
     # Only run from the company repo
-    if: github.repository == 'hcook-aoc/AC3'
+    if: github.repository == 'hcook-aoc/AC3' || github.repository == 'htcook/AC3'
+
     outputs:
       environment: ${{ steps.env.outputs.environment }}
       ecr_repo: ${{ steps.env.outputs.ecr_repo }}
@@ -97,9 +98,9 @@ jobs:
           # ECR repo is shared across environments in SharedServices account
           echo "ecr_repo=${{ env.ECR_REPO_NAME }}" >> $GITHUB_OUTPUT
           echo "ecs_cluster=${{ env.PROJECT_NAME }}-${ENV}" >> $GITHUB_OUTPUT
-          echo "ecs_service=${{ env.PROJECT_NAME }}-${ENV}-service" >> $GITHUB_OUTPUT
-          echo "task_family=${{ env.PROJECT_NAME }}-${ENV}" >> $GITHUB_OUTPUT
-          echo "deploy_role=arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/${{ env.PROJECT_NAME }}-${ENV}-github-deploy" >> $GITHUB_OUTPUT
+          echo "ecs_service=${{ env.PROJECT_NAME }}-${ENV}-app" >> $GITHUB_OUTPUT
+          echo "task_family=${{ env.PROJECT_NAME }}-${ENV}-app" >> $GITHUB_OUTPUT
+          echo "deploy_role=arn:aws:iam::808038814732:role/${{ env.PROJECT_NAME }}-${ENV}-github-deploy" >> $GITHUB_OUTPUT
 
           # Domain mapping
           case "$ENV" in
@@ -276,6 +277,70 @@ jobs:
 
           echo "task_def_arn=$TASK_DEF_ARN" >> $GITHUB_OUTPUT
           echo "📋 Current task definition: $TASK_DEF_ARN"
+
+      - name: Inject application secrets into task definition
+        env:
+          ENVIRONMENT: ${{ needs.setup.outputs.environment }}
+        run: |
+          echo "🔐 Injecting application secrets into task definition..."
+
+          # Derive the base secret ARN from the existing DATABASE_URL secret entry
+          # Pattern: arn:aws:secretsmanager:REGION:ACCOUNT:secret:ac3/ENV/app-SUFFIX:DATABASE_URL::
+          BASE_SECRET_ARN=$(jq -r '.containerDefinitions[0].secrets[] | select(.name=="DATABASE_URL") | .valueFrom' task-definition.json | sed 's/:DATABASE_URL::$//')
+
+          if [ -z "$BASE_SECRET_ARN" ] || [ "$BASE_SECRET_ARN" = "null" ]; then
+            echo "::error::Could not derive base secret ARN from task definition"
+            exit 1
+          fi
+
+          echo "  Base secret ARN: $BASE_SECRET_ARN"
+
+          # Define all required application secrets
+          SECRETS='[
+            {"name":"DATABASE_URL","valueFrom":"'"$BASE_SECRET_ARN"':DATABASE_URL::"},
+            {"name":"JWT_SECRET","valueFrom":"'"$BASE_SECRET_ARN"':JWT_SECRET::"},
+            {"name":"VITE_APP_ID","valueFrom":"'"$BASE_SECRET_ARN"':VITE_APP_ID::"},
+            {"name":"OAUTH_SERVER_URL","valueFrom":"'"$BASE_SECRET_ARN"':OAUTH_SERVER_URL::"},
+            {"name":"VITE_OAUTH_PORTAL_URL","valueFrom":"'"$BASE_SECRET_ARN"':VITE_OAUTH_PORTAL_URL::"},
+            {"name":"OWNER_OPEN_ID","valueFrom":"'"$BASE_SECRET_ARN"':OWNER_OPEN_ID::"},
+            {"name":"OWNER_NAME","valueFrom":"'"$BASE_SECRET_ARN"':OWNER_NAME::"},
+            {"name":"BUILT_IN_FORGE_API_URL","valueFrom":"'"$BASE_SECRET_ARN"':BUILT_IN_FORGE_API_URL::"},
+            {"name":"BUILT_IN_FORGE_API_KEY","valueFrom":"'"$BASE_SECRET_ARN"':BUILT_IN_FORGE_API_KEY::"},
+            {"name":"CALDERA_API_KEY","valueFrom":"'"$BASE_SECRET_ARN"':CALDERA_API_KEY::"},
+            {"name":"CALDERA_BASE_URL","valueFrom":"'"$BASE_SECRET_ARN"':CALDERA_BASE_URL::"},
+            {"name":"CALDERA_USERNAME","valueFrom":"'"$BASE_SECRET_ARN"':CALDERA_USERNAME::"},
+            {"name":"CALDERA_PASSWORD","valueFrom":"'"$BASE_SECRET_ARN"':CALDERA_PASSWORD::"},
+            {"name":"GOPHISH_API_KEY","valueFrom":"'"$BASE_SECRET_ARN"':GOPHISH_API_KEY::"},
+            {"name":"GOPHISH_BASE_URL","valueFrom":"'"$BASE_SECRET_ARN"':GOPHISH_BASE_URL::"},
+            {"name":"SHODAN_API_KEY","valueFrom":"'"$BASE_SECRET_ARN"':SHODAN_API_KEY::"},
+            {"name":"SCAN_SERVER_HOST","valueFrom":"'"$BASE_SECRET_ARN"':SCAN_SERVER_HOST::"},
+            {"name":"OPENAI_API_KEY","valueFrom":"'"$BASE_SECRET_ARN"':OPENAI_API_KEY::"},
+            {"name":"DO_SPACES_KEY","valueFrom":"'"$BASE_SECRET_ARN"':DO_SPACES_KEY::"},
+            {"name":"DO_SPACES_SECRET","valueFrom":"'"$BASE_SECRET_ARN"':DO_SPACES_SECRET::"},
+            {"name":"DO_SPACES_BUCKET","valueFrom":"'"$BASE_SECRET_ARN"':DO_SPACES_BUCKET::"},
+            {"name":"DO_SPACES_REGION","valueFrom":"'"$BASE_SECRET_ARN"':DO_SPACES_REGION::"},
+            {"name":"DO_SPACES_ENDPOINT","valueFrom":"'"$BASE_SECRET_ARN"':DO_SPACES_ENDPOINT::"},
+            {"name":"S3_ENDPOINT","valueFrom":"'"$BASE_SECRET_ARN"':S3_ENDPOINT::"},
+            {"name":"S3_REGION","valueFrom":"'"$BASE_SECRET_ARN"':S3_REGION::"},
+            {"name":"S3_ACCESS_KEY","valueFrom":"'"$BASE_SECRET_ARN"':S3_ACCESS_KEY::"},
+            {"name":"S3_SECRET_KEY","valueFrom":"'"$BASE_SECRET_ARN"':S3_SECRET_KEY::"},
+            {"name":"S3_BUCKET","valueFrom":"'"$BASE_SECRET_ARN"':S3_BUCKET::"}
+          ]'
+
+          # Patch the task definition to inject all secrets
+          jq --argjson secrets "$SECRETS" \
+            '.containerDefinitions[0].secrets = $secrets' \
+            task-definition.json > task-definition-patched.json
+
+          mv task-definition-patched.json task-definition.json
+
+          # Remove fields that aws-actions/amazon-ecs-render-task-definition doesn't accept
+          jq 'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)' \
+            task-definition.json > task-definition-clean.json
+          mv task-definition-clean.json task-definition.json
+
+          echo "  ✅ Injected $(echo $SECRETS | jq length) secrets into task definition"
+          echo "  Secrets: $(jq -r '.containerDefinitions[0].secrets | map(.name) | join(", ")' task-definition.json)"
 
       - name: Update task definition with new image
         id: new-task-def

@@ -103,7 +103,7 @@ import {
 } from "lucide-react";
 import { useState, useEffect, ReactNode, useCallback, useMemo, useRef } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
-import { canAccessGroup, canAccessSubSection, getRoleDisplayName, getRoleBadgeClass, getHomeDashboardPath, ALL_ROLES, type UserRole } from "@/lib/role-access";
+import { canAccessGroup, canAccessSubSection, canAccessNavItem, getRoleDisplayName, getRoleBadgeClass, getHomeDashboardPath, ALL_ROLES, type UserRole } from "@/lib/role-access";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -966,12 +966,21 @@ export default function AppShell({
     localStorage.removeItem('ac3-role-override');
   }, []);
 
-  // Filter nav groups based on effective role
+  // Filter nav groups based on effective role (group → sub-section → individual item)
   const filteredNavGroups = useMemo(() => {
-    return NAV_GROUPS.filter(group => canAccessGroup(effectiveRole, group.id)).map(group => ({
-      ...group,
-      subSections: group.subSections.filter(sub => canAccessSubSection(effectiveRole, sub.id)),
-    })).filter(group => group.subSections.length > 0);
+    return NAV_GROUPS
+      .filter(group => canAccessGroup(effectiveRole, group.id))
+      .map(group => ({
+        ...group,
+        subSections: group.subSections
+          .filter(sub => canAccessSubSection(effectiveRole, sub.id))
+          .map(sub => ({
+            ...sub,
+            items: sub.items.filter(item => canAccessNavItem(effectiveRole, item.href)),
+          }))
+          .filter(sub => sub.items.length > 0),
+      }))
+      .filter(group => group.subSections.length > 0);
   }, [effectiveRole]);
 
   // Favorites

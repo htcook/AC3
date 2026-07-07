@@ -1818,6 +1818,53 @@ export default function DomainIntelResults() {
                                 )}
                               </div>
                             )}
+                            {/* Asset Evidence Details (buckets, repos, endpoints) */}
+                            {typeof signal === 'object' && signal.assetEvidence && (
+                              <div className="mt-2 pt-2 border-t border-current/10 space-y-1">
+                                {signal.assetEvidence.assetName && (
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-[10px] opacity-50 shrink-0">Asset:</span>
+                                    <span className="text-[10px] font-mono font-medium truncate">{signal.assetEvidence.assetName}</span>
+                                  </div>
+                                )}
+                                {signal.assetEvidence.provider && (
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-[10px] opacity-50 shrink-0">Provider:</span>
+                                    <span className="text-[10px] font-medium">{signal.assetEvidence.provider}</span>
+                                  </div>
+                                )}
+                                {signal.assetEvidence.accessLevel && (
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-[10px] opacity-50 shrink-0">Access:</span>
+                                    <span className={`text-[9px] px-1.5 py-0.5 rounded-full border font-medium uppercase ${
+                                      signal.assetEvidence.accessLevel === 'public' 
+                                        ? 'bg-red-500/20 text-red-300 border-red-500/30' 
+                                        : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                                    }`}>{signal.assetEvidence.accessLevel}</span>
+                                  </div>
+                                )}
+                                {signal.assetEvidence.url && (
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-[10px] opacity-50 shrink-0">URL:</span>
+                                    <a href={signal.assetEvidence.url} target="_blank" rel="noopener noreferrer" className="text-[10px] font-mono text-cyan-400 hover:text-cyan-300 truncate max-w-[200px]">{signal.assetEvidence.url}</a>
+                                  </div>
+                                )}
+                                {signal.assetEvidence.details && Object.keys(signal.assetEvidence.details).length > 0 && (
+                                  <div className="flex flex-wrap gap-1 mt-1">
+                                    {Object.entries(signal.assetEvidence.details).slice(0, 6).map(([key, val]: [string, any]) => (
+                                      <span key={key} className="text-[9px] px-1.5 py-0.5 rounded bg-current/5 border border-current/10 font-mono">
+                                        {key}: {typeof val === 'boolean' ? (val ? 'yes' : 'no') : String(val).slice(0, 40)}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                                {signal.assetEvidence.verifyUrl && (
+                                  <div className="flex items-center gap-1.5 mt-1">
+                                    <a href={signal.assetEvidence.verifyUrl} target="_blank" rel="noopener noreferrer" className="text-[9px] text-cyan-400/70 hover:text-cyan-300 underline underline-offset-2">Verify independently →</a>
+                                  </div>
+                                )}
+                              </div>
+                            )}
                             {/* Source + evidence refs */}
                             <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                               {source && <span className="text-[10px] opacity-50">Source: {source}</span>}

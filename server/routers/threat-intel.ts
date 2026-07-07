@@ -63,6 +63,10 @@ export const threatIntelRouter = router({
       const offset = ((opts.page || 1) - 1) * (opts.pageSize || 50);
 
       const conditions: any[] = [];
+      // Exclude OFAC sanctions data from the threat catalog display.
+      // OFAC entities are not threat actors — they're sanctioned individuals/orgs.
+      // They remain in the DB for cross-reference but should not appear in the catalog.
+      conditions.push(sql`(${threatActors.dataSource} IS NULL OR ${threatActors.dataSource} != 'OFAC SDN List')`);
       if (opts.type && opts.type !== "all") conditions.push(eq(threatActors.actorType, opts.type));
       if (opts.threatLevel && opts.threatLevel !== "all") conditions.push(eq(threatActors.threatLevel, opts.threatLevel));
       if (opts.search) conditions.push(sql`(${threatActors.name} LIKE ${'%' + opts.search + '%'} OR ${threatActors.actorId} LIKE ${'%' + opts.search + '%'})`);

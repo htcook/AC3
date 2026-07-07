@@ -5,7 +5,8 @@ import * as db from "../db";
 import { and, eq, min, not, or, sql } from "drizzle-orm";
 import * as schema from "../../drizzle/schema";
 import { assertEngagementAccess } from "../lib/engagement-access-guard";
-import { validateEngagementTargets } from "../../shared/domain-safety-whitelist";
+import { validateEngagementTargets, isDomainWhitelisted, parseTargets } from "../../shared/domain-safety-whitelist";
+import { getExploitImpactDescription, generateExploitPlanHtml } from "../lib/exploit-plan-printable";
 
 export const engagementOpsRouter = router({
     /** Get current ops state for an engagement */
@@ -30,7 +31,7 @@ export const engagementOpsRouter = router({
             state = initOpsState(input.engagementId, engagement.engagementType);
             // Pre-populate assets from existing DB targets
             const domains = (engagement.targetDomain || '').split(/[,;\s]+/).filter(Boolean);
-            const ips = (engagement.targetIpRange || '').split(/[,;\s]+/).filter(Boolean);
+            const ips = (engagement.targetIpRange || '').split(/[,;\s]+/).filter(Boolean).map((i: string) => i.replace(/\/\d+$/, ''));
             for (const d of domains) {
               if (!state.assets.find((a: any) => a.hostname === d)) {
                 state.assets.push({
@@ -188,13 +189,15 @@ export const engagementOpsRouter = router({
         if (state.trainingLabMode === undefined && (engagement as any).labName) {
           state.trainingLabMode = true;
         }
-        // Auto-detect training lab from target domain (aceofcloud.io lab infrastructure)
+        // NOTE: trainingLabMode is now OPT-IN ONLY.
+        // Previously auto-detected from IP whitelist, but this caused real client engagements
+        // (e.g., Celerium #37) to auto-approve exploit gates when targets happened to be
+        // on whitelisted infrastructure. The whitelist validates "safe to scan" — NOT
+        // "run unattended without approvals."
+        // To enable training lab mode, explicitly pass trainingLabMode: true in the start input
+        // or set engagement.labName to a non-empty value.
         if (state.trainingLabMode === undefined) {
-          const domain = engagement.targetDomain || '';
-          if (domain.includes('aceofcloud.io') || domain.includes('aceofcloud.com')) {
-            state.trainingLabMode = true;
-            console.log(`[EngOps] Training lab auto-detected for #${input.engagementId} (domain: ${domain})`);
-          }
+          state.trainingLabMode = false; // Default: require approvals
         }
 
         await db.logActivity({
@@ -501,7 +504,7 @@ export const engagementOpsRouter = router({
         removedTargetIndices: z.array(z.number()).optional(),
       }))
       .mutation(async ({ input, ctx }) => {
-        const { resolveApproval, getApprovalGateDetail } = await import('../lib/engagement-orchestrator');
+        const { resolveApproval, getApprovalGateDetail, rehydrateApprovalGate } = await import('../lib/engagement-orchestrator');
 
         // Get gate detail before resolving (for plan history persistence)
         const gateDetail = getApprovalGateDetail(input.gateId);
@@ -522,7 +525,14 @@ export const engagementOpsRouter = router({
         }
 
         const resolved = resolveApproval(input.gateId, input.approved, ctx.user.name || String(ctx.user.id));
-        if (resolved === false) throw new TRPCError({ code: 'NOT_FOUND', message: 'Approval gate not found or already resolved' });
+        if (resolved === false) {
+          // Check if the gate exists but is already resolved (vs truly not found)
+          const existingGate = getApprovalGateDetail(input.gateId);
+          if (existingGate && existingGate.status !== 'pending') {
+            throw new TRPCError({ code: 'CONFLICT', message: `Approval gate already ${existingGate.status} (resolved by: ${existingGate.resolvedBy || 'unknown'})` });
+          }
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'Approval gate not found. The engagement state may have been cleared — try restarting the engagement.' });
+        }
 
         // Dual-approval partial — first approver recorded but gate still pending
         if (resolved === 'partial') {
@@ -582,6 +592,46 @@ export const engagementOpsRouter = router({
           action: input.approved ? 'ops_approval_granted' : 'ops_approval_denied',
           details: `${input.approved ? 'Approved' : 'Denied'} gate ${input.gateId}${hasModifications ? ` (modified: removed ${input.removedTargetIndices!.length} targets)` : ''}`,
         });
+
+        // ── Email Notification for Exploit Plan Decisions ──
+        if (isExploitPlan && gateDetail) {
+          try {
+            const { sendExploitPlanNotification, getEngagementNotificationRecipients } = await import('../lib/exploit-plan-notifications');
+            const engagementId = gateDetail.detail?.engagementId || gateDetail._engagementId;
+            if (engagementId) {
+              const engagement = await db.getEngagementById(engagementId);
+              const { clientEmails, reportingRecipients } = await getEngagementNotificationRecipients(engagementId);
+              const originalActions = gateDetail.detail?.actions || [];
+              const removedIndices = new Set(input.removedTargetIndices || []);
+              const keptActions = hasModifications
+                ? originalActions.filter((_: any, i: number) => !removedIndices.has(i))
+                : originalActions;
+              const removedActions = hasModifications
+                ? originalActions.filter((_: any, i: number) => removedIndices.has(i))
+                : undefined;
+              const decision = !input.approved ? 'denied' : hasModifications ? 'modified' : 'approved';
+              await sendExploitPlanNotification({
+                engagementId,
+                engagementName: engagement?.name || `Engagement #${engagementId}`,
+                customerName: engagement?.customerName || 'Unknown',
+                gateId: input.gateId,
+                gateTitle: gateDetail.title || 'Exploit Plan Review',
+                decision,
+                operatorName: ctx.user.name || String(ctx.user.id),
+                operatorEmail: ctx.user.email,
+                actions: keptActions,
+                removedActions,
+                reasoning: gateDetail.detail?.reasoning,
+                clientEmails,
+                reportingRecipients,
+                platformUrl: process.env.AC3_PLATFORM_URL || undefined,
+              });
+            }
+          } catch (err: any) {
+            // Email notification is non-blocking — log and continue
+            console.error('[ExploitPlanNotify] Failed to send notification:', err.message);
+          }
+        }
 
         return { resolved: true, modified: hasModifications || false };
       }),
@@ -1366,6 +1416,13 @@ export const engagementOpsRouter = router({
         state.isRunning = true;
         state.phase = 'enumeration';
 
+        // ═══ FORCE ACTIVE SCAN MODE ON IN-MEMORY STATE ═══
+        // When startActiveScan is called, override the cached scanMode from passive scan initialization.
+        // This ensures the safety engine reads 'active' (→ full_exploitation) instead of the stale 'strict_passive'.
+        (state as any).scanMode = 'active';
+        // Also update the DB to keep them in sync
+        await db.updateEngagement(input.engagementId, { scanMode: 'active' } as any);
+
         await db.logActivity({ userId: ctx.user.id, action: 'active_scan_started', details: `Started LLM-orchestrated active scan (scan plan \u2192 ScanForge discovery \u2192 tool match \u2192 exploit) for engagement #${input.engagementId}` });
 
         // Generate scan plan first if not already generated, then execute
@@ -1748,6 +1805,67 @@ export const engagementOpsRouter = router({
     getExploitPlanStats: protectedProcedure
       .query(async () => {
         return db.getExploitPlanStats();
+      }),
+
+    /** Get a printable exploit plan for client confirmation.
+     * Returns formatted HTML that can be printed or saved as PDF.
+     * Includes engagement details, targets, planned exploits, risk tiers, CVEs,
+     * and potential impact descriptions for each exploit.
+     */
+    getExploitPlanPrintable: protectedProcedure
+      .input(z.object({ engagementId: z.number() }))
+      .query(async ({ input }) => {
+        const engagement = await db.getEngagementById(input.engagementId);
+        if (!engagement) throw new Error('Engagement not found');
+
+        // Get the latest exploit plan from history
+        const history = await db.getExploitPlanHistoryByEngagement(input.engagementId);
+        const latestPlan = history[0]; // Most recent plan
+
+        // Get current in-memory state for live gate data
+        const { getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
+        let state = getOpsState(input.engagementId);
+        if (!state) state = await getOpsStateWithRecovery(input.engagementId);
+        const exploitGate = state?.approvalGates?.find(
+          (g: any) => g.phase === 'exploitation' && g.riskTier === 'red' && g.title?.includes('Exploit Plan')
+        );
+
+        // Build the exploit actions from either the gate detail or the history
+        const actions = exploitGate?.detail?.actions || latestPlan?.originalPlan || [];
+        const reasoning = exploitGate?.detail?.reasoning || latestPlan?.llmReasoning || '';
+
+        // Format the printable data with impact details
+        return {
+          engagement: {
+            id: engagement.id,
+            name: engagement.name,
+            clientName: engagement.clientName || 'N/A',
+            engagementType: engagement.engagementType,
+            targetDomain: engagement.targetDomain,
+            targetIpRange: engagement.targetIpRange,
+            roeStatus: engagement.roeStatus,
+            startDate: engagement.startDate,
+            endDate: engagement.endDate,
+          },
+          exploitPlan: {
+            totalActions: Array.isArray(actions) ? actions.length : 0,
+            actions: Array.isArray(actions) ? actions.map((a: any, idx: number) => ({
+              index: idx + 1,
+              target: a.target || 'unknown',
+              port: a.port || 'N/A',
+              cve: a.cve || 'N/A',
+              module: a.module || 'auto',
+              service: a.service || 'unknown',
+              riskTier: 'red',
+              potentialImpact: getExploitImpactDescription(a),
+            })) : [],
+            reasoning,
+            gateStatus: exploitGate?.status || 'not_created',
+            gateCreatedAt: exploitGate?.createdAt,
+          },
+          generatedAt: Date.now(),
+          printableHtml: generateExploitPlanHtml(engagement, actions, reasoning),
+        };
       }),
 
     /** Re-run the full scan pipeline: passive → LLM analysis → active → LLM feedback → exploit generation */
@@ -2264,6 +2382,21 @@ export const engagementOpsRouter = router({
               state!.phase = 'scanning';
               state!.currentAction = 'Running active scans...';
               broadcastOpsUpdate(input.engagementId, { type: 'phase_change', phase: 'scanning' });
+              // ── SIEM Auto-Ingestion: Start polling Wazuh for detections during active scanning ──
+              try {
+                const { startSiemPolling } = await import('../lib/siem-engagement-poller');
+                const { getSiemConnectionForEngagement } = await import('../lib/siem-connectors');
+                const siemConfig = await getSiemConnectionForEngagement();
+                if (siemConfig) {
+                  const targetIps = state!.assets.map((a: any) => a.hostname).filter((h: string) => /^\d/.test(h));
+                  if (targetIps.length > 0) {
+                    startSiemPolling(input.engagementId, targetIps, siemConfig, 30_000);
+                    addLog(state!, { phase: 'scanning', type: 'info', title: '\u{1f6e1}\ufe0f SIEM Auto-Ingestion Started', detail: `Polling Wazuh every 30s for detections on ${targetIps.length} targets: ${targetIps.join(', ')}` });
+                  }
+                }
+              } catch (siemErr: any) {
+                addLog(state!, { phase: 'scanning', type: 'warning', title: '\u26a0\ufe0f SIEM polling skipped', detail: `Non-critical: ${siemErr.message}` });
+              }
               try {
                 const { executeTool, executeRawCommand } = await import('../lib/scan-server-executor');
 
@@ -2281,14 +2414,34 @@ export const engagementOpsRouter = router({
                   : state!.assets;
 
                 for (const asset of assetsToScan) {
-                  // Use handoff ScanForge discovery config if available, otherwise fall back to defaults
-                  const scanCfg = scanConfigMap.get(asset.hostname);
-                  const discoveryArgs = scanCfg
-                    ? `${scanCfg.flags} ${scanCfg.portSpec ? `-p ${scanCfg.portSpec}` : '--top-ports 1000'} ${asset.hostname}`
-                    : `-sV -sC -T4 --top-ports 1000 ${asset.hostname}`;
-                  const discoveryTimeout = scanCfg?.timeout || 300;
+                  // ═══ FULL PORT SCAN OVERRIDE for ROE-covered / training lab engagements ═══
+                  // When ROE is signed or training lab mode is active, override the handoff's
+                  // limited portSpec with a full TCP 1-65535 scan for comprehensive coverage.
+                  const fullPortScan = state!.roeScopeGuard?.roeStatus === 'signed' || state!.trainingLabMode === true;
 
-                  addLog(state!, { phase: 'scanning', type: 'info', title: `\u{1f50d} ScanForge: ${asset.hostname}`, detail: scanCfg ? `Handoff config: ${scanCfg.rationale}` : 'Service detection and version scan (default config)...' });
+                  const scanCfg = scanConfigMap.get(asset.hostname);
+                  let discoveryArgs: string;
+                  let discoveryTimeout: number;
+
+                  if (fullPortScan) {
+                    // Full port range: -sV -sC -T4 -p 1-65535 (ignore handoff portSpec)
+                    const baseFlags = scanCfg
+                      ? scanCfg.flags.replace(/-p\s+[\d,\-]+/g, '').replace(/--top-ports\s+\d+/g, '').trim()
+                      : '-sV -sC -T4';
+                    discoveryArgs = `${baseFlags} -p 1-65535 ${asset.hostname}`;
+                    discoveryTimeout = 1200; // 20 minutes for full port scan
+                  } else {
+                    // Standard: use handoff config or default top-ports
+                    discoveryArgs = scanCfg
+                      ? `${scanCfg.flags} ${scanCfg.portSpec ? `-p ${scanCfg.portSpec}` : '--top-ports 1000'} ${asset.hostname}`
+                      : `-sV -sC -T4 --top-ports 1000 ${asset.hostname}`;
+                    discoveryTimeout = scanCfg?.timeout || 300;
+                  }
+
+                  const scanDetail = fullPortScan
+                    ? `FULL PORT RANGE (1-65535) — ROE ${state!.roeScopeGuard?.roeStatus === 'signed' ? 'signed' : 'training lab'}`
+                    : (scanCfg ? `Handoff config: ${scanCfg.rationale}` : 'Service detection and version scan (default config)...');
+                  addLog(state!, { phase: 'scanning', type: 'info', title: `\u{1f50d} ScanForge: ${asset.hostname}`, detail: scanDetail });
                   try {
                     const sfStartTime = Date.now();
                     const discoveryResult = await executeTool({ tool: 'scanforge-discovery', args: discoveryArgs, timeoutSeconds: discoveryTimeout });
@@ -2318,7 +2471,30 @@ export const engagementOpsRouter = router({
                       phase: 'discovery',
                     } as any);
                     asset.status = 'scanned' as any;
-                    addLog(state!, { phase: 'scanning', type: 'success', title: `\u2705 ScanForge: ${asset.hostname}`, detail: `${asset.ports.length} open ports` });
+                    addLog(state!, { phase: 'scanning', type: 'success', title: `\u2705 ScanForge: ${asset.hostname}`, detail: `${asset.ports.length} open ports${fullPortScan ? ' [FULL RANGE]' : ''}` });
+
+                    // ═══ UDP SCAN for ROE-covered engagements ═══
+                    if (fullPortScan) {
+                      try {
+                        addLog(state!, { phase: 'scanning', type: 'info', title: `\u{1f50a} UDP Scan: ${asset.hostname}`, detail: 'Scanning top 100 UDP ports (ROE-covered full port scan)' });
+                        const udpArgs = `-sU --top-ports 100 -T4 --max-retries 2 ${asset.hostname}`;
+                        const udpResult = await executeTool({ tool: 'scanforge-discovery', args: udpArgs, timeoutSeconds: 600 });
+                        const udpPortRegex = /(\d+)\/udp\s+open\s+(\S+)\s*(.*)/g;
+                        let udpMatch;
+                        const udpDiscovered: Array<{port: number; service: string; version: string}> = [];
+                        while ((udpMatch = udpPortRegex.exec(udpResult.stdout)) !== null) {
+                          const port = parseInt(udpMatch[1]);
+                          if (!asset.ports.find((p: any) => p.port === port && (p as any).protocol === 'udp')) {
+                            const portEntry = { port, service: udpMatch[2], version: udpMatch[3]?.trim() || '', protocol: 'udp' };
+                            asset.ports.push(portEntry as any);
+                            udpDiscovered.push(portEntry);
+                          }
+                        }
+                        addLog(state!, { phase: 'scanning', type: 'success', title: `\u2705 UDP: ${asset.hostname}`, detail: `${udpDiscovered.length} open UDP ports found` });
+                      } catch (udpErr: any) {
+                        addLog(state!, { phase: 'scanning', type: 'warning', title: `\u26a0\ufe0f UDP scan failed: ${asset.hostname}`, detail: udpErr.message?.slice(0, 200) || 'UDP scan error' });
+                      }
+                    }
                   } catch (err: any) {
                     // Even if ScanForge discovery fails, mark as scanned (attempted) so it doesn't stay 'pending'
                     if (!asset.toolResults) asset.toolResults = [];
@@ -3045,6 +3221,8 @@ Return ONLY a JSON object with vulnerabilities array. No markdown, no explanatio
                 const { collectFromExploitRecipe, collectFromFailedExploit, getExploitTrainingStats } = await import('../lib/exploit-training-collector');
                 const { executeExploit } = await import('../lib/exploit-sandbox');
                 const { executeRawCommand } = await import('../lib/scan-server-executor');
+                const { runPreFlightChecks, recordExploitAttempt } = await import('../lib/exploit-preflight');
+                const { classifyVulnerability, canCategoryAchieveShell } = await import('../lib/exploit-tooling-framework');
                 const { VNC_EXPLOIT_TEMPLATES, selectVncExploit } = await import('../lib/vnc-exploit-module');
                 const { MSSQL_EXPLOIT_TEMPLATES, selectMssqlExploit } = await import('../lib/mssql-exploit-module');
                 const { ENV } = await import('../_core/env');
@@ -3083,6 +3261,15 @@ Return ONLY a JSON object with vulnerabilities array. No markdown, no explanatio
                   const toExploit = exploitable.slice(0, maxExploitsPerAsset);
 
                   for (const vuln of toExploit) {
+                    // ── Priority 2: Confidence gating — skip low-confidence synthesized vulns ──
+                    const vulnConfidence = (vuln as any).confidence || 100; // Default 100 for scanner-confirmed
+                    const isLlmSynthesized = (vuln as any).tool === 'llm-synthesis';
+                    const minConfidenceForExploit = isLlmSynthesized ? 60 : 40;
+                    if (vulnConfidence < minConfidenceForExploit) {
+                      addLog(state!, { phase: 'exploitation', type: 'info', title: `⏭️ Skipped low-confidence vuln: ${asset.hostname}`, detail: `${vuln.title} (${vulnConfidence}% confidence, source: ${(vuln as any).tool || 'scanner'}) — below ${minConfidenceForExploit}% threshold for exploitation` });
+                      continue;
+                    }
+
                     totalOrchestrated++;
                     state!.currentAction = `Exploiting ${vuln.title} on ${asset.hostname}...`;
                     broadcastOpsUpdate(input.engagementId, { type: 'progress', progress: state!.progress });
@@ -3133,23 +3320,54 @@ Return ONLY a JSON object with vulnerabilities array. No markdown, no explanatio
                       attackerPort: 4444,
                     };
 
+                    // Priority 7: Pre-flight checks before exploit execution
+                    const vulnCategory = classifyVulnerability({ title: vuln.title, description: (vuln as any).description, service: (vuln as any).service });
+                    const preflightProfile = {
+                      moduleName: `custom/${vulnCategory || 'generic'}/${vuln.cve || vuln.title.slice(0, 30).replace(/\s+/g, '_')}`,
+                      targetService: (vuln as any).service || 'http',
+                      targetPort: vuln.port || null,
+                      affectedVersions: (vuln as any).version || null,
+                      affectedProducts: asset.passiveRecon?.technologies || [],
+                      requiredConditions: [] as string[],
+                      attackVector: 'network' as const,
+                      reliability: 'average' as const,
+                      historicalSuccessRate: 0,
+                      historicalAttempts: 0,
+                      cveIds: vuln.cve ? [vuln.cve] : [],
+                    };
+                    const preflightTarget = {
+                      host: asset.hostname,
+                      detectedVersion: (vuln as any).version || null,
+                      detectedServices: (asset.ports || []).map((p: any) => ({ port: p.port, service: p.service || 'unknown', version: p.version })),
+                      detectedFeatures: asset.passiveRecon?.technologies || [],
+                      isExternal: true,
+                    };
+                    let preflightResult: any = null;
+                    try {
+                      preflightResult = await runPreFlightChecks(preflightProfile, preflightTarget);
+                      if (preflightResult.verdict === 'no_go') {
+                        addLog(state!, { phase: 'exploitation', type: 'info', title: `Pre-flight NO-GO: ${asset.hostname}`, detail: `${vuln.title}: ${preflightResult.recommendation}` });
+                        continue; // Skip this exploit
+                      }
+                      if (preflightResult.verdict === 'caution') {
+                        addLog(state!, { phase: 'exploitation', type: 'info', title: `Pre-flight CAUTION: ${asset.hostname}`, detail: `${vuln.title}: ${preflightResult.recommendation} (est. success: ${preflightResult.estimatedSuccessRate}%)` });
+                      }
+                    } catch (preflightErr: any) {
+                      // Non-blocking: proceed if pre-flight itself fails
+                      addLog(state!, { phase: 'exploitation', type: 'info', title: `Pre-flight skipped: ${asset.hostname}`, detail: `${preflightErr.message}` });
+                    }
+
                     try {
                       const result = await orchestrateExploit(vulnCtx, targetCtx, exploitCtx, {
                         maxRetries: 3,
                         tryMsfFirst: true,
                         engagementId: String(input.engagementId),
                         executeExploit: async (code: string, language: string) => {
-                          // Execute via scan server
-                          const ext = language === 'python' ? '.py' : language === 'bash' ? '.sh' : language === 'ruby' ? '.rb' : '.ps1';
+                          // Execute via scan server — pipe to stdin to bypass noexec /tmp
                           const interpreter = language === 'python' ? 'python3' : language === 'bash' ? 'bash' : language === 'ruby' ? 'ruby' : 'pwsh';
-                          const tmpDir = `/tmp/exploit_${Date.now()}_${Math.random().toString(36).slice(2,6)}`;
-                          const cmd = [
-                            `mkdir -p ${tmpDir}`,
-                            `cat > ${tmpDir}/exploit${ext} << 'EXPLOIT_EOF'\n${code}\nEXPLOIT_EOF`,
-                            `chmod +x ${tmpDir}/exploit${ext}`,
-                            `cd ${tmpDir} && timeout 60 ${interpreter} ${tmpDir}/exploit${ext} 2>&1`,
-                            `rm -rf ${tmpDir}`,
-                          ].join(' && ');
+                          const interpreterStdin = language === 'bash' ? interpreter : `${interpreter} -`;
+                          const b64 = Buffer.from(code).toString('base64');
+                          const cmd = `echo '${b64}' | base64 -d | timeout 60 ${interpreterStdin} 2>&1 || true`;
                           const execResult = await executeRawCommand(cmd, 70);
                           return {
                             exitCode: execResult.exitCode,
@@ -3223,6 +3441,18 @@ Return ONLY a JSON object with vulnerabilities array. No markdown, no explanatio
                         } catch (fbErr: any) {
                           console.warn(`[ExploitOrch] Feedback recording failed: ${fbErr.message}`);
                         }
+                      }
+
+                      // ── Record pre-flight history for future confidence scoring ──
+                      try {
+                        await recordExploitAttempt(
+                          preflightProfile.moduleName,
+                          result.success,
+                          lastAttempt?.result?.duration || 0,
+                          result.success ? undefined : (lastAttempt?.failureAnalysis?.rootCause || 'unknown')
+                        );
+                      } catch (pfErr: any) {
+                        // Non-blocking
                       }
 
                       // ── Collect training data ──
@@ -3311,6 +3541,17 @@ Return ONLY a JSON object with vulnerabilities array. No markdown, no explanatio
             state!.currentAction = undefined;
             addLog(state!, { phase: 'completed', type: 'success', title: '\u{1f3c1} Pipeline Complete', detail: `${state!.assets.length} assets, ${state!.stats.hostsScanned} scanned, ${state!.stats.portsFound} ports, ${state!.stats.vulnsFound} vulns, ${(state as any).generatedExploits?.length || 0} exploits` });
             broadcastOpsUpdate(input.engagementId, { type: 'phase_change', phase: 'completed' });
+            // ── Stop SIEM Auto-Ingestion on completion ──
+            try {
+              const { stopSiemPolling, getSiemPollingStatus } = await import('../lib/siem-engagement-poller');
+              const pollerStatus = getSiemPollingStatus(input.engagementId);
+              if (pollerStatus.active) {
+                stopSiemPolling(input.engagementId);
+                addLog(state!, { phase: 'completed', type: 'info', title: '\u{1f6e1}\ufe0f SIEM Auto-Ingestion Stopped', detail: `Total alerts ingested during scan: ${pollerStatus.totalAlertsIngested}` });
+              }
+            } catch (siemStopErr: any) {
+              console.error('[SiemPoller] Error stopping poller:', siemStopErr.message);
+            }
 
             // Record vulnerability trend snapshot
             try {

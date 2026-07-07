@@ -99,7 +99,13 @@ export async function createContext(
           name: resolvedName,
           email: resolvedEmail,
           loginMethod: resolvedLoginMethod,
-          role: decoded.role === 'admin' ? 'admin' : 'user',
+          // Pass through the actual role from JWT — engagement access guard
+          // uses FULL_ACCESS_ROLES (admin, operator, team_lead) for scoping.
+          // Previously this flattened all non-admin roles to 'user', breaking
+          // operator/team_lead access to all engagements.
+          role: (['admin','operator','team_lead','analyst','executive','client','soc','viewer','user'] as const).includes(decoded.role as any)
+            ? decoded.role as User['role']
+            : 'user',
           createdAt: new Date(decoded.loginTime),
           updatedAt: new Date(),
           lastSignedIn: new Date(decoded.loginTime),

@@ -7,11 +7,11 @@ import {
   Shield, Globe2, LogOut, Menu, X, Briefcase, ChevronLeft, Send,
   Mail, Eye, MousePointer, ShieldAlert, BarChart3, Clock, Fish,
   ExternalLink, Download, Rocket, CheckCircle, AlertTriangle,
-  TrendingUp, UserCheck, Lock, Loader2
+  TrendingUp, UserCheck, Lock, Loader2, Server, Network
 } from "lucide-react";
 import { useState, useMemo, useCallback } from "react";
-
 import AppShell from "@/components/AppShell";
+import InfrastructureIpsPanel from "@/components/InfrastructureIpsPanel";
 function MetricCard({ label, value, icon, color, subtitle }: { label: string; value: string | number; icon: React.ReactNode; color: string; subtitle?: string }) {
   return (
     <div className={`bg-card border-2 border-${color}-500/30 p-5`}>
@@ -424,6 +424,40 @@ export default function EngagementResults() {
                     </div>
                   );
                 })}
+              </div>
+            </div>
+          )}
+
+          {/* Infrastructure Source IPs */}
+          <div className="bg-card border-2 border-border p-6">
+            <h3 className="font-display text-lg tracking-wider mb-4 flex items-center gap-2">
+              <Server className="w-5 h-5 text-blue-400" />
+              SOURCE IPs (CLIENT WHITELISTING)
+            </h3>
+            <InfrastructureIpsPanel engagementId={engagementId || undefined} />
+          </div>
+
+          {/* Quick Links to Ops Console */}
+          {engagementId && (
+            <div className="bg-card border-2 border-border p-6">
+              <h3 className="font-display text-lg tracking-wider mb-4 flex items-center gap-2">
+                <Network className="w-5 h-5 text-cyan-400" />
+                SCAN RESULTS & OPS
+              </h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Full scan results, vulnerability findings, exploit evidence, and tool output are available in the Engagement Ops Console.
+              </p>
+              <div className="flex gap-3">
+                <Link href={`/engagement-ops/${engagementId}`}>
+                  <Button variant="outline" size="sm" className="font-display tracking-wider">
+                    <Target className="w-4 h-4 mr-2" />OPEN OPS CONSOLE
+                  </Button>
+                </Link>
+                <Link href={`/reports/generate`}>
+                  <Button variant="outline" size="sm" className="font-display tracking-wider">
+                    <FileText className="w-4 h-4 mr-2" />GENERATE REPORT
+                  </Button>
+                </Link>
               </div>
             </div>
           )}

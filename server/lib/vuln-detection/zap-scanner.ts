@@ -299,8 +299,12 @@ export async function executeZapScanning(ctx: VulnDetectionContext): Promise<Zap
             try {
               const p = await pollScanProgress(zapScanId);
               consecutiveFails = 0;
-              if (p.status === "completed" || p.status === "error") {
+              if (p.status === "completed" || p.status === "error" || p.status === "quarantined") {
                 done = true;
+                // Log quarantine events for engagement visibility
+                if (p.status === "quarantined") {
+                  addLog(state, { phase: "vuln_detection", type: "warning", title: `ZAP Scan Quarantined: ${targetUrl}`, detail: `Scan #${zapScanId} quarantined: ${(p as any).quarantineReason || "Gate verification failed"}. Results may be unreliable.` });
+                }
                 try {
                   const { getDb } = await import("../../db");
                   const db = await getDb();
@@ -310,9 +314,20 @@ export async function executeZapScanning(ctx: VulnDetectionContext): Promise<Zap
                     const findings = await db.select().from(webAppFindings).where(eq(webAppFindings.scanId, zapScanId));
                     let count = 0;
                     for (const f of findings) {
-                      if ((f.severity || "info") === "info") continue;
-                      webApp.zapFindings.push({ alert: f.alertName || "Unknown", risk: f.severity, url: f.url || targetUrl });
-                      webApp.vulns.push({ id: genId(), severity: f.severity, title: `[ZAP] ${f.alertName || "Unknown"}`, source: "zap", corroborationTier: "confirmed" as const, evidenceDetail: [f.method, f.url, f.param ? `Param: ${f.param}` : ""].filter(Boolean).join(" "), rawEvidence: [f.attack, f.evidence].filter(Boolean).join("\n").slice(0, 4000), attack: f.attack, method: f.method, param: f.param, url: f.url } as any);
+                      // Import info-severity findings as informational tier (previously dropped)
+                      const severity = f.severity || "info";
+                      // Assign corroboration tier based on finding confidence:
+                      // - Quarantined scans: unverified (gate failed)
+                      // - Info severity: informational (not a vuln)
+                      // - Active scan findings with evidence (attack payload + response): confirmed
+                      // - Passive scan findings (headers, config): tentative (scanner-only, no exploitation proof)
+                      const isPassiveFinding = !f.attack && !f.evidence;
+                      const tier = p.status === "quarantined" ? "unverified" as const
+                        : severity === "info" ? "informational" as const
+                        : isPassiveFinding ? "tentative" as const
+                        : "confirmed" as const;
+                      webApp.zapFindings.push({ alert: f.alertName || "Unknown", risk: severity, url: f.url || targetUrl });
+                      webApp.vulns.push({ id: genId(), severity, title: `[ZAP] ${f.alertName || "Unknown"}`, source: "zap", corroborationTier: tier, evidenceDetail: [f.method, f.url, f.param ? `Param: ${f.param}` : ""].filter(Boolean).join(" "), rawEvidence: [f.attack, f.evidence].filter(Boolean).join("\n").slice(0, 4000), attack: f.attack, method: f.method, param: f.param, url: f.url } as any);
                       count++;
                     }
                     state.stats.vulnsFound += count; result.findingsCount += count;

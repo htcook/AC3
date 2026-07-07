@@ -145,9 +145,15 @@ export async function executeScanForgePhase(
     const templateEngine = new TemplateEngine();
     // Resolve template directory with fallback chain for dev vs Docker deployment
     const candidatePaths = [
-      path.join(__esm_dirname, "../templates/definitions"),                          // ESM relative (dev)
-      path.join(process.cwd(), "server", "scanforge", "templates", "definitions"),  // process.cwd() based (Docker)
-      path.join("/usr/src/app", "server", "scanforge", "templates", "definitions"), // Hardcoded Docker path
+      path.join(__esm_dirname, "../templates/definitions"),                          // ESM relative (dev: engine/ -> templates/)
+      path.join(__esm_dirname, "../../templates/definitions"),                       // ESM from dist/server/ -> dist/templates/
+      path.join(__esm_dirname, "scanforge/templates/definitions"),                   // ESM from dist/server/ -> dist/server/scanforge/templates/
+      path.join(process.cwd(), "dist", "server", "scanforge", "templates", "definitions"), // dist-relative (Docker)
+      path.join(process.cwd(), "dist", "templates", "definitions"),                 // dist/templates/ (Docker)
+      path.join(process.cwd(), "server", "scanforge", "templates", "definitions"),  // process.cwd() based (Docker source)
+      path.join("/usr/src/app", "server", "scanforge", "templates", "definitions"), // Hardcoded Docker source path
+      path.join("/usr/src/app", "dist", "server", "scanforge", "templates", "definitions"), // Hardcoded Docker dist path
+      path.join("/usr/src/app", "dist", "templates", "definitions"),                // Hardcoded Docker dist/templates path
     ];
     const templatesDir = candidatePaths.find(p => fs.existsSync(p)) || candidatePaths[0];
     

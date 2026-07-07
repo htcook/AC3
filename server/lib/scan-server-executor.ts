@@ -134,13 +134,33 @@ export async function getScanServerConfig() {
         if (resp.ok) fixedKey = await resp.text();
       } catch { /* fall through to fallback */ }
     } else if (!sshKey.startsWith('-----')) {
-      // Base64 encoded
-      fixedKey = Buffer.from(sshKey, 'base64').toString('utf8');
+      // Base64 encoded — try decoding
+      try {
+        fixedKey = Buffer.from(sshKey, 'base64').toString('utf8');
+        // Validate it looks like a PEM key after decoding
+        if (!fixedKey.startsWith('-----')) {
+          console.log('[ScanServer] Base64 decode did not produce PEM, trying as literal key with \\n replacement');
+          fixedKey = sshKey.replace(/\\n/g, '\n').replace(/\\r/g, '');
+        }
+      } catch {
+        fixedKey = sshKey.replace(/\\n/g, '\n').replace(/\\r/g, '');
+      }
     } else if (sshKey.includes('\\n')) {
-      // Literal \n sequences
-      fixedKey = sshKey.split('\\n').join('\n');
+      // Literal \n sequences (e.g., from env var serialization)
+      fixedKey = sshKey.replace(/\\n/g, '\n').replace(/\\r/g, '');
     } else {
       fixedKey = sshKey;
+    }
+
+    // Ensure PEM key has proper trailing newline (required by OpenSSH)
+    if (fixedKey && fixedKey.startsWith('-----') && !fixedKey.endsWith('\n')) {
+      fixedKey += '\n';
+    }
+
+    // Log key diagnostics (first/last 20 chars only for security)
+    if (fixedKey) {
+      const keyPreview = `${fixedKey.slice(0, 30)}...${fixedKey.slice(-20)}`;
+      console.log(`[ScanServer] SSH key resolved: length=${fixedKey.length}, preview=${keyPreview}`);
     }
   }
 

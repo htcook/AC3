@@ -18,7 +18,7 @@ import { toast } from "sonner";
 import {
   Play, Square, Loader2, CheckCircle2, XCircle, AlertTriangle,
   ChevronDown, ChevronUp, Globe, Shield, Bug, RefreshCw, Scan,
-  History, ArrowRight, Zap,
+  History, ArrowRight, Zap, Plus,
 } from "lucide-react";
 
 interface BurpAutoScanPanelProps {
@@ -32,6 +32,14 @@ export default function BurpAutoScanPanel({ engagementId }: BurpAutoScanPanelPro
   const [appPassword, setAppPassword] = useState("");
   const [appLoginUrl, setAppLoginUrl] = useState("");
   const [scanConfigName, setScanConfigName] = useState("");
+
+  // Inline credential setup state
+  const [showSetup, setShowSetup] = useState(false);
+  const [setupEdition, setSetupEdition] = useState<"professional" | "enterprise">("professional");
+  const [setupBaseUrl, setSetupBaseUrl] = useState("http://127.0.0.1:1337");
+  const [setupApiKey, setSetupApiKey] = useState("");
+  const [setupName, setSetupName] = useState("");
+  const [verifying, setVerifying] = useState(false);
 
   // Fetch Burp Suite credentials
   const credsQ = trpc.platformCredentials.list.useQuery();
@@ -90,15 +98,181 @@ export default function BurpAutoScanPanel({ engagementId }: BurpAutoScanPanelPro
     });
   }
 
+  // Mutations for inline credential setup
+  const addCredMutation = trpc.platformCredentials.add.useMutation({
+    onSuccess: () => {
+      toast.success("Burp Suite connection saved successfully");
+      setShowSetup(false);
+      setSetupApiKey("");
+      setSetupName("");
+      setSetupBaseUrl("http://127.0.0.1:1337");
+      credsQ.refetch();
+    },
+    onError: (err) => toast.error(`Failed to save: ${err.message}`),
+  });
+
+  const verifyMutation = trpc.bugBounty.verifyBurpConnection.useMutation({
+    onSuccess: (result: any) => {
+      setVerifying(false);
+      if (result.connected) {
+        toast.success(result.message || "Connected to Burp Suite successfully");
+      } else {
+        toast.error(result.message || "Connection failed — check URL and API key");
+      }
+    },
+    onError: (err) => {
+      setVerifying(false);
+      toast.error(`Verification failed: ${err.message}`);
+    },
+  });
+
+  function handleVerifyAndSave() {
+    if (!setupBaseUrl || !setupApiKey) {
+      toast.error("Base URL and API Key are required");
+      return;
+    }
+    setVerifying(true);
+    verifyMutation.mutate({
+      edition: setupEdition,
+      baseUrl: setupBaseUrl,
+      apiKey: setupApiKey,
+    });
+  }
+
+  function handleSaveCredential() {
+    if (!setupBaseUrl || !setupApiKey) {
+      toast.error("Base URL and API Key are required");
+      return;
+    }
+    addCredMutation.mutate({
+      platform: setupEdition === "enterprise" ? "burpsuite_enterprise" : "burpsuite_pro",
+      displayName: setupName || `Burp ${setupEdition === "enterprise" ? "Enterprise" : "Pro"} Instance`,
+      apiKey: setupApiKey,
+      baseUrl: setupBaseUrl,
+    });
+  }
+
   if (burpCreds.length === 0) {
     return (
       <Card className="bg-zinc-900/50 border-zinc-800">
-        <CardContent className="py-8 text-center">
-          <Scan className="h-10 w-10 text-zinc-600 mx-auto mb-3" />
-          <p className="text-sm text-zinc-400 mb-1">No Burp Suite instances connected</p>
-          <p className="text-xs text-zinc-500">
-            Add Burp Suite credentials in the Bug Bounty Hub → Accounts tab to enable auto-scanning
-          </p>
+        <CardContent className="py-6">
+          {!showSetup ? (
+            <div className="text-center">
+              <Scan className="h-10 w-10 text-zinc-600 mx-auto mb-3" />
+              <p className="text-sm text-zinc-400 mb-1">No Burp Suite instances connected</p>
+              <p className="text-xs text-zinc-500 mb-4">
+                Connect your Burp Suite Professional or Enterprise instance to enable automated DAST scanning during engagements.
+              </p>
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-orange-500/30 text-orange-400 hover:bg-orange-500/10"
+                onClick={() => setShowSetup(true)}
+              >
+                <Plus className="h-3.5 w-3.5 mr-1.5" />
+                Connect Burp Suite
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-medium text-zinc-200 flex items-center gap-2">
+                  <Scan className="h-4 w-4 text-orange-400" />
+                  Connect Burp Suite
+                </h4>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 text-xs text-zinc-500"
+                  onClick={() => setShowSetup(false)}
+                >
+                  Cancel
+                </Button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-[10px] text-zinc-500">Edition</Label>
+                  <select
+                    value={setupEdition}
+                    onChange={(e) => setSetupEdition(e.target.value as "professional" | "enterprise")}
+                    className="w-full h-7 text-xs bg-zinc-800/50 border border-zinc-700 rounded-md px-2 text-zinc-200"
+                  >
+                    <option value="professional">Professional</option>
+                    <option value="enterprise">Enterprise</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] text-zinc-500">Display Name (optional)</Label>
+                  <Input
+                    value={setupName}
+                    onChange={(e) => setSetupName(e.target.value)}
+                    placeholder="My Burp Instance"
+                    className="h-7 text-xs bg-zinc-800/50 border-zinc-700"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-[10px] text-zinc-500">Base URL</Label>
+                <Input
+                  value={setupBaseUrl}
+                  onChange={(e) => setSetupBaseUrl(e.target.value)}
+                  placeholder="http://127.0.0.1:1337"
+                  className="h-7 text-xs bg-zinc-800/50 border-zinc-700"
+                />
+                <p className="text-[10px] text-zinc-600">
+                  The REST API endpoint of your Burp Suite instance (e.g., http://your-server:1337 for Pro, https://burp-enterprise:8080 for Enterprise)
+                </p>
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-[10px] text-zinc-500">API Key</Label>
+                <Input
+                  type="password"
+                  value={setupApiKey}
+                  onChange={(e) => setSetupApiKey(e.target.value)}
+                  placeholder="Enter your Burp Suite API key"
+                  className="h-7 text-xs bg-zinc-800/50 border-zinc-700"
+                />
+                <p className="text-[10px] text-zinc-600">
+                  For Pro: Settings → REST API → API key. For Enterprise: Administration → API keys.
+                </p>
+              </div>
+
+              <Separator className="bg-zinc-800" />
+
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs border-zinc-700 text-zinc-300 hover:bg-zinc-800"
+                  onClick={handleVerifyAndSave}
+                  disabled={verifying || !setupBaseUrl || !setupApiKey}
+                >
+                  {verifying ? (
+                    <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                  ) : (
+                    <Shield className="h-3 w-3 mr-1" />
+                  )}
+                  Test Connection
+                </Button>
+                <Button
+                  size="sm"
+                  className="h-7 text-xs bg-orange-600 hover:bg-orange-700 text-white"
+                  onClick={handleSaveCredential}
+                  disabled={addCredMutation.isPending || !setupBaseUrl || !setupApiKey}
+                >
+                  {addCredMutation.isPending ? (
+                    <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                  ) : (
+                    <CheckCircle2 className="h-3 w-3 mr-1" />
+                  )}
+                  Save Connection
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     );
