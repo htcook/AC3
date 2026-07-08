@@ -108,15 +108,49 @@ queryClient.getMutationCache().subscribe(event => {
 const MAX_RETRIES = 5;
 const INITIAL_BACKOFF_MS = 1000;
 
+// Retryable status codes: 429 (rate limited), 502/503/504 (gateway errors during deploys)
+const RETRYABLE_STATUSES = new Set([429, 502, 503, 504]);
+
 async function fetchWithRetry(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   let lastResponse: Response | undefined;
+  let lastStatus = 0;
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-    const response = await globalThis.fetch(input, {
-      ...(init ?? {}),
-      credentials: "include",
-    });
-    if (response.status !== 429) return response;
+    let response: Response;
+    try {
+      response = await globalThis.fetch(input, {
+        ...(init ?? {}),
+        credentials: "include",
+      });
+    } catch (err: any) {
+      // Network error (offline, DNS failure, connection refused) — retry
+      if (attempt < MAX_RETRIES) {
+        const waitMs = INITIAL_BACKOFF_MS * Math.pow(2, attempt) * (0.75 + Math.random() * 0.5);
+        console.warn(`[AC3] Network error, retry ${attempt + 1}/${MAX_RETRIES} in ${Math.round(waitMs)}ms:`, err.message);
+        await new Promise(resolve => setTimeout(resolve, waitMs));
+        continue;
+      }
+      // All retries exhausted on network error
+      return new Response(JSON.stringify({
+        error: { json: { message: `Network error: ${err.message}`, code: -32000, data: { code: "NETWORK_ERROR", httpStatus: 0 } } }
+      }), { status: 503, headers: { "Content-Type": "application/json" } });
+    }
+
+    if (!RETRYABLE_STATUSES.has(response.status)) {
+      // For non-retryable responses, ensure the body is valid JSON for tRPC
+      // If not JSON, wrap it in a synthetic error to prevent "string didn't match expected pattern"
+      const contentType = response.headers.get('content-type') || '';
+      if (response.status >= 400 && !contentType.includes('application/json')) {
+        const rawBody = await response.text();
+        const syntheticBody = JSON.stringify({
+          error: { json: { message: rawBody.slice(0, 200) || `Server error (${response.status})`, code: -32000, data: { code: "INTERNAL_SERVER_ERROR", httpStatus: response.status } } }
+        });
+        return new Response(syntheticBody, { status: response.status, headers: { "Content-Type": "application/json" } });
+      }
+      return response;
+    }
+
     lastResponse = response;
+    lastStatus = response.status;
 
     // Parse Retry-After or ratelimit-reset header if available
     const retryAfter = response.headers.get('retry-after');
@@ -131,22 +165,27 @@ async function fetchWithRetry(input: RequestInfo | URL, init?: RequestInit): Pro
     }
     // Add jitter (±25%) to prevent thundering herd
     waitMs = waitMs * (0.75 + Math.random() * 0.5);
-    console.warn(`[AC3] Rate limited (429), retry ${attempt + 1}/${MAX_RETRIES} in ${Math.round(waitMs)}ms`);
+    const reason = lastStatus === 429 ? 'Rate limited' : `Gateway error (${lastStatus})`;
+    console.warn(`[AC3] ${reason}, retry ${attempt + 1}/${MAX_RETRIES} in ${Math.round(waitMs)}ms`);
     await new Promise(resolve => setTimeout(resolve, waitMs));
   }
   // All retries exhausted — return a synthetic JSON error response so tRPC can parse it
-  // instead of the raw HTML "Rate exceeded" body that causes "String doesn't match expected pattern"
+  // instead of the raw HTML body that causes "String doesn't match expected pattern"
+  const message = lastStatus === 429
+    ? "Rate limited — too many requests. Please wait a moment and try again."
+    : `Server temporarily unavailable (${lastStatus}). Please try again in a moment.`;
+  const code = lastStatus === 429 ? "TOO_MANY_REQUESTS" : "SERVICE_UNAVAILABLE";
   const syntheticBody = JSON.stringify({
     error: {
       json: {
-        message: "Rate limited — too many requests. Please wait a moment and try again.",
+        message,
         code: -32029,
-        data: { code: "TOO_MANY_REQUESTS", httpStatus: 429 }
+        data: { code, httpStatus: lastStatus }
       }
     }
   });
   return new Response(syntheticBody, {
-    status: 429,
+    status: lastStatus || 503,
     headers: { "Content-Type": "application/json" },
   });
 }
