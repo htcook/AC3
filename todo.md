@@ -3250,3 +3250,6 @@
 - [x] Fix Nikto scan timeouts - phase-aware stall threshold (20 min for scan phases) + heartbeat propagation
 - [x] Fix Nuclei scan timeouts - phase-aware stall threshold (20 min for scan phases) + heartbeat propagation
 - [x] Add zero-findings validation: verify scan tools ran correctly when they return 0 findings
+- [ ] Delete accidental DO scan server via DigitalOcean API
+- [ ] Verify AWS scan server is accessible and working
+- [ ] Install cloud_enum binary on AWS scan server
