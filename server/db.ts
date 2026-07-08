@@ -1019,7 +1019,8 @@ export async function getThreatActorStats() {
 export async function getThreatActorCount(): Promise<number> {
   const db = await getDb();
   if (!db) return 0;
-  const [result] = await db.select({ count: sql<number>`COUNT(*)` }).from(threatActors);
+  const [result] = await db.select({ count: sql<number>`COUNT(*)` }).from(threatActors)
+    .where(sql`(${threatActors.dataSource} IS NULL OR ${threatActors.dataSource} != 'OFAC SDN List')`);
   return Number(result.count);
 }
 

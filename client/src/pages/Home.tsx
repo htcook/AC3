@@ -145,7 +145,7 @@ export default function Home() {
 
   const stats = useMemo(() => ({
     exploitModules: liveStats?.metasploitModules ?? 2617,
-    threatActors: liveStats?.threatActors ?? 1694,
+    threatActors: liveStats?.threatActors ?? 1786,
     calderaAbilities: liveStats?.calderaAbilities ?? 1919,
     platformModules: liveStats?.platformModules ?? 29,
     exploitCatalogTotal: liveStats?.exploitCatalogTotal ?? 4281,
