@@ -941,6 +941,10 @@ export async function listThreatActors(filters?: {
   if (!db) return { actors: [], total: 0 };
   
   const conditions: any[] = [];
+  // Exclude OFAC sanctions data from the threat catalog display.
+  // OFAC entities are not threat actors — they're sanctioned individuals/orgs.
+  // They remain in the DB for cross-reference but should not appear in the catalog.
+  conditions.push(sql`(${threatActors.dataSource} IS NULL OR ${threatActors.dataSource} != 'OFAC SDN List')`);
   if (filters?.type && filters.type !== 'all') {
     conditions.push(eq(threatActors.actorType, filters.type as any));
   }
