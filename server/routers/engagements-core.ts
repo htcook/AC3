@@ -280,6 +280,7 @@ export const engagementsRouter = router({
         roeDocumentId: z.number().nullable().optional(),
         fedrampImpactLevel: z.enum(['none', 'low', 'moderate', 'high']).optional(),
         activeScanOverride: z.number().min(0).max(1).optional(),
+        roeStatus: z.enum(['none', 'pending', 'signed', 'expired']).optional(),
       }))
       .mutation(async ({ input, ctx }) => {
         const { id, ...updates } = input;

@@ -6818,6 +6818,39 @@ export async function rerunFromPhase(
   state.isRunning = false;
   state.progress = Math.round((targetIdx / PHASE_ORDER.length) * 100);
 
+  // ═══ CLEAR CORRESPONDING DB TABLES to prevent duplicate numbers ═══
+  // Without this, partial re-runs would accumulate rows in the DB while
+  // in-memory stats are reset — causing inflated counts on Results pages.
+  try {
+    const { getDb } = await import('../db');
+    const { eq } = await import('drizzle-orm');
+    const dbConn = await getDb();
+    if (dbConn) {
+      const cleared: Record<string, number> = {};
+      if (targetIdx <= 2) {
+        // Clearing vuln_detection or earlier: remove engagement findings & web app findings
+        const { engagementFindings, webAppFindings, webAppScans } = await import('../../drizzle/schema');
+        const r1 = await dbConn.delete(engagementFindings).where(eq(engagementFindings.engagementId, engagementId)).catch(() => [{ affectedRows: 0 }]);
+        cleared.engagementFindings = (r1 as any)[0]?.affectedRows ?? 0;
+        const r2 = await dbConn.delete(webAppFindings).where(eq(webAppFindings.engagementId, engagementId)).catch(() => [{ affectedRows: 0 }]);
+        cleared.webAppFindings = (r2 as any)[0]?.affectedRows ?? 0;
+        const r3 = await dbConn.delete(webAppScans).where(eq(webAppScans.engagementId, engagementId)).catch(() => [{ affectedRows: 0 }]);
+        cleared.webAppScans = (r3 as any)[0]?.affectedRows ?? 0;
+      }
+      if (targetIdx <= 3) {
+        // Clearing exploitation or earlier: remove exploit attempts & plan history
+        const { exploitationAttempts, exploitPlanHistory } = await import('../../drizzle/schema');
+        const r4 = await dbConn.delete(exploitationAttempts).where(eq(exploitationAttempts.engagementId, engagementId)).catch(() => [{ affectedRows: 0 }]);
+        cleared.exploitationAttempts = (r4 as any)[0]?.affectedRows ?? 0;
+        const r5 = await dbConn.delete(exploitPlanHistory).where(eq(exploitPlanHistory.engagementId, engagementId)).catch(() => [{ affectedRows: 0 }]);
+        cleared.exploitPlanHistory = (r5 as any)[0]?.affectedRows ?? 0;
+      }
+      console.log(`[rerunFromPhase] DB tables cleared for engagement #${engagementId}:`, JSON.stringify(cleared));
+    }
+  } catch (dbErr: any) {
+    console.error(`[rerunFromPhase] Failed to clear DB tables: ${dbErr.message}`);
+  }
+
   // Add re-run log entry
   addLog(state, {
     phase: targetPhase,
