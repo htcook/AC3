@@ -2517,14 +2517,22 @@ export default function EngagementOps() {
                 )}
                 <Button
                   size="sm"
-                  onClick={() => passiveScanMut.mutate({ engagementId, scanMode: selectedScanMode })}
-                  disabled={passiveScanMut.isPending}
+                  onClick={() => {
+                    if (resumeCapabilityQ.data?.canResume && resumeCapabilityQ.data?.nextPhase) {
+                      // Use proper resume — resumes from the crashed phase, not from scratch
+                      resumeMut.mutate({ engagementId, resume: true, startPhase: resumeCapabilityQ.data.nextPhase as any });
+                    } else {
+                      // Fallback: restart from scratch only if no resume capability
+                      passiveScanMut.mutate({ engagementId, scanMode: selectedScanMode });
+                    }
+                  }}
+                  disabled={passiveScanMut.isPending || resumeMut.isPending}
                   className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500"
                 >
-                  {passiveScanMut.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Search className="h-4 w-4 mr-1" />}
-                  {resumeCapabilityQ.data?.currentPhaseLabel
-                    ? `Retry ${resumeCapabilityQ.data.currentPhaseLabel.replace(/^Phase \d+[a-z]?: /, '')}`
-                    : 'Retry Scan'}
+                  {(passiveScanMut.isPending || resumeMut.isPending) ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Search className="h-4 w-4 mr-1" />}
+                  {resumeCapabilityQ.data?.canResume
+                    ? `Retry from ${resumeCapabilityQ.data.nextPhaseLabel?.replace(/^Phase \d+[a-z]?: /, '') || 'Current Phase'}`
+                    : 'Restart Scan'}
                 </Button>
               </div>
             </div>

@@ -121,7 +121,8 @@ interface ZapApiResponse {
 async function zapRequest(
   endpoint: string,
   params: Record<string, string> = {},
-  config: ZapConfig = DEFAULT_ZAP_CONFIG
+  config: ZapConfig = DEFAULT_ZAP_CONFIG,
+  retries: number = 3
 ): Promise<ZapApiResponse> {
   // Build the ZAP API URL using the special "zap" hostname
   const apiUrl = new URL(`http://zap${endpoint}`);
@@ -134,33 +135,58 @@ async function zapRequest(
   // ZAP acts as an HTTP proxy; requests to "http://zap/..." are intercepted as API calls
   const agent = new HttpProxyAgent(config.baseUrl);
 
-  const response = await new Promise<{ ok: boolean; status: number; statusText: string; json: () => any }>((resolve, reject) => {
-    // http imported at top of file (ESM compatible)
-    const reqUrl = apiUrl.toString();
-    const req = http.get(reqUrl, { agent, timeout: 60000 }, (res: any) => {
-      let data = '';
-      res.on('data', (chunk: string) => data += chunk);
-      res.on('end', () => {
-        resolve({
-          ok: res.statusCode >= 200 && res.statusCode < 300,
-          status: res.statusCode,
-          statusText: res.statusMessage || '',
-          json: () => JSON.parse(data),
+  let lastError: Error | null = null;
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const response = await new Promise<{ ok: boolean; status: number; statusText: string; rawData: string }>((resolve, reject) => {
+        const reqUrl = apiUrl.toString();
+        const req = http.get(reqUrl, { agent, timeout: 60000 }, (res: any) => {
+          let data = '';
+          res.on('data', (chunk: string) => data += chunk);
+          res.on('end', () => {
+            resolve({
+              ok: res.statusCode >= 200 && res.statusCode < 300,
+              status: res.statusCode,
+              statusText: res.statusMessage || '',
+              rawData: data,
+            });
+          });
         });
+        req.on('error', reject);
+        req.on('timeout', () => { req.destroy(); reject(new Error('ZAP request timeout')); });
       });
-    });
-    req.on('error', reject);
-    req.on('timeout', () => { req.destroy(); reject(new Error('ZAP request timeout')); });
-  });
 
-  if (!response.ok) {
-    let responseBody = '';
-    try { responseBody = JSON.stringify(response.json()).substring(0, 200); } catch {}
-    console.error(`[ZAP API] ${response.status} ${response.statusText} at ${endpoint} | params: ${JSON.stringify(params).substring(0, 200)} | body: ${responseBody}`);
-    throw new Error(`ZAP API error: ${response.status} ${response.statusText} at ${endpoint}`);
+      if (!response.ok) {
+        const bodyPreview = response.rawData.substring(0, 200);
+        console.error(`[ZAP API] ${response.status} ${response.statusText} at ${endpoint} | params: ${JSON.stringify(params).substring(0, 200)} | body: ${bodyPreview}`);
+        throw new Error(`ZAP API error: ${response.status} ${response.statusText} at ${endpoint}`);
+      }
+
+      // Safely parse JSON — ZAP sometimes returns HTML or empty responses under load
+      try {
+        return JSON.parse(response.rawData);
+      } catch (parseErr: any) {
+        const preview = response.rawData.substring(0, 100);
+        lastError = new Error(`[ZAP API] JSON parse failed at ${endpoint} (attempt ${attempt}/${retries}): ${parseErr.message} | raw: "${preview}"`);
+        console.warn(lastError.message);
+        if (attempt < retries) {
+          // Wait before retry (exponential backoff: 1s, 2s, 4s)
+          await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt - 1)));
+          continue;
+        }
+        throw lastError;
+      }
+    } catch (err: any) {
+      lastError = err;
+      if (attempt < retries && (err.message.includes('timeout') || err.message.includes('JSON parse failed') || err.code === 'ECONNRESET' || err.code === 'ECONNREFUSED')) {
+        console.warn(`[ZAP API] Retrying ${endpoint} (attempt ${attempt}/${retries}): ${err.message}`);
+        await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt - 1)));
+        continue;
+      }
+      throw err;
+    }
   }
-
-  return response.json();
+  throw lastError || new Error(`[ZAP API] Failed after ${retries} retries at ${endpoint}`);
 }
 
 // ─── Severity & Confidence Mapping ──────────────────────────────────────────

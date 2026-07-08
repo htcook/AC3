@@ -27,15 +27,56 @@ const PHASE_LABELS: Record<string, string> = {
   error: 'Error',
 };
 
-/** Infer the last active phase from the ops state log entries (for error recovery) */
+/** Infer the last active phase from the ops state log entries (for error recovery).
+ * Prioritizes phase_complete/phaseCheckpoint markers to find the last COMPLETED phase,
+ * then falls back to the last log entry with a valid phase tag.
+ * Returns { lastCompleted, lastActive } where:
+ *   - lastCompleted: the last phase that fully finished (has a completion marker)
+ *   - lastActive: the phase that was running when the crash occurred
+ */
 function inferLastActivePhase(state: any): typeof PHASE_ORDER[number] | null {
   if (!state?.log?.length) return null;
-  // Walk the log backwards to find the last non-error phase
+
+  let lastCompleted: typeof PHASE_ORDER[number] | null = null;
+  let lastActive: typeof PHASE_ORDER[number] | null = null;
+
+  // First pass: find the highest completed phase (phase_complete or phaseCheckpoint markers)
+  for (let i = state.log.length - 1; i >= 0; i--) {
+    const entry = state.log[i];
+    if (!lastCompleted && entry.type === 'phase_complete' && entry.phase && PHASE_ORDER.includes(entry.phase as any)) {
+      lastCompleted = entry.phase as typeof PHASE_ORDER[number];
+    }
+    // Also check for checkpoint titles that indicate phase completion
+    if (!lastCompleted && entry.title && (entry.title.includes('complete') || entry.title.includes('checkpoint')) && entry.phase && PHASE_ORDER.includes(entry.phase as any)) {
+      lastCompleted = entry.phase as typeof PHASE_ORDER[number];
+    }
+  }
+
+  // Second pass: find the last active phase (any valid phase in log)
   for (let i = state.log.length - 1; i >= 0; i--) {
     const entry = state.log[i];
     const phase = entry.phase;
     if (phase && phase !== 'error' && phase !== 'idle' && PHASE_ORDER.includes(phase as any)) {
-      return phase as typeof PHASE_ORDER[number];
+      lastActive = phase as typeof PHASE_ORDER[number];
+      break;
+    }
+  }
+
+  // Return the lastActive phase (the one that was running when crash occurred)
+  // The caller can use this to resume from the SAME phase
+  return lastActive;
+}
+
+/** Get the last fully COMPLETED phase from state logs */
+function inferLastCompletedPhase(state: any): typeof PHASE_ORDER[number] | null {
+  if (!state?.log?.length) return null;
+  for (let i = state.log.length - 1; i >= 0; i--) {
+    const entry = state.log[i];
+    if (entry.type === 'phase_complete' && entry.phase && PHASE_ORDER.includes(entry.phase as any)) {
+      return entry.phase as typeof PHASE_ORDER[number];
+    }
+    if (entry.title && (entry.title.includes('complete') || entry.title.includes('checkpoint')) && entry.phase && PHASE_ORDER.includes(entry.phase as any)) {
+      return entry.phase as typeof PHASE_ORDER[number];
     }
   }
   return null;
@@ -73,30 +114,37 @@ export const liveTriggerTempRouter = router({
         };
       }
 
-      // Determine resume capability
-      const canResume = !!(state && state.phase !== 'completed' && state.phase !== 'error' && state.phase !== 'idle' && state.assets.length > 0);
+      // Determine resume capability — also allow resuming from 'error' state
+      const canResume = !!(state && state.phase !== 'completed' && state.phase !== 'idle' && state.assets.length > 0);
       const willResume = input.resume && canResume;
 
       // Build execution options
       const execOptions: any = {};
       if (willResume) {
         execOptions.resume = true;
-        // Resume from the NEXT phase after the last completed one
-        // Map non-standard phases to valid PHASE_ORDER entries
-        let normalizedPhase: string = state!.phase;
+        // When resuming from error: resume from the SAME phase that crashed
+        // (not the next one). The phase's internal progress tracking will skip
+        // already-completed work (e.g., completedScans for nuclei/zap).
         if (state!.phase === 'error') {
-          const inferred = inferLastActivePhase(state);
-          normalizedPhase = inferred || 'recon';
+          const lastActive = inferLastActivePhase(state);
+          const lastCompleted = inferLastCompletedPhase(state);
+          if (lastActive && lastActive !== lastCompleted) {
+            execOptions.startPhase = lastActive; // Resume the crashed phase
+          } else if (lastCompleted) {
+            const completedIdx = PHASE_ORDER.indexOf(lastCompleted as any);
+            execOptions.startPhase = completedIdx >= 0 && completedIdx < PHASE_ORDER.length - 1
+              ? PHASE_ORDER[completedIdx + 1]
+              : lastCompleted;
+          } else {
+            execOptions.startPhase = lastActive || 'recon';
+          }
         } else if (state!.phase === 'scanning') {
-          normalizedPhase = 'vuln_detection';
-        } else if (state!.phase === 'idle' || state!.phase === 'completed') {
-          normalizedPhase = 'recon';
-        }
-        const lastPhaseIdx = PHASE_ORDER.indexOf(normalizedPhase as any);
-        if (lastPhaseIdx >= 0 && lastPhaseIdx < PHASE_ORDER.length - 1) {
-          execOptions.startPhase = PHASE_ORDER[lastPhaseIdx + 1];
+          execOptions.startPhase = 'vuln_detection';
+        } else if (PHASE_ORDER.includes(state!.phase as any)) {
+          // Resume from the same phase (it was interrupted, not completed)
+          execOptions.startPhase = state!.phase;
         } else {
-          execOptions.startPhase = PHASE_ORDER.includes(normalizedPhase as any) ? normalizedPhase : 'recon';
+          execOptions.startPhase = 'recon';
         }
       } else if (input.startPhase) {
         execOptions.startPhase = input.startPhase;
@@ -192,29 +240,42 @@ export const liveTriggerTempRouter = router({
       // Can resume!
       // Map non-standard phases (e.g. 'scanning', 'error') to the closest valid PHASE_ORDER entry
       // so the frontend can pass a valid startPhase to triggerExecution
-      let normalizedPhase: string = state.phase;
+      let resumePhase: string;
       if (state.phase === 'error') {
-        // Infer the actual last active phase from log entries instead of defaulting to recon
-        const inferred = inferLastActivePhase(state);
-        normalizedPhase = inferred || 'recon';
+        // On error: resume from the SAME phase that crashed (not the next one)
+        // This allows the phase's internal progress tracking (completedScans, etc.) to skip
+        // already-finished work within that phase
+        const lastActive = inferLastActivePhase(state);
+        const lastCompleted = inferLastCompletedPhase(state);
+        // If we know which phase was active when it crashed, resume from THAT phase
+        // If we only know the last completed phase, resume from the NEXT one
+        if (lastActive && lastActive !== lastCompleted) {
+          resumePhase = lastActive; // Resume the crashed phase
+        } else if (lastCompleted) {
+          const completedIdx = PHASE_ORDER.indexOf(lastCompleted as any);
+          resumePhase = completedIdx >= 0 && completedIdx < PHASE_ORDER.length - 1
+            ? PHASE_ORDER[completedIdx + 1]
+            : lastCompleted;
+        } else {
+          resumePhase = lastActive || 'recon';
+        }
       } else if (state.phase === 'scanning') {
-        normalizedPhase = 'vuln_detection';
+        resumePhase = 'vuln_detection';
       } else if (state.phase === 'idle' || state.phase === 'completed') {
-        normalizedPhase = 'recon';
+        resumePhase = 'recon';
+      } else {
+        // State is in a valid running phase (e.g. paused mid-phase) — resume from same phase
+        resumePhase = PHASE_ORDER.includes(state.phase as any) ? state.phase : 'recon';
       }
-      const lastPhaseIdx = PHASE_ORDER.indexOf(normalizedPhase as any);
-      const nextPhase = lastPhaseIdx >= 0 && lastPhaseIdx < PHASE_ORDER.length - 1
-        ? PHASE_ORDER[lastPhaseIdx + 1]
-        : (PHASE_ORDER.includes(normalizedPhase as any) ? normalizedPhase : 'recon');
 
       return {
         canResume: true,
-        reason: `Can resume from ${PHASE_LABELS[state.phase]} → ${PHASE_LABELS[nextPhase]}`,
+        reason: `Can resume from ${PHASE_LABELS[resumePhase] || resumePhase}`,
         hasSnapshot: true,
         currentPhase: state.phase,
         currentPhaseLabel: PHASE_LABELS[state.phase] || state.phase,
-        nextPhase,
-        nextPhaseLabel: PHASE_LABELS[nextPhase] || nextPhase,
+        nextPhase: resumePhase,
+        nextPhaseLabel: PHASE_LABELS[resumePhase] || resumePhase,
         progress: state.progress,
         preservedAssets: state.assets.length,
         preservedVulns: state.stats.vulnsFound,
