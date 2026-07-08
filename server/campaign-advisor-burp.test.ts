@@ -331,4 +331,25 @@ describe("Heartbeat Stall Detection Architecture", () => {
     expect(source).toContain("lastStallPhase === state.phase");
     expect(source).toContain("consecutiveStalls = 1");
   });
+
+  it("stall detector is exempted when pipeline is paused for approval", async () => {
+    const fs = await import("fs");
+    const source = fs.readFileSync(
+      require("path").join(__dirname, "lib/engagement-orchestrator.ts"),
+      "utf-8"
+    );
+
+    // The heartbeat section should skip stall detection when waiting for approval
+    const heartbeatSection = source.slice(
+      source.indexOf("PHASE ACTIVITY HEARTBEAT"),
+      source.indexOf("PERIODIC FORCED PERSISTENCE")
+    );
+
+    // Verify the approval-exemption guard exists
+    expect(heartbeatSection).toContain("Skip stall detection when paused for approval");
+    expect(heartbeatSection).toContain("state.isPaused");
+    expect(heartbeatSection).toContain("g.status === 'pending'");
+    // Verify it resets the stall counter when waiting for approval
+    expect(heartbeatSection).toContain("consecutiveStalls = 0");
+  });
 });

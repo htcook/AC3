@@ -3222,3 +3222,14 @@
 - [x] Fix hosts scanned duplication bug — re-scans double-count hosts (shows 12 instead of 6 for 6 assets)
 - [x] wafw00f secondary WAF fingerprinting integration into progressive evasion pipeline
 - [x] Fix scan resume/retry: operator should be able to resume from current phase, not restart from passive discovery
+
+### OFAC Data Filtering (Jul 7-8)
+- [x] Exclude OFAC SDN List entries from homepage threat actor counter (server/db.ts getThreatActorCount)
+- [x] Exclude OFAC SDN List entries from homepage feed (server/db.ts listThreatActors)
+- [x] Exclude OFAC SDN List entries from dashboard stats (server/lib/dashboard-aggregation.ts)
+- [x] Exclude OFAC SDN List entries from Master Threat Catalog TOTAL ACTORS (server/lib/threat-intel-connectors.ts getCatalogStats)
+- [x] Push fixes to both GitHub repos (htcook/caldera-dashboard + htcook/AC3)
+- [ ] Deploy latest commit (a921b220) to AWS ECS via CodeBuild (pending fresh AWS credentials)
+
+### ZAP JSON.parse Crash Fix (Jul 7)
+- [x] Wrap zapRequest() response.json() in try/catch with retry logic for non-JSON responses (HTML error pages, empty responses)

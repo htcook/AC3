@@ -4198,6 +4198,16 @@ export async function executeEngagement(
       clearInterval(heartbeatInterval);
       return;
     }
+    // ── Skip stall detection when paused for approval ──
+    // When the pipeline is legitimately waiting for human approval (dual-approval gates),
+    // idle time is expected and should NOT count toward stall detection.
+    if (state.isPaused && state.approvalGates?.some(g => g.status === 'pending')) {
+      // Reset activity timer so stall counter doesn't accumulate while waiting for approval
+      lastActivityAt = Date.now();
+      if ((state as any)._heartbeatRef) (state as any)._heartbeatRef.lastActivityAt = Date.now();
+      consecutiveStalls = 0; // Clear any prior stall count from before the approval gate
+      return;
+    }
     // Read from shared heartbeat ref (updated by phase executors during long ops)
     const currentLastActivity = (state as any)._heartbeatRef?.lastActivityAt || lastActivityAt;
     const idleMs = Date.now() - currentLastActivity;
