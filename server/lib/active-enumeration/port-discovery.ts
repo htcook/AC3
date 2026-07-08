@@ -39,6 +39,12 @@ export async function executePortDiscovery(
 ): Promise<void> {
   if (targets.length === 0) return;
 
+  // ═══ DEDUP FIX: Reset hostsScanned before the per-asset loop increments it.
+  // Without this, re-running active scan after passive recon (which also sets hostsScanned
+  // via the recalculation in rerunFullPipeline) would double-count — e.g. 6 assets showing
+  // as 12 hosts scanned because the ++ increments are additive on top of the prior value.
+  state.stats.hostsScanned = 0;
+
   const ep = state.scanPlan?.discoveryEvasionProfile;
   const evasionDesc = ep
     ? `Timing: ${ep.timing}, Fragmentation: ${ep.fragmentation}, Decoys: ${ep.decoys}, Host Randomization: ${ep.randomizeHosts}, Data Padding: ${ep.dataLengthPadding}, Source Port Spoofing: ${ep.sourcePortSpoofing}`

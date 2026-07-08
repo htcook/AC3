@@ -349,6 +349,42 @@ export interface DetectionEvent {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+// §4b — WAF FINGERPRINT RESULTS (wafw00f secondary validation)
+// ═══════════════════════════════════════════════════════════════════════
+
+export interface WafFingerprintResult {
+  target: string;
+  /** wafw00f detected WAF name */
+  wafName: string | null;
+  /** wafw00f detected WAF manufacturer */
+  manufacturer: string | null;
+  /** Whether wafw00f confirmed a WAF is present */
+  detected: boolean;
+  /** All WAFs detected when using -a (find all) mode */
+  allDetected: { name: string; manufacturer: string }[];
+  /** Header-based detection result (from context-aware-scanner) */
+  headerBasedResult: {
+    detected: boolean;
+    vendor: string | null;
+    confidence: number;
+  } | null;
+  /** Combined confidence score (0-100) merging both methods */
+  combinedConfidence: number;
+  /** Whether both methods agree */
+  methodsAgree: boolean;
+  /** Recommended bypass techniques (merged from both sources) */
+  bypassTechniques: string[];
+  /** Timestamp of the fingerprint scan */
+  scannedAt: number;
+  /** Duration of the wafw00f scan in ms */
+  scanDurationMs: number;
+  /** Raw wafw00f output for operator review */
+  rawOutput?: string;
+  /** Error message if scan failed */
+  error?: string;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // §5 — PIPELINE STATE (per-engagement)
 // ═══════════════════════════════════════════════════════════════════════
 
@@ -380,6 +416,8 @@ export interface ProgressiveEvasionState {
   pauseGates: PipelinePauseGate[];
   /** Scan run history with evasion level used */
   scanHistory: ScanRunRecord[];
+  /** Per-target wafw00f fingerprint results */
+  wafFingerprintResults: WafFingerprintResult[];
   /** Whether auto-escalation is enabled (operator opt-in) */
   autoEscalateEnabled: boolean;
   /** Pipeline configuration */
@@ -458,6 +496,7 @@ export function initProgressiveEvasion(
     targetDetectionMap: {},
     pauseGates: [],
     scanHistory: [],
+    wafFingerprintResults: [],
     autoEscalateEnabled: false,
     pipelineConfig: defaultConfig,
   };
@@ -1075,5 +1114,386 @@ export function operatorLevelToDiscoveryProfile(level: OperatorEvasionLevel, ove
     dataLengthPadding: overrides?.dataLengthPadding ?? config.dataLengthPadding,
     sourcePortSpoofing: overrides?.sourcePortSpoofing ?? config.sourcePortSpoofing,
     rationale: `Operator-selected evasion level: ${config.name}. ${config.description}`,
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// §11 — WAFW00F SECONDARY WAF FINGERPRINTING
+// ═══════════════════════════════════════════════════════════════════════
+
+/**
+ * Known WAF vendor name mappings between wafw00f output and our internal names.
+ * wafw00f uses different naming conventions than our header-based detection.
+ */
+const WAFW00F_VENDOR_MAP: Record<string, string> = {
+  "cloudflare": "cloudflare",
+  "cloudflare (cloudflare inc.)": "cloudflare",
+  "awselb (amazon)": "aws_waf",
+  "aws elastic load balancer (amazon)": "aws_waf",
+  "awswaf (amazon)": "aws_waf",
+  "akamai": "akamai",
+  "akamaighost (akamai)": "akamai",
+  "kona site defender (akamai)": "akamai",
+  "modsecurity": "modsecurity",
+  "modsecurity (trustwave)": "modsecurity",
+  "imperva": "incapsula",
+  "incapsula (imperva inc.)": "incapsula",
+  "imperva incapsula": "incapsula",
+  "big-ip": "f5_bigip",
+  "big-ip (f5 networks)": "f5_bigip",
+  "bigip (f5 networks)": "f5_bigip",
+  "f5 big-ip": "f5_bigip",
+  "fortiweb": "fortinet",
+  "fortiweb (fortinet)": "fortinet",
+  "fortigate": "fortinet",
+  "sucuri": "sucuri",
+  "sucuri cloudproxy (sucuri inc.)": "sucuri",
+  "sucuri (sucuri inc.)": "sucuri",
+};
+
+/**
+ * Normalize a wafw00f vendor name to our internal vendor key.
+ */
+function normalizeWafw00fVendor(wafw00fName: string): string {
+  const lower = wafw00fName.toLowerCase().trim();
+  return WAFW00F_VENDOR_MAP[lower] || lower.split(" ")[0].replace(/[^a-z0-9_]/g, "_");
+}
+
+/**
+ * Merge header-based WAF detection with wafw00f results to produce a combined
+ * confidence score and unified bypass technique list.
+ *
+ * Confidence scoring:
+ *  - Header-only detection: confidence as-is (typically 25-75)
+ *  - wafw00f-only detection: base 60, +20 if findAll mode
+ *  - Both agree: min(headerConf + 30, 100)
+ *  - Both detect but disagree on vendor: max of both, capped at 70
+ *  - Neither detects: 0
+ */
+export function mergeWafDetections(
+  headerResult: { detected: boolean; vendor: string | null; confidence: number; bypassTechniques: string[] } | null,
+  wafw00fResult: { detected: boolean; wafName: string | null; allDetected: { name: string; manufacturer: string }[] }
+): {
+  combinedConfidence: number;
+  methodsAgree: boolean;
+  primaryVendor: string | null;
+  bypassTechniques: string[];
+} {
+  const headerDetected = headerResult?.detected ?? false;
+  const wafw00fDetected = wafw00fResult.detected;
+
+  // Neither method detected a WAF
+  if (!headerDetected && !wafw00fDetected) {
+    return {
+      combinedConfidence: 0,
+      methodsAgree: true,
+      primaryVendor: null,
+      bypassTechniques: [],
+    };
+  }
+
+  // Only header-based detection
+  if (headerDetected && !wafw00fDetected) {
+    return {
+      combinedConfidence: Math.min((headerResult?.confidence || 0), 60), // Cap lower since wafw00f didn't confirm
+      methodsAgree: false,
+      primaryVendor: headerResult?.vendor || null,
+      bypassTechniques: headerResult?.bypassTechniques || [],
+    };
+  }
+
+  // Only wafw00f detection
+  if (!headerDetected && wafw00fDetected) {
+    const normalizedVendor = wafw00fResult.wafName ? normalizeWafw00fVendor(wafw00fResult.wafName) : null;
+    return {
+      combinedConfidence: wafw00fResult.allDetected.length > 1 ? 80 : 60,
+      methodsAgree: false,
+      primaryVendor: normalizedVendor,
+      bypassTechniques: headerResult?.bypassTechniques || [],
+    };
+  }
+
+  // Both methods detected — check if they agree on vendor
+  const headerVendor = headerResult?.vendor?.toLowerCase() || "";
+  const wafw00fVendor = wafw00fResult.wafName ? normalizeWafw00fVendor(wafw00fResult.wafName) : "";
+
+  const vendorsMatch = headerVendor === wafw00fVendor ||
+    headerVendor.includes(wafw00fVendor) ||
+    wafw00fVendor.includes(headerVendor);
+
+  if (vendorsMatch) {
+    // Both agree — high confidence
+    return {
+      combinedConfidence: Math.min((headerResult?.confidence || 50) + 30, 100),
+      methodsAgree: true,
+      primaryVendor: headerResult?.vendor || wafw00fVendor,
+      bypassTechniques: headerResult?.bypassTechniques || [],
+    };
+  }
+
+  // Both detect but disagree on vendor — moderate confidence, report both
+  return {
+    combinedConfidence: Math.min(Math.max(headerResult?.confidence || 0, 60), 70),
+    methodsAgree: false,
+    primaryVendor: headerResult?.vendor || wafw00fVendor,
+    bypassTechniques: headerResult?.bypassTechniques || [],
+  };
+}
+
+/**
+ * Run wafw00f fingerprinting against a single target.
+ * Dispatches the command via scan-server-executor and parses the result.
+ *
+ * @param engagementId - Engagement ID for audit trail
+ * @param target - Target URL (e.g., https://example.com)
+ * @param headerBasedResult - Optional pre-existing header-based WAF detection result
+ * @param findAll - Whether to check all WAFs (slower but more thorough)
+ * @returns WafFingerprintResult with merged confidence
+ */
+export async function runWafw00fFingerprint(
+  engagementId: number,
+  target: string,
+  headerBasedResult?: { detected: boolean; vendor: string | null; confidence: number; bypassTechniques: string[] } | null,
+  findAll: boolean = true
+): Promise<WafFingerprintResult> {
+  const startTime = Date.now();
+
+  try {
+    const { buildWafw00fCommand, parseWafw00fOutput } = await import("./enumeration-tools");
+    const { executeTool } = await import("./scan-server-executor");
+
+    // Build the wafw00f command
+    const command = buildWafw00fCommand({ target, findAll });
+    // Extract args (everything after "wafw00f ")
+    const args = command.replace(/^wafw00f\s*/, "");
+
+    // Execute via scan server
+    const result = await executeTool({
+      tool: "wafw00f",
+      args,
+      target,
+      timeoutSeconds: 120, // wafw00f can be slow with -a flag
+      engagementId,
+    });
+
+    const scanDurationMs = Date.now() - startTime;
+
+    // Parse wafw00f output
+    const parsed = parseWafw00fOutput(result.stdout);
+
+    // Merge with header-based detection
+    const merged = mergeWafDetections(headerBasedResult || null, parsed);
+
+    const fingerprintResult: WafFingerprintResult = {
+      target,
+      wafName: parsed.waf,
+      manufacturer: parsed.manufacturer,
+      detected: parsed.detected,
+      allDetected: parsed.allDetected,
+      headerBasedResult: headerBasedResult ? {
+        detected: headerBasedResult.detected,
+        vendor: headerBasedResult.vendor,
+        confidence: headerBasedResult.confidence,
+      } : null,
+      combinedConfidence: merged.combinedConfidence,
+      methodsAgree: merged.methodsAgree,
+      bypassTechniques: merged.bypassTechniques,
+      scannedAt: Date.now(),
+      scanDurationMs,
+      rawOutput: result.stdout.substring(0, 5000), // Cap raw output
+      error: result.exitCode !== 0 ? (result.stderr || result.error || `Exit code ${result.exitCode}`) : undefined,
+    };
+
+    // Store in pipeline state
+    const state = pipelineStates.get(engagementId);
+    if (state) {
+      // Replace existing result for same target, or add new
+      const existingIdx = state.wafFingerprintResults.findIndex(r => r.target === target);
+      if (existingIdx >= 0) {
+        state.wafFingerprintResults[existingIdx] = fingerprintResult;
+      } else {
+        state.wafFingerprintResults.push(fingerprintResult);
+      }
+
+      // If WAF detected with high confidence, create a pause gate for operator review
+      if (fingerprintResult.detected && fingerprintResult.combinedConfidence >= 50) {
+        const existingWafGate = state.pauseGates.find(
+          g => g.reason === "waf_detected" && g.status === "pending"
+        );
+        if (!existingWafGate) {
+          createPauseGate(engagementId, {
+            phase: "waf_fingerprinting",
+            nextPhase: "enumeration",
+            reason: "waf_detected",
+            title: `WAF Confirmed: ${fingerprintResult.wafName || merged.primaryVendor || "Unknown"} (${fingerprintResult.combinedConfidence}% confidence)`,
+            description: [
+              `wafw00f confirmed WAF on ${target}: ${fingerprintResult.wafName || "Unknown"}${fingerprintResult.manufacturer ? ` (${fingerprintResult.manufacturer})` : ""}.`,
+              fingerprintResult.methodsAgree
+                ? "Both header analysis and wafw00f agree on the WAF vendor."
+                : "Header analysis and wafw00f report different vendors — review manually.",
+              fingerprintResult.allDetected.length > 1
+                ? `Multiple WAFs detected: ${fingerprintResult.allDetected.map(w => w.name).join(", ")}`
+                : "",
+              `Recommended bypass techniques available. Review before proceeding.`,
+            ].filter(Boolean).join(" "),
+            findingsSummary: {
+              hostsScanned: 1,
+              portsFound: 0,
+              vulnsFound: 0,
+              wafDetections: [fingerprintResult.wafName || merged.primaryVendor || "Unknown WAF"],
+              blockedAttempts: 0,
+              detectionEvents: [],
+            },
+          });
+        }
+      }
+    }
+
+    return fingerprintResult;
+  } catch (err: any) {
+    const scanDurationMs = Date.now() - startTime;
+    const errorResult: WafFingerprintResult = {
+      target,
+      wafName: null,
+      manufacturer: null,
+      detected: false,
+      allDetected: [],
+      headerBasedResult: headerBasedResult ? {
+        detected: headerBasedResult.detected,
+        vendor: headerBasedResult.vendor,
+        confidence: headerBasedResult.confidence,
+      } : null,
+      combinedConfidence: headerBasedResult?.detected ? Math.min(headerBasedResult.confidence, 60) : 0,
+      methodsAgree: !headerBasedResult?.detected, // If header didn't detect either, they "agree"
+      bypassTechniques: headerBasedResult?.bypassTechniques || [],
+      scannedAt: Date.now(),
+      scanDurationMs,
+      error: `wafw00f execution failed: ${err.message || String(err)}`,
+    };
+
+    // Still store the error result
+    const state = pipelineStates.get(engagementId);
+    if (state) {
+      const existingIdx = state.wafFingerprintResults.findIndex(r => r.target === target);
+      if (existingIdx >= 0) {
+        state.wafFingerprintResults[existingIdx] = errorResult;
+      } else {
+        state.wafFingerprintResults.push(errorResult);
+      }
+    }
+
+    return errorResult;
+  }
+}
+
+/**
+ * Run wafw00f fingerprinting against multiple targets in sequence.
+ * Respects the current evasion level's timing to avoid detection.
+ *
+ * @param engagementId - Engagement ID
+ * @param targets - Array of target URLs
+ * @param headerResults - Optional map of target → header-based WAF detection results
+ * @returns Array of WafFingerprintResult for all targets
+ */
+export async function runWafw00fBatch(
+  engagementId: number,
+  targets: string[],
+  headerResults?: Record<string, { detected: boolean; vendor: string | null; confidence: number; bypassTechniques: string[] }>
+): Promise<WafFingerprintResult[]> {
+  const state = pipelineStates.get(engagementId);
+  const evasionConfig = state ? EVASION_LEVELS[state.currentLevel] : EVASION_LEVELS.stealth;
+  const results: WafFingerprintResult[] = [];
+
+  // Record this as a scan run
+  const scanRun = startScanRun(engagementId, {
+    phase: "waf_fingerprinting",
+    scanType: "wafw00f",
+    targetsCount: targets.length,
+  });
+
+  for (let i = 0; i < targets.length; i++) {
+    const target = targets[i];
+    const headerResult = headerResults?.[target] || null;
+
+    const result = await runWafw00fFingerprint(engagementId, target, headerResult, true);
+    results.push(result);
+
+    // Apply evasion timing between targets (except after last)
+    if (i < targets.length - 1) {
+      const delay = evasionConfig.delayBetweenRequestsMs + Math.random() * evasionConfig.jitterRangeMs;
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+
+  // Complete the scan run
+  if (scanRun) {
+    const detectedCount = results.filter(r => r.detected).length;
+    completeScanRun(engagementId, scanRun.id, {
+      status: "completed",
+      findingsCount: detectedCount,
+    });
+  }
+
+  return results;
+}
+
+/**
+ * Get wafw00f fingerprint results for an engagement.
+ */
+export function getWafFingerprintResults(engagementId: number): WafFingerprintResult[] | null {
+  const state = pipelineStates.get(engagementId);
+  if (!state) return null;
+  return state.wafFingerprintResults;
+}
+
+/**
+ * Get a summary of WAF fingerprinting across all targets for an engagement.
+ */
+export function getWafFingerprintSummary(engagementId: number): {
+  totalTargets: number;
+  wafDetected: number;
+  noWaf: number;
+  errors: number;
+  highConfidence: number;
+  vendors: Record<string, number>;
+  methodAgreement: { agree: number; disagree: number };
+} | null {
+  const state = pipelineStates.get(engagementId);
+  if (!state) return null;
+
+  const results = state.wafFingerprintResults;
+  const vendors: Record<string, number> = {};
+  let wafDetected = 0;
+  let noWaf = 0;
+  let errors = 0;
+  let highConfidence = 0;
+  let agree = 0;
+  let disagree = 0;
+
+  for (const r of results) {
+    if (r.error && !r.detected) {
+      errors++;
+    } else if (r.detected) {
+      wafDetected++;
+      const vendor = r.wafName || "unknown";
+      vendors[vendor] = (vendors[vendor] || 0) + 1;
+      if (r.combinedConfidence >= 70) highConfidence++;
+    } else {
+      noWaf++;
+    }
+    if (r.headerBasedResult) {
+      if (r.methodsAgree) agree++;
+      else disagree++;
+    }
+  }
+
+  return {
+    totalTargets: results.length,
+    wafDetected,
+    noWaf,
+    errors,
+    highConfidence,
+    vendors,
+    methodAgreement: { agree, disagree },
   };
 }

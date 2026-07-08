@@ -3219,3 +3219,5 @@
 - [ ] Wire into engagement orchestrator pipeline
 - [ ] Available to both Red Team AND Pentest engagement types
 - [ ] Write vitest tests for evasion profiles and pipeline gates
+- [x] Fix hosts scanned duplication bug — re-scans double-count hosts (shows 12 instead of 6 for 6 assets)
+- [x] wafw00f secondary WAF fingerprinting integration into progressive evasion pipeline

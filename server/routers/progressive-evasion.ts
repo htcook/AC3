@@ -313,4 +313,82 @@ export const progressiveEvasionRouter = router({
       if (!state) throw new TRPCError({ code: "NOT_FOUND", message: "No pipeline found" });
       return state.scanHistory.slice(-input.limit);
     }),
+
+  // ─── wafw00f WAF Fingerprinting ────────────────────────────────────
+
+  /**
+   * Trigger wafw00f scan against one or more targets.
+   * Dispatches wafw00f via scan-server-executor and stores results in pipeline state.
+   * Creates a pause gate if WAF is detected with high confidence.
+   */
+  triggerWafw00fScan: protectedProcedure
+    .input(z.object({
+      engagementId: z.number(),
+      targets: z.array(z.string().url()).min(1).max(50),
+      /** Optional header-based WAF results to merge with wafw00f output */
+      headerResults: z.record(
+        z.string(),
+        z.object({
+          detected: z.boolean(),
+          vendor: z.string().nullable(),
+          confidence: z.number(),
+          bypassTechniques: z.array(z.string()),
+        })
+      ).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { runWafw00fBatch, getProgressiveEvasionState } = await import("../lib/progressive-evasion-pipeline");
+      const state = getProgressiveEvasionState(input.engagementId);
+      if (!state) throw new TRPCError({ code: "NOT_FOUND", message: "No progressive evasion pipeline found. Initialize the pipeline first." });
+
+      const results = await runWafw00fBatch(
+        input.engagementId,
+        input.targets,
+        input.headerResults
+      );
+
+      const detected = results.filter(r => r.detected);
+      const errors = results.filter(r => !!r.error);
+
+      return {
+        success: true,
+        totalScanned: results.length,
+        wafDetected: detected.length,
+        errors: errors.length,
+        results: results.map(r => ({
+          target: r.target,
+          detected: r.detected,
+          wafName: r.wafName,
+          manufacturer: r.manufacturer,
+          combinedConfidence: r.combinedConfidence,
+          methodsAgree: r.methodsAgree,
+          allDetected: r.allDetected,
+          error: r.error,
+        })),
+      };
+    }),
+
+  /**
+   * Get wafw00f fingerprint results for an engagement.
+   */
+  getWafFingerprints: protectedProcedure
+    .input(z.object({ engagementId: z.number() }))
+    .query(async ({ input }) => {
+      const { getWafFingerprintResults } = await import("../lib/progressive-evasion-pipeline");
+      const results = getWafFingerprintResults(input.engagementId);
+      if (!results) throw new TRPCError({ code: "NOT_FOUND", message: "No pipeline found" });
+      return results;
+    }),
+
+  /**
+   * Get a summary of WAF fingerprinting across all targets.
+   */
+  getWafFingerprintSummary: protectedProcedure
+    .input(z.object({ engagementId: z.number() }))
+    .query(async ({ input }) => {
+      const { getWafFingerprintSummary } = await import("../lib/progressive-evasion-pipeline");
+      const summary = getWafFingerprintSummary(input.engagementId);
+      if (!summary) throw new TRPCError({ code: "NOT_FOUND", message: "No pipeline found" });
+      return summary;
+    }),
 });
