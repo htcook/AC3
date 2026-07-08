@@ -2712,7 +2712,12 @@ Return valid JSON per the response_format schema.`;
           discoveryRationale: nt.rationale || 'Default discovery with evasion',
           httpxFlags: '-json -tech-detect -status-code -title -cdn -tls-grab -follow-redirects -content-length -web-server -silent',
           activeTools: [
-            ...nucleiScans.map(n => ({ tool: 'nuclei', command: `nuclei -u ${n.target} -severity critical,high,medium -tags ${n.templates} -nc -duc -ni -jsonl`, rationale: n.rationale, priority: 1 })),
+            ...nucleiScans.map(n => {
+              // Always include base vuln tags alongside LLM-selected templates
+              const baseTags = ['cve', 'misconfig', 'exposed-panels', 'default-logins', 'sqli', 'xss', 'rce', 'ssrf', 'lfi', 'ssti', 'traversal', 'injection'];
+              const allTags = [...new Set([...(n.templates || '').split(',').map((t: string) => t.trim()), ...baseTags])].filter(Boolean).join(',');
+              return { tool: 'nuclei', command: `nuclei -u ${n.target} -severity critical,high,medium -tags ${allTags} -nc -duc -ni -jsonl`, rationale: n.rationale, priority: 1 };
+            }),
             ...webScans.map(w => ({ tool: w.tool, command: w.config, rationale: w.rationale, priority: 2 })),
           ],
           riskNotes: attackPlan.detection_opportunities.join('; '),
@@ -3762,6 +3767,46 @@ export async function executeVulnDetection(state: EngagementOpsState, engagement
   const { executeCredentialTesting } = await import('./vuln-detection/credential-tester');
   const credResult = await executeCredentialTesting(phase6Ctx);
   addLog(state, { phase: "vuln_detection", type: "phase_complete", title: "Credential Testing Complete", detail: `${credResult.credentialsConfirmed} credentials confirmed` });
+
+  // ── Phase 6e.1: Authenticated ZAP Re-Scan (if Hydra found credentials) ──
+  if (credResult.credentialsConfirmed > 0) {
+    try {
+      const assetsWithCreds = state.assets.filter((a: any) =>
+        a.confirmedCredentials && a.confirmedCredentials.length > 0 &&
+        a.confirmedCredentials.some((c: any) =>
+          ['http', 'https', 'web_admin', 'http-form', 'http-get', 'http-post'].includes(c.service) ||
+          c.protocol === 'http' || c.protocol === 'https'
+        )
+      );
+
+      if (assetsWithCreds.length > 0) {
+        addLog(state, {
+          phase: "vuln_detection", type: "info",
+          title: `🔐 Authenticated ZAP Re-Scan: ${assetsWithCreds.length} target(s)`,
+          detail: `Hydra found web credentials — re-running ZAP with authenticated sessions to discover vulns behind login pages`,
+        });
+        broadcastOpsUpdate(state.engagementId, { type: 'log_update' });
+
+        const { executeZapScanning } = await import('./vuln-detection/zap-scanner');
+        // Mark this as an authenticated re-scan pass
+        const authRescanCtx = { ...phase6Ctx, authenticatedRescan: true, rescanAssets: assetsWithCreds };
+        await executeZapScanning(authRescanCtx);
+
+        addLog(state, {
+          phase: "vuln_detection", type: "info",
+          title: `🔐 Authenticated Re-Scan Complete`,
+          detail: `${state.stats.zapScansRun} total ZAP scans (includes authenticated pass)`,
+        });
+      }
+    } catch (authRescanErr: any) {
+      console.warn(`[Phase6e.1] Authenticated ZAP re-scan failed:`, authRescanErr.message);
+      addLog(state, {
+        phase: "vuln_detection", type: "warning",
+        title: `Authenticated Re-Scan Skipped`,
+        detail: `Error: ${authRescanErr.message?.slice(0, 200)}`,
+      });
+    }
+  }
 
   // ── Phase 6f: Vuln Correlation — LLM analysis, specialists, dedup, coverage gaps (delegated to vuln-detection/vuln-correlation.ts) ──
   const { executeVulnCorrelation } = await import('./vuln-detection/vuln-correlation');

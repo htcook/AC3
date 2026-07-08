@@ -219,15 +219,12 @@ export async function captureScreenshot(
 ): Promise<ScreenshotResult> {
   const script = buildScreenshotScript(req);
   const scriptPath = `/tmp/screenshot-script-${req.engagementId}-${Date.now()}.js`;
-  const escapedScript = script.replace(/'/g, "'\\'");
 
   try {
-    // Upload the script to the scan server via executeRawCommand
+    // Use base64 encoding to safely transfer the script (avoids heredoc/escaping issues)
+    const scriptBase64 = Buffer.from(script, 'utf-8').toString('base64');
     const uploadResult = await executeRawCommand(
-      `cat > ${scriptPath} << 'SCREENSHOT_SCRIPT_EOF'
-${script}
-SCREENSHOT_SCRIPT_EOF
-chmod +x ${scriptPath}`,
+      `echo '${scriptBase64}' | base64 -d > ${scriptPath} && chmod +x ${scriptPath}`,
       15
     );
 
@@ -239,8 +236,20 @@ chmod +x ${scriptPath}`,
       };
     }
 
-    // Execute the screenshot script
-    // NODE_PATH is set in the scan-service exec env; use bash -c to ensure proper shell handling
+    // Check if Puppeteer is available before running the full script
+    const puppeteerCheck = await executeRawCommand(
+      `bash -c 'NODE_PATH=/usr/lib/node_modules node -e "try { require.resolve(\"puppeteer\"); console.log(\"OK\"); } catch(e) { console.log(\"MISSING\"); }" 2>&1'`,
+      10
+    );
+
+    const hasPuppeteer = puppeteerCheck.stdout?.trim() === 'OK';
+
+    if (!hasPuppeteer) {
+      // Fallback: Use curl + wkhtmltoimage or just capture HTTP response as evidence
+      return await captureScreenshotWithCurlFallback(req);
+    }
+
+    // Execute the screenshot script with Puppeteer
     const timeoutSec = Math.ceil(((req.timeout || 15000) + 10000) / 1000);
     const execResult = await executeRawCommand(
       `bash -c 'cd /tmp && NODE_PATH=/usr/lib/node_modules node ${scriptPath} 2>&1'`,
@@ -268,7 +277,6 @@ chmod +x ${scriptPath}`,
             }
           } catch (uploadErr: any) {
             console.warn(`[ScreenshotCapture] S3 upload failed for ${req.findingTitle}:`, uploadErr.message);
-            // Keep the local path as fallback
           }
         }
         return {
@@ -276,7 +284,8 @@ chmod +x ${scriptPath}`,
           capturedAt: metadata.capturedAt || Date.now(),
         };
       } catch {
-        // Fallback
+        // Fallback to curl method
+        return await captureScreenshotWithCurlFallback(req);
       }
     }
 
@@ -288,7 +297,6 @@ chmod +x ${scriptPath}`,
 
     if (checkResult.stdout?.includes('.png')) {
       const localPath = checkResult.stdout.trim().split(/\s+/).pop() || '';
-      // Try to upload to S3
       let finalPath = localPath;
       try {
         const s3Url = await uploadScreenshotToS3(localPath, req.engagementId, req.findingTitle);
@@ -301,11 +309,8 @@ chmod +x ${scriptPath}`,
       };
     }
 
-    return {
-      success: false,
-      error: `Screenshot capture failed: ${execResult.stderr || execResult.stdout || 'Unknown error'}`,
-      capturedAt: Date.now(),
-    };
+    // Last resort: try curl fallback
+    return await captureScreenshotWithCurlFallback(req);
   } catch (err: any) {
     return {
       success: false,
@@ -317,6 +322,116 @@ chmod +x ${scriptPath}`,
     try {
       await executeRawCommand(`rm -f ${scriptPath}`, 5);
     } catch { /* best effort cleanup */ }
+  }
+}
+
+/**
+ * Fallback screenshot capture using curl + wkhtmltoimage (or cutycapt).
+ * When Puppeteer is not available on the scan server, we use simpler tools
+ * to capture evidence of the web page state.
+ */
+async function captureScreenshotWithCurlFallback(
+  req: ScreenshotRequest
+): Promise<ScreenshotResult> {
+  const outputPath = `/tmp/evidence-screenshot-${req.engagementId}-${Date.now()}.png`;
+  const htmlPath = outputPath.replace('.png', '.html');
+
+  try {
+    // First try wkhtmltoimage (commonly installed on scan servers)
+    const wkhtmlCheck = await executeRawCommand(
+      `which wkhtmltoimage 2>/dev/null || which cutycapt 2>/dev/null || which chromium-browser 2>/dev/null || echo 'NONE'`,
+      5
+    );
+
+    const tool = wkhtmlCheck.stdout?.trim();
+
+    if (tool && !tool.includes('NONE')) {
+      let captureCmd: string;
+
+      if (tool.includes('wkhtmltoimage')) {
+        // wkhtmltoimage approach
+        captureCmd = `wkhtmltoimage --quality 80 --width 1920 --disable-javascript --load-error-handling ignore "${req.url}" ${outputPath} 2>&1`;
+      } else if (tool.includes('cutycapt')) {
+        // cutycapt approach
+        captureCmd = `xvfb-run --auto-servernum cutycapt --url="${req.url}" --out=${outputPath} --min-width=1920 2>&1`;
+      } else {
+        // chromium headless screenshot
+        captureCmd = `${tool} --headless --disable-gpu --no-sandbox --screenshot=${outputPath} --window-size=1920,1080 "${req.url}" 2>&1`;
+      }
+
+      const captureResult = await executeRawCommand(captureCmd, 30);
+
+      // Check if screenshot was created
+      const fileCheck = await executeRawCommand(`ls -la ${outputPath} 2>/dev/null`, 5);
+      if (fileCheck.stdout?.includes('.png')) {
+        // Upload to S3
+        let finalPath = outputPath;
+        try {
+          const s3Url = await uploadScreenshotToS3(outputPath, req.engagementId, req.findingTitle);
+          if (s3Url) finalPath = s3Url;
+        } catch { /* keep local path */ }
+
+        return {
+          success: true,
+          screenshotPath: finalPath,
+          pageTitle: req.findingTitle,
+          finalUrl: req.url,
+          capturedAt: Date.now(),
+        };
+      }
+    }
+
+    // Ultimate fallback: capture HTTP response headers + body preview as text evidence
+    const curlResult = await executeRawCommand(
+      `curl -skL -o ${htmlPath} -w 'HTTP_CODE:%{http_code}\nFINAL_URL:%{url_effective}\nSIZE:%{size_download}' -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0' "${req.url}" 2>&1`,
+      15
+    );
+
+    const httpCode = curlResult.stdout?.match(/HTTP_CODE:(\d+)/)?.[1];
+    const finalUrl = curlResult.stdout?.match(/FINAL_URL:(.+)/)?.[1];
+    const size = curlResult.stdout?.match(/SIZE:(\d+)/)?.[1];
+
+    // Even without a visual screenshot, capture the HTML as evidence
+    if (httpCode && parseInt(httpCode) > 0) {
+      // Read first 5000 bytes of the HTML as text evidence
+      const htmlPreview = await executeRawCommand(
+        `head -c 5000 ${htmlPath} 2>/dev/null`,
+        5
+      );
+
+      // Extract page title from HTML
+      const titleMatch = htmlPreview.stdout?.match(/<title[^>]*>([^<]+)<\/title>/i);
+      const pageTitle = titleMatch?.[1] || 'Unknown';
+
+      return {
+        success: true,
+        screenshotPath: undefined, // No visual screenshot, but we have evidence
+        screenshotBase64: Buffer.from(
+          `HTTP ${httpCode} | ${finalUrl}\nSize: ${size} bytes\nTitle: ${pageTitle}\n\n--- Response Preview ---\n${htmlPreview.stdout?.slice(0, 2000) || 'No content'}`
+        ).toString('base64'),
+        pageTitle,
+        finalUrl: finalUrl?.trim(),
+        httpStatus: parseInt(httpCode),
+        capturedAt: Date.now(),
+      };
+    }
+
+    return {
+      success: false,
+      error: 'No screenshot tools available on scan server (puppeteer, wkhtmltoimage, cutycapt, chromium all missing)',
+      capturedAt: Date.now(),
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      error: `Curl fallback screenshot failed: ${err.message}`,
+      capturedAt: Date.now(),
+    };
+  } finally {
+    // Cleanup
+    try {
+      await executeRawCommand(`rm -f ${htmlPath}`, 5);
+    } catch { /* best effort */ }
   }
 }
 

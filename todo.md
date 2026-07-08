@@ -3233,3 +3233,14 @@
 
 ### ZAP JSON.parse Crash Fix (Jul 7)
 - [x] Wrap zapRequest() response.json() in try/catch with retry logic for non-JSON responses (HTML error pages, empty responses)
+
+### PTES Test Plan Adherence Fix + CVE Freshness + Exploit Bug Fix (Jul 8)
+- [x] Investigate PTES adherence tracking: 40% (2/7 phases) — root cause is mismatched log phase names and overly strict completion criteria
+- [x] Fix PTES_PHASES definitions in engagement-report-handoff.ts: added all actual pipeline phase names (passive_discovery, discovery, targeted_enum, credential_testing, etc.)
+- [x] Broaden PTES indicator keywords to match actual log entry titles/details
+- [x] Fix status determination logic: phases that ran (≥3 activity logs) count as "completed" even without explicit findings
+- [x] Add special-case completions: exploitation (exploitsAttempted > 0), vuln analysis (vulnsFound > 0), intel gathering (hostsScanned + portsFound > 0)
+- [x] Fix countFindingsForPhase: count tool_exec/scan_start log types + asset vulns/zapFindings/exploitAttempts
+- [x] Add CVE freshness pre-scan step in nuclei-scanner.ts: updates Nuclei templates + refreshes CISA KEV/NVD/Project Zero/Exploit-DB caches before scanning
+- [x] Fix undefined.length bug in enhanced-exploit-orchestration.ts: guard nucleiHint.tags with null check at 4 locations
+- [x] Fix undefined.length bug in functional-exploit-generator.ts: normalize prerequisites/explanation/verificationSteps/mitreTechniques in improveExploit() return

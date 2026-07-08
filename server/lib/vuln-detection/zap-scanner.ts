@@ -163,9 +163,12 @@ export interface ZapPollingConfig {
 export function getZapPollingConfig(hostname: string, trainingLabMode: boolean, hasWafEvasion: boolean): ZapPollingConfig {
   const isKnownLab = trainingLabMode || TRAINING_LAB_INDICATORS.some(lab => hostname.toLowerCase().includes(lab));
   return {
-    timeoutMinutes: isKnownLab ? 90 : 30,
+    timeoutMinutes: isKnownLab ? 90 : 45,
     maxConsecutivePollFailures: isKnownLab ? 8 : 5,
-    maxStallPolls: hasWafEvasion ? (trainingLabMode ? 40 : 24) : (trainingLabMode ? 12 : 8),
+    // Increased stall tolerance for real targets: CDN/static sites have slow spider phases
+    // Old values: non-WAF non-lab = 8 (2 min), WAF non-lab = 24 (6 min)
+    // New values: non-WAF non-lab = 20 (5 min), WAF non-lab = 30 (7.5 min)
+    maxStallPolls: hasWafEvasion ? (trainingLabMode ? 40 : 30) : (trainingLabMode ? 12 : 20),
     pollIntervalMs: 15000,
   };
 }
@@ -336,12 +339,44 @@ export async function executeZapScanning(ctx: VulnDetectionContext): Promise<Zap
               } else {
                 const key = `${p.spiderProgress}:${p.activeScanProgress}:${p.urlsFound}`;
                 if (key === lastKey) stallCount++; else { stallCount = 0; lastKey = key; }
-                if (stallCount >= pc.maxStallPolls) { done = true; }
+                if (stallCount >= pc.maxStallPolls) {
+                  done = true;
+                  addLog(state, { phase: "vuln_detection", type: "warning", title: `ZAP Stall Detected: ${targetUrl}`, detail: `Scan progress stalled for ${stallCount} polls (${Math.round(stallCount * pc.pollIntervalMs / 1000)}s). Collecting partial findings.` });
+                }
                 else { if ((state as any)._heartbeatRef) (state as any)._heartbeatRef.lastActivityAt = Date.now(); await new Promise(r => setTimeout(r, pc.pollIntervalMs)); }
               }
             } catch { consecutiveFails++; if (consecutiveFails >= pc.maxConsecutivePollFailures) done = true; else await new Promise(r => setTimeout(r, 20000)); }
           }
           if (!done) result.timeouts++;
+
+          // ── FIX: Always query DB for findings after poll loop exits ──
+          // Previously, findings were only fetched when p.status === "completed".
+          // If the poll loop exited via stall detection, timeout, or consecutive failures,
+          // any findings ZAP wrote during the scan were lost. Now we always check.
+          if (zapScanId && webApp.zapFindings.filter((f: any) => f.url === targetUrl).length === 0) {
+            try {
+              const { getDb } = await import("../../db");
+              const db = await getDb();
+              if (db) {
+                const { webAppFindings } = await import("../../../drizzle/schema");
+                const { eq } = await import("drizzle-orm");
+                const findings = await db.select().from(webAppFindings).where(eq(webAppFindings.scanId, zapScanId));
+                let count = 0;
+                for (const f of findings) {
+                  const severity = f.severity || "info";
+                  const isPassiveFinding = !f.attack && !f.evidence;
+                  const tier = isPassiveFinding ? "tentative" as const : "confirmed" as const;
+                  webApp.zapFindings.push({ alert: f.alertName || "Unknown", risk: severity, url: f.url || targetUrl });
+                  webApp.vulns.push({ id: genId(), severity, title: `[ZAP] ${f.alertName || "Unknown"}`, source: "zap", corroborationTier: tier, evidenceDetail: [f.method, f.url, f.param ? `Param: ${f.param}` : ""].filter(Boolean).join(" "), rawEvidence: [f.attack, f.evidence].filter(Boolean).join("\n").slice(0, 4000), attack: f.attack, method: f.method, param: f.param, url: f.url } as any);
+                  count++;
+                }
+                if (count > 0) {
+                  state.stats.vulnsFound += count; result.findingsCount += count;
+                  addLog(state, { phase: "vuln_detection", type: "success", title: `ZAP Partial Findings: ${targetUrl}`, detail: `Recovered ${count} findings from stalled/timed-out scan` });
+                }
+              }
+            } catch { /* best-effort recovery */ }
+          }
         }
 
         // Store tool result + emit events

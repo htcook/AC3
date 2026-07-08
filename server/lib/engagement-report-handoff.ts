@@ -189,50 +189,50 @@ const PTES_PHASES = [
     phase: "Pre-engagement Interactions",
     ptesSection: "§1",
     nistSection: "§3.1",
-    logPhases: ["idle"],
-    indicators: ["roe", "scope", "authorization", "pre-engagement"],
+    logPhases: ["idle", "scoping", "test_plan", "test_plan_approval"],
+    indicators: ["roe", "scope", "authorization", "pre-engagement", "rules of engagement", "test plan", "approval", "comms protocol", "engagement start"],
   },
   {
     phase: "Intelligence Gathering",
     ptesSection: "§2",
     nistSection: "§3.2",
-    logPhases: ["recon", "enumeration"],
-    indicators: ["dns", "whois", "subdomain", "osint", "fingerprint", "naabu", "masscan", "nerva", "discovery"],
+    logPhases: ["recon", "enumeration", "passive_discovery", "discovery", "targeted_enum"],
+    indicators: ["dns", "whois", "subdomain", "osint", "fingerprint", "naabu", "masscan", "nerva", "discovery", "port", "service", "httpx", "host", "asset", "domain", "ip ", "certificate", "banner", "technology"],
   },
   {
     phase: "Threat Modeling",
     ptesSection: "§3",
     nistSection: "§3.3",
-    logPhases: ["recon"],
-    indicators: ["threat", "attack surface", "carver", "risk", "model", "mitre"],
+    logPhases: ["recon", "scoping", "test_plan"],
+    indicators: ["threat", "attack surface", "carver", "risk", "model", "mitre", "att&ck", "tactic", "technique", "attack vector", "target priorit", "high-value", "crown jewel", "kill chain", "methodology"],
   },
   {
     phase: "Vulnerability Analysis",
     ptesSection: "§4",
     nistSection: "§4.1",
-    logPhases: ["vuln_detection"],
-    indicators: ["vuln", "nuclei", "zap", "scan", "cve", "weakness"],
+    logPhases: ["vuln_detection", "credential_testing"],
+    indicators: ["vuln", "nuclei", "zap", "scan", "cve", "weakness", "injection", "xss", "sqli", "rce", "ssrf", "lfi", "misconfig", "exposed", "default", "hydra", "credential", "brute", "nikto", "burp", "testssl"],
   },
   {
     phase: "Exploitation",
     ptesSection: "§5",
     nistSection: "§4.2",
     logPhases: ["exploitation"],
-    indicators: ["exploit", "payload", "shell", "session", "metasploit", "sqlmap", "commix"],
+    indicators: ["exploit", "payload", "shell", "session", "metasploit", "sqlmap", "commix", "reverse", "bind", "meterpreter", "access gained", "credential valid", "authenticated", "login success"],
   },
   {
     phase: "Post-Exploitation",
     ptesSection: "§6",
     nistSection: "§4.3",
     logPhases: ["post_exploit"],
-    indicators: ["post-exploit", "pivot", "lateral", "privilege", "exfil", "persist"],
+    indicators: ["post-exploit", "pivot", "lateral", "privilege", "exfil", "persist", "escalat", "dump", "hashdump", "mimikatz", "bloodhound", "data access"],
   },
   {
     phase: "Reporting",
     ptesSection: "§7",
     nistSection: "§5",
     logPhases: ["reporting", "completed"],
-    indicators: ["report", "narrative", "executive", "summary", "evidence", "screenshot"],
+    indicators: ["report", "narrative", "executive", "summary", "evidence", "screenshot", "finding", "deliverable", "compliance", "owasp"],
   },
 ] as const;
 
@@ -316,24 +316,51 @@ function analyzePtesPhaseCompletion(state: EngagementStateForHandoff): PtesPhase
     // Count findings from this phase
     const phaseFindings = countFindingsForPhase(ptesDef.logPhases as unknown as string[], state);
 
-    // Collect evidence indicators
+    // Collect evidence indicators — include more log types that demonstrate phase activity
     const evidence = matchingLogs
-      .filter(l => l.type === "phase_complete" || l.type === "scan_result" || l.type === "finding" || l.type === "evidence")
+      .filter(l => l.type === "phase_complete" || l.type === "scan_result" || l.type === "finding" || l.type === "evidence" || l.type === "scan_start" || l.type === "tool_exec")
       .map(l => l.title)
       .slice(0, 10);
 
-    // Determine status
+    // Count substantive activity logs (info entries that show real work, not just status messages)
+    const activityLogs = matchingLogs.filter(l =>
+      l.type === "phase_complete" || l.type === "scan_result" || l.type === "finding" ||
+      l.type === "evidence" || l.type === "scan_start" || l.type === "tool_exec" ||
+      l.type === "llm_decision" || l.type === "info"
+    );
+
+    // Determine status — a phase is "completed" if it has meaningful activity,
+    // not just if it produced findings. PTES measures whether the phase was EXECUTED.
     let status: PtesPhaseStatus["status"];
     if (matchingLogs.length === 0) {
       status = "skipped";
-    } else if (evidence.length >= 2 || phaseFindings > 0) {
+    } else if (evidence.length >= 2 || phaseFindings > 0 || activityLogs.length >= 3) {
+      // Phase completed: has evidence entries, findings, or at least 3 substantive activity logs
       status = "completed";
+    } else if (activityLogs.length >= 1) {
+      // Phase partially completed: some activity but minimal evidence
+      status = "partial";
     } else {
       status = "partial";
     }
 
     // Special case: pre-engagement is always completed if engagement ran
     if (ptesDef.phase === "Pre-engagement Interactions" && state.phase === "completed") {
+      status = "completed";
+    }
+
+    // Special case: exploitation is completed if exploits were attempted (even if 0 succeeded)
+    if (ptesDef.phase === "Exploitation" && state.stats.exploitsAttempted > 0) {
+      status = "completed";
+    }
+
+    // Special case: vulnerability analysis is completed if vulns were found
+    if (ptesDef.phase === "Vulnerability Analysis" && state.stats.vulnsFound > 0) {
+      status = "completed";
+    }
+
+    // Special case: intelligence gathering is completed if hosts were scanned and ports found
+    if (ptesDef.phase === "Intelligence Gathering" && state.stats.hostsScanned > 0 && state.stats.portsFound > 0) {
       status = "completed";
     }
 
@@ -639,8 +666,24 @@ async function generateAdherenceRecommendations(
 function countFindingsForPhase(logPhases: string[], state: EngagementStateForHandoff): number {
   let count = 0;
   for (const entry of state.log) {
-    if (logPhases.includes(entry.phase) && (entry.type === "finding" || entry.type === "scan_result")) {
+    if (logPhases.includes(entry.phase) && (
+      entry.type === "finding" || entry.type === "scan_result" ||
+      entry.type === "tool_exec" || entry.type === "scan_start"
+    )) {
       count++;
+    }
+  }
+  // Also count findings from assets that map to these phases
+  // (e.g., vuln_detection phase findings are stored on assets, not just in logs)
+  if (logPhases.includes("vuln_detection") || logPhases.includes("credential_testing")) {
+    for (const asset of state.assets) {
+      count += asset.vulns.length;
+      count += asset.zapFindings.length;
+    }
+  }
+  if (logPhases.includes("exploitation")) {
+    for (const asset of state.assets) {
+      count += (asset.exploitAttempts || []).length;
     }
   }
   return count;

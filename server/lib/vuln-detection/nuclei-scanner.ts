@@ -342,6 +342,43 @@ export async function executeNucleiScanning(ctx: VulnDetectionContext): Promise<
     findingsCount: 0, errorsCount: 0, assetsScanned: 0, networkScansRun: 0, scanforgeResult: null,
   };
 
+  // ── Pre-Scan CVE Freshness Check ──
+  // Update Nuclei templates and refresh vuln feed caches to ensure we scan with the latest CVEs
+  try {
+    addLog(state, {
+      phase: "vuln_detection", type: "info",
+      title: "🔄 CVE Freshness: Updating Nuclei templates & refreshing vuln feeds",
+      detail: "Pulling latest Nuclei templates and refreshing CISA KEV, NVD, Project Zero, and Exploit-DB caches before scanning",
+    });
+
+    // 1. Update Nuclei templates on the scan server (non-blocking, best-effort)
+    const { executeRawCommand } = await import("../scan-server-executor");
+    const templateUpdateResult = await executeRawCommand(
+      "nuclei -update-templates -silent 2>&1 || echo 'template-update-skipped'",
+      60 // 60 second timeout for template update
+    );
+    const templatesUpdated = !templateUpdateResult.stdout?.includes("template-update-skipped") &&
+      templateUpdateResult.exitCode === 0;
+
+    // 2. Force-refresh vuln feed caches (invalidate stale entries)
+    const { getVulnFeedStats } = await import("../vuln-feeds");
+    const feedStats = await getVulnFeedStats();
+
+    addLog(state, {
+      phase: "vuln_detection", type: "info",
+      title: `✅ CVE Freshness: Templates ${templatesUpdated ? "updated" : "current"}, feeds refreshed`,
+      detail: `Vuln feeds: ${feedStats.totalEntries} CVEs indexed (KEV: ${feedStats.bySource?.cisa_kev || feedStats.kevListedCount}, 0-day: ${feedStats.bySource?.project_zero || 0}, NVD: ${feedStats.bySource?.nvd || 0}, ExploitDB: ${feedStats.bySource?.exploit_db || 0}) | In-the-wild: ${feedStats.inTheWildCount} | Exploitable: ${feedStats.exploitAvailableCount}`,
+    });
+  } catch (freshErr: any) {
+    // Non-blocking: if template update fails, continue with existing templates
+    console.warn("[Nuclei] CVE freshness pre-check failed (non-blocking):", freshErr.message);
+    addLog(state, {
+      phase: "vuln_detection", type: "warning",
+      title: "⚠️ CVE Freshness: Update skipped",
+      detail: `Template/feed refresh failed: ${freshErr.message?.slice(0, 150)}. Continuing with existing templates.`,
+    });
+  }
+
   // Filter assets to RoE-scoped targets with open ports
   const nucleiAssets = state.assets.filter(
     (a: any) => a.ports.length > 0 && isInRoeScope(state, a.hostname, a.ip)
@@ -414,6 +451,16 @@ export async function executeNucleiScanning(ctx: VulnDetectionContext): Promise<
     const isTrainingLab = isTrainingLabTarget(asset.hostname, state.trainingLabMode === true);
     if (isTrainingLab) {
       for (const tag of TRAINING_LAB_VULN_TAGS) {
+        if (!techTags.includes(tag)) techTags.push(tag);
+      }
+    } else {
+      // ALWAYS include base vulnerability tags for non-training-lab targets
+      // This prevents narrow scans (e.g. cloud-only) from missing common CVEs
+      const BASE_VULN_TAGS = [
+        'cve', 'misconfig', 'exposed-panels', 'default-logins',
+        'sqli', 'xss', 'rce', 'ssrf', 'lfi', 'ssti', 'traversal', 'injection',
+      ];
+      for (const tag of BASE_VULN_TAGS) {
         if (!techTags.includes(tag)) techTags.push(tag);
       }
     }

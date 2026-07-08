@@ -2557,8 +2557,13 @@ export const engagementOpsRouter = router({
                   }
 
                   // Use handoff nuclei config if available, otherwise fall back to defaults
+                  // ALWAYS include base vuln tags alongside LLM-selected tags to prevent
+                  // narrow scans (e.g. 'cloud'-only) from missing common vulnerabilities
                   const nucleiCfg = nucleiConfigMap.get(asset.hostname);
-                  const nucleiTags = nucleiCfg ? nucleiCfg.tags.join(',') : 'cve,sqli,xss,lfi,rce,ssrf,ssti,crlf,traversal';
+                  const BASE_NUCLEI_TAGS = ['cve', 'misconfig', 'exposed-panels', 'default-logins', 'sqli', 'xss', 'rce', 'ssrf', 'lfi', 'ssti', 'traversal', 'injection'];
+                  const nucleiTags = nucleiCfg
+                    ? [...new Set([...nucleiCfg.tags, ...BASE_NUCLEI_TAGS])].join(',')
+                    : 'cve,sqli,xss,lfi,rce,ssrf,ssti,crlf,traversal,misconfig,exposed-panels,default-logins';
                   const nucleiSeverity = nucleiCfg?.severityFilter || 'critical,high,medium';
                   const nucleiRateLimit = nucleiCfg?.rateLimit || 100;
                   let nucleiCustomHeaders = nucleiCfg?.customHeaders
