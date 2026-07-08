@@ -73,6 +73,8 @@ export interface NiktoScanResult {
   };
   rawOutput: string;
   error?: string;
+  /** Warning when zero findings detected but tool may not have run correctly */
+  validationWarning?: string;
 }
 
 // ─── Severity Mapping ───────────────────────────────────────────────────────
@@ -317,6 +319,25 @@ export async function startNiktoScan(config: NiktoConfig): Promise<NiktoScanResu
     findings = parseNiktoText(result.stdout);
   }
 
+  // ── Zero-Findings Validation ──────────────────────────────────────────────
+  // When Nikto exits 0 but produces no findings, check if it actually ran correctly
+  let zeroFindingsWarning = "";
+  if (result.exitCode === 0 && findings.length === 0) {
+    const stdoutLower = (result.stdout || "").toLowerCase();
+    const stderrLower = (result.stderr || "").toLowerCase();
+    const hasConnectionError = /unable to connect|connection refused|no web server|timeout|unreachable|dns.*fail/i.test(stdoutLower + stderrLower);
+    const ranTooFast = (Date.now() - startTime) < 5000; // Less than 5s is suspicious
+    const hasNoOutput = (result.stdout || "").trim().length < 50;
+
+    if (hasConnectionError) {
+      zeroFindingsWarning = `Target may be unreachable (connection error detected in output)`;
+      console.warn(`[Nikto] Zero findings + connection error for ${config.targetUrl}: target may be unreachable`);
+    } else if (ranTooFast && hasNoOutput) {
+      zeroFindingsWarning = `Scan completed in <5s with no output — may not have executed correctly`;
+      console.warn(`[Nikto] Zero findings + suspiciously fast (${Date.now() - startTime}ms) for ${config.targetUrl}: tool may not have executed correctly`);
+    }
+  }
+
   const durationSeconds = (Date.now() - startTime) / 1000;
   const serverBanner = extractServerBanner(result.stdout);
 
@@ -368,6 +389,7 @@ export async function startNiktoScan(config: NiktoConfig): Promise<NiktoScanResu
       durationSeconds,
     },
     rawOutput: result.stdout,
+    ...(zeroFindingsWarning ? { validationWarning: zeroFindingsWarning } : {}),
   };
 }
 

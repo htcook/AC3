@@ -515,6 +515,13 @@ export async function runServiceAuditPipeline(
     timestamp: Date.now(),
   });
 
+  // Log any zero-findings validation warnings from scan tools
+  for (const niktoResult of results.nikto) {
+    if ((niktoResult as any).validationWarning) {
+      console.warn(`[ServiceAuditPipeline] Nikto validation warning for ${niktoResult.target}: ${(niktoResult as any).validationWarning}`);
+    }
+  }
+
   console.log(`[ServiceAuditPipeline] Complete: ${auditsCompleted}/${auditsTriggered} audits, ${totalFindings} findings in ${durationSeconds.toFixed(1)}s`);
 
   return {

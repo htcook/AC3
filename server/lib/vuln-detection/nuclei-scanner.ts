@@ -531,6 +531,23 @@ export async function executeNucleiScanning(ctx: VulnDetectionContext): Promise<
         addLog(state, { phase: "vuln_detection", type: "warning", title: `Nuclei Failed: ${url}`, detail: `SSH failed. Error: ${execResult.error || "timeout"}` });
       }
 
+      // ── Zero-Findings Validation ──────────────────────────────────────────────
+      // When exit code is 0 but stdout is empty/minimal, verify the tool ran correctly
+      if (execResult.exitCode === 0 && (execResult.stdout || "").trim().length < 10) {
+        const stderrLower = (execResult.stderr || "").toLowerCase();
+        const hasConnectionError = /connection refused|no route to host|timeout|unreachable|dns.*fail|could not connect/i.test(stderrLower);
+        const hasTemplateError = /no templates|0 templates loaded|error loading/i.test(stderrLower);
+        const ranTooFast = (execResult.durationMs || 0) < 3000; // Less than 3s is suspicious for a full scan
+
+        if (hasConnectionError) {
+          addLog(state, { phase: "vuln_detection", type: "warning", title: `⚠️ Nuclei: Target Unreachable: ${url}`, detail: `Tool exited 0 but target appears unreachable. stderr: ${(execResult.stderr || "").slice(0, 200)}` });
+        } else if (hasTemplateError) {
+          addLog(state, { phase: "vuln_detection", type: "warning", title: `⚠️ Nuclei: Template Error: ${url}`, detail: `No templates loaded — check template path/tags. stderr: ${(execResult.stderr || "").slice(0, 200)}` });
+        } else if (ranTooFast) {
+          addLog(state, { phase: "vuln_detection", type: "warning", title: `⚠️ Nuclei: Suspiciously Fast (${execResult.durationMs}ms): ${url}`, detail: `Scan completed in <3s with no output — may not have executed correctly. Verify target is accessible.` });
+        }
+      }
+
       const findings = parseToolOutput("nuclei", execResult.stdout, asset);
       let newFindings = 0;
       for (const f of findings) {

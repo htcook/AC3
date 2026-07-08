@@ -504,6 +504,21 @@ export async function executeCloudStorageScan(
       }
 
       const durationMs = Date.now() - startTime;
+
+      // ── Graceful fallback for missing tools (exit 127 = command not found) ──
+      if (result.exitCode === 127) {
+        console.warn(`[CloudScan] Tool '${scan.tool}' not installed on scan server (exit 127). Skipping.`);
+        rawResults.push({
+          tool: scan.tool,
+          command: scan.command,
+          stdout: "",
+          stderr: `Tool '${scan.tool}' not installed on scan server. Install with: pip3 install ${scan.tool === 'cloud_enum' ? 'cloud_enum' : scan.tool}. Falling back to nuclei cloud templates.`,
+          exitCode: 127,
+          durationMs,
+        });
+        continue; // Skip parsing, move to next scan
+      }
+
       rawResults.push({
         tool: scan.tool,
         command: scan.command,

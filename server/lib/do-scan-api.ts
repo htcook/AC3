@@ -20,6 +20,25 @@
 
 import type { ToolExecConfig, ToolExecResult } from "./scan-server-executor";
 
+// ─── Heartbeat Propagation ─────────────────────────────────────────────────
+// When a tool completes, update the engagement's heartbeat ref so the stall
+// detector knows the pipeline is still alive during sequential scan execution.
+let _heartbeatUpdater: ((engagementId: number | undefined) => void) | null = null;
+
+/**
+ * Register a callback that updates the engagement heartbeat after each tool execution.
+ * Called from the orchestrator at startup to wire the stall detector.
+ */
+export function registerHeartbeatUpdater(updater: (engagementId: number | undefined) => void): void {
+  _heartbeatUpdater = updater;
+}
+
+function notifyHeartbeat(engagementId: number | undefined): void {
+  if (_heartbeatUpdater && engagementId) {
+    _heartbeatUpdater(engagementId);
+  }
+}
+
 // ─── Configuration ──────────────────────────────────────────────────────────
 
 import { SCAN_SERVICE_URL, SCAN_API_KEY, getActiveScanUrl, LEGACY_SCAN_URL } from "./scan-service-url";
@@ -431,6 +450,7 @@ export async function executeToolViaHttp(
       updateAvgLatency(durationMs);
       trackScanComplete(trackId);
       console.log(`${LOG} Tool ${tool} completed via HTTP (flat): exit=${data.exitCode} stdout=${(data.stdout || "").length}b in ${durationMs}ms`);
+      notifyHeartbeat(config.engagementId);
       return {
         tool,
         command: `${tool} ${args}`,
@@ -454,6 +474,7 @@ export async function executeToolViaHttp(
     trackScanComplete(trackId);
 
     console.log(`${LOG} Tool ${tool} completed via HTTP (sync): exit=${data.result!.exitCode} stdout=${data.result!.stdout?.length || 0}b in ${durationMs}ms`);
+    notifyHeartbeat(config.engagementId);
 
     return {
       tool,

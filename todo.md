@@ -3244,3 +3244,9 @@
 - [x] Add CVE freshness pre-scan step in nuclei-scanner.ts: updates Nuclei templates + refreshes CISA KEV/NVD/Project Zero/Exploit-DB caches before scanning
 - [x] Fix undefined.length bug in enhanced-exploit-orchestration.ts: guard nucleiHint.tags with null check at 4 locations
 - [x] Fix undefined.length bug in functional-exploit-generator.ts: normalize prerequisites/explanation/verificationSteps/mitreTechniques in improveExploit() return
+
+### Scan Tool Issues (July 8)
+- [x] Fix cloud_enum exit 127 - tool not installed on DO scan server, add graceful fallback
+- [x] Fix Nikto scan timeouts - phase-aware stall threshold (20 min for scan phases) + heartbeat propagation
+- [x] Fix Nuclei scan timeouts - phase-aware stall threshold (20 min for scan phases) + heartbeat propagation
+- [x] Add zero-findings validation: verify scan tools ran correctly when they return 0 findings

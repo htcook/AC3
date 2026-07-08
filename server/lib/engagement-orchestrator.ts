@@ -108,6 +108,7 @@ import { validateLLMEvidence, type GuardrailContext } from "./llm-evidence-guard
 import { SERVER_INSTANCE_ID } from "./server-instance";
 import { capLLMContext as _capLLMContext } from "./memory-manager";
 import { enrichPortServices } from "./service-resolver";
+import { registerHeartbeatUpdater } from "./do-scan-api";
 import { executeScanForgePhase, runPostEngagementAnalysis, type ScanForgeFinding, type ScanForgeResult, type ScanForgeCredential } from "../scanforge/engine/engagement-integration";
 import {
   accumulateOutcome as accumulateLearningOutcome,
@@ -4234,8 +4235,12 @@ export async function executeEngagement(
   // so the pipeline can advance to the next phase instead of hanging indefinitely.
   let lastActivityAt = Date.now();
   const STALL_WARNING_MS = 5 * 60_000;
-  const STALL_FORCE_MS = 10 * 60_000;
-  const MAX_STALL_COUNT = 2; // After 2 stall detections (20 min), force-abort
+  // Phase-aware stall threshold: scan-heavy phases (enumeration, vuln_detection, exploitation)
+  // need longer timeouts because tools like Nikto/Nuclei run 5+ min each sequentially.
+  const SCAN_HEAVY_PHASES = new Set(['enumeration', 'vuln_detection', 'exploitation', 'targeted_enum', 'discovery']);
+  const STALL_FORCE_MS_DEFAULT = 10 * 60_000;
+  const STALL_FORCE_MS_SCAN = 20 * 60_000; // 20 min for scan-heavy phases
+  const MAX_STALL_COUNT = 2; // After 2 stall detections, force-abort
   let consecutiveStalls = 0;
   let lastStallPhase = '';
   const heartbeatInterval = setInterval(() => {
@@ -4256,7 +4261,8 @@ export async function executeEngagement(
     // Read from shared heartbeat ref (updated by phase executors during long ops)
     const currentLastActivity = (state as any)._heartbeatRef?.lastActivityAt || lastActivityAt;
     const idleMs = Date.now() - currentLastActivity;
-    if (idleMs > STALL_FORCE_MS) {
+    const effectiveStallMs = SCAN_HEAVY_PHASES.has(state.phase) ? STALL_FORCE_MS_SCAN : STALL_FORCE_MS_DEFAULT;
+    if (idleMs > effectiveStallMs) {
       // Track consecutive stalls in the same phase
       if (lastStallPhase === state.phase) {
         consecutiveStalls++;
@@ -4326,6 +4332,14 @@ export async function executeEngagement(
 
   // Share lastActivityAt via state so phase executors can update it during long-running operations
   (state as any)._heartbeatRef = { lastActivityAt };
+
+  // Wire heartbeat propagation: when do-scan-api completes a tool, update the stall detector
+  registerHeartbeatUpdater((eid) => {
+    if (eid === engagementId) {
+      lastActivityAt = Date.now();
+      if ((state as any)._heartbeatRef) (state as any)._heartbeatRef.lastActivityAt = Date.now();
+    }
+  });
 
   try {
     // Phase 1: Domain Recon (skip if starting from a later phase)
