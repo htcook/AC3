@@ -819,7 +819,8 @@ export async function getCatalogStats() {
     dataSource: threatActors.dataSource,
     origin: threatActors.origin,
     threatLevel: threatActors.threatLevel,
-  }).from(threatActors);
+  }).from(threatActors)
+    .where(sql`(${threatActors.dataSource} IS NULL OR ${threatActors.dataSource} != 'OFAC SDN List')`);
 
   const byType: Record<string, number> = {};
   const bySource: Record<string, number> = {};
@@ -840,10 +841,10 @@ export async function getCatalogStats() {
     .from(threatIntelUpdates)
     .where(sql`${threatIntelUpdates.tiuStartedAt} > DATE_SUB(NOW(), INTERVAL 24 HOUR)`);
 
-  // Count actors whose record was updated in the last 24 hours
+  // Count actors whose record was updated in the last 24 hours (excluding OFAC)
   const recentlyUpdatedActors = await db.select({ count: sql<number>`count(*)` })
     .from(threatActors)
-    .where(sql`${threatActors.updatedAt} > DATE_SUB(NOW(), INTERVAL 24 HOUR)`);
+    .where(sql`${threatActors.updatedAt} > DATE_SUB(NOW(), INTERVAL 24 HOUR) AND (${threatActors.dataSource} IS NULL OR ${threatActors.dataSource} != 'OFAC SDN List')`);
 
   const lastSync = await db.select({ completedAt: threatIntelUpdates.tiuCompletedAt })
     .from(threatIntelUpdates)

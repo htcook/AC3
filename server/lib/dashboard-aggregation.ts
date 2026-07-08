@@ -341,7 +341,8 @@ export async function getAnalystDashboardData(): Promise<AnalystDashboardData> {
         total: count(),
         active: sum(sql`CASE WHEN ${threatActors.active} = 1 THEN 1 ELSE 0 END`),
       })
-      .from(threatActors);
+      .from(threatActors)
+      .where(sql`(${threatActors.dataSource} IS NULL OR ${threatActors.dataSource} != 'OFAC SDN List')`);
 
     const [iocStats] = await db.select({ total: count() }).from(threatActorIocs);
     const [feedStats] = await db.select({ total: count() }).from(iocFeeds);
@@ -374,7 +375,7 @@ export async function getAnalystDashboardData(): Promise<AnalystDashboardData> {
         sophistication: threatActors.sophistication,
       })
       .from(threatActors)
-      .where(eq(threatActors.active, true))
+      .where(sql`${threatActors.active} = 1 AND (${threatActors.dataSource} IS NULL OR ${threatActors.dataSource} != 'OFAC SDN List')`)
       .limit(5);
 
     return {
