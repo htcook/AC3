@@ -95,7 +95,9 @@ function resolveConfig(): StorageConfig {
   const s3SecretKey = process.env.S3_SECRET_KEY;
   const s3Bucket = process.env.S3_BUCKET;
 
-  if (s3AccessKey && s3SecretKey && s3Endpoint) {
+  // Allow AWS S3 config even without explicit credentials (ECS task role / default chain)
+  // Condition: endpoint must be set, OR both access key and secret key are set
+  if (s3Endpoint && (s3Bucket || s3AccessKey)) {
     const forcePathStyle = process.env.S3_FORCE_PATH_STYLE === "true";
     const publicUrlBase = process.env.S3_PUBLIC_URL_BASE || null;
     const provider = detectProvider(s3Endpoint);
