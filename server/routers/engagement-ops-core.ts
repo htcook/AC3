@@ -3276,7 +3276,10 @@ Return ONLY a JSON object with vulnerabilities array. No markdown, no explanatio
                 const { VNC_EXPLOIT_TEMPLATES, selectVncExploit } = await import('../lib/vnc-exploit-module');
                 const { MSSQL_EXPLOIT_TEMPLATES, selectMssqlExploit } = await import('../lib/mssql-exploit-module');
                 const { ENV } = await import('../_core/env');
+                const { validateVulnsForExploitation, assessExploitOutcome, generateAuditTrail } = await import('../lib/exploit-validation-analyst');
                 if (!(state as any).generatedExploits) (state as any).generatedExploits = [];
+                if (!(state as any).exploitValidationReports) (state as any).exploitValidationReports = [];
+                if (!(state as any).exploitEvidenceRecords) (state as any).exploitEvidenceRecords = [];
                 let totalOrchestrated = 0;
                 let totalSucceeded = 0;
                 let totalFailed = 0;
@@ -3329,7 +3332,67 @@ Return ONLY a JSON object with vulnerabilities array. No markdown, no explanatio
                   // ── Intelligent Orchestration: MSF → RAG Custom → Retry-with-Reasoning ──
                   addLog(state!, { phase: 'exploitation', type: 'info', title: `\u{1f3af} Orchestrating: ${asset.hostname}`, detail: `${exploitable.length} critical/high vulns — trying MSF modules first, then RAG-enhanced custom exploits with retry loop` });
                   const maxExploitsPerAsset = 3;
-                  const toExploit = exploitable.slice(0, maxExploitsPerAsset);
+                  let toExploit = exploitable.slice(0, maxExploitsPerAsset);
+
+                  // ── LLM Exploit Validation Analyst: Pre-Exploitation Gate ──
+                  // Validates each vuln against target context to filter false positives
+                  // and make evidence-backed go/no-go decisions before wasting exploit cycles.
+                  try {
+                    const vulnContexts = toExploit.map((v: any) => ({
+                      title: v.title,
+                      cve: v.cve,
+                      severity: v.severity,
+                      description: v.description,
+                      source: v.source || v.tool,
+                      port: v.port,
+                      service: v.service,
+                      version: v.version,
+                      rawOutput: v.rawOutput?.slice(0, 500),
+                      confidence: v.confidence,
+                      parameters: v.parameters,
+                      httpStatus: v.httpStatus,
+                    }));
+                    const assetCtx = {
+                      hostname: asset.hostname,
+                      ip: asset.ip,
+                      os: (asset as any).os,
+                      technologies: asset.passiveRecon?.technologies,
+                      wafDetected: asset.wafDetected,
+                      wafType: (asset as any).wafType,
+                      ports: (asset.ports || []).map((p: any) => ({ port: p.port, service: p.service, version: p.version })),
+                      httpResponses: (asset as any).httpResponses,
+                      cloudProvider: (asset as any).cloudProvider,
+                      isLoadBalancer: (asset as any).isLoadBalancer,
+                    };
+                    const engCtx = {
+                      engagementId: input.engagementId,
+                      clientName: (engagement as any)?.customerName || 'Unknown',
+                      engagementType: state!.engagementType || 'pentest',
+                    };
+                    addLog(state!, { phase: 'exploitation', type: 'info', title: `\u{1f9e0} LLM Validation Analyst: ${asset.hostname}`, detail: `Analyzing ${toExploit.length} vulns for exploitation readiness...` });
+                    const validationReport = await validateVulnsForExploitation(vulnContexts, assetCtx, engCtx);
+                    (state as any).exploitValidationReports.push(validationReport);
+
+                    // Filter toExploit based on validation verdicts
+                    const rejectedTitles = new Set(validationReport.rejected.map(r => r.vulnTitle));
+                    const originalCount = toExploit.length;
+                    toExploit = toExploit.filter((v: any) => !rejectedTitles.has(v.title));
+                    const filteredCount = originalCount - toExploit.length;
+
+                    if (filteredCount > 0) {
+                      addLog(state!, { phase: 'exploitation', type: 'info', title: `\u{1f6ab} Validation Analyst Rejected: ${asset.hostname}`, detail: `${filteredCount}/${originalCount} vulns rejected pre-exploitation. Reasons: ${validationReport.rejected.map(r => `${r.vulnTitle}: ${r.reasoning.slice(0, 80)}`).join('; ')}` });
+                    }
+                    if (validationReport.approved.length > 0) {
+                      addLog(state!, { phase: 'exploitation', type: 'success', title: `\u2705 Validation Analyst Approved: ${asset.hostname}`, detail: `${validationReport.approved.length} vulns approved. ${validationReport.overallAssessment.slice(0, 150)}` });
+                    }
+                    if (toExploit.length === 0) {
+                      addLog(state!, { phase: 'exploitation', type: 'info', title: `\u23ed\ufe0f All vulns rejected by Validation Analyst: ${asset.hostname}`, detail: validationReport.analystNotes.slice(0, 200) || 'No exploitable vulns passed validation.' });
+                      continue; // Skip this asset entirely
+                    }
+                  } catch (valErr: any) {
+                    // Non-blocking: if validation fails, proceed with all vulns
+                    addLog(state!, { phase: 'exploitation', type: 'warning', title: `\u26a0\ufe0f Validation Analyst unavailable: ${asset.hostname}`, detail: `${valErr.message?.slice(0, 150)}. Proceeding without LLM validation.` });
+                  }
 
                   for (const vuln of toExploit) {
                     // ── Priority 2: Confidence gating — skip low-confidence synthesized vulns ──
@@ -3542,6 +3605,62 @@ Return ONLY a JSON object with vulnerabilities array. No markdown, no explanatio
                         }
                       }
 
+                      // ── LLM Exploit Validation Analyst: Post-Exploitation Evidence Assessment ──
+                      // Classifies failure/success with evidence-backed reasoning for audit trail
+                      try {
+                        const postVulnCtx = {
+                          title: vuln.title,
+                          cve: vuln.cve,
+                          severity: vuln.severity,
+                          description: (vuln as any).description,
+                          source: (vuln as any).source || (vuln as any).tool,
+                          port: vuln.port,
+                          service: (vuln as any).service,
+                          version: (vuln as any).version,
+                        };
+                        const postAssetCtx = {
+                          hostname: asset.hostname,
+                          ip: asset.ip,
+                          os: (asset as any).os,
+                          technologies: asset.passiveRecon?.technologies,
+                          wafDetected: asset.wafDetected,
+                          wafType: (asset as any).wafType,
+                          cloudProvider: (asset as any).cloudProvider,
+                        };
+                        const postEngCtx = {
+                          engagementId: input.engagementId,
+                          clientName: (engagement as any)?.customerName || 'Unknown',
+                          engagementType: state!.engagementType || 'pentest',
+                        };
+                        const evidenceRecord = await assessExploitOutcome(
+                          postVulnCtx,
+                          postAssetCtx,
+                          {
+                            success: result.success,
+                            attempts: result.attempts.map((a: any) => ({
+                              strategy: a.strategy,
+                              stdout: a.result?.stdout?.slice(-500),
+                              stderr: a.result?.stderr?.slice(-300),
+                              exitCode: a.result?.exitCode,
+                              duration: a.result?.duration,
+                              failureAnalysis: a.failureAnalysis,
+                            })),
+                            selectedModule: result.selectedModule,
+                          },
+                          postEngCtx,
+                        );
+                        (state as any).exploitEvidenceRecords.push(evidenceRecord);
+                        // Log the classification
+                        const classEmoji = evidenceRecord.failureClassification === 'false_positive' ? '\u{1f6a8}' :
+                          evidenceRecord.failureClassification === 'hardening_blocked' ? '\u{1f6e1}\ufe0f' :
+                          evidenceRecord.failureClassification === 'waf_blocked' ? '\u{1f6a7}' :
+                          evidenceRecord.failureClassification === 'genuine_success' ? '\u{1f3c6}' : '\u{1f50d}';
+                        addLog(state!, { phase: 'exploitation', type: 'info', title: `${classEmoji} Evidence Assessment: ${vuln.title}`, detail: `${asset.hostname} — ${evidenceRecord.failureClassification} (${evidenceRecord.confidence}% confidence). ${evidenceRecord.evidenceSummary.slice(0, 150)}` });
+                      } catch (evidErr: any) {
+                        // Non-blocking
+                        console.warn(`[ExploitValidationAnalyst] Post-exploit assessment failed: ${evidErr.message}`);
+                      }
+
                     } catch (orchErr: any) {
                       totalFailed++;
                       addLog(state!, { phase: 'exploitation', type: 'error', title: `\u274c Orchestration failed: ${vuln.title}`, detail: `${asset.hostname} — ${orchErr.message?.slice(0, 200)}` });
@@ -3584,6 +3703,20 @@ Return ONLY a JSON object with vulnerabilities array. No markdown, no explanatio
                 // ── Update stats and check fine-tuning threshold ──
                 (state as any).exploitStats = { total: totalOrchestrated + templateExploits.length, succeeded: totalSucceeded, failed: totalFailed, recipesGenerated };
                 addLog(state!, { phase: 'exploitation', type: 'success', title: '\u{1f4ca} Exploitation Complete', detail: `${totalSucceeded}/${totalOrchestrated + templateExploits.length} succeeded, ${totalFailed} failed, ${recipesGenerated} recipes generated — evidence persisted to DB` });
+
+                // ── LLM Exploit Validation Analyst: Generate Audit Trail ──
+                try {
+                  const auditTrail = generateAuditTrail(
+                    input.engagementId,
+                    (state as any).exploitValidationReports || [],
+                    (state as any).exploitEvidenceRecords || [],
+                  );
+                  (state as any).exploitValidationAuditTrail = auditTrail;
+                  const { summary } = auditTrail;
+                  addLog(state!, { phase: 'exploitation', type: 'success', title: '\u{1f4cb} Exploit Validation Audit Trail Generated', detail: `Analyzed: ${summary.totalVulnsAnalyzed} vulns | Approved: ${summary.approvedForExploit} | Rejected pre-exploit: ${summary.rejectedPreExploit} | FPs identified: ${summary.falsePositivesIdentified} | Hardening blocks: ${summary.hardeningBlocksIdentified} | WAF blocks: ${summary.wafBlocksIdentified}` });
+                } catch (auditErr: any) {
+                  console.warn(`[ExploitValidationAnalyst] Audit trail generation failed: ${auditErr.message}`);
+                }
 
                 // ── Auto-trigger fine-tuning when enough training data accumulates ──
                 try {
@@ -3972,6 +4105,21 @@ Return ONLY a JSON object with vulnerabilities array. No markdown, no explanatio
         if (!exploits?.[input.exploitIndex]) throw new TRPCError({ code: 'NOT_FOUND', message: 'Exploit not found' });
         return exploits[input.exploitIndex];
       }),
+    /** Get the LLM Exploit Validation Analyst audit trail for an engagement */
+    getExploitValidationAuditTrail: protectedProcedure
+      .input(z.object({ engagementId: z.number() }))
+      .query(async ({ input }) => {
+        const { getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
+        let state = getOpsState(input.engagementId);
+        if (!state) state = await getOpsStateWithRecovery(input.engagementId);
+        if (!state) return null;
+        return {
+          auditTrail: (state as any).exploitValidationAuditTrail || null,
+          validationReports: (state as any).exploitValidationReports || [],
+          evidenceRecords: (state as any).exploitEvidenceRecords || [],
+        };
+      }),
+
     /** Re-synthesize vulnerabilities for a specific asset, optionally targeting specific categories */
     resynthesizeAssetVulns: protectedProcedure
       .input(z.object({

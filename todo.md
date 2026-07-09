@@ -3260,3 +3260,15 @@
 - [x] Manually updated Celerium engagement #37 status from 'completed' to 'active' on production
 - [x] Fix: Add pre-exploitation sanity filter to skip DOM XSS on non-functional (403/404/503) endpoints
 - [x] Fix: Filter out truncated parameter name artifacts (e.g., 'erabilities') from exploitation targets
+### LLM Exploit Validation Analyst Pipeline Step (Jul 9)
+- [x] Create server/lib/exploit-validation-analyst.ts module with validateVulnsForExploitation() and assessExploitOutcome() functions
+- [x] Implement structured JSON schema for pre-exploitation go/no-go decisions (PRE_EXPLOIT_VALIDATION_SCHEMA)
+- [x] Implement structured JSON schema for post-exploitation evidence classification (POST_EXPLOIT_ASSESSMENT_SCHEMA)
+- [x] Integrate pre-exploitation LLM validation gate into engagement-ops-core.ts (before toExploit loop)
+- [x] Integrate post-exploitation evidence assessment after each exploit attempt (after training data collection)
+- [x] Add generateAuditTrail() function for end-of-phase summary generation
+- [x] Add audit trail generation at exploitation completion (before fine-tuning check)
+- [x] Add getExploitValidationAuditTrail tRPC query endpoint for UI access
+- [x] Graceful degradation: if LLM fails, pipeline continues without blocking
+- [x] Uses _priority: 'essential' for accuracy-critical analysis (routes to best model)
+- [x] Push to GitHub (caldera remote)
