@@ -188,6 +188,9 @@ export const engagementOpsRouter = router({
             detail: `Previous run (${previousPhase}) data cleared. All stats, assets, vulns, and scan checkpoints reset to zero for a clean re-run.`,
             timestamp: Date.now(),
           });
+          // FIX: Sync DB engagement status back to 'active' on re-launch
+          // Previously the DB status remained stale ('completed') after re-run
+          await db.updateEngagement(input.engagementId, { status: 'active' });
         }
 
         // Set exhaustive exploitation mode — when true, attempts every exploit opportunity
@@ -3280,7 +3283,28 @@ Return ONLY a JSON object with vulnerabilities array. No markdown, no explanatio
                 let recipesGenerated = 0;
 
                 for (const asset of state!.assets) {
-                  const exploitable = asset.vulns.filter((v: any) => v.severity === 'critical' || v.severity === 'high');
+                  // ── Pre-exploitation sanity filter ──
+                  // Skip DOM XSS vulns on targets that only return 403/404/503 (no real app surface)
+                  const httpStatusVulns = asset.vulns.filter((v: any) => v.source === 'httpx' && /\b(403|404|503)\b/.test(v.title || ''));
+                  const isNonFunctionalEndpoint = httpStatusVulns.length > 0 && !asset.vulns.some((v: any) => 
+                    v.source === 'httpx' && /\b(200|301|302)\b/.test(v.title || '')
+                  );
+                  const exploitable = asset.vulns.filter((v: any) => {
+                    if (v.severity !== 'critical' && v.severity !== 'high') return false;
+                    // Filter 1: Skip DOM XSS on non-functional endpoints (403/404/503 only)
+                    if (isNonFunctionalEndpoint && (v.source === 'xss' || v.source === 'xsstrike') && 
+                        /dom.?xss|dom.?based/i.test(v.title || '')) {
+                      addLog(state!, { phase: 'exploitation', type: 'info', title: `\u23ed\ufe0f Skipped (non-functional endpoint): ${asset.hostname}`, detail: `${v.title} — target returns 403/404/503 with no exploitable app surface` });
+                      return false;
+                    }
+                    // Filter 2: Skip vulns with obviously truncated/artifact parameter names
+                    if ((v.source === 'xsstrike' || v.source === 'xss') && 
+                        /parameter '(erabilities|ilities|ptions|ation|ment)'/.test(v.title || '')) {
+                      addLog(state!, { phase: 'exploitation', type: 'info', title: `\u23ed\ufe0f Skipped (parameter artifact): ${asset.hostname}`, detail: `${v.title} — parameter name appears to be a truncated word, likely a scanner parsing artifact` });
+                      return false;
+                    }
+                    return true;
+                  });
                   if (exploitable.length === 0) continue;
 
                   // ── Pre-built templates for VNC/MSSQL (fast path) ──

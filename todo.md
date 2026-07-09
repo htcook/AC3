@@ -3246,10 +3246,17 @@
 - [x] Fix undefined.length bug in functional-exploit-generator.ts: normalize prerequisites/explanation/verificationSteps/mitreTechniques in improveExploit() return
 
 ### Scan Tool Issues (July 8)
-- [x] Fix cloud_enum exit 127 - tool not installed on DO scan server, add graceful fallback
+- [x] Fix cloud_enum exit 127 - auto-install via scan API on first failure + retry
 - [x] Fix Nikto scan timeouts - phase-aware stall threshold (20 min for scan phases) + heartbeat propagation
 - [x] Fix Nuclei scan timeouts - phase-aware stall threshold (20 min for scan phases) + heartbeat propagation
 - [x] Add zero-findings validation: verify scan tools ran correctly when they return 0 findings
 - [ ] Delete accidental DO scan server via DigitalOcean API
 - [ ] Verify AWS scan server is accessible and working
-- [ ] Install cloud_enum binary on AWS scan server
+- [x] Install cloud_enum on AWS scan server (auto-install via cloud-storage-scanner.ts on first use)
+
+### Engagement Ops Re-Launch Bug Fix (Jul 9)
+- [x] Fix: DB engagement status not synced to 'active' on re-launch of completed/errored engagement
+- [x] Added db.updateEngagement(id, { status: 'active' }) to re-launch reset block (line 193)
+- [x] Manually updated Celerium engagement #37 status from 'completed' to 'active' on production
+- [x] Fix: Add pre-exploitation sanity filter to skip DOM XSS on non-functional (403/404/503) endpoints
+- [x] Fix: Filter out truncated parameter name artifacts (e.g., 'erabilities') from exploitation targets
