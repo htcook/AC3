@@ -96,6 +96,8 @@ jobs:
           echo "✅ ESLint check complete"
 
       - name: Vite production build test
+        env:
+          NODE_OPTIONS: '--max-old-space-size=4096'
         run: |
           echo "🔍 Testing production build..."
           npx vite build --mode production 2>&1 | tee /tmp/build-output.txt
