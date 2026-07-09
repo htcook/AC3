@@ -135,7 +135,26 @@ function parseXssStrikeOutput(stdout: string, targetUrl: string): {
     // XSStrike vulnerability detection
     const vulnMatch = trimmed.match(/(?:Vulnerable|XSS found|Payload|VULN).*?(?:parameter|param)?\s*['"]?([^'":\s]+)['"]?/i);
     if (vulnMatch || /\[VULN\]|\[XSS\]|Vulnerable/i.test(trimmed)) {
-      const param = vulnMatch?.[1] || "unknown";
+      let param = vulnMatch?.[1] || "unknown";
+
+      // ── Parameter name validation ──
+      // Reject truncated English word fragments that the regex captures from descriptive text.
+      // Real URL parameters: q, id, search, callback, redirect_url, page, token, etc.
+      // Artifacts: 'erabilities' (from 'vulnerabilities'), 'ilities', 'ptions', etc.
+      const KNOWN_TRUNCATION_ARTIFACTS = /^(erabilities|ulnerabilities|nerabilities|abilities|bilities|ilities|lities|ptions|ations|ctions|uments|ources|ences|ances|ments|tures|tions|sions|ement|ation|ment|ness|ible|able|ting|ated|ized|ised|ness)$/i;
+      const VALID_PARAM_CHARS = /[=&?\[\]._\-]|^[a-z]{1,4}$/i; // Real params often have special chars or are very short
+      if (KNOWN_TRUNCATION_ARTIFACTS.test(param)) {
+        // This is clearly a word fragment, not a parameter — skip this finding
+        continue;
+      }
+      // Additional heuristic: if param is 6+ lowercase-only chars with no digits/special chars
+      // and doesn't match common parameter names, it's likely a word fragment
+      if (/^[a-z]{6,}$/.test(param) && !VALID_PARAM_CHARS.test(param)) {
+        const COMMON_PARAMS = new Set(['search','filter','source','target','output','return','status','result','submit','upload','delete','update','create','remove','select','insert','modify','change','enable','toggle','switch','option','config','display','content','message','request','session','callback','redirect','download','template','category','username','password','filename','continue','response','function','resource','platform','location','document','referrer','language','encoding','overflow','transfer','checkout','quantity','shipping','tracking','customer','products','comments','feedback','settings','features','services','security','priority','severity','hostname','endpoint','interval','duration','timezone','currency','exchange','position','progress','previous','original','advanced','standard','required','optional','internal','external','disabled','selected','expanded','verified','approved','rejected','archived','favorite','bookmark','remember','register','activate','validate','generate','complete','schedule','estimate','purchase','delivery','exchange','withdraw','transfer','checkout','discount','shipping','tracking','customer','products','comments','feedback','settings','features','services','security','priority','severity','hostname','endpoint','interval','duration','timezone','currency']);
+        if (!COMMON_PARAMS.has(param)) {
+          continue; // Likely a word fragment, not a real parameter
+        }
+      }
 
       // Determine XSS type from context
       let xssType: XssFinding["type"] = "reflected_xss";
