@@ -188,12 +188,24 @@ You MUST extract ALL of the following categories:
 
 5. **Scope**: In-scope and out-of-scope domains, IP ranges, applications, ports. Allowed and disallowed testing types and attack vectors. Specific permissions (DoS, social engineering, physical, wireless, pivoting, exfiltration, persistence, file modification, credentialed testing). Testing date boundaries.
 
+**CRITICAL — Testing Permission Extraction Rules:**
+- For each boolean permission field (dosAllowed, socialEngineeringAllowed, physicalAllowed, wirelessAllowed, pivotingAllowed, exfiltrationAllowed, persistenceAllowed, fileModificationAllowed, credentialedTesting), you MUST determine whether the document ALLOWS or DENIES that activity.
+- Look for explicit statements like "authorized to perform", "permitted", "in scope", "will include", "testing will encompass" as indicators of ALLOWED (true).
+- Look for explicit statements like "prohibited", "not authorized", "excluded", "will not perform", "out of scope" as indicators of DENIED (false).
+- For Red Team plans: If the methodology describes performing lateral movement, credential harvesting, persistence mechanisms, data exfiltration simulation, or social engineering campaigns as part of the test plan objectives or phases, those permissions should be set to TRUE even if not stated in a separate "permissions" section.
+- For Red Team plans: Activities described in threat emulation scenarios, kill chain phases, or ATT&CK technique mappings indicate those activities ARE authorized.
+- Default assumption: If a Red Team plan describes performing an activity as part of its methodology but does not explicitly prohibit it, set the permission to TRUE.
+- Only set a permission to FALSE if the document explicitly states that activity is prohibited, restricted, or out of scope.
+- DoS testing is almost always explicitly prohibited — default to false unless clearly authorized.
+- Physical and wireless testing require explicit authorization — default to false unless clearly stated.
+
 Be thorough. If information is present in the document, extract it. If information is not present, omit the field (do not guess). Pay special attention to:
 - Phone numbers and email addresses for all contacts
 - Escalation chains with specific timeframes (e.g., "notify within 15 minutes")
 - Deconfliction procedures and contacts
 - Testing windows and blackout periods
-- Specific scope boundaries (what is explicitly allowed vs. prohibited)`;
+- Specific scope boundaries (what is explicitly allowed vs. prohibited)
+- Testing activities described in methodology/phases that imply permission (e.g., "Phase 3: Lateral Movement" implies pivotingAllowed=true)`;
 
 const ROE_EXTRACTION_USER_PROMPT = `Extract all structured data from the following document text. Return ONLY valid JSON matching this schema:
 
