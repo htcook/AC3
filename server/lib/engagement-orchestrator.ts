@@ -2889,7 +2889,7 @@ export async function llmDecide(context: {
       currentPhase: context.phase,
       recentActivity,
       assetSummary,
-      availableTools: ['scanforge-discovery', 'nuclei', 'zap', 'nikto', 'gobuster', 'testssl', 'hydra', 'sqlmap'],
+      availableTools: ['nmap', 'naabu', 'masscan', 'scanforge-discovery', 'nuclei', 'zap', 'nikto', 'gobuster', 'testssl', 'hydra', 'sqlmap', 'feroxbuster', 'ffuf', 'whatweb', 'wpscan', 'sslscan', 'arjun'],
       engagement: {
         engagementType: context.engagementType,
         clientName: context.assets[0]?.hostname,
@@ -2903,6 +2903,12 @@ export async function llmDecide(context: {
       discovery: 'discovery_scan', nuclei: 'nuclei_scan', zap: 'zap_scan',
       nikto: 'nuclei_scan', gobuster: 'nuclei_scan',
       testssl: 'nuclei_scan', hydra: 'exploit_attempt', sqlmap: 'exploit_attempt',
+      // Port scanning & service discovery tools
+      nmap: 'discovery_scan', naabu: 'discovery_scan', masscan: 'discovery_scan',
+      'scanforge-discovery': 'discovery_scan',
+      // Web fuzzing & content discovery tools
+      feroxbuster: 'nuclei_scan', ffuf: 'nuclei_scan', whatweb: 'discovery_scan',
+      wpscan: 'nuclei_scan', sslscan: 'nuclei_scan', arjun: 'nuclei_scan',
     };
     const actionType = toolToActionType[opsResult.recommended_action.tool] || 'discovery_scan';
     const actions: Array<{ type: string; params: Record<string, any> }> = [{

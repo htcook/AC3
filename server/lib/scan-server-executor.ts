@@ -97,6 +97,34 @@ const ALLOWED_TOOLS = new Set([
   "bash", "sh", "uptime", "df", "free",
 ]);
 
+// ─── Tool Aliases ─────────────────────────────────────────────────────────────
+// Maps logical module names to actual binaries on the scan server.
+// "scanforge-discovery" is a codebase abstraction — the real binary is nmap
+// (for NSE script-based scanning) or naabu (for port-only scanning).
+// When args contain --script flags (nmap NSE syntax), resolve to nmap;
+// otherwise default to naabu for fast port scanning.
+const TOOL_ALIASES: Record<string, string> = {
+  "scanforge-discovery": "nmap",
+};
+
+/**
+ * Resolve a logical tool name to the actual binary on the scan server.
+ * Handles "scanforge-discovery" which is a codebase module name, not a real binary.
+ * If args contain nmap-specific flags (--script, -sV, -sC, -O), use nmap.
+ * Otherwise fall back to naabu for simple port scanning.
+ */
+function resolveToolBinary(tool: string, args?: string): string {
+  if (tool === "scanforge-discovery") {
+    // If args contain nmap NSE script flags, use nmap
+    if (args && (/--script\b/.test(args) || /-s[VCO]\b/.test(args) || /-A\b/.test(args))) {
+      return "nmap";
+    }
+    // For simple port scanning, use naabu (faster)
+    return "naabu";
+  }
+  return TOOL_ALIASES[tool] || tool;
+}
+
 // Characters that could indicate command injection
 const DANGEROUS_CHARS = /[;&|`$(){}]/;
 
@@ -489,30 +517,38 @@ async function executeSSHWithRetry(
  *   - Has automatic SSH fallback built into the do-scan-api module
  */
 export async function executeTool(config: ToolExecConfig): Promise<ToolExecResult> {
-  const { tool, args, timeoutSeconds = 300, sudo = false } = config;
+  const { tool: rawTool, args, timeoutSeconds = 300, sudo = false } = config;
   const startTime = Date.now();
 
-  // Validate tool is allowed
-  if (!ALLOWED_TOOLS.has(tool)) {
-    console.warn(`[ScanServer] Tool "${tool}" blocked by whitelist. Allowed: ${[...ALLOWED_TOOLS].join(', ')}`);
+  // Validate tool is allowed (check original name before alias resolution)
+  if (!ALLOWED_TOOLS.has(rawTool)) {
+    console.warn(`[ScanServer] Tool "${rawTool}" blocked by whitelist. Allowed: ${[...ALLOWED_TOOLS].join(', ')}`);
     return {
-      tool,
-      command: `${tool} ${args}`,
+      tool: rawTool,
+      command: `${rawTool} ${args}`,
       stdout: "",
-      stderr: `Tool "${tool}" is not in the allowed tools whitelist`,
+      stderr: `Tool "${rawTool}" is not in the allowed tools whitelist`,
       exitCode: -1,
       durationMs: 0,
       timedOut: false,
-      error: `Tool "${tool}" not allowed`,
+      error: `Tool "${rawTool}" not allowed`,
     };
+  }
+
+  // Resolve logical tool name to actual binary on the scan server
+  const tool = resolveToolBinary(rawTool, args);
+  if (tool !== rawTool) {
+    console.log(`[ScanServer] Tool alias resolved: "${rawTool}" → "${tool}" (args: ${String(args).substring(0, 80)})`);
   }
 
   console.log(`[ScanServer] executeTool: tool=${tool}, timeout=${timeoutSeconds}s, target=${config.target || 'N/A'}, args=${String(args).substring(0, 150)}`);
 
   // Primary path: HTTP API (includes its own SSH fallback)
+  // Pass resolved tool name to the HTTP API
+  const resolvedConfig = { ...config, tool };
   try {
     const { executeToolViaHttp } = await import("./do-scan-api");
-    const httpResult = await executeToolViaHttp(config);
+    const httpResult = await executeToolViaHttp(resolvedConfig);
     console.log(`[ScanServer] HTTP API result: tool=${tool}, exitCode=${httpResult.exitCode}, timedOut=${httpResult.timedOut}, duration=${httpResult.durationMs}ms, stdout=${httpResult.stdout?.substring(0, 100) || '(empty)'}`);
     return httpResult;
   } catch (httpImportErr: any) {

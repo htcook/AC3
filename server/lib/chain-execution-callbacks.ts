@@ -136,7 +136,7 @@ export function buildRealCallbacks(options?: {
     },
 
     // ─── ScanForge Discovery ─────────────────────────────────────
-    executeNmap: async (config) => {
+    executeScanForgeDiscovery: async (config) => {
       const { executeScanforgeScan, autoSelectTool } = await import("./scanforge-discovery");
       const server = await resolveScanforgeServer();
 
