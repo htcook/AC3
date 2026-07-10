@@ -507,63 +507,89 @@ export async function executeCloudStorageScan(
 
       // ── Auto-install missing tools (exit 127 = command not found) ──
       if (result.exitCode === 127) {
-        const installCmd = scan.tool === 'cloud_enum'
-          ? 'pip3 install cloud_enum && ln -sf $(python3 -c "import cloud_enum; import os; print(os.path.dirname(cloud_enum.__file__))")/../bin/cloud_enum /usr/local/bin/cloud_enum 2>/dev/null; which cloud_enum || pip3 show cloud_enum'
-          : `pip3 install ${scan.tool}`;
-        console.warn(`[CloudScan] Tool '${scan.tool}' not installed (exit 127). Attempting auto-install...`);
-        try {
-          const installResult = await executeRawCommand(installCmd, 120);
-          if (installResult.exitCode === 0) {
-            console.log(`[CloudScan] Successfully installed '${scan.tool}'. Retrying execution...`);
-            // Retry the original command after install
-            if (scan.tool === "bash" || scan.tool === "sh") {
-              result = await executeRawCommand(scan.command, timeoutSeconds);
-            } else {
-              result = await executeTool({
-                tool: scan.tool,
-                args: scan.command.replace(new RegExp(`^${scan.tool}\\s+`), ""),
-                timeoutSeconds,
-              });
-            }
-            // If still failing after install, fall through to the skip logic below
-            if (result.exitCode === 127) {
-              console.warn(`[CloudScan] Tool '${scan.tool}' still not found after install attempt. Skipping.`);
-              rawResults.push({
-                tool: scan.tool,
-                command: scan.command,
-                stdout: installResult.stdout || "",
-                stderr: `Auto-install attempted but tool still not found. Install output: ${installResult.stderr || 'none'}`,
-                exitCode: 127,
-                durationMs: Date.now() - startTime,
-              });
-              continue;
-            }
-            // Otherwise fall through to normal result processing
+        // Shell interpreters (bash/sh) cannot be pip-installed — skip auto-install
+        // and retry with /bin/sh fallback instead
+        if (scan.tool === "bash" || scan.tool === "sh") {
+          console.warn(`[CloudScan] Shell '${scan.tool}' not available on scan server (exit 127). Retrying with sh -c wrapper...`);
+          // Retry by wrapping the command with explicit /bin/sh -c
+          const shWrappedCmd = `/bin/sh -c '${scan.command.replace(/'/g, "'\\''")}' 2>&1`;
+          const retryResult = await executeRawCommand(shWrappedCmd, timeoutSeconds);
+          if (retryResult.exitCode !== 127) {
+            result = retryResult;
+            // Fall through to normal result processing
           } else {
-            console.warn(`[CloudScan] Failed to install '${scan.tool}' (exit ${installResult.exitCode}). Skipping.`);
+            console.warn(`[CloudScan] /bin/sh also unavailable. Skipping compound command.`);
             rawResults.push({
               tool: scan.tool,
               command: scan.command,
               stdout: "",
-              stderr: `Auto-install failed (exit ${installResult.exitCode}): ${(installResult.stderr || '').slice(0, 200)}. Falling back to nuclei cloud templates.`,
+              stderr: `Neither bash nor sh available on scan server. Command cannot be executed.`,
               exitCode: 127,
               durationMs: Date.now() - startTime,
             });
             continue;
           }
-        } catch (installErr: any) {
-          console.warn(`[CloudScan] Auto-install of '${scan.tool}' threw error: ${installErr.message}. Skipping.`);
-          rawResults.push({
-            tool: scan.tool,
-            command: scan.command,
-            stdout: "",
-            stderr: `Auto-install error: ${installErr.message}. Falling back to nuclei cloud templates.`,
-            exitCode: 127,
-            durationMs: Date.now() - startTime,
-          });
-          continue;
-        }
-      }
+        } else {
+          // For real tools, attempt pip install
+          const installCmd = scan.tool === 'cloud_enum'
+            ? 'pip3 install --break-system-packages cloud_enum 2>/dev/null || pip3 install cloud_enum; python3 -c "import cloud_enum; print(cloud_enum.__file__)" && echo "#!/bin/sh\npython3 -m cloud_enum \"\$@\"" > /usr/local/bin/cloud_enum && chmod +x /usr/local/bin/cloud_enum'
+            : `pip3 install --break-system-packages ${scan.tool} 2>/dev/null || pip3 install ${scan.tool}`;
+          console.warn(`[CloudScan] Tool '${scan.tool}' not installed (exit 127). Attempting auto-install...`);
+          try {
+            const installResult = await executeRawCommand(installCmd, 120);
+            if (installResult.exitCode === 0) {
+              console.log(`[CloudScan] Successfully installed '${scan.tool}'. Retrying execution...`);
+              // For cloud_enum, retry using python3 -m invocation as fallback
+              if (scan.tool === "cloud_enum") {
+                const moduleCmd = scan.command.replace(/^cloud_enum\s+/, 'python3 -m cloud_enum ');
+                result = await executeRawCommand(moduleCmd, timeoutSeconds);
+              } else {
+                result = await executeTool({
+                  tool: scan.tool,
+                  args: scan.command.replace(new RegExp(`^${scan.tool}\\s+`), ""),
+                  timeoutSeconds,
+                });
+              }
+              // If still failing after install, fall through to the skip logic below
+              if (result.exitCode === 127) {
+                console.warn(`[CloudScan] Tool '${scan.tool}' still not found after install attempt. Skipping.`);
+                rawResults.push({
+                  tool: scan.tool,
+                  command: scan.command,
+                  stdout: installResult.stdout || "",
+                  stderr: `Auto-install attempted but tool still not found. Install output: ${installResult.stderr || 'none'}`,
+                  exitCode: 127,
+                  durationMs: Date.now() - startTime,
+                });
+                continue;
+              }
+              // Otherwise fall through to normal result processing
+            } else {
+              console.warn(`[CloudScan] Failed to install '${scan.tool}' (exit ${installResult.exitCode}). Skipping.`);
+              rawResults.push({
+                tool: scan.tool,
+                command: scan.command,
+                stdout: "",
+                stderr: `Auto-install failed (exit ${installResult.exitCode}): ${(installResult.stderr || '').slice(0, 200)}. Falling back to nuclei cloud templates.`,
+                exitCode: 127,
+                durationMs: Date.now() - startTime,
+              });
+              continue;
+            }
+          } catch (installErr: any) {
+            console.warn(`[CloudScan] Auto-install of '${scan.tool}' threw error: ${installErr.message}. Skipping.`);
+            rawResults.push({
+              tool: scan.tool,
+              command: scan.command,
+              stdout: "",
+              stderr: `Auto-install error: ${installErr.message}. Falling back to nuclei cloud templates.`,
+              exitCode: 127,
+              durationMs: Date.now() - startTime,
+            });
+            continue;
+          }
+        } // end else (non-shell tools)
+      } // end if (exitCode === 127)
 
       rawResults.push({
         tool: scan.tool,

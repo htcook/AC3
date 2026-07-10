@@ -105,6 +105,7 @@ const ALLOWED_TOOLS = new Set([
 // otherwise default to naabu for fast port scanning.
 const TOOL_ALIASES: Record<string, string> = {
   "scanforge-discovery": "nmap",
+  "cloud_enum": "cloud_enum", // Keep as-is; fallback to python3 -m handled in cloud-storage-scanner
 };
 
 /**
@@ -122,6 +123,8 @@ function resolveToolBinary(tool: string, args?: string): string {
     // For simple port scanning, use naabu (faster)
     return "naabu";
   }
+  // cloud_enum: try the binary first; the cloud-storage-scanner handles
+  // the python3 -m fallback if exit 127 is returned
   return TOOL_ALIASES[tool] || tool;
 }
 
