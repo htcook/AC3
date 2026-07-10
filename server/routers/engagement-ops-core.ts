@@ -1527,7 +1527,16 @@ export const engagementOpsRouter = router({
           lookupExploits = bridge.lookupExploitsForCve;
         } catch { /* exploitation bridge not available */ }
 
+        // Import exploit match eligibility gate
+        const { isExploitMatchEligible, getRelevantZapRules } = await import('../lib/finding-deduplication');
+
         for (const vuln of allVulns) {
+          // ═══ SEVERITY GATE: Skip info-level findings that cannot be exploited ═══
+          // This prevents mapping SQL Injection/XSS rules to "CSP Header Found" etc.
+          if (!isExploitMatchEligible({ title: vuln.title, severity: vuln.severity, cve: vuln.cve })) {
+            continue;
+          }
+
           const msfModules: string[] = [];
           const zapRules: string[] = [];
           const exploitBridgeModules: string[] = [];
@@ -1552,22 +1561,36 @@ export const engagementOpsRouter = router({
             );
           }
 
-          const titleLower = vuln.title.toLowerCase();
-          if (titleLower.includes('[zap]') || titleLower.includes('xss') || titleLower.includes('sql') || titleLower.includes('injection')) {
-            zapRules.push('SQL Injection', 'XSS (Reflected)', 'XSS (Persistent)', 'Command Injection', 'Path Traversal');
-          }
-          if (titleLower.includes('auth') || titleLower.includes('login') || titleLower.includes('credential')) {
-            zapRules.push('Authentication Bypass', 'Session Fixation', 'Forced Browse: Default Credentials');
-          }
-          if (titleLower.includes('ssrf') || titleLower.includes('redirect')) {
-            zapRules.push('Server Side Request Forgery', 'Open Redirect');
-          }
-          if (titleLower.includes('rce') || titleLower.includes('remote code') || titleLower.includes('command execution')) {
-            msfModules.push(`exploit/multi/misc/rce_${vuln.asset.replace(/[^a-z0-9]/gi, '_')}`);
-            zapRules.push('Remote Code Execution', 'OS Command Injection');
-          }
-          if (titleLower.includes('lfi') || titleLower.includes('local file') || titleLower.includes('path traversal')) {
-            zapRules.push('Path Traversal', 'Local File Inclusion');
+          // ═══ RELEVANT ZAP RULES: Only apply rules that match the finding type ═══
+          // Previously this applied SQL Injection/XSS/Command Injection to ANY [zap] finding
+          const relevantRules = getRelevantZapRules({ title: vuln.title, severity: vuln.severity });
+          if (relevantRules.length > 0) {
+            zapRules.push(...relevantRules);
+          } else {
+            // Fallback: only apply rules if the title explicitly mentions the attack type
+            const titleLower = vuln.title.toLowerCase();
+            if (titleLower.includes('xss') || titleLower.includes('cross-site scripting')) {
+              zapRules.push('XSS (Reflected)', 'XSS (Persistent)');
+            }
+            if (titleLower.includes('sql') && titleLower.includes('inject')) {
+              zapRules.push('SQL Injection');
+            }
+            if (titleLower.includes('auth') || titleLower.includes('login') || titleLower.includes('credential')) {
+              zapRules.push('Authentication Bypass', 'Session Fixation', 'Forced Browse: Default Credentials');
+            }
+            if (titleLower.includes('ssrf') || titleLower.includes('server-side request')) {
+              zapRules.push('Server Side Request Forgery');
+            }
+            if (titleLower.includes('redirect') && !titleLower.includes('hsts')) {
+              zapRules.push('Open Redirect');
+            }
+            if (titleLower.includes('rce') || titleLower.includes('remote code') || titleLower.includes('command execution')) {
+              msfModules.push(`exploit/multi/misc/rce_${vuln.asset.replace(/[^a-z0-9]/gi, '_')}`);
+              zapRules.push('Remote Code Execution', 'OS Command Injection');
+            }
+            if (titleLower.includes('lfi') || titleLower.includes('local file') || titleLower.includes('path traversal')) {
+              zapRules.push('Path Traversal', 'Local File Inclusion');
+            }
           }
 
           const allMsf = [...new Set([...exploitBridgeModules, ...msfModules])];
@@ -1977,6 +2000,12 @@ export const engagementOpsRouter = router({
 
         // ── Scanning scope: scan results, ZAP/Nuclei/Burp trackers, vuln count ──
         if (rs.scanning) {
+          // Capture existing findings before reset for re-scan deduplication
+          // The dedup pipeline will compare new findings against these to prevent doubling
+          if (!rs.recon && Array.isArray(state.assets) && state.assets.length > 0) {
+            (state as any).previousScanFindings = state.assets.flatMap((a: any) => a.vulns || []);
+            (state as any).previousZapFindings = state.assets.flatMap((a: any) => a.zapFindings || []);
+          }
           state.stats.vulnsFound = 0;
           state.stats.zapScansRun = 0;
           state.completedScans = {

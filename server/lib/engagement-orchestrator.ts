@@ -5265,6 +5265,42 @@ export async function executeEngagement(
     (state.stats as any).isDegraded = isDegraded;
     (state.stats as any).scanKeyIsPlaceholder = scanKeyIsPlaceholder;
 
+    // ── Finding Deduplication Pipeline ──
+    // Run IP-based dedup, ZAP noise filtering, and multi-tool consolidation
+    // before counting vulns. This prevents inflated finding counts from:
+    // 1. Multiple hostnames resolving to the same IP
+    // 2. ZAP User Agent Fuzzer / CSP noise
+    // 3. Same vuln reported by nuclei + ZAP + scanforge independently
+    try {
+      const { runDeduplicationPipeline } = await import('./finding-deduplication');
+      const isRescan = !!(state as any).previousScanFindings;
+      const dedupResult = await runDeduplicationPipeline(state.assets as any, {
+        enableIpDedup: true,
+        enableZapFilter: true,
+        enableMultiToolConsolidation: true,
+        enableRescanDedup: isRescan,
+        existingFindings: isRescan ? (state as any).previousScanFindings : [],
+        existingZapFindings: isRescan ? (state as any).previousZapFindings : [],
+      });
+      // Apply deduplicated assets back to state
+      state.assets = dedupResult.assets as any;
+      // Log deduplication results
+      for (const logEntry of dedupResult.log) {
+        addLog(state, { phase: 'completed', type: 'info', title: '🔍 Finding Deduplication', detail: logEntry });
+      }
+      if (dedupResult.stats.originalVulnCount !== dedupResult.stats.deduplicatedVulnCount) {
+        addLog(state, {
+          phase: 'completed', type: 'info',
+          title: `📉 Dedup Summary: ${dedupResult.stats.originalVulnCount} → ${dedupResult.stats.deduplicatedVulnCount} findings`,
+          detail: `IP merges: ${dedupResult.stats.ipGroupsMerged}, ZAP noise: ${dedupResult.stats.zapNoiseFiltered}, Multi-tool: ${dedupResult.stats.multiToolMerged}, Re-scan dupes: ${dedupResult.stats.rescanDuplicatesRemoved}`,
+        });
+      }
+      broadcastOpsUpdate(state.engagementId, { type: 'log_update' });
+    } catch (dedupErr) {
+      console.error('[Dedup] Finding deduplication pipeline error:', dedupErr);
+      addLog(state, { phase: 'completed', type: 'warning', title: '⚠️ Deduplication Skipped', detail: `Pipeline error: ${(dedupErr as Error).message}` });
+    }
+
     // ── Evidence-Gated Stats Recalculation ──
     // Classify each vuln's evidence status before counting.
     // A vuln is "evidence-backed" if it has:
