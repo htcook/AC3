@@ -3289,3 +3289,11 @@
 - [ ] Deploy to Production (requires manual workflow_dispatch with environments=production)
 - [ ] Rotate expired HackerOne API key in AWS Secrets Manager (ac3/dev/app and ac3/prod/app)
 - [ ] Verify Celerium engagement #37 resumes without crash loop after production deploy (Mase will handle SQLMap approval gate)
+### ScanForge Discovery exit:127 Fix (Jul 9-10)
+- [x] Root cause analysis: 'scanforge-discovery' is a TS module name sent as literal tool name to SSH executor
+- [x] Added resolveToolBinary() in scan-server-executor.ts: maps 'scanforge-discovery' → nmap (if --script flags) or naabu (port scan)
+- [x] Fixed callback naming mismatch: executeNmap → executeScanForgeDiscovery in chain-execution-callbacks.ts
+- [x] Expanded availableTools in engagement-orchestrator.ts: added nmap, naabu, masscan, feroxbuster, ffuf, whatweb, wpscan, sslscan, arjun
+- [x] Expanded toolToActionType map to route new tools to correct action types
+- [x] Pushed to GitHub (htcook/caldera-dashboard + htcook/AC3) and triggered Deploy Multi-Environment
+- [ ] Verify nmap is installed on EC2 scan server (requires SSH access to SCANFORGE_HOST)
