@@ -3272,3 +3272,11 @@
 - [x] Graceful degradation: if LLM fails, pipeline continues without blocking
 - [x] Uses _priority: 'essential' for accuracy-critical analysis (routes to best model)
 - [x] Push to GitHub (caldera remote)
+
+### RoE Parser - Testing Permission Extraction Bug Fix (Jul 9)
+- [x] Identified bug: LLM parser defaulting all testing permissions to DENIED for Red Team plans
+- [x] Root cause: System prompt didn't instruct LLM to infer permissions from methodology/threat emulation descriptions
+- [x] Enhanced ROE_EXTRACTION_SYSTEM_PROMPT with explicit permission extraction rules
+- [x] Rules: Activities in methodology/phases/ATT&CK mappings imply ALLOWED; only FALSE when explicitly prohibited
+- [x] Pushed fix to both GitHub repos (htcook/caldera-dashboard and htcook/AC3)
+- [x] Updated Ontic engagement (ID 39) scope constraints in DB with correct permissions

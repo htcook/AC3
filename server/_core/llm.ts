@@ -406,7 +406,79 @@ export function getLLMAnomalies() {
   return callSiteTracker.detectAnomalies();
 }
 
+// ─── Middleware Registry (ESM-safe alternative to monkey-patching) ───────────
+// This allows the safety interceptor to hook into invokeLLM without needing
+// to reassign read-only ESM exports (which fails in esbuild --splitting builds).
+
+export type LLMMiddlewarePre = (
+  params: InvokeParams
+) => Promise<{ blocked: boolean; blockReason?: string; params: InvokeParams }>;
+
+export type LLMMiddlewarePost = (
+  params: InvokeParams,
+  result: InvokeResult
+) => Promise<InvokeResult>;
+
+const middlewarePre: LLMMiddlewarePre[] = [];
+const middlewarePost: LLMMiddlewarePost[] = [];
+
+/**
+ * Register a pre-invocation middleware. Called before the LLM request.
+ * If `blocked` is returned true, the call is short-circuited with an error.
+ * Middleware can also modify params (e.g., sanitize messages).
+ */
+export function registerLLMMiddlewarePre(fn: LLMMiddlewarePre): () => void {
+  middlewarePre.push(fn);
+  return () => {
+    const idx = middlewarePre.indexOf(fn);
+    if (idx >= 0) middlewarePre.splice(idx, 1);
+  };
+}
+
+/**
+ * Register a post-invocation middleware. Called after the LLM response.
+ * Can modify/sanitize the result before it's returned to the caller.
+ */
+export function registerLLMMiddlewarePost(fn: LLMMiddlewarePost): () => void {
+  middlewarePost.push(fn);
+  return () => {
+    const idx = middlewarePost.indexOf(fn);
+    if (idx >= 0) middlewarePost.splice(idx, 1);
+  };
+}
+
+/** Check if any middleware is registered (for diagnostics) */
+export function getLLMMiddlewareCount(): { pre: number; post: number } {
+  return { pre: middlewarePre.length, post: middlewarePost.length };
+}
+
 export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
+  // ─── Pre-Middleware Execution ──────────────────────────────────────────────
+  let currentParams = params;
+  for (const mw of middlewarePre) {
+    try {
+      const result = await mw(currentParams);
+      if (result.blocked) {
+        console.warn(`[LLM] Call blocked by middleware: ${result.blockReason || 'no reason'}`);
+        // Return a synthetic blocked response
+        return {
+          id: `blocked-${Date.now()}`,
+          created: Math.floor(Date.now() / 1000),
+          model: 'blocked',
+          choices: [{
+            index: 0,
+            message: { role: 'assistant' as const, content: `[BLOCKED] ${result.blockReason || 'Safety policy violation'}` },
+            finish_reason: 'stop',
+          }],
+          usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+        } as InvokeResult;
+      }
+      currentParams = result.params;
+    } catch (err: any) {
+      console.error(`[LLM] Pre-middleware error (non-fatal):`, err.message);
+    }
+  }
+
   const {
     messages,
     tools,
@@ -419,7 +491,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     _caller,
     _engagementId,
     _priority = 'standard',
-  } = params;
+  } = currentParams;
 
   // ─── Semantic Cache Lookup ──────────────────────────────────────────────────
   // Only cache calls without tools (tool calls are inherently non-deterministic)
@@ -644,7 +716,17 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
         }).catch(() => {});
       }
 
-      return result;
+      // ─── Post-Middleware Execution ─────────────────────────────────────────
+      let finalResult = result;
+      for (const mw of middlewarePost) {
+        try {
+          finalResult = await mw(currentParams, finalResult);
+        } catch (err: any) {
+          console.error(`[LLM] Post-middleware error (non-fatal):`, err.message);
+        }
+      }
+
+      return finalResult;
     } catch (err: any) {
       clearTimeout(timeoutId);
 

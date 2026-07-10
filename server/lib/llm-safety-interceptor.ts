@@ -382,36 +382,53 @@ export function createSafeInvokeLLM(
   };
 }
 
-// ─── Monkey-Patch Installer ─────────────────────────────────────────────────
+// ─── Middleware-Based Installer (ESM-safe) ──────────────────────────────────
+// Uses the middleware registry in _core/llm.ts instead of monkey-patching.
+// This works with esbuild --splitting --format=esm where module exports are
+// read-only (Object.defineProperty with writable:false).
 
 let installed = false;
-let originalFn: ((params: InvokeParams) => Promise<InvokeResult>) | null = null;
+let unregisterPre: (() => void) | null = null;
+let unregisterPost: (() => void) | null = null;
 
 /**
- * Install the safety interceptor by monkey-patching the invokeLLM export.
+ * Install the safety interceptor via the LLM middleware registry.
  * Call this once at server startup (e.g., in server/index.ts or server/_core/context.ts).
  *
- * This approach avoids modifying _core/llm.ts while ensuring ALL callers
- * (direct invokeLLM, throttledLLMCall, createGuardedInvokeLLM) are protected.
+ * This approach uses registerLLMMiddlewarePre/Post hooks inside invokeLLM itself,
+ * ensuring ALL callers are protected without needing to reassign ESM exports.
  */
 export async function installSafetyInterceptor(): Promise<void> {
   if (installed) return;
 
   try {
     // Dynamic import to avoid circular dependencies
-    const llmModule = await import("../_core/llm");
-    originalFn = llmModule.invokeLLM;
+    const { registerLLMMiddlewarePre, registerLLMMiddlewarePost } = await import("../_core/llm");
 
-    // Create the safe wrapper
-    const safeInvoke = createSafeInvokeLLM(originalFn);
+    // Register pre-call middleware (injection detection + input sanitization)
+    unregisterPre = registerLLMMiddlewarePre(async (params) => {
+      const preResult = interceptPreCall(params);
 
-    // Monkey-patch the module export
-    // Note: This works because ES module exports are live bindings in Node.js
-    // when accessed via the module namespace object
-    (llmModule as any).invokeLLM = safeInvoke;
+      if (!preResult.proceed) {
+        return { blocked: true, blockReason: preResult.blockReason, params };
+      }
+
+      // If messages were sanitized, return modified params
+      if (preResult.sanitizedMessages) {
+        return { blocked: false, params: { ...params, messages: preResult.sanitizedMessages } };
+      }
+
+      return { blocked: false, params };
+    });
+
+    // Register post-call middleware (output sanitization for PII/secrets)
+    unregisterPost = registerLLMMiddlewarePost(async (params, result) => {
+      const postResult = interceptPostCall(result, params);
+      return postResult.result;
+    });
 
     installed = true;
-    console.log("[LLM Safety] Transport-level safety interceptor installed successfully");
+    console.log("[LLM Safety] Transport-level safety interceptor installed via middleware registry");
     console.log(`[LLM Safety] Config: blockHighSeverity=${config.blockHighSeverity}, sanitizeOutputs=${config.sanitizeOutputs}, auditAll=${config.auditAll}`);
     console.log(`[LLM Safety] Bypassing callers: ${[...config.bypassCallers].join(", ")}`);
   } catch (err: any) {
@@ -424,13 +441,12 @@ export async function installSafetyInterceptor(): Promise<void> {
  * Uninstall the safety interceptor (for testing or emergency bypass).
  */
 export async function uninstallSafetyInterceptor(): Promise<void> {
-  if (!installed || !originalFn) return;
+  if (!installed) return;
 
   try {
-    const llmModule = await import("../_core/llm");
-    (llmModule as any).invokeLLM = originalFn;
+    if (unregisterPre) { unregisterPre(); unregisterPre = null; }
+    if (unregisterPost) { unregisterPost(); unregisterPost = null; }
     installed = false;
-    originalFn = null;
     console.log("[LLM Safety] Transport-level safety interceptor uninstalled");
   } catch (err: any) {
     console.error("[LLM Safety] Failed to uninstall interceptor:", err.message);

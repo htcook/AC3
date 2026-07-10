@@ -123,8 +123,10 @@ async function queryNvdForLatestAffectedVersion(
 
   try {
     // Search for recent high/critical CVEs for this product
-    const cpeName = `cpe:2.3:a:${cpeVendor}:${cpeProduct}`;
-    const url = `${NVD_CVE_API}?cpeName=${encodeURIComponent(cpeName)}:*&resultsPerPage=${maxResults}&cvssV3Severity=HIGH`;
+    // NVD API v2.0 requires fully-qualified CPE for cpeName param.
+    // Use virtualMatchString instead which accepts wildcard CPE patterns.
+    const cpeMatch = `cpe:2.3:a:${cpeVendor}:${cpeProduct}:*:*:*:*:*:*:*:*`;
+    const url = `${NVD_CVE_API}?virtualMatchString=${encodeURIComponent(cpeMatch)}&resultsPerPage=${maxResults}&cvssV3Severity=HIGH`;
     const headers: Record<string, string> = { "User-Agent": "AC3-VersionThresholdService/1.0" };
     const apiKey = getNvdApiKey();
     if (apiKey) headers["apiKey"] = apiKey;
