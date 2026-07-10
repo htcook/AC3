@@ -3280,3 +3280,12 @@
 - [x] Rules: Activities in methodology/phases/ATT&CK mappings imply ALLOWED; only FALSE when explicitly prohibited
 - [x] Pushed fix to both GitHub repos (htcook/caldera-dashboard and htcook/AC3)
 - [x] Updated Ontic engagement (ID 39) scope constraints in DB with correct permissions
+### Celerium Engagement #37 Crash Loop Fix (Jul 9-10)
+- [x] Investigated crash loop: identified 3 root causes (LLM safety interceptor ESM bug, NVD API 404, HackerOne 401)
+- [x] Fix LLM Safety Interceptor: added middleware registry to server/_core/llm.ts (registerLLMMiddlewarePre, registerLLMMiddlewarePost)
+- [x] Rewrote installSafetyInterceptor in server/lib/llm-safety-interceptor.ts to use middleware registry (ESM-safe, no monkey-patching)
+- [x] Fix NVD API 404: changed version-threshold-service.ts from cpeName (partial CPE) to virtualMatchString (full 13-field CPE wildcard)
+- [x] Deployed fix to AWS Dev via GitHub Actions (Run #29060122321 — all jobs passed)
+- [ ] Deploy to Production (requires manual workflow_dispatch with environments=production)
+- [ ] Rotate expired HackerOne API key in AWS Secrets Manager (ac3/dev/app and ac3/prod/app)
+- [ ] Verify Celerium engagement #37 resumes without crash loop after production deploy (Mase will handle SQLMap approval gate)
