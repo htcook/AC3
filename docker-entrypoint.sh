@@ -24,12 +24,6 @@ if [ -n "$DATABASE_URL" ]; then
     echo "[entrypoint] Running admin account seeder..."
     node seed-admin.mjs 2>&1 || echo "[entrypoint] WARN: Admin seed had issues"
   fi
-
-  # Seed PBS Platform test accounts (white-label deployment)
-  if [ -f "seed-pbs-accounts.mjs" ]; then
-    echo "[entrypoint] Running PBS Platform account seeder..."
-    node seed-pbs-accounts.mjs 2>&1 || echo "[entrypoint] WARN: PBS account seed had issues"
-  fi
 else
   echo "[entrypoint] WARN: DATABASE_URL not set, skipping migrations."
 fi
