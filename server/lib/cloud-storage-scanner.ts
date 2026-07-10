@@ -493,6 +493,10 @@ export async function executeCloudStorageScan(
 
       if (scan.tool === "bash" || scan.tool === "sh") {
         result = await executeRawCommand(scan.command, timeoutSeconds);
+      } else if (scan.command.includes("|") || scan.command.includes(";") || scan.command.includes("`")) {
+        // Commands with pipes, semicolons, or backticks must go through raw execution
+        // (executeTool blocks dangerous chars). This covers s3scanner piped commands.
+        result = await executeRawCommand(scan.command, timeoutSeconds);
       } else if (scan.tool === "cloud_enum" || scan.tool === "s3scanner" || scan.tool === "nuclei") {
         result = await executeTool({
           tool: scan.tool,
@@ -531,17 +535,22 @@ export async function executeCloudStorageScan(
           }
         } else {
           // For real tools, attempt pip install
-          const installCmd = scan.tool === 'cloud_enum'
-            ? 'pip3 install --break-system-packages cloud_enum 2>/dev/null || pip3 install cloud_enum; python3 -c "import cloud_enum; print(cloud_enum.__file__)" && echo "#!/bin/sh\npython3 -m cloud_enum \"\$@\"" > /usr/local/bin/cloud_enum && chmod +x /usr/local/bin/cloud_enum'
-            : `pip3 install --break-system-packages ${scan.tool} 2>/dev/null || pip3 install ${scan.tool}`;
+          let installCmd: string;
+          if (scan.tool === 'cloud_enum') {
+            installCmd = 'pip3 install --break-system-packages cloud_enum 2>/dev/null || pip3 install cloud_enum; python3 -c "import cloud_enum; print(cloud_enum.__file__)" && echo "#!/bin/sh\npython3 -m cloud_enum \"\$@\"" > /usr/local/bin/cloud_enum && chmod +x /usr/local/bin/cloud_enum';
+          } else if (scan.tool === 's3scanner') {
+            installCmd = 'pip3 install --break-system-packages s3scanner 2>/dev/null || pip3 install s3scanner; which s3scanner || (echo "#!/bin/sh\npython3 -m s3scanner \"\$@\"" > /usr/local/bin/s3scanner && chmod +x /usr/local/bin/s3scanner)';
+          } else {
+            installCmd = `pip3 install --break-system-packages ${scan.tool} 2>/dev/null || pip3 install ${scan.tool}`;
+          }
           console.warn(`[CloudScan] Tool '${scan.tool}' not installed (exit 127). Attempting auto-install...`);
           try {
             const installResult = await executeRawCommand(installCmd, 120);
             if (installResult.exitCode === 0) {
               console.log(`[CloudScan] Successfully installed '${scan.tool}'. Retrying execution...`);
-              // For cloud_enum, retry using python3 -m invocation as fallback
-              if (scan.tool === "cloud_enum") {
-                const moduleCmd = scan.command.replace(/^cloud_enum\s+/, 'python3 -m cloud_enum ');
+              // For Python-based tools, retry using python3 -m invocation as fallback
+              if (scan.tool === "cloud_enum" || scan.tool === "s3scanner") {
+                const moduleCmd = scan.command.replace(new RegExp(`^${scan.tool}\\s+`), `python3 -m ${scan.tool} `);
                 result = await executeRawCommand(moduleCmd, timeoutSeconds);
               } else {
                 result = await executeTool({
