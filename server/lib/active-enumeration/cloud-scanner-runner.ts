@@ -38,6 +38,32 @@ export async function runCloudAssetDetection(
       title: string;
     }> = [];
 
+    // Extract client/org keywords from engagement context for expanded bucket discovery
+    const clientName = state.engagementContext?.clientName || '';
+    const engagementKeywords: string[] = [];
+    if (clientName) {
+      // Generate permutations from client name
+      const cleanClient = clientName.toLowerCase().replace(/[^a-z0-9\s-]/g, '').trim();
+      if (cleanClient) {
+        engagementKeywords.push(cleanClient.replace(/\s+/g, '-'));
+        engagementKeywords.push(cleanClient.replace(/\s+/g, ''));
+        const clientParts = cleanClient.split(/\s+/);
+        if (clientParts.length > 1) {
+          engagementKeywords.push(clientParts[0]);
+          if (clientParts[1].length > 3) {
+            engagementKeywords.push(`${clientParts[0]}${clientParts[1].slice(0, 3)}`);
+          }
+        }
+      }
+    }
+    // Also add all unique base domain keywords from other assets
+    for (const a of state.assets) {
+      const basePart = a.hostname.split('.')[0].replace(/[^a-zA-Z0-9-]/g, '').toLowerCase();
+      if (basePart.length >= 3 && !engagementKeywords.includes(basePart)) {
+        engagementKeywords.push(basePart);
+      }
+    }
+
     for (const asset of state.assets) {
       const detection = detectCloudAsset({
         hostname: asset.hostname,
@@ -47,6 +73,7 @@ export async function runCloudAssetDetection(
         technologies: (asset as any).technologies,
         cnames: (asset as any).cnames,
         toolResults: (asset as any).toolResults,
+        additionalKeywords: engagementKeywords,
       });
 
       if (detection.isCloudHosted) {

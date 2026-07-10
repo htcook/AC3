@@ -300,7 +300,7 @@ export function detectCloudAsset(asset: {
   }
 
   // Generate scan suggestions based on detected cloud providers
-  const suggestedScans = generateCloudScanSuggestions(asset.hostname, signatures, storageEndpoints);
+  const suggestedScans = generateCloudScanSuggestions(asset.hostname, signatures, storageEndpoints, (asset as any).additionalKeywords);
 
   return {
     isCloudHosted: signatures.length > 0,
@@ -312,10 +312,62 @@ export function detectCloudAsset(asset: {
 
 // ─── Cloud Scan Suggestions ─────────────────────────────────────────────────
 
+/**
+ * Generate keyword permutations from an org/domain name for cloud bucket discovery.
+ * E.g., "stell-engineering" → ["stell-engineering", "stellengineering", "stell", "stell-eng", "stelleng"]
+ */
+function generateKeywordPermutations(baseKeyword: string, clientName?: string): string[] {
+  const keywords = new Set<string>();
+
+  // Always include the base keyword
+  keywords.add(baseKeyword.toLowerCase());
+
+  // Remove hyphens/underscores variant
+  const noSeparators = baseKeyword.replace(/[-_]/g, "").toLowerCase();
+  if (noSeparators !== baseKeyword.toLowerCase()) keywords.add(noSeparators);
+
+  // Split on separators and add first part (abbreviation)
+  const parts = baseKeyword.toLowerCase().split(/[-_.]/);
+  if (parts.length > 1) {
+    keywords.add(parts[0]); // e.g., "stell" from "stell-engineering"
+    // Abbreviated form: first part + first 3 chars of second
+    if (parts[1].length > 3) {
+      keywords.add(`${parts[0]}-${parts[1].slice(0, 3)}`); // e.g., "stell-eng"
+      keywords.add(`${parts[0]}${parts[1].slice(0, 3)}`); // e.g., "stelleng"
+    }
+    // Initials form
+    const initials = parts.map(p => p[0]).join("");
+    if (initials.length >= 2) keywords.add(initials); // e.g., "se"
+  }
+
+  // Client name variants (if provided and different from hostname)
+  if (clientName) {
+    const cleanClient = clientName.toLowerCase().replace(/[^a-z0-9\s-]/g, "").trim();
+    if (cleanClient && cleanClient !== baseKeyword.toLowerCase()) {
+      // Full client name with separators
+      keywords.add(cleanClient.replace(/\s+/g, "-")); // "stell engineering" → "stell-engineering"
+      keywords.add(cleanClient.replace(/\s+/g, "")); // "stell engineering" → "stellengineering"
+      // First word of client name
+      const clientParts = cleanClient.split(/\s+/);
+      if (clientParts.length > 1) {
+        keywords.add(clientParts[0]); // "stell"
+        // Abbreviated: first word + first 3 of second
+        if (clientParts[1].length > 3) {
+          keywords.add(`${clientParts[0]}${clientParts[1].slice(0, 3)}`); // "stelleng"
+        }
+      }
+    }
+  }
+
+  // Filter out very short keywords (< 3 chars) that would produce too many false positives
+  return Array.from(keywords).filter(k => k.length >= 3);
+}
+
 function generateCloudScanSuggestions(
   hostname: string,
   signatures: CloudAssetSignature[],
-  storageEndpoints: string[]
+  storageEndpoints: string[],
+  additionalKeywords?: string[]
 ): CloudScanSuggestion[] {
   const suggestions: CloudScanSuggestion[] = [];
   const providers = new Set(signatures.map(s => s.provider));
@@ -328,30 +380,46 @@ function generateCloudScanSuggestions(
     : hostname;
   const keyword = domainParts[0].replace(/[^a-zA-Z0-9-]/g, "");
 
-  // 1. cloud_enum for broad cloud resource discovery
-  if (providers.size > 0 || storageEndpoints.length > 0) {
-    suggestions.push({
-      tool: "cloud_enum",
-      command: `cloud_enum -k ${keyword} --disable-gcp --disable-azure -l /tmp/cloud_enum_${keyword}.txt`,
-      rationale: `Enumerate cloud resources using keyword "${keyword}" derived from ${hostname}`,
-      priority: 1,
-    });
-    // Also run for other providers if detected
-    if (providers.has("azure")) {
-      suggestions.push({
-        tool: "cloud_enum",
-        command: `cloud_enum -k ${keyword} --disable-aws --disable-gcp -l /tmp/cloud_enum_azure_${keyword}.txt`,
-        rationale: `Azure-specific cloud resource enumeration for ${hostname}`,
-        priority: 2,
-      });
+  // Build expanded keyword list from permutations + additional keywords
+  const allKeywords = generateKeywordPermutations(keyword);
+  if (additionalKeywords) {
+    for (const k of additionalKeywords) {
+      const clean = k.toLowerCase().replace(/[^a-z0-9-]/g, "");
+      if (clean.length >= 3 && !allKeywords.includes(clean)) {
+        allKeywords.push(clean);
+      }
     }
-    if (providers.has("gcp") || providers.has("firebase")) {
+  }
+
+  // 1. cloud_enum for broad cloud resource discovery (run for all keyword permutations)
+  if (providers.size > 0 || storageEndpoints.length > 0) {
+    // Primary keyword gets priority 1, additional permutations get priority 3
+    for (let i = 0; i < allKeywords.length && i < 5; i++) {
+      const kw = allKeywords[i];
+      const priority = i === 0 ? 1 : 3;
       suggestions.push({
         tool: "cloud_enum",
-        command: `cloud_enum -k ${keyword} --disable-aws --disable-azure -l /tmp/cloud_enum_gcp_${keyword}.txt`,
-        rationale: `GCP-specific cloud resource enumeration for ${hostname}`,
-        priority: 2,
+        command: `cloud_enum -k ${kw} --disable-gcp --disable-azure -l /tmp/cloud_enum_${kw}.txt`,
+        rationale: `Enumerate AWS cloud resources using keyword "${kw}"${i > 0 ? ` (permutation of ${keyword})` : ` derived from ${hostname}`}`,
+        priority,
       });
+      // Also run for other providers if detected
+      if (providers.has("azure")) {
+        suggestions.push({
+          tool: "cloud_enum",
+          command: `cloud_enum -k ${kw} --disable-aws --disable-gcp -l /tmp/cloud_enum_azure_${kw}.txt`,
+          rationale: `Azure-specific cloud resource enumeration for keyword "${kw}"`,
+          priority: priority + 1,
+        });
+      }
+      if (providers.has("gcp") || providers.has("firebase")) {
+        suggestions.push({
+          tool: "cloud_enum",
+          command: `cloud_enum -k ${kw} --disable-aws --disable-azure -l /tmp/cloud_enum_gcp_${kw}.txt`,
+          rationale: `GCP-specific cloud resource enumeration for keyword "${kw}"`,
+          priority: priority + 1,
+        });
+      }
     }
   }
 
@@ -367,11 +435,14 @@ function generateCloudScanSuggestions(
         priority: 1,
       });
     }
-    // Keyword-based bucket guessing
+    // Keyword-based bucket guessing (expanded with all permutations)
+    const bucketSuffixes = '"" "-dev" "-staging" "-prod" "-backup" "-assets" "-static" "-media" "-uploads" "-data" "-logs" "-public" "-private" "-internal" "-cdn" "-images" "-docs" "-api" "-test" "-uat"';
+    // Build a comprehensive keyword list for bucket brute-forcing
+    const bucketKeywords = allKeywords.slice(0, 5).map(k => `"${k}"`).join(" ");
     suggestions.push({
       tool: "bash",
-      command: `for suffix in "" "-dev" "-staging" "-prod" "-backup" "-assets" "-static" "-media" "-uploads" "-data" "-logs" "-public" "-private" "-internal"; do echo "${keyword}\${suffix}"; done | s3scanner scan --json`,
-      rationale: `Brute-force common S3 bucket name variations for "${keyword}"`,
+      command: `for kw in ${bucketKeywords}; do for suffix in ${bucketSuffixes}; do echo "\${kw}\${suffix}"; done; done | sort -u | s3scanner scan --json`,
+      rationale: `Brute-force S3 bucket name variations using ${allKeywords.length} keyword permutations: ${allKeywords.slice(0, 5).join(", ")}`,
       priority: 2,
     });
   }
