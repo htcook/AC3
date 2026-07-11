@@ -240,6 +240,15 @@ export async function selectMsfModule(
     const msfModules = cveExploits.filter(d => d.source === "metasploit" && d.msfModulePath);
 
     for (const doc of msfModules) {
+      // ── Platform hard-rejection (same logic as Strategy 2) ──
+      // Reject modules that target a completely different OS family
+      const docPlatform = (doc.platform || 'multi').toLowerCase();
+      const targetOsLower = (target.os || '').toLowerCase();
+      if (targetOsLower && docPlatform !== 'multi' && !docPlatform.includes('multi')) {
+        if (docPlatform.includes('windows') && (targetOsLower.includes('linux') || targetOsLower.includes('ubuntu') || targetOsLower.includes('debian') || targetOsLower.includes('centos'))) continue;
+        if (docPlatform.includes('linux') && targetOsLower.includes('windows')) continue;
+      }
+
       const rank = doc.msfRank || 300;
       let confidence = rankToConfidence(rank);
 
