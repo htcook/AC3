@@ -1,0 +1,1 @@
+import{j as o,r as t}from"./vendor-react-CMWtFnSk.js";const e=t.createContext(!1),x=({children:s})=>o.jsx(e.Provider,{"data-loc":"client/src/contexts/EmbedContext.tsx:10",value:!0,children:s}),a=()=>t.useContext(e);export{x as E,a as u};
