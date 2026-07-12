@@ -1329,14 +1329,20 @@ export default function EngagementOps() {
     },
     onError: (e) => toast.error(`Selective re-run failed: ${e.message}`),
   });
-  const reanalyzeMut = trpc.engagementOps.reanalyzeFindings.useMutation({
+   const reanalyzeMut = trpc.engagementOps.reanalyzeFindings.useMutation({
     onSuccess: () => {
       toast.success('Re-analysis started. LLM is processing current findings.');
       opsStateQ.refetch();
     },
     onError: (e) => toast.error(`Re-analysis failed: ${e.message}`),
   });
-
+  const recalculateMut = trpc.engagementOps.recalculateFindings.useMutation({
+    onSuccess: () => {
+      toast.success('Recalculation started. Dedup + FP suppression running on existing findings.');
+      opsStateQ.refetch();
+    },
+    onError: (e) => toast.error(`Recalculation failed: ${e.message}`),
+  });
   // ── Functional Exploit Generation ──
   const [showExploitGen, setShowExploitGen] = useState(false);
   const [selectedExploitAsset, setSelectedExploitAsset] = useState('');
@@ -5942,6 +5948,21 @@ export default function EngagementOps() {
               Trigger LLM re-analysis on current findings without re-scanning.
             </p>
           </div>
+          <div className="mt-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-full justify-start text-xs border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
+              onClick={() => recalculateMut.mutate({ engagementId })}
+              disabled={ops?.isRunning || recalculateMut.isPending}
+            >
+              {recalculateMut.isPending ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5 mr-1.5" />}
+              Recalculate Findings
+            </Button>
+            <p className="text-[10px] text-muted-foreground leading-relaxed mt-1">
+              Re-run dedup + FP suppression on existing findings. No new scans.
+            </p>
+          </div>
 
           <Separator />
 
@@ -6220,6 +6241,16 @@ export default function EngagementOps() {
               >
                 <Brain className="h-3.5 w-3.5 mr-1" />
                 Analyze
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="flex-none text-[11px] h-8 border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
+                onClick={() => recalculateMut.mutate({ engagementId })}
+                disabled={ops?.isRunning || recalculateMut.isPending}
+              >
+                <RefreshCw className="h-3.5 w-3.5 mr-1" />
+                Recalc
               </Button>
             </div>
             {/* Open Full Sidebar Sheet */}

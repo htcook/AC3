@@ -6046,6 +6046,161 @@ Return ONLY a JSON object with vulnerabilities array.`;
 
         return { engagementId: input.engagementId, message: 'Re-analysis started.' };
       }),
+
+    // ═══ RECALCULATE FINDINGS (dedup + FP suppression without re-scanning) ═══
+    recalculateFindings: protectedProcedure
+      .input(z.object({
+        engagementId: z.number(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const dbConn = await db.getDb();
+        if (dbConn) await assertEngagementAccess(dbConn, input.engagementId, ctx.user);
+
+        const {
+          getOpsState, getOpsStateWithRecovery, addLog, broadcastOpsUpdate, persistOpsStateNow,
+        } = await import('../lib/engagement-orchestrator');
+
+        let state = getOpsState(input.engagementId);
+        if (!state) state = await getOpsStateWithRecovery(input.engagementId);
+        if (!state) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'No saved state found. Run the engagement first.' });
+        }
+        if (state.isRunning) {
+          throw new TRPCError({ code: 'CONFLICT', message: 'Engagement is currently running.' });
+        }
+
+        state.isRunning = true;
+        state.currentAction = 'Recalculating findings (dedup + FP suppression)...';
+        addLog(state, { phase: 'scanning', type: 'info', title: '🔄 Recalculate Started', detail: 'Applying dedup pipeline + FP suppression to existing findings without re-scanning.' });
+        broadcastOpsUpdate(input.engagementId, { type: 'phase_change', phase: 'scanning' });
+        await persistOpsStateNow(input.engagementId);
+
+        // Run async to avoid blocking the response
+        (async () => {
+          try {
+            // Capture pre-recalc counts
+            const preCounts = {
+              totalVulns: state!.assets.reduce((s: number, a: any) => s + (a.vulns || []).length, 0),
+              totalZap: state!.assets.reduce((s: number, a: any) => s + (a.zapFindings || []).length, 0),
+            };
+            const preTotal = preCounts.totalVulns + preCounts.totalZap;
+
+            // ── Step 1: Run dedup-coverage-bridge (merges ZAP into vulns, deduplicates) ──
+            addLog(state!, { phase: 'scanning', type: 'info', title: '🔍 Running Deduplication Pipeline', detail: `Processing ${preCounts.totalVulns} vulns + ${preCounts.totalZap} ZAP findings across ${state!.assets.length} assets` });
+            broadcastOpsUpdate(input.engagementId, { type: 'log_update' });
+
+            const { runEngagementDedup } = await import('../lib/dedup-coverage-bridge');
+            const dedupStats = await runEngagementDedup(state!.assets as any);
+
+            const postDedupCount = state!.assets.reduce((s: number, a: any) => s + (a.vulns || []).length, 0);
+            addLog(state!, { phase: 'scanning', type: 'success', title: '✅ Deduplication Complete', detail: `Before: ${preTotal} → After: ${postDedupCount} (removed ${preTotal - postDedupCount} duplicates). ZAP merged: ${preCounts.totalZap}` });
+            broadcastOpsUpdate(input.engagementId, { type: 'log_update' });
+
+            // ── Step 2: Apply FP suppression to asset.vulns ──
+            addLog(state!, { phase: 'scanning', type: 'info', title: '🛡️ Applying FP Suppression', detail: 'Removing false positives from asset.vulns...' });
+            broadcastOpsUpdate(input.engagementId, { type: 'log_update' });
+
+            const { applySuppressionRules } = await import('../lib/knowledge/fp-suppression-rules');
+            // Build the format applySuppressionRules expects
+            const allFindingsForSuppression = state!.assets.flatMap((a: any) =>
+              (a.vulns || []).map((v: any) => ({
+                finding: { ...v, hostname: a.hostname },
+                agentClass: v.source || v.tool || 'unknown',
+              }))
+            );
+            const suppressionResult = applySuppressionRules(allFindingsForSuppression, 'balanced');
+
+            // Build set of suppressed finding titles+hostnames for removal from asset.vulns
+            const suppressedKeys = new Set(
+              suppressionResult.suppressed.map((s: any) =>
+                `${(s.finding.title || '').toLowerCase().trim()}::${s.finding.hostname}`
+              )
+            );
+
+            let fpRemoved = 0;
+            for (const asset of state!.assets) {
+              const before = (asset.vulns || []).length;
+              asset.vulns = (asset.vulns || []).filter((v: any) => {
+                const key = `${(v.title || '').toLowerCase().trim()}::${(asset as any).hostname}`;
+                return !suppressedKeys.has(key);
+              });
+              fpRemoved += before - asset.vulns.length;
+            }
+
+            const postFpCount = state!.assets.reduce((s: number, a: any) => s + (a.vulns || []).length, 0);
+            addLog(state!, { phase: 'scanning', type: 'success', title: '✅ FP Suppression Complete', detail: `Removed ${fpRemoved} false positives. Final count: ${postFpCount}` });
+            broadcastOpsUpdate(input.engagementId, { type: 'log_update' });
+
+            // ── Step 3: Update stats ──
+            state!.stats.vulnsFound = postFpCount;
+
+            // ── Step 4: Refresh DB engagement_findings ──
+            addLog(state!, { phase: 'scanning', type: 'info', title: '💾 Syncing to Database', detail: 'Clearing old findings and inserting clean set...' });
+            broadcastOpsUpdate(input.engagementId, { type: 'log_update' });
+
+            try {
+              if (dbConn) {
+                const { engagementFindings } = await import('../../drizzle/schema');
+                const { eq } = await import('drizzle-orm');
+                // Delete existing
+                await dbConn.delete(engagementFindings).where(eq(engagementFindings.engagementId, input.engagementId)).catch(() => {});
+                // Re-insert with dedup guard
+                const dbDedupKeys = new Set<string>();
+                const cleanFindings = state!.assets.flatMap((a: any) =>
+                  (a.vulns || []).filter((v: any) => {
+                    const key = `${(v.title || '').toLowerCase().trim()}::${a.hostname}::${v.port || 0}::${v.cve || ''}`;
+                    if (dbDedupKeys.has(key)) return false;
+                    dbDedupKeys.add(key);
+                    return true;
+                  }).map((v: any) => ({
+                    engagementId: input.engagementId,
+                    hostname: a.hostname,
+                    title: (v.title || 'Unknown').slice(0, 512),
+                    severity: (['critical','high','medium','low','info'].includes((v.severity || '').toLowerCase()) ? (v.severity || '').toLowerCase() : 'medium') as 'critical' | 'high' | 'medium' | 'low' | 'info',
+                    cve: v.cve ? String(v.cve).slice(0, 64) : null,
+                    description: v.description || null,
+                    source: (v.source || v.tool || 'unknown').slice(0, 128),
+                    tool: (v.tool || v.source || 'unknown').slice(0, 128),
+                    corroborationTier: (['confirmed','corroborated','unverified'].includes(v.corroborationTier) ? v.corroborationTier : 'unverified') as 'confirmed' | 'corroborated' | 'unverified',
+                    createdAt: Date.now(),
+                  }))
+                );
+                if (cleanFindings.length > 0) {
+                  for (let i = 0; i < cleanFindings.length; i += 50) {
+                    const batch = cleanFindings.slice(i, i + 50);
+                    await dbConn.insert(engagementFindings).values(batch).catch((e: any) => {
+                      console.error('[Recalculate] DB insert error:', e.message);
+                    });
+                  }
+                }
+                addLog(state!, { phase: 'scanning', type: 'success', title: '💾 DB Synced', detail: `${cleanFindings.length} clean findings persisted to database` });
+              }
+            } catch (dbErr: any) {
+              addLog(state!, { phase: 'scanning', type: 'warning', title: '⚠️ DB Sync Error', detail: dbErr.message });
+            }
+
+            // ── Complete ──
+            state!.isRunning = false;
+            state!.currentAction = undefined;
+            addLog(state!, {
+              phase: 'completed', type: 'success',
+              title: '✅ Recalculation Complete',
+              detail: `Before: ${preTotal} findings → After: ${postFpCount} findings (${preTotal - postFpCount} removed: ${preTotal - postDedupCount} duplicates + ${fpRemoved} FPs)`,
+            });
+            broadcastOpsUpdate(input.engagementId, { type: 'phase_change', phase: 'completed' });
+            await persistOpsStateNow(input.engagementId);
+          } catch (err: any) {
+            state!.isRunning = false;
+            state!.error = err.message;
+            state!.currentAction = undefined;
+            addLog(state!, { phase: 'scanning', type: 'error', title: '❌ Recalculation Failed', detail: err.message });
+            broadcastOpsUpdate(input.engagementId, { type: 'log_update' });
+            await persistOpsStateNow(input.engagementId);
+          }
+        })();
+
+        return { engagementId: input.engagementId, message: 'Recalculation started. Dedup + FP suppression running on existing findings.' };
+      }),
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
