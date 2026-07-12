@@ -6193,7 +6193,7 @@ export default function EngagementOps() {
                   setIsGeneratingReport(true);
                   generateReportMut.mutate({
                     engagementId,
-                    reportType: 'pentest_assessment',
+                            <option key={v.origIdx} value={v.origIdx}>{(v.severity || '').toUpperCase() + ': ' + v.title + (v.cve ? ' (' + v.cve + ')' : '') + (v.corroborationTier === 'confirmed' ? ' \u2713' : v.corroborationTier === 'probable' ? ' \u223c' : '') + (v.detectedVersion ? ' [v' + v.detectedVersion + ']' : '')}</option>
                     clientType: 'enterprise',
                     title: `${engagement?.name || 'Engagement'} - Security Assessment Report`,
                     preparedFor: engagement?.customerName ?? undefined,

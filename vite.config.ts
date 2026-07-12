@@ -101,13 +101,16 @@ function cdnExternalPlugin(): Plugin {
   };
 }
 
+const isProd = process.env.NODE_ENV === 'production';
 const plugins = [
   shikiSubsetPlugin(),
   katexCdnPlugin(),
   cdnExternalPlugin(),
   react(),
   tailwindcss(),
-  jsxLocPlugin(),
+  // jsxLocPlugin uses Babel to parse files and fails on large files with template literals.
+  // Only enable in dev mode where it provides source location debugging info.
+  ...(!isProd ? [jsxLocPlugin()] : []),
   vitePluginManusRuntime(),
 ];
 
