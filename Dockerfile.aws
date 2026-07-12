@@ -47,7 +47,7 @@ COPY . .
 
 # Build client (Vite) and server (esbuild)
 RUN rm -rf .client-assets dist/public && \
-    NODE_OPTIONS="--max-old-space-size=4096" npx vite build && \
+    NODE_OPTIONS="--max-old-space-size=8192" npx vite build && \
     cp -r dist/public .client-assets && \
     echo "Vite build complete"
 
