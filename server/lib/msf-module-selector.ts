@@ -257,7 +257,6 @@ export async function selectMsfModule(
       ) {
         reasons.push(`Skipped ${doc.msfModulePath} — Linux-only module on Windows target`);
         continue;
- (feat: Selective Re-Run - granular per-asset/tool/phase re-execution with dedup)
       }
 
       const rank = doc.msfRank || 300;
