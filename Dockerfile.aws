@@ -56,7 +56,7 @@ RUN if [ -d .client-assets ] && [ -f .client-assets/.build-manifest.json ]; then
     else \
       echo "Building client from source..." && \
       rm -rf .client-assets dist/public && \
-      NODE_OPTIONS="--max-old-space-size=8192" npx vite build && \
+      NODE_ENV=production NODE_OPTIONS="--max-old-space-size=8192" npx vite build && \
       cp -r dist/public .client-assets && \
       echo "Vite build complete"; \
     fi
