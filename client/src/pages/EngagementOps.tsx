@@ -836,7 +836,7 @@ function renderFeedEntry(entry: OpsLogEntry) {
                           d.category === 'ids_ips' ? 'text-orange-300 border-orange-500/30' :
                           d.category === 'firewall' ? 'text-yellow-300 border-yellow-500/30' :
                           'text-blue-300 border-blue-500/30'
-                        >`}>{(d.category || '').replace(/_/g, ' ')}</Badge>
+                        }`}>{(d.category || '').replace(/_/g, ' ')}</Badge>
                         <span className="text-orange-300 font-mono flex-none">{d.port}</span>
                         <span className="text-foreground/90 font-medium">{d.vendor} {d.product}</span>
                         <span className="ml-auto"><ConfidenceBadge score={d.confidence / 100} size="xs" /></span>
@@ -1007,7 +1007,7 @@ function TestCredentialsButton({ targetUrl, username, password, authType, loginP
     setStatus('testing');
     setResultMessage('');
     testMut.mutate({
-      targetUrl: targetUrl.startsWith('http') ? targetUrl : `https://${targetUrl}`,
+      targetUrl: targetUrl.startsWith('http') ? targetUrl : ('https://' + targetUrl),
       username,
       password,
       authType: authType as any,
@@ -1037,7 +1037,7 @@ function TestCredentialsButton({ targetUrl, username, password, authType, loginP
         Test Credentials
       </Button>
       {resultMessage && (
-        <span className={`text-[11px] ${status === 'success' ? 'text-green-400' : 'text-red-400'}`}>
+        <span className={'text-[11px] ' + (status === 'success' ? 'text-green-400' : 'text-red-400')}>
           {resultMessage}
         </span>
       )}
@@ -5905,7 +5905,7 @@ export default function EngagementOps() {
           <div>
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">LLM Cost</h3>
             <div className="space-y-3">
-              <StatCard icon={<CircleDollarSign className="h-4 w-4 text-emerald-400" />} label="Est. Cost" value={`$${(Number(llmCostQ.data?.estimated_cost_usd) || 0).toFixed(4)}'} />
+              <StatCard icon={<CircleDollarSign className="h-4 w-4 text-emerald-400" />} label="Est. Cost" value={`$${(Number(llmCostQ.data?.estimated_cost_usd) || 0).toFixed(4)}`} />
               <StatCard icon={<Coins className="h-4 w-4 text-amber-400" />} label="Total Tokens" value={formatTokenCount(Number(llmCostQ.data?.total_tokens) || 0)} />
               <StatCard icon={<Zap className="h-4 w-4 text-purple-400" />} label="LLM Calls" value={Number(llmCostQ.data?.total_calls) || 0} />
             </div>
@@ -5915,9 +5915,9 @@ export default function EngagementOps() {
                 {llmCostBreakdownQ.data.slice(0, 5).map((item: any) => (
                   <div key={item.caller} className="flex items-center justify-between text-[10px]">
                     <span className="truncate text-muted-foreground max-w-[120px]" title={item.caller}>
-                      {item.caller?.split(\':\').pop() || item.caller}
+                      {item.caller?.split(':').pop() || item.caller}
                     </span>
-                    <span className="text-emerald-400 font-mono">' + ((Number(item.estimated_cost_usd) || 0).toFixed(4)) + '</span>
+                    <span className="text-emerald-400 font-mono">{(Number(item.estimated_cost_usd) || 0).toFixed(4)}</span>
                   </div>
                 ))}
               </div>
@@ -6053,7 +6053,7 @@ export default function EngagementOps() {
                 onClick={() => setShowExploitGen(!showExploitGen)}
               >
                 <Swords className="h-3.5 w-3.5 mr-1.5" />
-                {showExploitGen ? \'Hide Generator\' : \'Generate Exploit Code\'}
+                {showExploitGen ? 'Hide Generator' : 'Generate Exploit Code'}
               </Button>
               {showExploitGen && (
                 <div className="space-y-2 p-2 rounded-lg bg-red-500/5 border border-red-500/10">
@@ -6077,7 +6077,7 @@ export default function EngagementOps() {
                       <div>
                         <label className="text-[10px] text-muted-foreground block mb-1">Vulnerability (optional)</label>
                         <select
-                          value={selectedVulnIdx ?? \'\'}
+                          value={selectedVulnIdx ?? ''}
                           onChange={(e) => setSelectedVulnIdx(e.target.value ? Number(e.target.value) : undefined)}
                           className="w-full text-xs bg-background border border-border rounded px-2 py-1.5"
                         >
@@ -6095,7 +6095,7 @@ export default function EngagementOps() {
                             const sevOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
                             return (sevOrder[a.severity] ?? 5) - (sevOrder[b.severity] ?? 5);
                           }).map((v) => (
-                            <option key={v.origIdx} value={v.origIdx}>{(v.severity || \'\').toUpperCase()}: {v.title}{v.cve ? ' (${v.cve})` : ''}{v.corroborationTier === 'confirmed' ? ' \u2713' : v.corroborationTier === 'probable' ? ' \u223c' : ''}{v.detectedVersion ? ` [v${v.detectedVersion}]` : ''}</option>
+                            <option key={v.origIdx} value={v.origIdx}>{(v.severity || '').toUpperCase()}: {v.title}{v.cve ? (' (' + v.cve + ')') : ''}{v.corroborationTier === 'confirmed' ? ' ✓' : v.corroborationTier === 'probable' ? ' ∼' : ''}{v.detectedVersion ? (' [v' + v.detectedVersion + ']') : ''}</option>
                           ))}
                         </select>
                       </div>
@@ -6193,7 +6193,6 @@ export default function EngagementOps() {
                   setIsGeneratingReport(true);
                   generateReportMut.mutate({
                     engagementId,
-                            <option key={v.origIdx} value={v.origIdx}>{(v.severity || '').toUpperCase() + ': ' + v.title + (v.cve ? ' (' + v.cve + ')' : '') + (v.corroborationTier === 'confirmed' ? ' \u2713' : v.corroborationTier === 'probable' ? ' \u223c' : '') + (v.detectedVersion ? ' [v' + v.detectedVersion + ']' : '')}</option>
                     clientType: 'enterprise',
                     title: `${engagement?.name || 'Engagement'} - Security Assessment Report`,
                     preparedFor: engagement?.customerName ?? undefined,
