@@ -126,6 +126,7 @@ export default defineConfig({
   build: {
     outDir: path.resolve(__dir, "dist/public"),
     emptyOutDir: true,
+    target: "es2022",
     minify: "esbuild",
     sourcemap: "hidden",
     cssCodeSplit: false,
@@ -179,6 +180,11 @@ export default defineConfig({
           // They are completely excluded from the build output.
         },
       },
+    },
+  },
+  optimizeDeps: {
+    esbuildOptions: {
+      target: "es2022",
     },
   },
   server: {

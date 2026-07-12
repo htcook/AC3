@@ -6878,6 +6878,14 @@ export async function rerunFromPhase(
   const phasesToKeep = PHASE_ORDER.slice(0, targetIdx);
   const phasesToClear = PHASE_ORDER.slice(targetIdx);
 
+  // ═══ CAPTURE PREVIOUS FINDINGS FOR DEDUP (parity with rerunFullPipeline) ═══
+  // Before clearing any data, snapshot existing findings so the dedup pipeline
+  // can compare new results against them and prevent duplicates.
+  if (Array.isArray(state.assets) && state.assets.length > 0) {
+    (state as any).previousScanFindings = state.assets.flatMap((a: any) => a.vulns || []);
+    (state as any).previousZapFindings = state.assets.flatMap((a: any) => a.zapFindings || []);
+  }
+
   // Clear logs from phases being re-run
   state.log = state.log.filter(l => phasesToKeep.includes(l.phase as any));
 
@@ -6899,6 +6907,11 @@ export async function rerunFromPhase(
     }
     state.stats.vulnsFound = 0;
     state.stats.zapScansRun = 0;
+    // Reset completedScans tracking for vuln detection tools
+    if (state.completedScans) {
+      state.completedScans.nucleiCompleted = new Set();
+      state.completedScans.zapCompleted = new Set();
+    }
   }
   if (targetIdx <= 3) {
     // Re-running from exploitation or earlier: clear exploit data
@@ -6908,6 +6921,9 @@ export async function rerunFromPhase(
     state.stats.exploitsAttempted = 0;
     state.stats.exploitsSucceeded = 0;
     state.stats.sessionsOpened = 0;
+    if (state.completedScans) {
+      state.completedScans.exploitCompleted = new Set();
+    }
   }
   // Post-exploit: clear post-exploit specific data
   if (targetIdx <= 4) {

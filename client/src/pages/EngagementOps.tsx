@@ -1311,6 +1311,30 @@ export default function EngagementOps() {
     onError: (e) => toast.error(`Re-run failed: ${e.message}`),
   });
 
+  // ── Selective Re-Run ──
+  const [showSelectiveRerunDialog, setShowSelectiveRerunDialog] = useState(false);
+  const [selectiveMode, setSelectiveMode] = useState<'assets' | 'tools' | 'phases' | 'reanalyze'>('assets');
+  const [selectiveAssets, setSelectiveAssets] = useState<string[]>([]);
+  const [selectiveTools, setSelectiveTools] = useState<string[]>([]);
+  const [selectivePhases, setSelectivePhases] = useState<string[]>(['vuln_detection']);
+  const [selectiveAutoReanalyze, setSelectiveAutoReanalyze] = useState(true);
+  const [selectiveDedup, setSelectiveDedup] = useState(true);
+  const selectiveRerunMut = trpc.engagementOps.selectiveRerun.useMutation({
+    onSuccess: (data) => {
+      toast.success(`Selective re-run started (${data.mode}): ${data.targetAssets.length} asset(s)`);
+      setShowSelectiveRerunDialog(false);
+      opsStateQ.refetch();
+    },
+    onError: (e) => toast.error(`Selective re-run failed: ${e.message}`),
+  });
+  const reanalyzeMut = trpc.engagementOps.reanalyzeFindings.useMutation({
+    onSuccess: () => {
+      toast.success('Re-analysis started. LLM is processing current findings.');
+      opsStateQ.refetch();
+    },
+    onError: (e) => toast.error(`Re-analysis failed: ${e.message}`),
+  });
+
   // ── Functional Exploit Generation ──
   const [showExploitGen, setShowExploitGen] = useState(false);
   const [selectedExploitAsset, setSelectedExploitAsset] = useState('');
@@ -5879,6 +5903,42 @@ export default function EngagementOps() {
               Restart from a specific phase, preserving all data from earlier phases.
             </p>
           </div>
+          {/* Selective Re-Run (Granular) */}
+          <div className="mt-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-full justify-start text-xs border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10"
+              onClick={() => {
+                // Pre-populate assets from current state
+                if (ops?.assets) setSelectiveAssets(ops.assets.map((a: any) => a.hostname));
+                setShowSelectiveRerunDialog(true);
+              }}
+              disabled={ops?.isRunning}
+            >
+              <Filter className="h-3.5 w-3.5 mr-1.5" />
+              Selective Re-Run
+            </Button>
+            <p className="text-[10px] text-muted-foreground leading-relaxed mt-1">
+              Choose specific assets, tools, or phases to re-run. Deduplicates results automatically.
+            </p>
+          </div>
+          {/* Standalone Re-Analyze Button */}
+          <div className="mt-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-full justify-start text-xs border-purple-500/30 text-purple-400 hover:bg-purple-500/10"
+              onClick={() => reanalyzeMut.mutate({ engagementId })}
+              disabled={ops?.isRunning || reanalyzeMut.isPending}
+            >
+              {reanalyzeMut.isPending ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Brain className="h-3.5 w-3.5 mr-1.5" />}
+              Re-Analyze Findings
+            </Button>
+            <p className="text-[10px] text-muted-foreground leading-relaxed mt-1">
+              Trigger LLM re-analysis on current findings without re-scanning.
+            </p>
+          </div>
 
           <Separator />
 
@@ -6409,6 +6469,204 @@ export default function EngagementOps() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* ── Selective Re-Run Dialog ── */}
+      <Dialog open={showSelectiveRerunDialog} onOpenChange={setShowSelectiveRerunDialog}>
+        <DialogContent className="max-w-lg max-h-[85vh] flex flex-col p-0">
+          <DialogHeader className="px-6 pt-6 pb-2 shrink-0">
+            <DialogTitle className="flex items-center gap-2">
+              <Filter className="h-5 w-5 text-cyan-400" />
+              Selective Re-Run
+            </DialogTitle>
+            <DialogDescription>
+              Choose what to re-run. Results are automatically deduplicated. New findings trigger re-analysis.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto px-6 min-h-0">
+            <div className="space-y-4 py-2">
+              {/* Mode Selection */}
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Re-Run Mode</label>
+                <div className="grid grid-cols-2 gap-2 mt-2">
+                  {[
+                    { id: 'assets' as const, label: 'By Asset', icon: <Server className="h-4 w-4" />, desc: 'Re-scan specific assets' },
+                    { id: 'tools' as const, label: 'By Tool', icon: <Wrench className="h-4 w-4" />, desc: 'Re-run specific scanners' },
+                    { id: 'phases' as const, label: 'By Phase', icon: <Layers className="h-4 w-4" />, desc: 'Re-run pipeline phases' },
+                    { id: 'reanalyze' as const, label: 'Re-Analyze', icon: <Brain className="h-4 w-4" />, desc: 'LLM analysis only' },
+                  ].map(m => (
+                    <button
+                      key={m.id}
+                      className={`p-2.5 rounded-lg border text-left transition-all ${
+                        selectiveMode === m.id
+                          ? 'bg-cyan-500/10 border-cyan-500/40 ring-1 ring-cyan-500/20'
+                          : 'border-border/40 hover:bg-muted/30'
+                      }`}
+                      onClick={() => setSelectiveMode(m.id)}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className={selectiveMode === m.id ? 'text-cyan-400' : 'text-muted-foreground'}>{m.icon}</span>
+                        <span className="text-sm font-medium">{m.label}</span>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">{m.desc}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Asset Selection (for assets/tools modes) */}
+              {(selectiveMode === 'assets' || selectiveMode === 'tools') && ops?.assets && ops.assets.length > 0 && (
+                <div>
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Target Assets</label>
+                    <div className="flex gap-1">
+                      <button className="text-[10px] text-cyan-400 hover:underline" onClick={() => setSelectiveAssets(ops.assets.map((a: any) => a.hostname))}>All</button>
+                      <span className="text-[10px] text-muted-foreground">/</span>
+                      <button className="text-[10px] text-cyan-400 hover:underline" onClick={() => setSelectiveAssets([])}>None</button>
+                    </div>
+                  </div>
+                  <div className="mt-2 max-h-36 overflow-y-auto space-y-1 rounded-lg border border-border/30 p-2">
+                    {ops.assets.map((asset: any) => (
+                      <label key={asset.hostname} className="flex items-center gap-2 py-1 px-1.5 rounded hover:bg-muted/20 cursor-pointer">
+                        <Checkbox
+                          checked={selectiveAssets.includes(asset.hostname)}
+                          onCheckedChange={(checked) => {
+                            if (checked) setSelectiveAssets(prev => [...prev, asset.hostname]);
+                            else setSelectiveAssets(prev => prev.filter(h => h !== asset.hostname));
+                          }}
+                        />
+                        <span className="text-xs font-mono">{asset.hostname}</span>
+                        <span className="text-[10px] text-muted-foreground ml-auto">
+                          {(asset.vulns || []).length}v / {(asset.ports || []).length}p
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground mt-1">{selectiveAssets.length} of {ops.assets.length} selected</p>
+                </div>
+              )}
+
+              {/* Tool Selection (for tools mode) */}
+              {selectiveMode === 'tools' && (
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Scanners to Re-Run</label>
+                  <div className="mt-2 grid grid-cols-2 gap-1.5">
+                    {[
+                      { id: 'nuclei', label: 'Nuclei', desc: 'Template-based vuln scanner' },
+                      { id: 'zap', label: 'ZAP', desc: 'Web app security scanner' },
+                      { id: 'burp', label: 'Burp Suite', desc: 'Web vulnerability scanner' },
+                      { id: 'hydra', label: 'Hydra', desc: 'Brute-force login testing' },
+                      { id: 'sqlmap', label: 'SQLMap', desc: 'SQL injection detection' },
+                      { id: 'ffuf', label: 'FFUF', desc: 'Web fuzzer / dir discovery' },
+                      { id: 'feroxbuster', label: 'Feroxbuster', desc: 'Content discovery' },
+                      { id: 'nikto', label: 'Nikto', desc: 'Web server scanner' },
+                      { id: 'httpx', label: 'httpx', desc: 'HTTP probing & tech detect' },
+                      { id: 'katana', label: 'Katana', desc: 'Web crawler' },
+                      { id: 'testssl', label: 'testssl', desc: 'TLS/SSL analysis' },
+                      { id: 'wafw00f', label: 'wafw00f', desc: 'WAF detection' },
+                    ].map(tool => (
+                      <label key={tool.id} className="flex items-center gap-2 p-2 rounded-lg border border-border/30 hover:bg-muted/20 cursor-pointer">
+                        <Checkbox
+                          checked={selectiveTools.includes(tool.id)}
+                          onCheckedChange={(checked) => {
+                            if (checked) setSelectiveTools(prev => [...prev, tool.id]);
+                            else setSelectiveTools(prev => prev.filter(t => t !== tool.id));
+                          }}
+                        />
+                        <div>
+                          <span className="text-xs font-medium">{tool.label}</span>
+                          <p className="text-[9px] text-muted-foreground leading-tight">{tool.desc}</p>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground mt-1">{selectiveTools.length} tool(s) selected</p>
+                </div>
+              )}
+
+              {/* Phase Selection (for phases mode) */}
+              {selectiveMode === 'phases' && (
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Phases to Re-Run</label>
+                  <div className="mt-2 space-y-1.5">
+                    {[
+                      { id: 'recon', label: 'Reconnaissance', icon: <Radar className="h-4 w-4" /> },
+                      { id: 'enumeration', label: 'Active Discovery & Enumeration', icon: <Network className="h-4 w-4" /> },
+                      { id: 'vuln_detection', label: 'Vulnerability Scanning', icon: <ShieldOff className="h-4 w-4" /> },
+                      { id: 'exploitation', label: 'Exploitation', icon: <Swords className="h-4 w-4" /> },
+                    ].map(phase => (
+                      <label key={phase.id} className="flex items-center gap-2 p-2.5 rounded-lg border border-border/30 hover:bg-muted/20 cursor-pointer">
+                        <Checkbox
+                          checked={selectivePhases.includes(phase.id)}
+                          onCheckedChange={(checked) => {
+                            if (checked) setSelectivePhases(prev => [...prev, phase.id]);
+                            else setSelectivePhases(prev => prev.filter(p => p !== phase.id));
+                          }}
+                        />
+                        <span className="text-muted-foreground">{phase.icon}</span>
+                        <span className="text-sm">{phase.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Options */}
+              {selectiveMode !== 'reanalyze' && (
+                <div className="space-y-2 p-3 rounded-lg bg-muted/10 border border-border/20">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-medium">Auto Re-Analyze</p>
+                      <p className="text-[10px] text-muted-foreground">Trigger LLM analysis if new findings are detected</p>
+                    </div>
+                    <Switch checked={selectiveAutoReanalyze} onCheckedChange={setSelectiveAutoReanalyze} />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-medium">Deduplicate Results</p>
+                      <p className="text-[10px] text-muted-foreground">Remove duplicate findings from re-scan results</p>
+                    </div>
+                    <Switch checked={selectiveDedup} onCheckedChange={setSelectiveDedup} />
+                  </div>
+                </div>
+              )}
+
+              {/* Current State Summary */}
+              {ops && (
+                <div className="p-2.5 rounded-lg bg-muted/20 border border-border/30">
+                  <div className="text-[10px] text-muted-foreground">
+                    Current: {ops.assets?.length || 0} assets • {ops.stats?.vulnsFound || 0} vulns • {ops.stats?.portsFound || 0} ports • {ops.stats?.exploitsSucceeded || 0} exploits
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+          <DialogFooter className="px-6 pb-6 pt-4 shrink-0 border-t border-border/50">
+            <Button variant="outline" onClick={() => setShowSelectiveRerunDialog(false)}>Cancel</Button>
+            <Button
+              className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white"
+              onClick={() => selectiveRerunMut.mutate({
+                engagementId,
+                mode: selectiveMode,
+                selectedAssets: selectiveMode !== 'reanalyze' ? selectiveAssets : undefined,
+                selectedTools: selectiveMode === 'tools' ? selectiveTools as any : undefined,
+                selectedPhases: selectiveMode === 'phases' ? selectivePhases as any : undefined,
+                autoReanalyze: selectiveAutoReanalyze,
+                deduplicateResults: selectiveDedup,
+              })}
+              disabled={selectiveRerunMut.isPending || (
+                selectiveMode === 'tools' && selectiveTools.length === 0
+              ) || (
+                selectiveMode === 'assets' && selectiveAssets.length === 0
+              ) || (
+                selectiveMode === 'phases' && selectivePhases.length === 0
+              )}
+            >
+              {selectiveRerunMut.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Play className="h-4 w-4 mr-1" />}
+              {selectiveMode === 'reanalyze' ? 'Start Re-Analysis' : `Re-Run (${selectiveMode})`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Resume Engagement Dialog ── */}
       <AlertDialog open={showResumeDialog} onOpenChange={setShowResumeDialog}>

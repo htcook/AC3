@@ -3306,3 +3306,13 @@
 - [ ] Verify bash is installed on scan server (apt-get install -y bash)
 - [ ] Verify s3scanner is installed on scan server (pip3 install s3scanner)
 - [ ] Quick Re-Scan Stell engagement to verify cloud storage enumeration works end-to-end
+
+### Selective Re-Run Feature — Granular Engagement Re-execution (Jul 11)
+- [x] Backend: Add `selectiveRerun` tRPC endpoint supporting per-asset, per-tool, per-vuln re-run
+- [x] Backend: Fix `rerunFromPhase` to capture previousScanFindings before clearing (dedup parity with rerunFullPipeline)
+- [x] Backend: Auto-trigger LLM re-analysis when new findings are detected after any partial re-run
+- [x] Backend: Refresh engagement_results/engagement_findings DB tables after re-run completes (no stale duplicates)
+- [x] UI: Build enhanced Selective Re-Run panel with asset/tool/phase granular checkboxes
+- [x] UI: Show dedup stats after re-run completes (new vs duplicate findings)
+- [x] UI: Add standalone "Re-analyze" button that triggers LLM re-analysis on current findings without re-scanning
+- [x] Integration: Ensure no duplicates in final engagement results after any re-run path

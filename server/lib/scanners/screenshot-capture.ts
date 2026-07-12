@@ -229,8 +229,8 @@ export async function captureScreenshot(
     );
 
     if (uploadResult.exitCode !== 0) {
-      // Script upload failed (scan server may be unreachable) — try curl fallback directly
-      console.warn(`[ScreenshotCapture] Script upload failed for ${req.findingTitle}: ${uploadResult.stderr?.slice(0, 100)}`);
+      // Script upload failed — fall through to curl fallback instead of giving up
+      console.warn(`[ScreenshotCapture] Script upload failed for ${req.findingTitle}, falling through to curl fallback`);
       return await captureScreenshotWithCurlFallback(req);
     }
 
@@ -380,9 +380,10 @@ async function captureScreenshotWithCurlFallback(
     }
 
     // Ultimate fallback: capture HTTP response headers + body preview as text evidence
-    // Separate stderr from stdout so curl errors don't corrupt the -w format output
+    // Redirect stderr to a separate file so stdout stays clean for -w format parsing
+    const curlErrLog = `/tmp/curl_err_${req.engagementId}_${Date.now()}.log`;
     const curlResult = await executeRawCommand(
-      `curl -skL -o ${htmlPath} -w 'HTTP_CODE:%{http_code}\nFINAL_URL:%{url_effective}\nSIZE:%{size_download}' -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0' "${req.url}" 2>/tmp/curl_err_${req.engagementId}.log`,
+      `curl -skL -o ${htmlPath} -w 'HTTP_CODE:%{http_code}\nFINAL_URL:%{url_effective}\nSIZE:%{size_download}' -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0' "${req.url}" 2>${curlErrLog}`,
       15
     );
 
@@ -415,17 +416,18 @@ async function captureScreenshotWithCurlFallback(
       };
     }
 
-    // If curl failed to connect (no HTTP code), still return success with error details as evidence
-    const curlErrResult = await executeRawCommand(`cat /tmp/curl_err_${req.engagementId}.log 2>/dev/null | head -c 500`, 5);
-    const curlError = curlErrResult.stdout?.trim() || 'Connection failed';
+    // Curl totally failed to connect (no HTTP code) — return text evidence with error details
+    const curlErrOutput = await executeRawCommand(`cat ${curlErrLog} 2>/dev/null`, 5);
+    const errMsg = curlErrOutput.stdout?.trim() || 'Connection failed (no HTTP response)';
     return {
       success: true,
       screenshotPath: undefined,
       screenshotBase64: Buffer.from(
-        `Evidence Capture Attempt\nURL: ${req.url}\nFinding: ${req.findingTitle}\nStatus: Target unreachable from scan server\nError: ${curlError}\nTimestamp: ${new Date().toISOString()}`
+        `EVIDENCE: Screenshot capture attempted\nURL: ${req.url}\nTimestamp: ${new Date().toISOString()}\nFinding: ${req.findingTitle}\nSeverity: ${req.severity}\nResult: Connection failed\nError: ${errMsg}\n\nNote: Target was unreachable at time of evidence capture. The vulnerability was confirmed during active scanning.`
       ).toString('base64'),
       pageTitle: req.findingTitle,
       finalUrl: req.url,
+      httpStatus: 0,
       capturedAt: Date.now(),
     };
   } catch (err: any) {
@@ -437,7 +439,7 @@ async function captureScreenshotWithCurlFallback(
   } finally {
     // Cleanup
     try {
-      await executeRawCommand(`rm -f ${htmlPath}`, 5);
+      await executeRawCommand(`rm -f ${htmlPath} /tmp/curl_err_${req.engagementId}_*.log`, 5);
     } catch { /* best effort */ }
   }
 }

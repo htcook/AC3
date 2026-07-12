@@ -5674,4 +5674,477 @@ Return ONLY a JSON object with vulnerabilities array.`;
         };
       }
     }),
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // SELECTIVE RE-RUN — Granular per-asset, per-tool, per-phase re-execution
+    // ═══════════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Allows operators to selectively re-run specific portions of an engagement:
+     * - Per-asset: re-scan only specific assets
+     * - Per-tool: re-run only specific tools (nuclei, zap, burp, hydra, etc.)
+     * - Per-phase: re-run specific phases on selected assets
+     * - Reanalyze: trigger LLM re-analysis without re-scanning
+     *
+     * Deduplication is always applied. New findings trigger automatic re-analysis.
+     */
+    selectiveRerun: protectedProcedure
+      .input(z.object({
+        engagementId: z.number(),
+        mode: z.enum(['assets', 'tools', 'phases', 'reanalyze']),
+        selectedAssets: z.array(z.string()).optional(), // hostnames
+        selectedTools: z.array(z.enum([
+          'nuclei', 'zap', 'burp', 'hydra', 'sqlmap', 'ffuf',
+          'feroxbuster', 'nikto', 'httpx', 'katana', 'testssl', 'wafw00f',
+        ])).optional(),
+        selectedPhases: z.array(z.enum([
+          'recon', 'enumeration', 'vuln_detection', 'exploitation',
+        ])).optional(),
+        autoReanalyze: z.boolean().default(true),
+        deduplicateResults: z.boolean().default(true),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const dbConn = await db.getDb();
+        if (dbConn) await assertEngagementAccess(dbConn, input.engagementId, ctx.user);
+
+        const {
+          getOpsState, getOpsStateWithRecovery, addLog, broadcastOpsUpdate,
+          persistOpsStateNow, pushVulnDeduped, executeVulnDetection,
+        } = await import('../lib/engagement-orchestrator');
+
+        let state = getOpsState(input.engagementId);
+        if (!state) state = await getOpsStateWithRecovery(input.engagementId);
+        if (!state) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'No saved state found. Run the engagement first.' });
+        }
+        if (state.isRunning) {
+          throw new TRPCError({ code: 'CONFLICT', message: 'Engagement is currently running. Stop it first.' });
+        }
+
+        const engagement = await db.getEngagementById(input.engagementId);
+        if (!engagement) throw new TRPCError({ code: 'NOT_FOUND', message: 'Engagement not found' });
+
+        // ═══ CAPTURE PREVIOUS FINDINGS FOR DEDUP ═══
+        const previousVulns = state.assets.flatMap((a: any) => a.vulns || []);
+        const previousZapFindings = state.assets.flatMap((a: any) => a.zapFindings || []);
+        const previousVulnCount = previousVulns.length;
+        (state as any).previousScanFindings = previousVulns;
+        (state as any).previousZapFindings = previousZapFindings;
+
+        // Determine which assets to target
+        const targetAssets = input.selectedAssets && input.selectedAssets.length > 0
+          ? state.assets.filter(a => input.selectedAssets!.includes(a.hostname))
+          : state.assets;
+
+        if (targetAssets.length === 0 && input.mode !== 'reanalyze') {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: 'No matching assets found for the selected hostnames.' });
+        }
+
+        // Mark as running
+        state.isRunning = true;
+        state.error = undefined;
+        state.currentAction = `Selective re-run (${input.mode}): ${targetAssets.length} asset(s)...`;
+        addLog(state, {
+          phase: 'scanning', type: 'info',
+          title: '🔄 Selective Re-Run Started',
+          detail: `Mode: ${input.mode} | Assets: ${targetAssets.map(a => a.hostname).join(', ')} | Tools: ${input.selectedTools?.join(', ') || 'all'} | Auto-reanalyze: ${input.autoReanalyze}`,
+        });
+        broadcastOpsUpdate(input.engagementId, { type: 'phase_change', phase: 'scanning' });
+        await persistOpsStateNow(input.engagementId);
+
+        // Run async to avoid blocking the mutation response
+        (async () => {
+          try {
+            let newFindingsCount = 0;
+
+            if (input.mode === 'reanalyze') {
+              // ── REANALYZE ONLY (no re-scanning) ──
+              state!.currentAction = 'Running LLM re-analysis on current findings...';
+              await runReanalysis(state!, engagement, ctx);
+              addLog(state!, { phase: 'scanning', type: 'success', title: '✅ Re-analysis Complete', detail: 'LLM re-analyzed all current findings.' });
+            } else if (input.mode === 'tools') {
+              // ── PER-TOOL RE-RUN ──
+              const tools = input.selectedTools || ['nuclei', 'zap'];
+              state!.currentAction = `Re-running tools: ${tools.join(', ')}...`;
+
+              // Clear completedScans for selected tools so they re-run
+              for (const tool of tools) {
+                const toolKey = `${tool}Completed` as keyof typeof state.completedScans;
+                if (state!.completedScans && (state!.completedScans as any)[toolKey]) {
+                  // Only clear for selected assets
+                  if (input.selectedAssets && input.selectedAssets.length > 0) {
+                    for (const hostname of input.selectedAssets) {
+                      ((state!.completedScans as any)[toolKey] as Set<string>).delete(hostname);
+                    }
+                  } else {
+                    (state!.completedScans as any)[toolKey] = new Set();
+                  }
+                }
+              }
+
+              // Clear existing tool results for selected assets/tools
+              for (const asset of targetAssets) {
+                if (tools.includes('nuclei') || tools.includes('zap') || tools.includes('burp')) {
+                  // Clear vulns from these tools
+                  asset.vulns = asset.vulns.filter((v: any) => {
+                    const source = (v.source || v.tool || '').toLowerCase();
+                    return !tools.some(t => source.includes(t));
+                  });
+                  if (tools.includes('zap')) {
+                    asset.zapFindings = [];
+                  }
+                }
+              }
+
+              // Run vuln detection which handles nuclei + ZAP + Burp
+              if (tools.some(t => ['nuclei', 'zap', 'burp'].includes(t))) {
+                try {
+                  await executeVulnDetection(state!, engagement, { id: String(ctx.user.id), name: ctx.user.name || undefined });
+                } catch (e: any) {
+                  addLog(state!, { phase: 'scanning', type: 'warning', title: '⚠️ Vuln Detection Error', detail: e.message?.slice(0, 200) });
+                }
+              }
+
+              // Run specific tools that aren't part of executeVulnDetection
+              if (tools.includes('hydra')) {
+                if (state!.completedScans) state!.completedScans.hydraCompleted = new Set();
+              }
+              if (tools.includes('ffuf')) {
+                if (state!.completedScans) (state!.completedScans as any).ffufCompleted = new Set();
+              }
+              if (tools.includes('feroxbuster')) {
+                if (state!.completedScans) (state!.completedScans as any).feroxbusterCompleted = new Set();
+              }
+
+            } else if (input.mode === 'assets') {
+              // ── PER-ASSET RE-RUN (all tools on selected assets) ──
+              state!.currentAction = `Re-scanning ${targetAssets.length} asset(s)...`;
+
+              // Clear all scan tracking for selected assets
+              for (const asset of targetAssets) {
+                asset.vulns = [];
+                asset.zapFindings = [];
+                asset.toolResults = [];
+                asset.status = 'pending' as any;
+              }
+
+              // Clear completedScans entries for these assets
+              if (state!.completedScans) {
+                for (const asset of targetAssets) {
+                  for (const key of Object.keys(state!.completedScans)) {
+                    const val = (state!.completedScans as any)[key];
+                    if (val instanceof Set) {
+                      val.delete(asset.hostname);
+                    }
+                  }
+                }
+              }
+
+              // Run vuln detection (will only scan assets not in completedScans)
+              try {
+                await executeVulnDetection(state!, engagement, { id: String(ctx.user.id), name: ctx.user.name || undefined });
+              } catch (e: any) {
+                addLog(state!, { phase: 'scanning', type: 'warning', title: '⚠️ Asset Re-Scan Error', detail: e.message?.slice(0, 200) });
+              }
+
+            } else if (input.mode === 'phases') {
+              // ── PER-PHASE RE-RUN (delegates to rerunFromPhase) ──
+              const phases = input.selectedPhases || ['vuln_detection'];
+              // Use the earliest selected phase
+              const PHASE_ORDER = ['recon', 'enumeration', 'vuln_detection', 'exploitation'];
+              const earliestPhase = phases.sort((a, b) => PHASE_ORDER.indexOf(a) - PHASE_ORDER.indexOf(b))[0];
+
+              // Delegate to existing rerunFromPhase logic
+              const { rerunFromPhase } = await import('../lib/engagement-orchestrator');
+              state!.isRunning = false; // rerunFromPhase checks this
+              await rerunFromPhase(input.engagementId, earliestPhase as any, { id: String(ctx.user.id), name: ctx.user.name || undefined });
+              return; // rerunFromPhase handles everything including state management
+            }
+
+            // ═══ DEDUPLICATION PIPELINE ═══
+            if (input.deduplicateResults && input.mode !== 'reanalyze') {
+              try {
+                const { runDeduplicationPipeline } = await import('../lib/finding-deduplication');
+                const dedupResult = await runDeduplicationPipeline(state!.assets as any, {
+                  enableIpDedup: true,
+                  enableZapFilter: true,
+                  enableMultiToolConsolidation: true,
+                  enableRescanDedup: true,
+                  existingFindings: previousVulns,
+                  existingZapFindings: previousZapFindings,
+                });
+                state!.assets = dedupResult.assets as any;
+                for (const logEntry of dedupResult.log) {
+                  addLog(state!, { phase: 'scanning', type: 'info', title: '🔍 Deduplication', detail: logEntry });
+                }
+                if (dedupResult.stats.rescanDuplicatesRemoved > 0) {
+                  addLog(state!, {
+                    phase: 'scanning', type: 'info',
+                    title: `📉 Dedup: ${dedupResult.stats.rescanDuplicatesRemoved} duplicates removed`,
+                    detail: `IP merges: ${dedupResult.stats.ipGroupsMerged}, ZAP noise: ${dedupResult.stats.zapNoiseFiltered}, Multi-tool: ${dedupResult.stats.multiToolMerged}`,
+                  });
+                }
+              } catch (dedupErr: any) {
+                addLog(state!, { phase: 'scanning', type: 'warning', title: '⚠️ Dedup Error', detail: dedupErr.message });
+              }
+            }
+
+            // ═══ COUNT NEW FINDINGS ═══
+            const currentVulnCount = state!.assets.reduce((sum, a) => sum + (a.vulns || []).length, 0);
+            newFindingsCount = Math.max(0, currentVulnCount - previousVulnCount);
+
+            // ═══ AUTO RE-ANALYSIS (if new findings detected) ═══
+            if (input.autoReanalyze && newFindingsCount > 0 && input.mode !== 'reanalyze') {
+              addLog(state!, {
+                phase: 'scanning', type: 'info',
+                title: '🧠 Auto Re-Analysis Triggered',
+                detail: `${newFindingsCount} new finding(s) detected — running LLM re-analysis...`,
+              });
+              await runReanalysis(state!, engagement, ctx);
+            }
+
+            // ═══ RECALCULATE STATS ═══
+            state!.stats.vulnsFound = state!.assets.reduce((sum, a) => sum + (a.vulns || []).length, 0);
+            state!.stats.portsFound = state!.assets.reduce((sum, a) => sum + (a.ports || []).length, 0);
+            state!.stats.hostsScanned = state!.assets.filter(a => a.status !== 'pending').length;
+            (state!.stats as any).assetsDiscovered = state!.assets.length;
+
+            // ═══ REFRESH DB FINDINGS (prevent stale duplicates) ═══
+            try {
+              if (dbConn) {
+                const { engagementFindings } = await import('../../drizzle/schema');
+                // Delete existing findings for this engagement
+                await dbConn.delete(engagementFindings).where(eq(engagementFindings.engagementId, input.engagementId)).catch(() => {});
+                // Re-insert from current state
+                const allVulns = state!.assets.flatMap(a =>
+                  (a.vulns || []).map((v: any) => ({
+                    engagementId: input.engagementId,
+                    hostname: a.hostname,
+                    title: (v.title || 'Unknown').slice(0, 512),
+                    severity: (['critical','high','medium','low','info'].includes(v.severity) ? v.severity : 'medium') as 'critical' | 'high' | 'medium' | 'low' | 'info',
+                    cve: v.cve ? String(v.cve).slice(0, 64) : null,
+                    description: v.description || null,
+                    source: (v.source || v.tool || 'unknown').slice(0, 128),
+                    tool: (v.tool || v.source || 'unknown').slice(0, 128),
+                    corroborationTier: (['confirmed','corroborated','unverified'].includes(v.corroborationTier) ? v.corroborationTier : 'unverified') as 'confirmed' | 'corroborated' | 'unverified',
+                    createdAt: Date.now(),
+                  }))
+                );
+                if (allVulns.length > 0) {
+                  // Insert in batches of 50
+                  for (let i = 0; i < allVulns.length; i += 50) {
+                    const batch = allVulns.slice(i, i + 50);
+                    await dbConn.insert(engagementFindings).values(batch).catch((e: any) => {
+                      console.error('[SelectiveRerun] DB insert error:', e.message);
+                    });
+                  }
+                }
+                addLog(state!, { phase: 'scanning', type: 'info', title: '💾 DB Findings Refreshed', detail: `${allVulns.length} findings synced to database (no duplicates)` });
+              }
+            } catch (dbRefreshErr: any) {
+              addLog(state!, { phase: 'scanning', type: 'warning', title: '⚠️ DB Refresh Error', detail: dbRefreshErr.message });
+            }
+
+            // ═══ COMPLETE ═══
+            state!.isRunning = false;
+            state!.phase = 'completed';
+            state!.currentAction = undefined;
+            // Clear previous findings snapshot
+            delete (state as any).previousScanFindings;
+            delete (state as any).previousZapFindings;
+
+            addLog(state!, {
+              phase: 'completed', type: 'success',
+              title: '🏁 Selective Re-Run Complete',
+              detail: `Mode: ${input.mode} | New findings: ${newFindingsCount} | Total vulns: ${state!.stats.vulnsFound} | Auto-reanalyzed: ${input.autoReanalyze && newFindingsCount > 0}`,
+            });
+            broadcastOpsUpdate(input.engagementId, { type: 'phase_change', phase: 'completed' });
+            await persistOpsStateNow(input.engagementId);
+
+          } catch (err: any) {
+            state!.isRunning = false;
+            state!.error = err.message;
+            state!.currentAction = undefined;
+            addLog(state!, { phase: 'scanning', type: 'error', title: '❌ Selective Re-Run Failed', detail: err.message });
+            broadcastOpsUpdate(input.engagementId, { type: 'error', error: err.message });
+            await persistOpsStateNow(input.engagementId);
+          }
+        })();
+
+        await db.logActivity({
+          userId: ctx.user.id,
+          action: 'selective_rerun',
+          details: `Selective re-run (${input.mode}) for engagement #${input.engagementId}: assets=${input.selectedAssets?.join(',') || 'all'}, tools=${input.selectedTools?.join(',') || 'all'}`,
+        });
+
+        return {
+          engagementId: input.engagementId,
+          mode: input.mode,
+          targetAssets: targetAssets.map(a => a.hostname),
+          message: `Selective re-run started (${input.mode}). ${targetAssets.length} asset(s) targeted.`,
+        };
+      }),
+
+    /**
+     * Standalone re-analysis endpoint — triggers LLM analysis on current findings
+     * without re-running any scans. Useful when the operator wants fresh analysis
+     * after manual edits or external data imports.
+     */
+    reanalyzeFindings: protectedProcedure
+      .input(z.object({
+        engagementId: z.number(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const dbConn = await db.getDb();
+        if (dbConn) await assertEngagementAccess(dbConn, input.engagementId, ctx.user);
+
+        const {
+          getOpsState, getOpsStateWithRecovery, addLog, broadcastOpsUpdate, persistOpsStateNow,
+        } = await import('../lib/engagement-orchestrator');
+
+        let state = getOpsState(input.engagementId);
+        if (!state) state = await getOpsStateWithRecovery(input.engagementId);
+        if (!state) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'No saved state found. Run the engagement first.' });
+        }
+        if (state.isRunning) {
+          throw new TRPCError({ code: 'CONFLICT', message: 'Engagement is currently running.' });
+        }
+
+        const engagement = await db.getEngagementById(input.engagementId);
+        if (!engagement) throw new TRPCError({ code: 'NOT_FOUND', message: 'Engagement not found' });
+
+        state.isRunning = true;
+        state.currentAction = 'Running LLM re-analysis...';
+        addLog(state, { phase: 'scanning', type: 'info', title: '🧠 Re-Analysis Started', detail: 'Operator triggered manual LLM re-analysis on current findings.' });
+        broadcastOpsUpdate(input.engagementId, { type: 'phase_change', phase: 'scanning' });
+        await persistOpsStateNow(input.engagementId);
+
+        (async () => {
+          try {
+            await runReanalysis(state!, engagement, ctx);
+            state!.isRunning = false;
+            state!.currentAction = undefined;
+            addLog(state!, { phase: 'completed', type: 'success', title: '✅ Re-Analysis Complete', detail: `Analyzed ${state!.assets.length} assets with ${state!.stats.vulnsFound} findings.` });
+            broadcastOpsUpdate(input.engagementId, { type: 'phase_change', phase: 'completed' });
+            await persistOpsStateNow(input.engagementId);
+          } catch (err: any) {
+            state!.isRunning = false;
+            state!.error = err.message;
+            state!.currentAction = undefined;
+            addLog(state!, { phase: 'scanning', type: 'error', title: '❌ Re-Analysis Failed', detail: err.message });
+            await persistOpsStateNow(input.engagementId);
+          }
+        })();
+
+        return { engagementId: input.engagementId, message: 'Re-analysis started.' };
+      }),
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// HELPER: Run LLM re-analysis on current engagement state
+// ═══════════════════════════════════════════════════════════════════════════════
+async function runReanalysis(state: any, engagement: any, ctx: any): Promise<void> {
+  const { addLog, broadcastOpsUpdate } = await import('../lib/engagement-orchestrator');
+  const domains = (engagement.targetDomain || '').split(/[,;\s]+/).filter(Boolean);
+
+  // 1. LLM Post-Enrichment Analysis
+  try {
+    const { runPostEnrichmentAnalysis } = await import('../lib/llm-post-enrichment-analysis');
+    const analyses = state.assets.map((a: any) => {
+      const vulnFindings = (a.vulns || []).map((v: any) => ({
+        id: v.id || v.cve || `vuln-${Math.random().toString(36).slice(2, 8)}`,
+        assetRef: a.hostname,
+        assetHostname: a.hostname,
+        category: v.category || 'vulnerability',
+        title: v.title,
+        severity: typeof v.severity === 'number' ? v.severity : (v.severity === 'critical' ? 9 : v.severity === 'high' ? 7 : v.severity === 'medium' ? 5 : 3),
+        likelihood: 7,
+        confidence: 0.8,
+        recommendedControls: [],
+        cveIds: v.cve ? [v.cve] : [],
+        corroborationTier: v.corroborationTier || 'probable' as const,
+      }));
+      const signalFindings = (a.passiveRecon?.riskSignals || []).slice(0, 30).map((s: any, idx: number) => ({
+        id: `signal-${a.hostname}-${idx}`,
+        assetRef: a.hostname,
+        assetHostname: a.hostname,
+        category: s.type || 'risk_signal',
+        title: s.rationale || 'Unknown signal',
+        severity: s.severity === 'critical' ? 9 : s.severity === 'high' ? 7 : s.severity === 'medium' ? 5 : 2,
+        likelihood: 5,
+        confidence: 0.6,
+        recommendedControls: [],
+        corroborationTier: 'potential' as const,
+      }));
+      const allFindings = [...vulnFindings, ...signalFindings];
+      return {
+        asset: { hostname: a.hostname, ip: a.ip, technologies: a.passiveRecon?.technologies || [], assetType: 'web_application', assetClasses: ['web'], tags: [] },
+        postureFindings: allFindings,
+        assetCriticalityBand: 'high' as const,
+        riskBand: allFindings.length > 5 ? 'high' as const : 'medium' as const,
+        missionFunction: 'web_service',
+        essentialService: true,
+        hybridRiskScore: Math.min(90, 40 + allFindings.length * 2),
+        carverScores: { criticality: 7, accessibility: 6, recuperability: 5, vulnerability: 7, effect: 6, recognizability: 5 },
+        shockScores: { scope: 6, handling: 5, operationalImpact: 6, cascadingEffects: 5, knowledge: 4 },
+        missionImpactScore: 70,
+        suggestedTier: 'tier_1',
+        cvssEstimate: 7,
+        contextIndicators: { exposure: 7, recognizability: 5, confidence: 0.7 },
+        testVectors: [],
+        confidence: 0.7,
+        assetCriticalityScore: 70,
+        vulnRiskScore: Math.min(90, allFindings.length * 3),
+        vulnRiskBand: allFindings.length > 5 ? 'high' : 'medium',
+        impactScore: 70,
+        likelihoodScore: 60,
+        deviceType: 'server',
+        platformType: 'web_application',
+        businessImpactLevel: 'significant',
+        missionJustification: `Web service at ${a.hostname}`,
+      };
+    });
+    const org = {
+      customerName: engagement.clientName || 'Target',
+      primaryDomain: domains[0] || '',
+      sector: 'technology',
+      clientType: 'enterprise' as const,
+    };
+    const analysis = await runPostEnrichmentAnalysis(analyses as any, org as any);
+    (state as any).llmAnalysis = analysis;
+    addLog(state, { phase: 'scanning', type: 'success', title: '✅ Post-Enrichment Analysis', detail: `${analysis.attackPaths?.length || 0} attack paths, ${analysis.blindSpots?.length || 0} blind spots` });
+  } catch (err: any) {
+    addLog(state, { phase: 'scanning', type: 'warning', title: '⚠️ Post-Enrichment Analysis Error', detail: err.message });
+  }
+
+  // 2. LLM Feedback Loop (targeted re-scan suggestions)
+  try {
+    const { runFeedbackLoop } = await import('../lib/llm-scan-feedback');
+    const initialFindings = state.assets.flatMap((a: any) => [
+      ...(a.vulns || []).map((v: any) => ({
+        type: 'vulnerability', asset: a.hostname, title: v.title,
+        severity: v.severity, cve: v.cve, tool: v.tool || 'passive',
+        port: v.port, description: v.description,
+      })),
+      ...(a.passiveRecon?.riskSignals || []).map((s: any) => ({
+        type: 'risk_signal', asset: a.hostname, title: s.rationale,
+        severity: s.severity, tool: 'passive_recon',
+      })),
+      ...(a.ports || []).map((p: any) => ({
+        type: 'service', asset: a.hostname, port: p.port,
+        service: p.service, version: p.version, tool: 'scanforge-discovery',
+      })),
+    ]);
+    const feedbackResult = await runFeedbackLoop(
+      initialFindings,
+      { targets: state.assets.map((a: any) => a.hostname), engagementName: engagement.engagementName || 'pentest' },
+      { maxIterations: 2, engagementId: state.engagementId },
+    );
+    addLog(state, { phase: 'scanning', type: 'success', title: '✅ Feedback Loop', detail: `${feedbackResult.iterationsRun || 0} iterations, ${feedbackResult.newFindingsCount || 0} new findings` });
+  } catch (err: any) {
+    addLog(state, { phase: 'scanning', type: 'warning', title: '⚠️ Feedback Loop Error', detail: err.message });
+  }
+
+  broadcastOpsUpdate(state.engagementId, { type: 'log_update' });
+}

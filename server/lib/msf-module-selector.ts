@@ -240,13 +240,24 @@ export async function selectMsfModule(
     const msfModules = cveExploits.filter(d => d.source === "metasploit" && d.msfModulePath);
 
     for (const doc of msfModules) {
-      // ── Platform hard-rejection (same logic as Strategy 2) ──
-      // Reject modules that target a completely different OS family
-      const docPlatform = (doc.platform || 'multi').toLowerCase();
-      const targetOsLower = (target.os || '').toLowerCase();
-      if (targetOsLower && docPlatform !== 'multi' && !docPlatform.includes('multi')) {
-        if (docPlatform.includes('windows') && (targetOsLower.includes('linux') || targetOsLower.includes('ubuntu') || targetOsLower.includes('debian') || targetOsLower.includes('centos'))) continue;
-        if (docPlatform.includes('linux') && targetOsLower.includes('windows')) continue;
+
+      // Hard-reject platform mismatches (e.g., Windows exploit on Linux target)
+      const modPlatform = (doc.platform || "multi").toLowerCase();
+      const tgtOs = (target.os || "").toLowerCase();
+      if (
+        modPlatform === "windows" &&
+        /linux|ubuntu|debian|centos|fedora|rhel|freebsd/.test(tgtOs)
+      ) {
+        reasons.push(`Skipped ${doc.msfModulePath} — Windows-only module on Linux target`);
+        continue;
+      }
+      if (
+        modPlatform === "linux" &&
+        /windows|win/.test(tgtOs)
+      ) {
+        reasons.push(`Skipped ${doc.msfModulePath} — Linux-only module on Windows target`);
+        continue;
+ (feat: Selective Re-Run - granular per-asset/tool/phase re-execution with dedup)
       }
 
       const rank = doc.msfRank || 300;
