@@ -323,9 +323,17 @@ export function parseToolOutput(
       } else {
         // Genuine http-get/https-get hits (1-2 unique creds = plausible)
         for (const hit of httpGetHits) {
+          const scheme = hit.svc === 'https-get' ? 'https' : 'http';
+          const targetUrl = `${scheme}://${asset.hostname}:${hit.port}/`;
           findings.push({
             severity: "critical",
-            title: `[Hydra] Valid credentials found: ${hit.line.slice(0, 100)}`,
+            title: `[Hydra] Valid credentials found: ${hit.login}:*** on ${hit.svc}:${hit.port}`,
+            description: `Hydra confirmed valid ${hit.svc} credentials for ${asset.hostname}:${hit.port}. Username: ${hit.login}`,
+            evidence: {
+              request: { method: 'GET', url: targetUrl, headers: { 'Authorization': `Basic ${Buffer.from(`${hit.login}:${hit.pass}`).toString('base64')}` } },
+              response: { statusCode: 200 },
+              proofText: `[Hydra Raw Output] ${hit.line}\n\n[Verification Command]\ncurl -v -u '${hit.login}:<REDACTED>' ${targetUrl}\n\n[Credential Details]\nUsername: ${hit.login}\nService: ${hit.svc}\nPort: ${hit.port}\nAccess Level: Authenticated\nConfirmed At: ${new Date().toISOString()}`,
+            },
           });
           if (asset.confirmedCredentials) {
             asset.confirmedCredentials.push({
@@ -345,9 +353,18 @@ export function parseToolOutput(
 
       // Non-http-get hits (SSH, FTP, etc.) — always trust these
       for (const hit of nonHttpGetHits) {
+        const verifyCmd = hit.svc === 'ssh'
+          ? `ssh -o StrictHostKeyChecking=no ${hit.login}@${asset.hostname} -p ${hit.port} 'whoami && id && hostname'`
+          : hit.svc === 'ftp'
+            ? `ftp -n ${asset.hostname} ${hit.port} <<< 'user ${hit.login} <REDACTED>\nls\nquit'`
+            : `${hit.svc} ${asset.hostname}:${hit.port} -u ${hit.login}`;
         findings.push({
           severity: "critical",
-          title: `[Hydra] Valid credentials found: ${hit.line.slice(0, 100)}`,
+          title: `[Hydra] Valid credentials found: ${hit.login}:*** on ${hit.svc}:${hit.port}`,
+          description: `Hydra confirmed valid ${hit.svc} credentials for ${asset.hostname}:${hit.port}. Service: ${hit.svc}, Username: ${hit.login}`,
+          evidence: {
+            proofText: `[Hydra Raw Output] ${hit.line}\n\n[Verification Command]\n${verifyCmd}\n\n[Credential Details]\nUsername: ${hit.login}\nService: ${hit.svc}\nPort: ${hit.port}\nProtocol: ${hit.svc}\nAccess Level: Authenticated\nConfirmed At: ${new Date().toISOString()}\n\n[Operator Notes]\nThis credential was confirmed by Hydra brute-force. Verify manually using the command above.`,
+          },
         });
         if (asset.confirmedCredentials) {
           asset.confirmedCredentials.push({

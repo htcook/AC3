@@ -193,13 +193,31 @@ export async function executeCredentialTesting(ctx: VulnDetectionContext): Promi
           const findings = parseToolOutput(cmd.tool, toolResult.stdout, asset);
           result.attemptsTotal++;
           for (const f of findings) {
-            if (pushVulnDeduped(asset, { id: genId(), severity: f.severity, title: f.title, cve: f.cve, description: f.description, corroborationTier: "confirmed", evidenceDetail: `Confirmed by ${cmd.tool}`, rawEvidence: f.evidence ? JSON.stringify(f.evidence).slice(0, 4000) : undefined, source: cmd.tool })) {
+            // Build comprehensive evidence for credential findings
+            const fullEvidence = f.evidence
+              ? JSON.stringify({
+                  ...f.evidence,
+                  fullCommand: `${cmd.tool} ${cmd.args}`,
+                  rawOutput: toolResult.stdout.slice(0, 8000),
+                  exitCode: toolResult.exitCode,
+                  executedAt: new Date().toISOString(),
+                  target: getEffectiveTarget(asset, "discovery"),
+                  engagementId: state.engagementId,
+                }).slice(0, 8000)
+              : JSON.stringify({
+                  proofText: `Tool: ${cmd.tool}\nCommand: ${cmd.tool} ${cmd.args}\nTarget: ${getEffectiveTarget(asset, "discovery")}\nExit Code: ${toolResult.exitCode}\nOutput:\n${toolResult.stdout.slice(0, 4000)}`,
+                  fullCommand: `${cmd.tool} ${cmd.args}`,
+                  executedAt: new Date().toISOString(),
+                }).slice(0, 8000);
+
+            if (pushVulnDeduped(asset, { id: genId(), severity: f.severity, title: f.title, cve: f.cve, description: f.description || `Credential confirmed via ${cmd.tool} against ${asset.hostname}`, corroborationTier: "confirmed", evidenceDetail: `Confirmed by ${cmd.tool}. Full command and raw output preserved for operator reporting.`, rawEvidence: fullEvidence, source: cmd.tool })) {
               state.stats.vulnsFound++;
               result.credentialsConfirmed++;
             }
           }
 
-          asset.toolResults.push({ tool: cmd.tool, command: `${cmd.tool} ${cmd.args}`, exitCode: toolResult.exitCode, durationMs: toolResult.durationMs, timedOut: toolResult.timedOut, findingCount: findings.length, findings: findings.map((f: any) => ({ severity: f.severity, title: f.title })), outputPreview: toolResult.stdout.slice(0, 512), executedAt: Date.now(), phase: "credential_testing" });
+          // Store expanded output for credential tests (8KB vs 512B default) for operator evidence
+          asset.toolResults.push({ tool: cmd.tool, command: `${cmd.tool} ${cmd.args}`, exitCode: toolResult.exitCode, durationMs: toolResult.durationMs, timedOut: toolResult.timedOut, findingCount: findings.length, findings: findings.map((f: any) => ({ severity: f.severity, title: f.title })), outputPreview: toolResult.stdout.slice(0, 8192), executedAt: Date.now(), phase: "credential_testing" });
 
           // Hydra exit 255 = connection refused → store OEM fallback
           if (cmd.tool === "hydra" && toolResult.exitCode === 255 && cmd.purpose.includes("[OEM Default]")) {

@@ -6279,7 +6279,21 @@ export async function executeEngagement(
             source: v.source || undefined,
             tool: v.tool || v.source || undefined,
             corroborationTier: v.corroborationTier || v.verified ? 'confirmed' : 'unverified',
-            rawEvidence: v.rawEvidence || v.evidence || undefined,
+            rawEvidence: v.rawEvidence || v.evidence || (() => {
+              // Enrich from toolResults if no direct evidence
+              const matchingTr = (asset.toolResults || []).find((tr: any) =>
+                tr.findings?.some((f: any) => f.title === v.title)
+              );
+              if (matchingTr) {
+                return JSON.stringify({
+                  command: matchingTr.command,
+                  output: matchingTr.outputPreview?.slice(0, 8000),
+                  exitCode: matchingTr.exitCode,
+                  executedAt: matchingTr.executedAt ? new Date(matchingTr.executedAt).toISOString() : null,
+                }).slice(0, 16000);
+              }
+              return undefined;
+            })(),
             exploitAttempted: (asset.exploitAttempts || []).some((e: any) => e.vulnTitle === v.title),
             exploitSucceeded: (asset.exploitAttempts || []).some((e: any) => e.vulnTitle === v.title && e.succeeded),
             exploitTechnique: (asset.exploitAttempts || []).find((e: any) => e.vulnTitle === v.title)?.technique,

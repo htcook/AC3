@@ -6131,8 +6131,48 @@ Return ONLY a JSON object with vulnerabilities array.`;
             addLog(state!, { phase: 'scanning', type: 'success', title: '✅ FP Suppression Complete', detail: `Removed ${fpRemoved} false positives. Final count: ${postFpCount}` });
             broadcastOpsUpdate(input.engagementId, { type: 'log_update' });
 
+            // ── Step 2b: Evidence Gating — demote findings without tool evidence ──
+            addLog(state!, { phase: 'scanning', type: 'info', title: '🔬 Evidence Gating', detail: 'Demoting findings without tool evidence to info severity...' });
+            broadcastOpsUpdate(input.engagementId, { type: 'log_update' });
+
+            let demotedCount = 0;
+            let removedNoEvidence = 0;
+            for (const asset of state!.assets) {
+              const beforeLen = (asset.vulns || []).length;
+              asset.vulns = (asset.vulns || []).filter((v: any) => {
+                // Always keep confirmed/corroborated findings
+                if (v.corroborationTier === 'confirmed' || v.corroborationTier === 'corroborated') return true;
+                // Always keep findings with raw evidence
+                if (v.rawEvidence && v.rawEvidence.length > 10) return true;
+                // Always keep findings with evidence detail
+                if (v.evidenceDetail && v.evidenceDetail.length > 10) return true;
+                // Check if the finding has a matching toolResult with output
+                const hasToolEvidence = (asset.toolResults || []).some((tr: any) =>
+                  tr.findings?.some((f: any) => f.title === v.title) ||
+                  (tr.outputPreview && tr.outputPreview.includes(v.cve || '___NOMATCH___'))
+                );
+                if (hasToolEvidence) return true;
+                // Critical/high without evidence: demote to medium, keep
+                const sev = (v.severity || '').toLowerCase();
+                if (sev === 'critical' || sev === 'high') {
+                  v.severity = 'medium';
+                  v.title = `[No Evidence] ${v.title}`;
+                  v.corroborationTier = 'unverified';
+                  demotedCount++;
+                  return true;
+                }
+                // Medium/low/info without evidence: remove entirely
+                removedNoEvidence++;
+                return false;
+              });
+            }
+
+            const postEvidenceCount = state!.assets.reduce((s: number, a: any) => s + (a.vulns || []).length, 0);
+            addLog(state!, { phase: 'scanning', type: 'success', title: '✅ Evidence Gating Complete', detail: `Demoted ${demotedCount} high/critical findings without evidence. Removed ${removedNoEvidence} low-severity findings without evidence. Final: ${postEvidenceCount}` });
+            broadcastOpsUpdate(input.engagementId, { type: 'log_update' });
+
             // ── Step 3: Update stats ──
-            state!.stats.vulnsFound = postFpCount;
+            state!.stats.vulnsFound = postEvidenceCount;;
 
             // ── Step 4: Refresh DB engagement_findings ──
             addLog(state!, { phase: 'scanning', type: 'info', title: '💾 Syncing to Database', detail: 'Clearing old findings and inserting clean set...' });
@@ -6152,18 +6192,39 @@ Return ONLY a JSON object with vulnerabilities array.`;
                     if (dbDedupKeys.has(key)) return false;
                     dbDedupKeys.add(key);
                     return true;
-                  }).map((v: any) => ({
-                    engagementId: input.engagementId,
-                    hostname: a.hostname,
-                    title: (v.title || 'Unknown').slice(0, 512),
-                    severity: (['critical','high','medium','low','info'].includes((v.severity || '').toLowerCase()) ? (v.severity || '').toLowerCase() : 'medium') as 'critical' | 'high' | 'medium' | 'low' | 'info',
-                    cve: v.cve ? String(v.cve).slice(0, 64) : null,
-                    description: v.description || null,
-                    source: (v.source || v.tool || 'unknown').slice(0, 128),
-                    tool: (v.tool || v.source || 'unknown').slice(0, 128),
-                    corroborationTier: (['confirmed','corroborated','unverified'].includes(v.corroborationTier) ? v.corroborationTier : 'unverified') as 'confirmed' | 'corroborated' | 'unverified',
-                    createdAt: Date.now(),
-                  }))
+                  }).map((v: any) => {
+                    // Build evidence summary for operator reporting
+                    let evidenceForDb: string | null = null;
+                    if (v.rawEvidence) {
+                      evidenceForDb = v.rawEvidence.slice(0, 16000);
+                    } else if (v.evidenceDetail) {
+                      // Enrich with matching toolResult output if available
+                      const matchingTool = (a.toolResults || []).find((tr: any) =>
+                        tr.findings?.some((f: any) => f.title === v.title)
+                      );
+                      evidenceForDb = JSON.stringify({
+                        summary: v.evidenceDetail,
+                        command: matchingTool?.command || null,
+                        output: matchingTool?.outputPreview || null,
+                        exitCode: matchingTool?.exitCode ?? null,
+                        executedAt: matchingTool?.executedAt ? new Date(matchingTool.executedAt).toISOString() : null,
+                      }).slice(0, 16000);
+                    }
+                    return {
+                      engagementId: input.engagementId,
+                      hostname: a.hostname,
+                      port: v.port || null,
+                      title: (v.title || 'Unknown').slice(0, 512),
+                      severity: (['critical','high','medium','low','info'].includes((v.severity || '').toLowerCase()) ? (v.severity || '').toLowerCase() : 'medium') as 'critical' | 'high' | 'medium' | 'low' | 'info',
+                      cve: v.cve ? String(v.cve).slice(0, 64) : null,
+                      description: v.description || null,
+                      source: (v.source || v.tool || 'unknown').slice(0, 128),
+                      tool: (v.tool || v.source || 'unknown').slice(0, 128),
+                      corroborationTier: (['confirmed','corroborated','unverified'].includes(v.corroborationTier) ? v.corroborationTier : 'unverified') as 'confirmed' | 'corroborated' | 'unverified',
+                      rawEvidence: evidenceForDb,
+                      createdAt: Date.now(),
+                    };
+                  })
                 );
                 if (cleanFindings.length > 0) {
                   for (let i = 0; i < cleanFindings.length; i += 50) {

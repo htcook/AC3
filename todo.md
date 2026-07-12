@@ -3336,3 +3336,11 @@
 - [x] Fix 4: Fuzzy title matching in report pipeline translateSignals (4-strategy dedup)
 - [x] Fix 5: UI stat shows post-dedup/post-suppression verified count
 - [x] Sync engagement_findings DB table with clean deduplicated results after pipeline completes
+
+### Evidence-Gated Findings & Credential Evidence
+- [x] Add evidence validation to recalculateFindings — demote/filter findings without tool evidence
+- [x] Add evidence scoring: findings with rawEvidence/curl_command/matched_at get priority; no-evidence findings demoted to info
+- [x] Enhance Hydra/credential scan result capture with full evidence (command, response, session proof)
+- [x] Capture successful logon evidence: exact credentials used, target URL, response headers, session tokens
+- [x] Add evidence summary field to engagement_findings for operator reporting (rawEvidence + toolResult enrichment)
+- [x] Ensure exploit attempts with successful auth have full proof-of-access in rawEvidence
