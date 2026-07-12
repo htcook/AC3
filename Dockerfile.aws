@@ -46,10 +46,20 @@ RUN pnpm install --no-frozen-lockfile
 COPY . .
 
 # Build client (Vite) and server (esbuild)
-RUN rm -rf .client-assets dist/public && \
-    NODE_OPTIONS="--max-old-space-size=8192" npx vite build && \
-    cp -r dist/public .client-assets && \
-    echo "Vite build complete"
+# If pre-built .client-assets exist (from GitHub Action), use them directly.
+# Otherwise, build from source with Vite.
+RUN if [ -d .client-assets ] && [ -f .client-assets/.build-manifest.json ]; then \
+      echo "Using pre-built .client-assets from CI" && \
+      rm -rf dist/public && \
+      mkdir -p dist/public && \
+      cp -r .client-assets/* dist/public/; \
+    else \
+      echo "Building client from source..." && \
+      rm -rf .client-assets dist/public && \
+      NODE_OPTIONS="--max-old-space-size=8192" npx vite build && \
+      cp -r dist/public .client-assets && \
+      echo "Vite build complete"; \
+    fi
 
 RUN pnpm run build
 

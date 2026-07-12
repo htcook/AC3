@@ -265,12 +265,12 @@ function RescanEscalationButton({ engagementId, assetHostname, currentProfile }:
   const rescanMut = trpc.engagementOps.rescanWithDeeperProfile.useMutation({
     onSuccess: (result) => {
       if (result.success) {
-        toast.success(`Deeper scan complete: ${result.message}`);
+        toast.success('Deeper scan complete: ' + result.message);
       } else {
         toast.error(result.message);
       }
     },
-    onError: (err) => toast.error(`Rescan failed: ${err.message}`),
+    onError: (err) => toast.error('Rescan failed: ' + err.message),
   });
 
   if (!nextProfile) return null;
@@ -307,8 +307,8 @@ function getPhaseIndex(phase: string): number {
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 function formatTokenCount(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  if (n >= 1_000_000) return ((n / 1_000_000).toFixed(1)) + 'M';
+  if (n >= 1_000) return ((n / 1_000).toFixed(1)) + 'K';
   return String(n);
 }
 
@@ -318,10 +318,10 @@ function formatTime(ts: number): string {
 
 function formatDuration(ms: number): string {
   const s = Math.floor(ms / 1000);
-  if (s < 60) return `${s}s`;
+  if (s < 60) return s + 's';
   const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ${s % 60}s`;
-  return `${Math.floor(m / 60)}h ${m % 60}m`;
+  if (m < 60) return m + 'm ' + (s % 60) + 's';
+  return (Math.floor(m / 60)) + 'h ' + (m % 60) + 'm';
 }
 
 function riskBadge(tier?: string) {
@@ -331,7 +331,7 @@ function riskBadge(tier?: string) {
     orange: "bg-orange-500/20 text-orange-400 border-orange-500/30",
     red: "bg-red-500/20 text-red-400 border-red-500/30",
   };
-  return <Badge variant="outline" className={`text-[10px] ${colors[tier] || ""}`}>{tier.toUpperCase()}</Badge>;
+  return <Badge variant="outline" className={'text-[10px] ' + (colors[tier] || "")}>{tier.toUpperCase()}</Badge>;
 }
 
 function logIcon(type: string) {
@@ -381,7 +381,7 @@ function assetStatusBadge(status: string) {
     no_vulns: { label: "Clean", className: "bg-green-500/20 text-green-400" },
   };
   const cfg = map[status] || { label: status, className: "bg-gray-500/20 text-gray-400" };
-  return <Badge variant="outline" className={`text-[10px] ${cfg.className}`}>{cfg.label}</Badge>;
+  return <Badge variant="outline" className={'text-[10px] ' + cfg.className}>{cfg.label}</Badge>;
 }
 
 // ─── Exploit Plan Review Card (with Modify Plan) ─────────────────────────────
@@ -482,13 +482,13 @@ function ExploitPlanReviewCard({
             return (
               <div
                 key={i}
-                className={`flex items-center gap-3 rounded-lg px-3 py-2 border transition-all ${
+                className={'flex items-center gap-3 rounded-lg px-3 py-2 border transition-all ' + (
                   isModifying
                     ? isEnabled
                       ? "bg-background/50 border-border/30 cursor-pointer hover:border-green-500/30"
                       : "bg-red-500/5 border-red-500/20 opacity-60 cursor-pointer hover:border-red-500/40"
                     : "bg-background/50 border-border/30"
-                }`}
+                )}
                 onClick={isModifying ? () => toggleTarget(i) : undefined}
               >
                 {isModifying && (
@@ -500,18 +500,18 @@ function ExploitPlanReviewCard({
                 )}
                 <span className="text-xs font-mono text-muted-foreground w-5">{i + 1}.</span>
                 <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                  <Crosshair className={`h-3 w-3 flex-none ${isModifying && !isEnabled ? 'text-red-400/50' : 'text-red-400'}`} />
-                  <span className={`text-xs font-mono truncate ${isModifying && !isEnabled ? 'text-muted-foreground line-through' : 'text-foreground'}`}>
+                  <Crosshair className={'h-3 w-3 flex-none ' + (isModifying && !isEnabled ? 'text-red-400/50' : 'text-red-400')} />
+                  <span className={'text-xs font-mono truncate ' + (isModifying && !isEnabled ? 'text-muted-foreground line-through' : 'text-foreground')}>
                     {a.target}:{a.port}
                   </span>
                 </div>
                 {(a.cve || a.module) && (
-                  <Badge variant="outline" className={`text-[10px] flex-none ${isModifying && !isEnabled ? 'bg-gray-500/10 text-gray-500 border-gray-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20'}`}>
+                  <Badge variant="outline" className={'text-[10px] flex-none ' + (isModifying && !isEnabled ? 'bg-gray-500/10 text-gray-500 border-gray-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20')}>
                     {a.cve || a.module}
                   </Badge>
                 )}
                 {a.service && (
-                  <span className={`text-[10px] flex-none ${isModifying && !isEnabled ? 'text-muted-foreground/50' : 'text-muted-foreground'}`}>{a.service}</span>
+                  <span className={'text-[10px] flex-none ' + (isModifying && !isEnabled ? 'text-muted-foreground/50' : 'text-muted-foreground')}>{a.service}</span>
                 )}
               </div>
             );
@@ -554,7 +554,7 @@ function ExploitPlanReviewCard({
                 disabled={approveMut.isPending || noneEnabled}
               >
                 <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
-                {allEnabled ? "Approve All" : `Approve ${enabledCount} Target${enabledCount !== 1 ? 's' : ''}`}
+                {allEnabled ? "Approve All" : 'Approve ' + enabledCount + ' Target' + (enabledCount !== 1 ? 's' : '')}
               </Button>
             </div>
           </div>
@@ -568,7 +568,7 @@ function ExploitPlanReviewCard({
                 className="border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10"
                 onClick={() => {
                   // Open printable exploit plan in new tab
-                  const url = `/api/trpc/engagementOps.getExploitPlanPrintable?input=${encodeURIComponent(JSON.stringify({ engagementId }))}`;
+                  const url = '/api/trpc/engagementOps.getExploitPlanPrintable?input=' + (encodeURIComponent(JSON.stringify({ engagementId })));
                   fetch(url, { credentials: 'include' })
                     .then(r => r.json())
                     .then(data => {
@@ -634,7 +634,7 @@ function renderFeedEntry(entry: OpsLogEntry) {
   return (
     <Collapsible key={entry.id}>
       <div
-        className={`rounded-md text-sm transition-colors ${
+        className={'rounded-md text-sm transition-colors ' + (
           entry.type === "phase_complete" ? "bg-green-500/5 border border-green-500/10" :
           entry.type === "approval_request" ? "bg-orange-500/5 border border-orange-500/10" :
           entry.type === "exploit_success" ? "bg-red-500/5 border border-red-500/10" :
@@ -644,7 +644,7 @@ function renderFeedEntry(entry: OpsLogEntry) {
           entry.type === "tool_match" ? "bg-purple-500/5 border border-purple-500/10" :
           entry.type === "credential_test" ? "bg-yellow-500/5 border border-yellow-500/10" :
           "hover:bg-muted/20"
-        }`}
+        )}
       >
         <CollapsibleTrigger className="w-full text-left">
           <div className="flex items-start gap-2 px-3 py-2">
@@ -654,7 +654,7 @@ function renderFeedEntry(entry: OpsLogEntry) {
                 <span className="font-medium text-foreground">{entry.title}</span>
                 {riskBadge(entry.riskTier)}
                 {fa?.category && (
-                  <Badge variant="outline" className={`text-[9px] font-mono uppercase tracking-wide ${
+                  <Badge variant="outline" className={'text-[9px] font-mono uppercase tracking-wide ' + (
                     fa.category === 'waf_blocked' ? 'text-orange-400 border-orange-500/40 bg-orange-500/10' :
                     fa.category === 'payload_detected' ? 'text-red-400 border-red-500/40 bg-red-500/10' :
                     fa.category === 'auth_required' ? 'text-yellow-400 border-yellow-500/40 bg-yellow-500/10' :
@@ -664,7 +664,7 @@ function renderFeedEntry(entry: OpsLogEntry) {
                     fa.category === 'exploit_error' || fa.category === 'dependency_missing' ? 'text-pink-400 border-pink-500/40 bg-pink-500/10' :
                     fa.category === 'defense_active' ? 'text-cyan-400 border-cyan-500/40 bg-cyan-500/10' :
                     'text-muted-foreground border-border/50'
-                  }`}>{(fa.category || '').replace(/_/g, ' ')}</Badge>
+                  )}>{(fa.category || '').replace(/_/g, ' ')}</Badge>
                 )}
                 {entry.data?.target && (
                   <Badge variant="outline" className="text-[9px] text-muted-foreground border-border/50 font-mono">{entry.data.target}</Badge>
@@ -795,8 +795,8 @@ function renderFeedEntry(entry: OpsLogEntry) {
                     </div>
                   )}
                   <div className="flex items-center gap-3 mt-1">
-                    <span className={`text-[10px] font-medium ${fa.retryable ? 'text-green-400' : 'text-red-400'}`}>
-                      {fa.retryable ? `Retryable (${Math.round((fa.retryConfidence || 0) * 100)}% confidence)` : 'Not retryable'}
+                    <span className={'text-[10px] font-medium ' + (fa.retryable ? 'text-green-400' : 'text-red-400')}>
+                      {fa.retryable ? 'Retryable (' + (Math.round((fa.retryConfidence || 0) * 100)) + '% confidence)' : 'Not retryable'}
                     </span>
                   </div>
                   {fa.suggestedAdjustments && fa.suggestedAdjustments.length > 0 && (
@@ -821,11 +821,11 @@ function renderFeedEntry(entry: OpsLogEntry) {
                     <ShieldAlert className="h-3 w-3 text-orange-400" />
                     <span className="text-[10px] text-orange-400 uppercase font-semibold tracking-wider">Banner WAF/IDS Detections</span>
                     {entry.data.posture && (
-                      <Badge variant="outline" className={`text-[9px] ${
+                      <Badge variant="outline" className={'text-[9px] ' + (
                         entry.data.posture === 'high_security' ? 'text-red-300 border-red-500/30 bg-red-500/10' :
                         entry.data.posture === 'moderate_security' ? 'text-orange-300 border-orange-500/30 bg-orange-500/10' :
                         'text-yellow-300 border-yellow-500/30 bg-yellow-500/10'
-                      }`}>{String(entry.data.posture).replace(/_/g, ' ')}</Badge>
+                      )}>{String(entry.data.posture).replace(/_/g, ' ')}</Badge>
                     )}
                   </div>
                   <div className="space-y-0.5 mt-1">
@@ -1970,7 +1970,7 @@ export default function EngagementOps() {
                               <label
                                 key={mode.value}
                                 className={`flex items-start gap-3 p-3 rounded-lg cursor-pointer transition-all border ${
-                                  isSelected ? `${colors.bg} ${colors.border} ring-1 ${colors.ring}` : 'border-transparent hover:bg-muted/30'
+                                  isSelected ? colors.bg + ' ' + colors.border + ' ring-1 ' + colors.ring : 'border-transparent hover:bg-muted/30'
                                 }`}
                               >
                                 <RadioGroupItem value={mode.value} className="mt-0.5" />
@@ -5905,7 +5905,7 @@ export default function EngagementOps() {
           <div>
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">LLM Cost</h3>
             <div className="space-y-3">
-              <StatCard icon={<CircleDollarSign className="h-4 w-4 text-emerald-400" />} label="Est. Cost" value={`$${(Number(llmCostQ.data?.estimated_cost_usd) || 0).toFixed(4)}`} />
+              <StatCard icon={<CircleDollarSign className="h-4 w-4 text-emerald-400" />} label="Est. Cost" value={`$${(Number(llmCostQ.data?.estimated_cost_usd) || 0).toFixed(4)}'} />
               <StatCard icon={<Coins className="h-4 w-4 text-amber-400" />} label="Total Tokens" value={formatTokenCount(Number(llmCostQ.data?.total_tokens) || 0)} />
               <StatCard icon={<Zap className="h-4 w-4 text-purple-400" />} label="LLM Calls" value={Number(llmCostQ.data?.total_calls) || 0} />
             </div>
@@ -5915,9 +5915,9 @@ export default function EngagementOps() {
                 {llmCostBreakdownQ.data.slice(0, 5).map((item: any) => (
                   <div key={item.caller} className="flex items-center justify-between text-[10px]">
                     <span className="truncate text-muted-foreground max-w-[120px]" title={item.caller}>
-                      {item.caller?.split(':').pop() || item.caller}
+                      {item.caller?.split(\':\').pop() || item.caller}
                     </span>
-                    <span className="text-emerald-400 font-mono">${(Number(item.estimated_cost_usd) || 0).toFixed(4)}</span>
+                    <span className="text-emerald-400 font-mono">' + ((Number(item.estimated_cost_usd) || 0).toFixed(4)) + '</span>
                   </div>
                 ))}
               </div>
@@ -6053,7 +6053,7 @@ export default function EngagementOps() {
                 onClick={() => setShowExploitGen(!showExploitGen)}
               >
                 <Swords className="h-3.5 w-3.5 mr-1.5" />
-                {showExploitGen ? 'Hide Generator' : 'Generate Exploit Code'}
+                {showExploitGen ? \'Hide Generator\' : \'Generate Exploit Code\'}
               </Button>
               {showExploitGen && (
                 <div className="space-y-2 p-2 rounded-lg bg-red-500/5 border border-red-500/10">
@@ -6077,7 +6077,7 @@ export default function EngagementOps() {
                       <div>
                         <label className="text-[10px] text-muted-foreground block mb-1">Vulnerability (optional)</label>
                         <select
-                          value={selectedVulnIdx ?? ''}
+                          value={selectedVulnIdx ?? \'\'}
                           onChange={(e) => setSelectedVulnIdx(e.target.value ? Number(e.target.value) : undefined)}
                           className="w-full text-xs bg-background border border-border rounded px-2 py-1.5"
                         >
@@ -6095,7 +6095,7 @@ export default function EngagementOps() {
                             const sevOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
                             return (sevOrder[a.severity] ?? 5) - (sevOrder[b.severity] ?? 5);
                           }).map((v) => (
-                            <option key={v.origIdx} value={v.origIdx}>{(v.severity || '').toUpperCase()}: {v.title}{v.cve ? ` (${v.cve})` : ''}{v.corroborationTier === 'confirmed' ? ' \u2713' : v.corroborationTier === 'probable' ? ' \u223c' : ''}{v.detectedVersion ? ` [v${v.detectedVersion}]` : ''}</option>
+                            <option key={v.origIdx} value={v.origIdx}>{(v.severity || \'\').toUpperCase()}: {v.title}{v.cve ? ' (${v.cve})` : ''}{v.corroborationTier === 'confirmed' ? ' \u2713' : v.corroborationTier === 'probable' ? ' \u223c' : ''}{v.detectedVersion ? ` [v${v.detectedVersion}]` : ''}</option>
                           ))}
                         </select>
                       </div>
