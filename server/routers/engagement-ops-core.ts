@@ -5916,8 +5916,15 @@ Return ONLY a JSON object with vulnerabilities array.`;
                 // Delete existing findings for this engagement
                 await dbConn.delete(engagementFindings).where(eq(engagementFindings.engagementId, input.engagementId)).catch(() => {});
                 // Re-insert from current state
+                // Build findings with DB-level dedup guard
+                const dbDedupKeys = new Set<string>();
                 const allVulns = state!.assets.flatMap(a =>
-                  (a.vulns || []).map((v: any) => ({
+                  (a.vulns || []).filter((v: any) => {
+                    const key = `${(v.title || '').toLowerCase().trim()}::${a.hostname}::${v.port || 0}::${v.cve || ''}`;
+                    if (dbDedupKeys.has(key)) return false;
+                    dbDedupKeys.add(key);
+                    return true;
+                  }).map((v: any) => ({
                     engagementId: input.engagementId,
                     hostname: a.hostname,
                     title: (v.title || 'Unknown').slice(0, 512),

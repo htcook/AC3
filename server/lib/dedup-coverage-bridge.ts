@@ -659,34 +659,10 @@ export async function runEngagementDedup(assets: OrchestratorAsset[]): Promise<D
       }
     }
 
-    // Convert tool result findings
-    if (asset.toolResults) {
-      for (const tr of asset.toolResults) {
-        if (tr.findings) {
-          for (const f of tr.findings) {
-            allFindings.push({
-              id: `tr-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-              source: `orchestrator-${tr.tool}`,
-              title: f.title,
-              description: `Finding from ${tr.tool}: ${f.title}`,
-              severity: (f.severity as FindingSeverity) || "info",
-              confidence: 70,
-              target: asset.hostname,
-              port: 0,
-              protocol: "tcp",
-              evidence: {
-                data: { raw: tr.outputPreview?.slice(0, 500) || f.title },
-              },
-              cves: f.cve ? [f.cve] : [],
-              cwes: [],
-              references: [],
-              remediation: "",
-              foundAt: tr.executedAt || Date.now(),
-            } as ScanFinding);
-          }
-        }
-      }
-    }
+    // NOTE: toolResults.findings are SKIPPED here — they are already present in asset.vulns
+    // (the orchestrator pushes findings to both toolResults AND asset.vulns during scanning).
+    // Including them here caused double-counting: the dedup engine would create new ScanFinding
+    // objects with port=0 and slightly different metadata, preventing proper deduplication.
 
     totalBefore += allFindings.length;
 
@@ -717,6 +693,9 @@ export async function runEngagementDedup(assets: OrchestratorAsset[]): Promise<D
       return scanFindingToVuln(f, merged);
     });
     asset.vulns = dedupedVulns;
+    // Clear zapFindings — they are now merged into the deduplicated vulns array.
+    // Without this, the UI double-counts them (vulns.length + zapFindings.length).
+    asset.zapFindings = [];
     totalAfter += dedupedVulns.length;
 
     // Build merge log for UI

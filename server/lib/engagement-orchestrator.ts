@@ -4725,6 +4725,39 @@ export async function executeEngagement(
                 detail: `Kept: ${suppressionStats.kept} | Suppressed: ${suppressionStats.suppressed} | Rules: ${Object.entries(suppressionStats.byRule).map(([r,c]) => `${r}:${c}`).join(', ')}`,
                 data: { suppressionStats },
               });
+
+              // ═══ FIX: Also remove suppressed findings from asset.vulns ═══
+              // Previously, FP suppression only removed from vulnAnalysis but left
+              // asset.vulns untouched, causing the UI stat to show inflated counts.
+              const suppressedTitles = new Set(
+                suppressed.map((s: any) => (s.finding?.title || '').toLowerCase().trim())
+              );
+              const suppressedCves = new Set(
+                suppressed
+                  .map((s: any) => s.finding?.cve || s.finding?.cves?.[0])
+                  .filter(Boolean)
+              );
+              let assetVulnsRemoved = 0;
+              for (const asset of state.assets) {
+                const before = asset.vulns.length;
+                asset.vulns = asset.vulns.filter((v: any) => {
+                  const titleMatch = suppressedTitles.has((v.title || '').toLowerCase().trim());
+                  const cveMatch = v.cve && suppressedCves.has(v.cve);
+                  // Only suppress if severity is NOT critical/high (matching FP rule behavior)
+                  const sev = (v.severity || '').toLowerCase();
+                  if (sev === 'critical' || sev === 'high') return true;
+                  return !titleMatch && !cveMatch;
+                });
+                assetVulnsRemoved += before - asset.vulns.length;
+              }
+              if (assetVulnsRemoved > 0) {
+                state.stats.vulnsFound = state.assets.reduce((sum, a) => sum + a.vulns.length, 0);
+                addLog(state, {
+                  phase: 'vuln_detection', type: 'info',
+                  title: `🧹 Asset vulns cleaned: ${assetVulnsRemoved} FP findings removed from asset data`,
+                  detail: `vulnsFound recalculated: ${state.stats.vulnsFound}`,
+                });
+              }
             }
 
             // Generate summary from kept findings (post-suppression)
@@ -6218,10 +6251,18 @@ export async function executeEngagement(
         summaryJson,
       });
 
-      // Persist individual findings
+      // Persist individual findings — AFTER dedup, asset.vulns contains ALL findings
+      // (including former ZAP findings that were merged during dedup-coverage-bridge).
+      // No need to separately persist zapFindings as they are already in vulns.
       const findingsToSave: Array<any> = [];
+      const dbDedupKeys = new Set<string>(); // Final dedup guard for DB persistence
       for (const asset of state.assets) {
         for (const v of (asset.vulns || [])) {
+          // DB-level dedup key: title + hostname + port + CVE
+          const dedupKey = `${(v.title || '').toLowerCase().trim()}::${asset.hostname}::${v.port || 0}::${v.cve || ''}`;
+          if (dbDedupKeys.has(dedupKey)) continue;
+          dbDedupKeys.add(dedupKey);
+
           const sev = (v.severity || 'medium').toLowerCase();
           const mappedSev = sev === 'moderate' ? 'medium' : (['critical','high','medium','low','info'].includes(sev) ? sev : 'medium');
           findingsToSave.push({
@@ -6246,24 +6287,19 @@ export async function executeEngagement(
             mitreTechnique: v.mitreTechnique || undefined,
           });
         }
-        // Also persist ZAP findings
-        for (const zf of (asset.zapFindings || [])) {
-          const zapSev = (zf.risk || 'medium').toLowerCase();
-          const mappedZapSev = ['critical','high','medium','low','info'].includes(zapSev) ? zapSev : 'medium';
-          findingsToSave.push({
-            engagementId,
-            resultId,
-            title: zf.alert || 'ZAP Finding',
-            severity: mappedZapSev as any,
-            description: zf.description || undefined,
-            endpoint: zf.url || undefined,
-            hostname: asset.hostname,
-            source: 'zap',
-            tool: 'zap',
-            corroborationTier: 'unverified' as const,
-            rawEvidence: zf.other || zf.solution || undefined,
-          });
-        }
+        // NOTE: zapFindings are already merged into asset.vulns by dedup-coverage-bridge.
+        // Any remaining zapFindings (from pre-dedup state) are intentionally NOT persisted
+        // to avoid duplicates in the DB.
+      }
+
+      // Clear existing findings for this engagement before inserting clean set
+      try {
+        const { engagementFindings } = await import('../../drizzle/schema');
+        const { eq } = await import('drizzle-orm');
+        const { db: dbConn } = await import('../db');
+        await dbConn.delete(engagementFindings).where(eq(engagementFindings.engagementId, engagementId));
+      } catch (clearErr: any) {
+        console.warn('[ResultPersistence] Could not clear old findings:', clearErr.message);
       }
 
       const savedCount = await saveEngagementFindings(findingsToSave);

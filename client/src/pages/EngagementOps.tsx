@@ -2169,11 +2169,12 @@ export default function EngagementOps() {
       {/* ── KPI Mission Posture Strip ── */}
       {ops && (() => {
         // Compute actual vuln counts from asset data (more accurate than stats counter which can desync)
+        // After dedup, zapFindings are merged into asset.vulns — no separate count needed
         const actualVulnCount = (ops.assets || []).reduce((sum: number, a: any) => sum + (a.vulns || []).length, 0);
         const zapFindingCount = (ops.assets || []).reduce((sum: number, a: any) => sum + (a.zapFindings || []).length, 0);
-        const totalVulns = actualVulnCount + zapFindingCount;
-        const criticalVulns = (ops.assets || []).reduce((sum: number, a: any) => sum + (a.vulns || []).filter((v: any) => v.severity === 'critical').length, 0) + (ops.assets || []).reduce((sum: number, a: any) => sum + (a.zapFindings || []).filter((f: any) => f.risk === 'High').length, 0);
-        const highVulns = (ops.assets || []).reduce((sum: number, a: any) => sum + (a.vulns || []).filter((v: any) => v.severity === 'high').length, 0) + (ops.assets || []).reduce((sum: number, a: any) => sum + (a.zapFindings || []).filter((f: any) => f.risk === 'Medium').length, 0);
+        const totalVulns = actualVulnCount + zapFindingCount; // zapFindingCount will be 0 after dedup clears it
+        const criticalVulns = (ops.assets || []).reduce((sum: number, a: any) => sum + (a.vulns || []).filter((v: any) => v.severity === 'critical' || v.severity === 'Critical').length, 0);
+        const highVulns = (ops.assets || []).reduce((sum: number, a: any) => sum + (a.vulns || []).filter((v: any) => v.severity === 'high' || v.severity === 'High').length, 0);
 
         // Delta comparison: use the last vuln trend snapshot as the baseline
         const trendData = vulnTrendQ.data as any[] | undefined;
@@ -5726,7 +5727,7 @@ export default function EngagementOps() {
             <StatCard icon={<Globe className="h-4 w-4 text-emerald-400" />} label="Assets Discovered" value={ops?.assets?.length || 0} onClick={() => setActiveTab('assets')} />
             <StatCard icon={<Server className="h-4 w-4 text-cyan-400" />} label="Hosts Scanned" value={ops?.stats?.hostsScanned || 0} onClick={() => setActiveTab('discovery')} />
             <StatCard icon={<Activity className="h-4 w-4 text-blue-400" />} label="Open Ports" value={(() => { const seen = new Set<string>(); (ops?.assets || []).forEach((a: any) => (a.ports || []).forEach((p: any) => seen.add(`${a.hostname || a.ip}:${p.port}`))); return seen.size || ops?.stats?.portsFound || 0; })()} onClick={() => setActiveTab('assets')} />
-            <StatCard icon={<Bug className="h-4 w-4 text-yellow-400" />} label="Vulns Found" value={(ops?.assets || []).reduce((sum: number, a: any) => sum + (a.vulns || []).length + (a.zapFindings || []).length, 0) || ops?.stats?.vulnsFound || 0} onClick={() => setActiveTab('assets')} />
+            <StatCard icon={<Bug className="h-4 w-4 text-yellow-400" />} label="Vulns Found" value={(ops?.assets || []).reduce((sum: number, a: any) => sum + (a.vulns || []).length, 0) || ops?.stats?.vulnsFound || 0} onClick={() => setActiveTab('assets')} />
             <StatCard icon={<Globe className="h-4 w-4 text-blue-400" />} label="ZAP Scans" value={ops?.stats?.zapScansRun || 0} onClick={() => setActiveTab('discovery')} />
             <StatCard icon={<ShieldAlert className="h-4 w-4 text-orange-400" />} label="WAFs Detected" value={ops?.stats?.wafDetections || 0} onClick={() => setActiveTab('discovery')} />
             <StatCard icon={<Crosshair className="h-4 w-4 text-red-400" />} label="Exploits Tried" value={ops?.stats?.exploitsAttempted || 0} onClick={() => setActiveTab('exploits')} />

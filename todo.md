@@ -3328,3 +3328,11 @@
 - [x] Tab content responsive padding (px-3 mobile, px-6 desktop)
 - [x] Safe area padding for notched devices (env(safe-area-inset-bottom))
 - [x] Header metadata wraps on mobile, less important items hidden on small screens
+
+### Finding Count Inflation Fixes (Celereum 700+ findings)
+- [x] Fix 1: Clear asset.zapFindings after dedup-coverage-bridge merges them into vulns
+- [x] Fix 2: Apply FP suppression to asset.vulns (not just vulnAnalysis)
+- [x] Fix 3: Skip toolResults.findings in dedup-coverage-bridge (already in asset.vulns)
+- [x] Fix 4: Fuzzy title matching in report pipeline translateSignals (4-strategy dedup)
+- [x] Fix 5: UI stat shows post-dedup/post-suppression verified count
+- [x] Sync engagement_findings DB table with clean deduplicated results after pipeline completes
