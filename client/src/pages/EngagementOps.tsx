@@ -664,7 +664,7 @@ function renderFeedEntry(entry: OpsLogEntry) {
                     fa.category === 'exploit_error' || fa.category === 'dependency_missing' ? 'text-pink-400 border-pink-500/40 bg-pink-500/10' :
                     fa.category === 'defense_active' ? 'text-cyan-400 border-cyan-500/40 bg-cyan-500/10' :
                     'text-muted-foreground border-border/50'
-                  }`}>{fa.category.replace(/_/g, ' ')}</Badge>
+                  }`}>{(fa.category || '').replace(/_/g, ' ')}</Badge>
                 )}
                 {entry.data?.target && (
                   <Badge variant="outline" className="text-[9px] text-muted-foreground border-border/50 font-mono">{entry.data.target}</Badge>
@@ -836,7 +836,7 @@ function renderFeedEntry(entry: OpsLogEntry) {
                           d.category === 'ids_ips' ? 'text-orange-300 border-orange-500/30' :
                           d.category === 'firewall' ? 'text-yellow-300 border-yellow-500/30' :
                           'text-blue-300 border-blue-500/30'
-                        }`}>{d.category.replace(/_/g, ' ')}</Badge>
+                        >`}>{(d.category || '').replace(/_/g, ' ')}</Badge>
                         <span className="text-orange-300 font-mono flex-none">{d.port}</span>
                         <span className="text-foreground/90 font-medium">{d.vendor} {d.product}</span>
                         <span className="ml-auto"><ConfidenceBadge score={d.confidence / 100} size="xs" /></span>
@@ -2691,7 +2691,7 @@ export default function EngagementOps() {
                         <div className="flex flex-wrap gap-1">
                           {Object.entries(profile.evasion).filter(([, v]) => v).map(([tech]) => (
                             <Badge key={tech} variant="outline" className="text-[9px] text-orange-400 border-orange-500/30">
-                              {tech.replace(/([A-Z])/g, ' $1').trim()}
+                              {(tech || '').replace(/([A-Z])/g, ' $1').trim()}
                             </Badge>
                           ))}
                         </div>
@@ -3532,8 +3532,7 @@ export default function EngagementOps() {
                                     tr.phase === 'vuln_detection' ? 'text-yellow-300 border-yellow-500/30' :
                                     tr.phase === 'credential_testing' ? 'text-orange-300 border-orange-500/30' :
                                     'text-muted-foreground border-border/30'
-                                  }`}>{tr.phase.replace(/_/g, ' ')}</Badge>
-                                  <span className={`text-[9px] ${tr.exitCode === 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                  }>`}>{(tr.phase || '').replace(/_/g, ' ')}</Badge>                                  <span className={`text-[9px] ${tr.exitCode === 0 ? 'text-green-400' : 'text-red-400'}`}>
                                     exit:{tr.exitCode}
                                   </span>
                                   <span className="text-[9px] text-muted-foreground">{Math.round(tr.durationMs / 1000)}s</span>
@@ -5165,7 +5164,7 @@ export default function EngagementOps() {
                                     </span>
                                   )}
                                   {v.category && (
-                                    <Badge variant="outline" className="text-[8px] text-cyan-300 border-cyan-500/20">{v.category.replace(/_/g, ' ')}</Badge>
+                                    <Badge variant="outline" className="text-[8px] text-cyan-300 border-cyan-500/20">{(v.category || '').replace(/_/g, ' ')}</Badge>
                                   )}
                                   <span className="text-[10px] text-muted-foreground">{v.description?.slice(0, 120)}{v.description?.length > 120 ? '...' : ''}</span>
                                 </div>
@@ -5389,7 +5388,7 @@ export default function EngagementOps() {
                           <CardContent className="p-3">
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2">
-                                <Badge variant="outline" className="text-[9px]">{snap.type.replace('_', ' ')}</Badge>
+                                <Badge variant="outline" className="text-[9px]">{(snap.type || '').replace('_', ' ')}</Badge>
                                 <span className="text-[10px] text-muted-foreground">{new Date(snap.date).toLocaleString()}</span>
                               </div>
                               <div className="flex items-center gap-3 text-[10px]">
@@ -7914,7 +7913,7 @@ function ScanReportImportPanel({ engagementId }: { engagementId: number }) {
                   <div key={imp.id} className="flex items-center justify-between text-xs bg-muted/20 rounded-lg px-3 py-2 border border-border/20">
                     <div className="flex items-center gap-2 min-w-0">
                       <Badge variant="outline" className="text-[10px] shrink-0">{imp.vsiScannerType}</Badge>
-                      <span className="text-foreground truncate">{imp.vsiFileName.replace(`[eng-${engagementId}] `, "")}</span>
+                      <span className="text-foreground truncate">{(imp.vsiFileName || '').replace(`[eng-${engagementId}] `, "")}</span>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <span className="text-muted-foreground">{imp.vsiTotalVulns} vulns</span>
@@ -8124,7 +8123,7 @@ function ScanReportImportPanel({ engagementId }: { engagementId: number }) {
                   {importResult.llmValidation.validations.map((v: any, i: number) => (
                     <div key={i} className="flex items-start gap-2 text-xs bg-muted/10 rounded-lg px-3 py-2 border border-border/20">
                       <Badge className={`text-[9px] px-1.5 py-0 shrink-0 ${verdictColor[v.verdict] || ""}`}>
-                        {v.verdict.replace("_", " ")}
+                        {(v.verdict || '').replace("_", " ")}
                       </Badge>
                       <div className="min-w-0 flex-1">
                         <div className="font-medium text-foreground truncate">{v.title}</div>
@@ -8646,7 +8645,7 @@ function C2NetworkMap({ engagementId }: { engagementId: number }) {
                         />
                         <span>{direction} {otherNode?.label || otherNodeId}</span>
                         <Badge variant="outline" className="text-[9px] h-4">
-                          {edge.type.replace(/_/g, ' ')}
+                          {(edge.type || '').replace(/_/g, ' ')}
                         </Badge>
                       </div>
                     );
@@ -8943,7 +8942,7 @@ function C2ActivityFeed({ engagementId }: { engagementId: number }) {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className={`text-xs font-semibold ${style.color}`}>
-                          {evt.type.replace("c2:", "").replace("operation:", "").replace(/_/g, " ")}
+                          {(evt.type || '').replace("c2:", "").replace("operation:", "").replace(/_/g, " ")}
                         </span>
                         <span className="text-[10px] text-muted-foreground">{formatTimestamp(evt.timestamp)}</span>
                       </div>
