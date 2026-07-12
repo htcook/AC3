@@ -920,7 +920,7 @@ function CredentialVaultPopulator({ targetHost, engagementId, onSelect }: {
                       <button
                         key={c.id}
                         type="button"
-                        onClick={() => onSelect({ username: c.username, password: c.password, source: `Vault (${c.source})` })}
+                        onClick={() => onSelect({ username: c.username, password: c.password, source: 'Vault (' + c.source + ')' })}
                         className="w-full flex items-center justify-between p-2 rounded text-left hover:bg-purple-500/10 border border-transparent hover:border-purple-500/20 transition-colors"
                       >
                         <div className="flex items-center gap-2">
@@ -946,7 +946,7 @@ function CredentialVaultPopulator({ targetHost, engagementId, onSelect }: {
                       <button
                         key={i}
                         type="button"
-                        onClick={() => onSelect({ username: c.username, password: c.password, source: `OEM (${c.vendor} ${c.product})` })}
+                        onClick={() => onSelect({ username: c.username, password: c.password, source: 'OEM (' + c.vendor + ' ' + c.product + ')' })}
                         className="w-full flex items-center justify-between p-2 rounded text-left hover:bg-orange-500/10 border border-transparent hover:border-orange-500/20 transition-colors"
                       >
                         <div className="flex items-center gap-2">
@@ -2863,6 +2863,83 @@ export default function EngagementOps() {
           </div>
         </div>
       )}
+
+      {/* ── Pipeline Control Bar (Top) ── */}
+      <div className="flex-none px-6 py-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mr-1">Pipeline:</span>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-xs border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10"
+            onClick={() => setShowRerunDialog(true)}
+            disabled={ops?.isRunning || rerunMut.isPending}
+          >
+            {rerunMut.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <RefreshCw className="h-3 w-3 mr-1" />}
+            Re-Run Full
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-xs border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
+            onClick={() => {
+              if (!engagementId) return;
+              rerunMut.mutate({
+                engagementId,
+                phases: { passive: false, active: true, llmAnalysis: true, exploitGeneration: false },
+                resetScope: { recon: false, scanning: true, analysis: false, exploitation: false, logs: false },
+              });
+            }}
+            disabled={ops?.isRunning || rerunMut.isPending}
+          >
+            {rerunMut.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Scan className="h-3 w-3 mr-1" />}
+            Quick Re-Scan
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-xs border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
+            onClick={() => setShowRerunFromPhaseDialog(true)}
+            disabled={ops?.isRunning}
+          >
+            <RotateCcw className="h-3 w-3 mr-1" />
+            From Phase
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-xs border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10"
+            onClick={() => {
+              if (ops?.assets) setSelectiveAssets(ops.assets.map((a: any) => a.hostname));
+              setShowSelectiveRerunDialog(true);
+            }}
+            disabled={ops?.isRunning}
+          >
+            <Filter className="h-3 w-3 mr-1" />
+            Selective Re-Run
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-xs border-purple-500/30 text-purple-400 hover:bg-purple-500/10"
+            onClick={() => reanalyzeMut.mutate({ engagementId })}
+            disabled={ops?.isRunning || reanalyzeMut.isPending}
+          >
+            {reanalyzeMut.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Brain className="h-3 w-3 mr-1" />}
+            Re-Analyze
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-xs border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
+            onClick={() => recalculateMut.mutate({ engagementId })}
+            disabled={ops?.isRunning || recalculateMut.isPending}
+          >
+            {recalculateMut.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <RefreshCw className="h-3 w-3 mr-1" />}
+            Recalculate
+          </Button>
+        </div>
+      </div>
 
       {/* ── Main Content: Three-Column Operational View ── */}
       <div className="flex-1 flex overflow-hidden pb-14 lg:pb-0">
