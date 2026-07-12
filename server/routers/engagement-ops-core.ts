@@ -6171,8 +6171,32 @@ Return ONLY a JSON object with vulnerabilities array.`;
             addLog(state!, { phase: 'scanning', type: 'success', title: '✅ Evidence Gating Complete', detail: `Demoted ${demotedCount} high/critical findings without evidence. Removed ${removedNoEvidence} low-severity findings without evidence. Final: ${postEvidenceCount}` });
             broadcastOpsUpdate(input.engagementId, { type: 'log_update' });
 
+            // ── Step 2c: Potential Demotion — demote unconfirmed findings to info ──
+            addLog(state!, { phase: 'scanning', type: 'info', title: '📋 Potential Demotion', detail: 'Demoting unconfirmed (potential/unverified) findings to info severity — they will not affect risk calculations...' });
+            broadcastOpsUpdate(input.engagementId, { type: 'log_update' });
+            let potentialDemotedCount = 0;
+            for (const asset of state!.assets) {
+              for (const v of (asset.vulns || [])) {
+                const tier = (v.corroborationTier || '').toLowerCase();
+                // Only confirmed and corroborated findings retain their severity for risk
+                if (tier === 'confirmed' || tier === 'corroborated') continue;
+                // Potential/unverified/probable findings get demoted to info
+                const sev = (v.severity || '').toLowerCase();
+                if (sev !== 'info') {
+                  v.originalSeverity = v.severity; // preserve for reference
+                  v.severity = 'info';
+                  v.title = `[Potential] ${v.title}`;
+                  potentialDemotedCount++;
+                }
+              }
+            }
+            const riskRelevantCount = state!.assets.reduce((s: number, a: any) => s + (a.vulns || []).filter((v: any) => (v.severity || '').toLowerCase() !== 'info').length, 0);
+            addLog(state!, { phase: 'scanning', type: 'success', title: '✅ Potential Demotion Complete', detail: `Demoted ${potentialDemotedCount} unconfirmed findings to info. Risk-relevant findings: ${riskRelevantCount}` });
+            broadcastOpsUpdate(input.engagementId, { type: 'log_update' });
+
             // ── Step 3: Update stats ──
-            state!.stats.vulnsFound = postEvidenceCount;;
+            const postPotentialCount = state!.assets.reduce((s: number, a: any) => s + (a.vulns || []).length, 0);
+            state!.stats.vulnsFound = postPotentialCount;
 
             // ── Step 4: Refresh DB engagement_findings ──
             addLog(state!, { phase: 'scanning', type: 'info', title: '💾 Syncing to Database', detail: 'Clearing old findings and inserting clean set...' });
