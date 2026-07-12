@@ -62,7 +62,7 @@ import {
   ScanEye, ShieldOff, Bolt, TrendingUp, BarChart3, Scan, Microscope, Scissors,
   FileUp, Upload, Filter, FilterX, ToggleLeft, ToggleRight,
   X, FileCheck, Fingerprint, Edit2, BookOpen, Rocket,
-  Package, Code, Printer,
+  Package, Code, Printer, PanelRight,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -70,6 +70,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { KpiStrip } from "@/components/KpiStrip";
 import type { KpiItem } from "@/components/KpiStrip";
 import { TabGroupNav } from "@/components/TabGroupNav";
@@ -1279,6 +1280,7 @@ export default function EngagementOps() {
   });
 
   // ── Full Pipeline Re-Run ──
+  const [showMobileSidebar, setShowMobileSidebar] = useState(false);
   const [showRerunDialog, setShowRerunDialog] = useState(false);
   const [rerunPhases, setRerunPhases] = useState({ passive: true, active: true, llmAnalysis: true, exploitGeneration: true });
   const [resetScope, setResetScope] = useState({ recon: true, scanning: true, analysis: true, exploitation: true, logs: true });
@@ -1815,7 +1817,7 @@ export default function EngagementOps() {
     <AppShell activePath="/engagement-ops">
     <div className="flex flex-col h-full overflow-hidden">
       {/* ── Header ── */}
-      <div className="flex-none border-b border-border/50 bg-card/50 backdrop-blur-sm px-6 py-4">
+      <div className="flex-none border-b border-border/50 bg-card/50 backdrop-blur-sm px-3 py-3 sm:px-6 sm:py-4">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-4">
             <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-red-500/20 to-orange-500/20 flex items-center justify-center">
@@ -1825,15 +1827,15 @@ export default function EngagementOps() {
               <h1 className="text-lg font-semibold text-foreground">
                 {isLoading ? "Loading..." : engagement?.name || `Engagement #${engagementId}`}
               </h1>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
                 <Badge variant="outline" className="text-[10px]">
                   {engagement?.engagementType?.replace("_", " ").toUpperCase() || "PENTEST"}
                 </Badge>
-                <span>{engagement?.customerName}</span>
-                <span className="text-border">|</span>
+                <span className="hidden sm:inline">{engagement?.customerName}</span>
+                <span className="text-border hidden sm:inline">|</span>
                 <span className="flex items-center gap-1">
                   {roeSigned ? <ShieldCheck className="h-3 w-3 text-green-400" /> : <ShieldX className="h-3 w-3 text-red-400" />}
-                  RoE: {roeStatus}
+                  <span className="hidden sm:inline">RoE:</span> {roeStatus}
                 </span>
                 <span className="text-border">|</span>
                 <span className="flex items-center gap-1">
@@ -2295,7 +2297,7 @@ export default function EngagementOps() {
 
       {/* ── Target Approval Dialog ── */}
       <Dialog open={showApprovalDialog} onOpenChange={setShowApprovalDialog}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <ShieldCheck className="h-5 w-5 text-amber-400" />
@@ -2856,7 +2858,7 @@ export default function EngagementOps() {
       )}
 
       {/* ── Main Content: Three-Column Operational View ── */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden pb-14 lg:pb-0">
         {/* Left: Event Stream (always visible) + Grouped Tabs below */}
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Grouped Tab Navigation */}
@@ -2961,7 +2963,7 @@ export default function EngagementOps() {
           <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
 
             {/* ── Live Feed Tab ── */}
-            <TabsContent value="feed" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+            <TabsContent value="feed" className="flex-1 overflow-hidden m-0 px-3 pb-4 sm:px-6">
               <div className="relative h-full flex flex-col">
               {/* Event Grouping & Filter Controls */}
               <div className="flex-none flex items-center gap-2 py-2">
@@ -3071,10 +3073,10 @@ export default function EngagementOps() {
             </TabsContent>
 
             {/* ── Assets Tab ── */}
-            <TabsContent value="assets" className="flex-1 overflow-hidden m-0 px-6 pb-4">
-              <div className="flex h-full gap-4 py-3">
+            <TabsContent value="assets" className="flex-1 overflow-hidden m-0 px-3 pb-4 sm:px-6">
+              <div className="flex flex-col md:flex-row h-full gap-4 py-3">
                 {/* Asset List */}
-                <ScrollArea className="w-1/2 border border-border/30 rounded-lg">
+                <ScrollArea className="w-full md:w-1/2 max-h-[40vh] md:max-h-none border border-border/30 rounded-lg">
                   <div className="p-2 space-y-1">
                     {(!ops || !ops.assets || ops.assets.length === 0) && (
                       <div className="text-center py-10">
@@ -3112,7 +3114,7 @@ export default function EngagementOps() {
                 </ScrollArea>
 
                 {/* Asset Detail */}
-                <ScrollArea className="w-1/2 border border-border/30 rounded-lg">
+                <ScrollArea className="w-full md:w-1/2 border border-border/30 rounded-lg">
                   {selectedAssetData ? (
                     <div className="p-4 space-y-4">
                       <div className="flex items-center gap-2">
@@ -3620,7 +3622,7 @@ export default function EngagementOps() {
             </TabsContent>
 
             {/* ── Discovery Results Tab ── */}
-            <TabsContent value="discovery" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+            <TabsContent value="discovery" className="flex-1 overflow-hidden m-0 px-3 pb-4 sm:px-6">
               <ScrollArea className="h-full">
                 <div className="py-3 space-y-4">
                   <p className="text-xs text-muted-foreground">Aggregated discovery results from naabu, Nerva, and httpx across all assets. Click any row to view the full asset detail.</p>
@@ -4105,7 +4107,7 @@ export default function EngagementOps() {
             </TabsContent>
 
             {/* ── Exploit Match Tab ── */}
-            <TabsContent value="exploits" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+            <TabsContent value="exploits" className="flex-1 overflow-hidden m-0 px-3 pb-4 sm:px-6">
               <ScrollArea className="h-full">
                 <div className="py-3 space-y-3">
                   {(!exploitsQ.data || !exploitsQ.data.exploits || exploitsQ.data.exploits.length === 0) ? (
@@ -4214,7 +4216,7 @@ export default function EngagementOps() {
             </TabsContent>
 
             {/* ── Target Profiles Tab ── */}
-            <TabsContent value="targetprofiles" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+            <TabsContent value="targetprofiles" className="flex-1 overflow-hidden m-0 px-3 pb-4 sm:px-6">
               <ScrollArea className="h-full">
                 <div className="py-3">
                   <TargetProfilePanel engagementId={engagementId} isRunning={isRunning} />
@@ -4223,7 +4225,7 @@ export default function EngagementOps() {
             </TabsContent>
 
             {/* ── Credential Testing Summary Tab ── */}
-            <TabsContent value="credentials" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+            <TabsContent value="credentials" className="flex-1 overflow-hidden m-0 px-3 pb-4 sm:px-6">
               <ScrollArea className="h-full">
                 <div className="py-3 space-y-4">
                   {(() => {
@@ -4425,7 +4427,7 @@ export default function EngagementOps() {
             </TabsContent>
 
             {/* ── RoE & Scope Tab ── */}
-            <TabsContent value="scope" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+            <TabsContent value="scope" className="flex-1 overflow-hidden m-0 px-3 pb-4 sm:px-6">
               <ScrollArea className="h-full">
                 <div className="py-3 space-y-4">
                   <Card className="bg-card/50 border-border/30">
@@ -4777,7 +4779,7 @@ export default function EngagementOps() {
             </TabsContent>
 
             {/* ── Attack Chains Tab ── */}
-            <TabsContent value="attackchains" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+            <TabsContent value="attackchains" className="flex-1 overflow-hidden m-0 px-3 pb-4 sm:px-6">
               <ScrollArea className="h-[calc(100vh-280px)]">
                 <div className="space-y-4 py-3">
                   {/* Summary Cards */}
@@ -4853,7 +4855,7 @@ export default function EngagementOps() {
             </TabsContent>
 
             {/* ── Cloud Misconfigs Tab ── */}
-            <TabsContent value="cloud" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+            <TabsContent value="cloud" className="flex-1 overflow-hidden m-0 px-3 pb-4 sm:px-6">
               <ScrollArea className="h-[calc(100vh-280px)]">
                 <div className="space-y-4 py-3">
                   {/* Stats Row */}
@@ -4941,7 +4943,7 @@ export default function EngagementOps() {
             </TabsContent>
 
             {/* ── Feedback Loop Tab ── */}
-            <TabsContent value="feedback" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+            <TabsContent value="feedback" className="flex-1 overflow-hidden m-0 px-3 pb-4 sm:px-6">
               <ScrollArea className="h-[calc(100vh-280px)]">
                 <div className="space-y-4 py-3">
                   {feedbackLoopQ.data ? (
@@ -5025,7 +5027,7 @@ export default function EngagementOps() {
 
             {/* ── Plan History Tab ── */}
             {/* ── LLM Vulnerability Synthesis Tab ── */}
-            <TabsContent value="llmsynthesis" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+            <TabsContent value="llmsynthesis" className="flex-1 overflow-hidden m-0 px-3 pb-4 sm:px-6">
               <ScrollArea className="h-[calc(100vh-280px)]">
                 <div className="space-y-4 py-3">
                   <p className="text-xs text-muted-foreground">
@@ -5181,7 +5183,7 @@ export default function EngagementOps() {
             </TabsContent>
 
             {/* ── Generated Exploit Code Tab ── */}
-            <TabsContent value="genexploits" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+            <TabsContent value="genexploits" className="flex-1 overflow-hidden m-0 px-3 pb-4 sm:px-6">
               <ScrollArea className="h-[calc(100vh-280px)]">
                 <div className="space-y-4 py-3">
                   <p className="text-xs text-muted-foreground">
@@ -5288,7 +5290,7 @@ export default function EngagementOps() {
             </TabsContent>
 
             {/* ── Ops Viewer Tab ── */}
-            <TabsContent value="ops-viewer" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+            <TabsContent value="ops-viewer" className="flex-1 overflow-hidden m-0 px-3 pb-4 sm:px-6">
               <div className="h-full flex flex-col items-center justify-center gap-4 py-8">
                 <div className="h-16 w-16 rounded-xl bg-gradient-to-br from-red-500/20 to-orange-500/20 flex items-center justify-center">
                   <Network className="h-8 w-8 text-red-400" />
@@ -5309,26 +5311,26 @@ export default function EngagementOps() {
             </TabsContent>
 
             {/* ── Exploit Evidence Tab ── */}
-            <TabsContent value="evidence" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+            <TabsContent value="evidence" className="flex-1 overflow-hidden m-0 px-3 pb-4 sm:px-6">
               <ScrollArea className="h-[calc(100vh-280px)]">
                 <ExploitEvidencePanel engagementId={engagementId} />
               </ScrollArea>
             </TabsContent>
 
             {/* ── Promoted Exploits Tab ── */}
-            <TabsContent value="promoted" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+            <TabsContent value="promoted" className="flex-1 overflow-hidden m-0 px-3 pb-4 sm:px-6">
               <ScrollArea className="h-[calc(100vh-280px)]">
                 <PromotedExploitsPanel assets={ops?.assets || []} stats={ops?.stats} />
               </ScrollArea>
             </TabsContent>
 
             {/* ── FP Suppression Tab ── */}
-            <TabsContent value="fpsuppression" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+            <TabsContent value="fpsuppression" className="flex-1 overflow-hidden m-0 px-3 pb-4 sm:px-6">
               <FPSuppressionPanel engagementId={engagementId} />
             </TabsContent>
 
             {/* ── Vulnerability Trends Tab ── */}
-            <TabsContent value="trends" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+            <TabsContent value="trends" className="flex-1 overflow-hidden m-0 px-3 pb-4 sm:px-6">
               <ScrollArea className="h-full">
                 <div className="space-y-4 py-4">
                   <div className="flex items-center justify-between">
@@ -5428,7 +5430,7 @@ export default function EngagementOps() {
             </TabsContent>
 
             {/* ── Test Plan Approval Gate Tab ── */}
-            <TabsContent value="testplan" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+            <TabsContent value="testplan" className="flex-1 overflow-hidden m-0 px-3 pb-4 sm:px-6">
               <ScrollArea className="h-full">
                 <div className="space-y-4 py-4">
                   <TestPlanGate engagementId={engagementId} engagementName={ops?.name || `Engagement #${engagementId}`} />
@@ -5437,7 +5439,7 @@ export default function EngagementOps() {
             </TabsContent>
 
             {/* ── Plan History Tab ── */}
-            <TabsContent value="planhistory" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+            <TabsContent value="planhistory" className="flex-1 overflow-hidden m-0 px-3 pb-4 sm:px-6">
               <ScrollArea className="h-full">
                 <div className="space-y-4 py-4">
                   <div className="text-xs text-muted-foreground mb-2">
@@ -5542,7 +5544,7 @@ export default function EngagementOps() {
             </TabsContent>
 
             {/* ── Engagement Timeline Tab ── */}
-            <TabsContent value="timeline" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+            <TabsContent value="timeline" className="flex-1 overflow-hidden m-0 px-3 pb-4 sm:px-6">
               <ScrollArea className="h-full">
                 <div className="py-4">
                   <EngagementTimeline
@@ -5557,7 +5559,7 @@ export default function EngagementOps() {
             </TabsContent>
 
             {/* ── Infrastructure Source IPs Tab ── */}
-            <TabsContent value="infraips" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+            <TabsContent value="infraips" className="flex-1 overflow-hidden m-0 px-3 pb-4 sm:px-6">
               <ScrollArea className="h-full">
                 <div className="py-4">
                   <InfrastructureIpsPanel engagementId={engagementId} />
@@ -5566,14 +5568,14 @@ export default function EngagementOps() {
             </TabsContent>
 
             {/* ── Scan Report Imports Tab ── */}
-            <TabsContent value="scanimports" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+            <TabsContent value="scanimports" className="flex-1 overflow-hidden m-0 px-3 pb-4 sm:px-6">
               <ScrollArea className="h-full">
                 <ScanReportImportPanel engagementId={engagementId} />
               </ScrollArea>
             </TabsContent>
 
             {/* ── Burp Suite Auto-Scan Tab ── */}
-            <TabsContent value="burpautoscan" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+            <TabsContent value="burpautoscan" className="flex-1 overflow-hidden m-0 px-3 pb-4 sm:px-6">
               <ScrollArea className="h-full">
                 <div className="py-4">
                   <BurpAutoScanPanel engagementId={engagementId} />
@@ -5582,7 +5584,7 @@ export default function EngagementOps() {
             </TabsContent>
 
             {/* ── Nextcloud Test Lab Tab ── */}
-            <TabsContent value="testlab" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+            <TabsContent value="testlab" className="flex-1 overflow-hidden m-0 px-3 pb-4 sm:px-6">
               <ScrollArea className="h-full">
                 <div className="py-4">
                   <NextcloudTestLabPanel engagementId={engagementId} engagementName={ops?.engagement?.name} />
@@ -5591,7 +5593,7 @@ export default function EngagementOps() {
             </TabsContent>
 
             {/* ── Attack Playbook Tab ── */}
-            <TabsContent value="attackplaybook" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+            <TabsContent value="attackplaybook" className="flex-1 overflow-hidden m-0 px-3 pb-4 sm:px-6">
               <ScrollArea className="h-full">
                 <div className="py-4">
                   <AttackPlaybookPanel engagementId={engagementId} />
@@ -5600,7 +5602,7 @@ export default function EngagementOps() {
             </TabsContent>
 
             {/* ── Lab Deployer Tab ── */}
-            <TabsContent value="labdeployer" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+            <TabsContent value="labdeployer" className="flex-1 overflow-hidden m-0 px-3 pb-4 sm:px-6">
               <ScrollArea className="h-full">
                 <div className="py-4">
                   <LabDeployerPanel engagementId={engagementId} />
@@ -5609,7 +5611,7 @@ export default function EngagementOps() {
             </TabsContent>
 
             {/* ── Coverage Heatmap Tab ── */}
-            <TabsContent value="coverageheatmap" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+            <TabsContent value="coverageheatmap" className="flex-1 overflow-hidden m-0 px-3 pb-4 sm:px-6">
               <ScrollArea className="h-full">
                 <div className="py-4">
                   <ScanCoverageHeatmap assets={ops?.assets || []} />
@@ -5618,7 +5620,7 @@ export default function EngagementOps() {
             </TabsContent>
 
             {/* ═══ Manual Findings ═══ */}
-            <TabsContent value="manualfindings" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+            <TabsContent value="manualfindings" className="flex-1 overflow-hidden m-0 px-3 pb-4 sm:px-6">
               <ScrollArea className="h-full">
                 <div className="py-4">
                   <ManualFindingsPanel
@@ -5630,22 +5632,22 @@ export default function EngagementOps() {
             </TabsContent>
 
             {/* ═══ Manual Tool Runner ═══ */}
-            <TabsContent value="toolrunner" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+            <TabsContent value="toolrunner" className="flex-1 overflow-hidden m-0 px-3 pb-4 sm:px-6">
               <ManualToolRunner engagementId={engagementId} engagementPhase={ops?.phase || 'idle'} />
             </TabsContent>
 
             {/* ═══ C2 Activity Feed ═══ */}
-            <TabsContent value="c2feed" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+            <TabsContent value="c2feed" className="flex-1 overflow-hidden m-0 px-3 pb-4 sm:px-6">
               <ScrollArea className="h-full">
                 <C2ActivityFeed engagementId={engagementId} />
               </ScrollArea>
             </TabsContent>
-            <TabsContent value="c2map" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+            <TabsContent value="c2map" className="flex-1 overflow-hidden m-0 px-3 pb-4 sm:px-6">
               <C2NetworkMap engagementId={engagementId} />
             </TabsContent>
 
             {/* ── Coverage & Quality Tab ── */}
-            <TabsContent value="coverage" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+            <TabsContent value="coverage" className="flex-1 overflow-hidden m-0 px-3 pb-4 sm:px-6">
               <ScrollArea className="h-[calc(100vh-280px)]">
                 <div className="py-3">
                   <CoverageQuality
@@ -5658,14 +5660,14 @@ export default function EngagementOps() {
             </TabsContent>
 
             {/* ── Normalized Findings Tab ── */}
-            <TabsContent value="normalized" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+            <TabsContent value="normalized" className="flex-1 overflow-hidden m-0 px-3 pb-4 sm:px-6">
               <ScrollArea className="h-[calc(100vh-280px)]">
                 <NormalizedFindingsPanel engagementId={engagementId} />
               </ScrollArea>
             </TabsContent>
 
             {/* ── Framework Mapping Tab ── */}
-            <TabsContent value="frameworkmapping" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+            <TabsContent value="frameworkmapping" className="flex-1 overflow-hidden m-0 px-3 pb-4 sm:px-6">
               <ScrollArea className="h-[calc(100vh-280px)]">
                 <div className="py-3">
                   <ComplianceFrameworkSelector
@@ -5677,7 +5679,7 @@ export default function EngagementOps() {
             </TabsContent>
 
             {/* ── Intelligence Gaps Tab ── */}
-            <TabsContent value="intelgaps" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+            <TabsContent value="intelgaps" className="flex-1 overflow-hidden m-0 px-3 pb-4 sm:px-6">
               <ScrollArea className="h-[calc(100vh-280px)]">
                 <div className="py-3">
                   <h3 className="text-sm font-semibold text-zinc-200 mb-3 flex items-center gap-2">
@@ -6169,6 +6171,257 @@ export default function EngagementOps() {
             </>
           )}
         </div>
+
+        {/* ── Mobile Bottom Action Bar (visible on < lg screens) ── */}
+        <div className="fixed bottom-0 left-0 right-0 z-40 lg:hidden border-t border-border/50 bg-card/95 backdrop-blur-md px-3 py-2 safe-area-pb">
+          <div className="flex items-center justify-between gap-2">
+            {/* Quick Actions */}
+            <div className="flex items-center gap-1.5 flex-1 overflow-x-auto">
+              <Button
+                size="sm"
+                variant="outline"
+                className="flex-none text-[11px] h-8 border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10"
+                onClick={() => setShowRerunDialog(true)}
+                disabled={ops?.isRunning || rerunMut.isPending}
+              >
+                <RefreshCw className="h-3.5 w-3.5 mr-1" />
+                Re-Run
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="flex-none text-[11px] h-8 border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
+                onClick={() => setShowRerunFromPhaseDialog(true)}
+                disabled={ops?.isRunning}
+              >
+                <RotateCcw className="h-3.5 w-3.5 mr-1" />
+                Phase
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="flex-none text-[11px] h-8 border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10"
+                onClick={() => {
+                  if (ops?.assets) setSelectiveAssets(ops.assets.map((a: any) => a.hostname));
+                  setShowSelectiveRerunDialog(true);
+                }}
+                disabled={ops?.isRunning}
+              >
+                <Filter className="h-3.5 w-3.5 mr-1" />
+                Selective
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="flex-none text-[11px] h-8 border-purple-500/30 text-purple-400 hover:bg-purple-500/10"
+                onClick={() => reanalyzeMut.mutate({ engagementId })}
+                disabled={ops?.isRunning || reanalyzeMut.isPending}
+              >
+                <Brain className="h-3.5 w-3.5 mr-1" />
+                Analyze
+              </Button>
+            </div>
+            {/* Open Full Sidebar Sheet */}
+            <Button
+              size="sm"
+              variant="ghost"
+              className="flex-none h-8 w-8 p-0"
+              onClick={() => setShowMobileSidebar(true)}
+            >
+              <PanelRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+
+        {/* ── Mobile Sidebar Sheet (full Pipeline Control drawer) ── */}
+        <Sheet open={showMobileSidebar} onOpenChange={setShowMobileSidebar}>
+          <SheetContent side="right" className="w-[300px] sm:w-[340px] overflow-y-auto p-4 space-y-4">
+            <SheetHeader className="pb-2">
+              <SheetTitle className="text-sm font-semibold">Pipeline Control</SheetTitle>
+            </SheetHeader>
+
+            {/* Scan Mode Indicator */}
+            <div className={`rounded-lg p-3 border ${
+              selectedScanMode === 'strict_passive' ? 'bg-emerald-500/5 border-emerald-500/20' :
+              selectedScanMode === 'standard' ? 'bg-blue-500/5 border-blue-500/20' :
+              'bg-orange-500/5 border-orange-500/20'
+            }`}>
+              <div className="flex items-center gap-2">
+                {selectedScanMode === 'strict_passive' ? <Shield className="h-4 w-4 text-emerald-400" /> :
+                 selectedScanMode === 'standard' ? <ScanEye className="h-4 w-4 text-blue-400" /> :
+                 <Bolt className="h-4 w-4 text-orange-400" />}
+                <div>
+                  <div className={`text-xs font-semibold ${
+                    selectedScanMode === 'strict_passive' ? 'text-emerald-400' :
+                    selectedScanMode === 'standard' ? 'text-blue-400' : 'text-orange-400'
+                  }`}>
+                    {selectedScanMode === 'strict_passive' ? 'Strict Passive' :
+                     selectedScanMode === 'standard' ? 'Standard' : 'Active'}
+                  </div>
+                  <div className="text-[10px] text-muted-foreground">
+                    {selectedScanMode === 'strict_passive' ? '23' : selectedScanMode === 'standard' ? '28' : '31'} connectors
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* Pipeline Re-Run Controls */}
+            <div className="space-y-3">
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Pipeline Control</h3>
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full justify-start text-xs border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10"
+                onClick={() => { setShowMobileSidebar(false); setShowRerunDialog(true); }}
+                disabled={ops?.isRunning || rerunMut.isPending}
+              >
+                <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+                Re-Run Full Pipeline
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full justify-start text-xs border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
+                onClick={() => {
+                  if (!engagementId) return;
+                  setShowMobileSidebar(false);
+                  rerunMut.mutate({
+                    engagementId,
+                    phases: { passive: false, active: true, llmAnalysis: true, exploitGeneration: false },
+                    resetScope: { recon: false, scanning: true, analysis: false, exploitation: false, logs: false },
+                  });
+                }}
+                disabled={ops?.isRunning || rerunMut.isPending}
+              >
+                <Scan className="h-3.5 w-3.5 mr-1.5" />
+                Quick Re-Scan
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full justify-start text-xs border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
+                onClick={() => { setShowMobileSidebar(false); setShowRerunFromPhaseDialog(true); }}
+                disabled={ops?.isRunning}
+              >
+                <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
+                Re-run From Phase
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full justify-start text-xs border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10"
+                onClick={() => {
+                  if (ops?.assets) setSelectiveAssets(ops.assets.map((a: any) => a.hostname));
+                  setShowMobileSidebar(false);
+                  setShowSelectiveRerunDialog(true);
+                }}
+                disabled={ops?.isRunning}
+              >
+                <Filter className="h-3.5 w-3.5 mr-1.5" />
+                Selective Re-Run
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full justify-start text-xs border-purple-500/30 text-purple-400 hover:bg-purple-500/10"
+                onClick={() => { setShowMobileSidebar(false); reanalyzeMut.mutate({ engagementId }); }}
+                disabled={ops?.isRunning || reanalyzeMut.isPending}
+              >
+                <Brain className="h-3.5 w-3.5 mr-1.5" />
+                Re-Analyze Findings
+              </Button>
+            </div>
+
+            <Separator />
+
+            {/* Auto-Resume Toggle */}
+            <div>
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Auto-Resume on Restart</h3>
+              <AutoResumeToggle engagementId={engagementId} />
+            </div>
+
+            <Separator />
+
+            {/* Exploit Generator */}
+            <div>
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Exploit Generator</h3>
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full justify-start text-xs border-red-500/30 text-red-400 hover:bg-red-500/10"
+                onClick={() => { setShowMobileSidebar(false); setShowExploitGen(!showExploitGen); }}
+              >
+                <Swords className="h-3.5 w-3.5 mr-1.5" />
+                {showExploitGen ? 'Hide Generator' : 'Generate Exploit Code'}
+              </Button>
+            </div>
+
+            <Separator />
+
+            {/* Reports */}
+            <div>
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Reports</h3>
+              <div className="space-y-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full justify-start text-xs border-purple-500/30 text-purple-400 hover:bg-purple-500/10"
+                  onClick={() => {
+                    setShowMobileSidebar(false);
+                    setIsGeneratingReport(true);
+                    generateReportMut.mutate({
+                      engagementId,
+                      reportType: 'pentest_assessment',
+                      clientType: 'enterprise',
+                      title: `${engagement?.name || 'Engagement'} - Security Assessment Report`,
+                      preparedFor: engagement?.customerName ?? undefined,
+                      preparedBy: user?.name ?? 'AC3',
+                    });
+                  }}
+                  disabled={isGeneratingReport || generateReportMut.isPending}
+                >
+                  {isGeneratingReport ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 mr-1.5" />}
+                  Generate Full Report
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full justify-start text-xs border-blue-500/30 text-blue-400 hover:bg-blue-500/10"
+                  onClick={() => { setShowMobileSidebar(false); navigate('/reports/generate'); }}
+                >
+                  <ClipboardList className="h-3.5 w-3.5 mr-1.5" />
+                  All Reports
+                </Button>
+              </div>
+            </div>
+
+            {/* Timing Info */}
+            {ops?.startedAt && (
+              <>
+                <Separator />
+                <div className="text-xs text-muted-foreground space-y-1">
+                  <div className="flex justify-between">
+                    <span>Started</span>
+                    <span>{formatTime(ops.startedAt)}</span>
+                  </div>
+                  {ops.completedAt ? (
+                    <div className="flex justify-between">
+                      <span>Duration</span>
+                      <span>{formatDuration(ops.completedAt - ops.startedAt)}</span>
+                    </div>
+                  ) : ops.isRunning ? (
+                    <div className="flex justify-between">
+                      <span>Elapsed</span>
+                      <span>{formatDuration(Date.now() - ops.startedAt)}</span>
+                    </div>
+                  ) : null}
+                </div>
+              </>
+            )}
+          </SheetContent>
+        </Sheet>
       </div>
 
       {/* ── Stop Confirmation Dialog ── */}
@@ -6670,7 +6923,7 @@ export default function EngagementOps() {
 
       {/* ── Resume Engagement Dialog ── */}
       <AlertDialog open={showResumeDialog} onOpenChange={setShowResumeDialog}>
-        <AlertDialogContent className="max-w-md">
+        <AlertDialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
               <Play className="h-5 w-5 text-emerald-400" />

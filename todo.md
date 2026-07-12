@@ -3316,3 +3316,15 @@
 - [x] UI: Show dedup stats after re-run completes (new vs duplicate findings)
 - [x] UI: Add standalone "Re-analyze" button that triggers LLM re-analysis on current findings without re-scanning
 - [x] Integration: Ensure no duplicates in final engagement results after any re-run path
+
+### Mobile Responsiveness — EngagementOps Dashboard (Jul 11)
+- [x] Add mobile bottom action bar with re-run pipeline controls (visible on < lg screens)
+- [x] Make sidebar collapsible on mobile with Sheet/drawer pattern (right-side Sheet)
+- [x] Add responsive breakpoints to main content grid (assets tab stacks vertically on mobile)
+- [x] Ensure vuln tables and asset lists are horizontally scrollable on mobile (already wrapped)
+- [x] Pipeline Control section accessible via mobile bottom bar + Sheet drawer
+- [x] Dialogs max-h-[85vh]/[90vh] + overflow-y-auto for mobile scroll
+- [x] Responsive header padding (px-3 py-3 on mobile, px-6 py-4 on desktop)
+- [x] Tab content responsive padding (px-3 mobile, px-6 desktop)
+- [x] Safe area padding for notched devices (env(safe-area-inset-bottom))
+- [x] Header metadata wraps on mobile, less important items hidden on small screens

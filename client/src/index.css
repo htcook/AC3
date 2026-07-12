@@ -689,3 +689,8 @@ code {
   .p-3 { padding: 0.5rem !important; }
   .p-4 { padding: 0.5rem !important; }
 }
+
+/* Mobile bottom bar safe area for notched devices */
+.safe-area-pb {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
