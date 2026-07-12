@@ -6218,21 +6218,87 @@ Return ONLY a JSON object with vulnerabilities array.`;
                     return true;
                   }).map((v: any) => {
                     // Build evidence summary for operator reporting
+                    // Enhanced evidence enrichment: cross-references multiple evidence sources
                     let evidenceForDb: string | null = null;
+                    const evidenceParts: any = {};
+
+                    // Source 1: Raw evidence directly on the finding
                     if (v.rawEvidence) {
-                      evidenceForDb = v.rawEvidence.slice(0, 16000);
-                    } else if (v.evidenceDetail) {
-                      // Enrich with matching toolResult output if available
-                      const matchingTool = (a.toolResults || []).find((tr: any) =>
-                        tr.findings?.some((f: any) => f.title === v.title)
+                      evidenceParts.rawEvidence = v.rawEvidence.slice(0, 4000);
+                    }
+
+                    // Source 2: evidenceDetail + matching toolResult by title
+                    if (v.evidenceDetail) {
+                      evidenceParts.summary = v.evidenceDetail;
+                    }
+                    const matchingToolByTitle = (a.toolResults || []).find((tr: any) =>
+                      tr.findings?.some((f: any) => f.title === v.title)
+                    );
+                    if (matchingToolByTitle) {
+                      evidenceParts.toolOutput = {
+                        command: matchingToolByTitle.command || null,
+                        output: (matchingToolByTitle.outputPreview || '').slice(0, 4000),
+                        exitCode: matchingToolByTitle.exitCode ?? null,
+                        executedAt: matchingToolByTitle.executedAt ? new Date(matchingToolByTitle.executedAt).toISOString() : null,
+                        tool: matchingToolByTitle.tool || null,
+                      };
+                    }
+
+                    // Source 3: Match toolResult by tool name (e.g., hydra, nuclei, nmap)
+                    const vulnTool = (v.tool || v.source || '').toLowerCase();
+                    if (vulnTool && !matchingToolByTitle) {
+                      const matchingToolByName = (a.toolResults || []).find((tr: any) =>
+                        (tr.tool || '').toLowerCase().includes(vulnTool) ||
+                        (tr.command || '').toLowerCase().includes(vulnTool)
                       );
-                      evidenceForDb = JSON.stringify({
-                        summary: v.evidenceDetail,
-                        command: matchingTool?.command || null,
-                        output: matchingTool?.outputPreview || null,
-                        exitCode: matchingTool?.exitCode ?? null,
-                        executedAt: matchingTool?.executedAt ? new Date(matchingTool.executedAt).toISOString() : null,
-                      }).slice(0, 16000);
+                      if (matchingToolByName) {
+                        evidenceParts.toolOutput = {
+                          command: matchingToolByName.command || null,
+                          output: (matchingToolByName.outputPreview || '').slice(0, 4000),
+                          exitCode: matchingToolByName.exitCode ?? null,
+                          executedAt: matchingToolByName.executedAt ? new Date(matchingToolByName.executedAt).toISOString() : null,
+                          tool: matchingToolByName.tool || null,
+                        };
+                      }
+                    }
+
+                    // Source 4: Cross-reference exploitEvidenceRecords (LLM-assessed post-exploit evidence)
+                    const exploitRecords = (state as any).exploitEvidenceRecords || [];
+                    const matchingExploitEvidence = exploitRecords.find((er: any) =>
+                      er.vulnTitle === v.title && er.asset === a.hostname
+                    );
+                    if (matchingExploitEvidence) {
+                      evidenceParts.exploitAssessment = {
+                        outcome: matchingExploitEvidence.outcome,
+                        classification: matchingExploitEvidence.failureClassification,
+                        confidence: matchingExploitEvidence.confidence,
+                        evidenceSummary: matchingExploitEvidence.evidenceSummary,
+                        technicalDetails: matchingExploitEvidence.technicalDetails,
+                        hardeningEvidence: matchingExploitEvidence.hardeningEvidence,
+                        recommendation: matchingExploitEvidence.recommendation,
+                        mitreTechniques: matchingExploitEvidence.mitreTechniques,
+                      };
+                    }
+
+                    // Source 5: Cross-reference exploitAttempts on the asset
+                    const matchingExploitAttempt = (a.exploitAttempts || []).find((ea: any) =>
+                      ea.vulnTitle === v.title || ea.finding === v.title ||
+                      (ea.module && v.title && v.title.toLowerCase().includes((ea.module || '').toLowerCase()))
+                    );
+                    if (matchingExploitAttempt) {
+                      evidenceParts.exploitAttempt = {
+                        module: matchingExploitAttempt.module || matchingExploitAttempt.tool,
+                        success: matchingExploitAttempt.success,
+                        stdout: (matchingExploitAttempt.stdout || matchingExploitAttempt.output || '').slice(0, 2000),
+                        stderr: (matchingExploitAttempt.stderr || '').slice(0, 1000),
+                        exitCode: matchingExploitAttempt.exitCode,
+                        timestamp: matchingExploitAttempt.timestamp || matchingExploitAttempt.executedAt,
+                      };
+                    }
+
+                    // Assemble final evidence JSON
+                    if (Object.keys(evidenceParts).length > 0) {
+                      evidenceForDb = JSON.stringify(evidenceParts).slice(0, 16000);
                     }
                     return {
                       engagementId: input.engagementId,
