@@ -539,7 +539,7 @@ async function startServer() {
   registerSAMLRoutes(app);
 
   // === Unified Auth: Verification endpoint for nginx auth_request ===
-  const AUTH_SECRET = process.env.CALDERA_JWT_SECRET || 'caldera-dashboard-secret-key-2024';
+  const AUTH_SECRET = process.env.CALDERA_JWT_SECRET || process.env.JWT_SECRET || '';
   app.get('/api/auth/verify', (req, res) => {
     const token = req.cookies?.['caldera_session'];
     if (!token) {
@@ -1139,7 +1139,7 @@ async function startServer() {
         const token = req.cookies?.['caldera_session'];
         if (token) {
           try {
-            const AUTH_SECRET = process.env.CALDERA_JWT_SECRET || 'caldera-dashboard-secret-key-2024';
+            const AUTH_SECRET = process.env.CALDERA_JWT_SECRET || process.env.JWT_SECRET || '';
             const decoded = jwt.verify(token, AUTH_SECRET) as any;
             if (decoded && decoded.accountId) {
               user = { id: decoded.accountId, role: decoded.role || 'user' };
@@ -1274,7 +1274,7 @@ async function startServer() {
         const token = req.cookies?.['caldera_session'];
         if (token) {
           try {
-            const AUTH_SECRET = process.env.CALDERA_JWT_SECRET || 'caldera-dashboard-secret-key-2024';
+            const AUTH_SECRET = process.env.CALDERA_JWT_SECRET || process.env.JWT_SECRET || '';
             const decoded = jwt.verify(token, AUTH_SECRET) as any;
             if (decoded && decoded.accountId) user = { id: decoded.accountId, role: decoded.role || 'user' };
           } catch { /* invalid */ }
@@ -1368,7 +1368,7 @@ async function startServer() {
       try { user = await scheduledSdk.authenticateRequest(req); } catch {}
       if (!user) {
         const token = req.cookies?.['caldera_session'];
-        if (token) { try { const decoded = jwt.verify(token, process.env.CALDERA_JWT_SECRET || 'caldera-dashboard-secret-key-2024') as any; if (decoded?.accountId) user = { id: decoded.accountId }; } catch {} }
+        if (token) { try { const decoded = jwt.verify(token, process.env.CALDERA_JWT_SECRET || process.env.JWT_SECRET || '') as any; if (decoded?.accountId) user = { id: decoded.accountId }; } catch {} }
       }
       if (!user) return res.status(401).json({ error: 'Unauthorized' });
 
@@ -1446,7 +1446,7 @@ async function startServer() {
       try { user = await scheduledSdk.authenticateRequest(req); } catch {}
       if (!user) {
         const token = req.cookies?.['caldera_session'];
-        if (token) { try { const decoded = jwt.verify(token, process.env.CALDERA_JWT_SECRET || 'caldera-dashboard-secret-key-2024') as any; if (decoded?.accountId) user = { id: decoded.accountId }; } catch {} }
+        if (token) { try { const decoded = jwt.verify(token, process.env.CALDERA_JWT_SECRET || process.env.JWT_SECRET || '') as any; if (decoded?.accountId) user = { id: decoded.accountId }; } catch {} }
       }
       if (!user) return res.status(401).json({ error: 'Unauthorized' });
 
@@ -1529,7 +1529,7 @@ async function startServer() {
       try { user = await scheduledSdk.authenticateRequest(req); } catch {}
       if (!user) {
         const token = req.cookies?.['caldera_session'];
-        if (token) { try { const decoded = jwt.verify(token, process.env.CALDERA_JWT_SECRET || 'caldera-dashboard-secret-key-2024') as any; if (decoded?.accountId) user = { id: decoded.accountId }; } catch {} }
+        if (token) { try { const decoded = jwt.verify(token, process.env.CALDERA_JWT_SECRET || process.env.JWT_SECRET || '') as any; if (decoded?.accountId) user = { id: decoded.accountId }; } catch {} }
       }
       if (!user) return res.status(401).json({ error: 'Unauthorized' });
 
@@ -1604,7 +1604,7 @@ async function startServer() {
       try { user = await scheduledSdk.authenticateRequest(req); } catch {}
       if (!user) {
         const token = req.cookies?.['caldera_session'];
-        if (token) { try { const decoded = jwt.verify(token, process.env.CALDERA_JWT_SECRET || 'caldera-dashboard-secret-key-2024') as any; if (decoded?.accountId) user = { id: decoded.accountId }; } catch {} }
+        if (token) { try { const decoded = jwt.verify(token, process.env.CALDERA_JWT_SECRET || process.env.JWT_SECRET || '') as any; if (decoded?.accountId) user = { id: decoded.accountId }; } catch {} }
       }
       if (!user) return res.status(401).json({ error: 'Unauthorized' });
 
@@ -1689,7 +1689,7 @@ async function startServer() {
       try { user = await scheduledSdk.authenticateRequest(req); } catch {}
       if (!user) {
         const token = req.cookies?.['caldera_session'];
-        if (token) { try { const decoded = jwt.verify(token, process.env.CALDERA_JWT_SECRET || 'caldera-dashboard-secret-key-2024') as any; if (decoded?.accountId) user = { id: decoded.accountId }; } catch {} }
+        if (token) { try { const decoded = jwt.verify(token, process.env.CALDERA_JWT_SECRET || process.env.JWT_SECRET || '') as any; if (decoded?.accountId) user = { id: decoded.accountId }; } catch {} }
       }
       if (!user) return res.status(401).json({ error: 'Unauthorized' });
 
@@ -1810,7 +1810,7 @@ async function startServer() {
       try { user = await scheduledSdk.authenticateRequest(req); } catch {}
       if (!user) {
         const token = req.cookies?.['caldera_session'];
-        if (token) { try { const decoded = jwt.verify(token, process.env.CALDERA_JWT_SECRET || 'caldera-dashboard-secret-key-2024') as any; if (decoded?.accountId) user = { id: decoded.accountId }; } catch {} }
+        if (token) { try { const decoded = jwt.verify(token, process.env.CALDERA_JWT_SECRET || process.env.JWT_SECRET || '') as any; if (decoded?.accountId) user = { id: decoded.accountId }; } catch {} }
       }
       if (!user) return res.status(401).json({ error: 'Unauthorized' });
 

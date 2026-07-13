@@ -363,7 +363,7 @@ export function registerSAMLRoutes(app: Express) {
       await db.update(users).set({ lastSignedIn: new Date() }).where(eq(users.id, existingUser.id));
 
       // Create session
-      const AUTH_SECRET = process.env.CALDERA_JWT_SECRET || "caldera-dashboard-secret-key-2024";
+      const AUTH_SECRET = process.env.CALDERA_JWT_SECRET || process.env.JWT_SECRET || "";
       const token = jwt.sign(
         {
           userId: existingUser.id,

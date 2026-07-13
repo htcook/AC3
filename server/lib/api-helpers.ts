@@ -27,7 +27,8 @@ export function getCalderaCookieOptions(req: any, rememberMe = false) {
   return opts;
 }
 
-export const CALDERA_JWT_SECRET = process.env.CALDERA_JWT_SECRET || 'caldera-dashboard-secret-key-2024';
+// SECURITY: JWT secret MUST come from env var. Fail closed if not set.
+export const CALDERA_JWT_SECRET = process.env.CALDERA_JWT_SECRET || process.env.JWT_SECRET || '';
 
 // ─── Caldera API Config ────────────────────────────────────────────────
 

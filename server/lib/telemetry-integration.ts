@@ -182,7 +182,7 @@ export async function instrumentedLegacyScanRelay(
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-Scan-Key": "ADMIN123",
+          "X-Scan-Key": process.env.SCAN_API_KEY || "",
         },
         body: JSON.stringify({ command: opts.command, timeout }),
         signal: AbortSignal.timeout(timeout + 5000),

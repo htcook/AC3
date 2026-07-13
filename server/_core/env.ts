@@ -23,11 +23,17 @@ function resolveCalderaUrl(): string {
 }
 
 // ─── Resolve Cyber C2 API Key ────────────────────────────────────────────────
-// The default ADMIN123 was rotated. Override if the env still has the old key.
+// SECURITY: No hardcoded fallback. Must be set via CALDERA_API_KEY env var.
+// Rejects known defaults (ADMIN123) and short/empty values.
 function resolveCalderaApiKey(): string {
   const env = process.env.CALDERA_API_KEY;
-  if (env && env !== "ADMIN123" && env.length > 10) return env;
-  return "kmpJNkws7KXEdyIc2K8FYAGdMoRgrZ4c3hvJ1F9SI94";
+  if (!env || env === "ADMIN123" || env.length < 10) {
+    if (process.env.NODE_ENV === "production") {
+      console.warn("[SECURITY] CALDERA_API_KEY not configured or using insecure default. C2 features will fail.");
+    }
+    return "";
+  }
+  return env;
 }
 
 // ─── Resolve Cyber C2 Password ──────────────────────────────────────────────

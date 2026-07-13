@@ -4,7 +4,7 @@ import { sdk } from "./sdk";
 import jwt from "jsonwebtoken";
 import { logSessionEvent, extractRequestInfo } from "../lib/session-activity-logger";
 
-const CALDERA_JWT_SECRET = process.env.CALDERA_JWT_SECRET || 'caldera-dashboard-secret-key-2024';
+const CALDERA_JWT_SECRET = process.env.CALDERA_JWT_SECRET || process.env.JWT_SECRET || '';
 
 /**
  * Detect whether this server is running on a Manus-hosted environment.

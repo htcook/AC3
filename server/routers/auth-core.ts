@@ -29,8 +29,8 @@ export const calderaAuthRouter = router({
       }))
       .mutation(async ({ input, ctx }) => {
         const validUsernames = ['red', 'blue', 'admin'];
-        // Hardcoded canonical password — immune to env var shell expansion issues
-        const CANONICAL_PASSWORD = 'PVYedK$BUAYzyXaAegdEl2Dz';
+        // Password must come from env var CALDERA_PASSWORD — no hardcoded fallbacks.
+        const CANONICAL_PASSWORD = ENV.calderaPassword;
         const envPassword = ENV.calderaPassword;
         const calderaApiKey = ENV.calderaApiKey;
 
@@ -89,10 +89,8 @@ export const calderaAuthRouter = router({
           return createSession(input.username, 'api-key');
         }
 
-        // Check 4: Also accept ADMIN123 / ADMiN123 as legacy fallback
-        if (input.password === 'ADMIN123' || input.password === 'ADMiN123') {
-          return createSession(input.username, 'legacy-password');
-        }
+        // Check 4: Legacy ADMIN123 fallback REMOVED (security hardening 2026-07-12)
+        // All users must authenticate via CALDERA_PASSWORD or CALDERA_API_KEY env vars.
 
         // Check 5: Try authenticating against Caldera API directly
         try {

@@ -219,9 +219,7 @@ class EventHub extends EventEmitter {
       );
       const token = cookies["caldera_session"];
       if (token) {
-        const secret =
-          process.env.CALDERA_JWT_SECRET ||
-          "caldera-dashboard-secret-key-2024";
+        const secret = process.env.CALDERA_JWT_SECRET || process.env.JWT_SECRET || "";
         const decoded = jwt.verify(token, secret) as any;
         userId = decoded.userId || decoded.id || null;
       }

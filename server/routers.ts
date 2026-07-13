@@ -288,7 +288,7 @@ function getCalderaCookieOptions(req: any, rememberMe = false) {
 }
 
 // JWT secret for Caldera sessions (use env var in production)
-const CALDERA_JWT_SECRET = process.env.CALDERA_JWT_SECRET || 'caldera-dashboard-secret-key-2024';
+const CALDERA_JWT_SECRET = process.env.CALDERA_JWT_SECRET || process.env.JWT_SECRET || '';
 
 // Admin-only procedure
 const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
