@@ -22,8 +22,8 @@
  * a shell command as a single argument: it is wrapped in single quotes and any
  * embedded single quote is closed/escaped/reopened ('\'').
  */
-export function shq(value: string | number): string {
-  const s = String(value);
+export function shq(value: unknown): string {
+  const s = value == null ? "" : String(value);
   return `'${s.replace(/'/g, `'\\''`)}'`;
 }
 

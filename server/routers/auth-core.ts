@@ -5,10 +5,29 @@ import { publicProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import { ENV } from "../_core/env";
 import jwt from "jsonwebtoken";
+import { getDb } from "../db";
+import { activeSessions } from "../../drizzle/schema";
+import { and, eq } from "drizzle-orm";
 
 export const authRouter = router({
     me: publicProcedure.query(opts => opts.ctx.user),
-    logout: publicProcedure.mutation(({ ctx }) => {
+    logout: publicProcedure.mutation(async ({ ctx }) => {
+      // Server-side session teardown: delete the active_sessions row so the JWT
+      // cannot be reused after logout (the cookie alone is client-side).
+      try {
+        const token = ctx.req.cookies?.[CALDERA_SESSION_COOKIE];
+        if (token) {
+          const decoded = jwt.verify(token, CALDERA_JWT_SECRET) as { accountId?: number; sessionId?: string };
+          if (decoded?.accountId && decoded?.sessionId) {
+            const db = await getDb();
+            await db
+              .delete(activeSessions)
+              .where(and(eq(activeSessions.accountId, decoded.accountId), eq(activeSessions.sessionToken, decoded.sessionId)));
+          }
+        }
+      } catch {
+        // Token missing/invalid/expired — nothing to tear down server-side.
+      }
       // Clear Manus OAuth session cookie
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
