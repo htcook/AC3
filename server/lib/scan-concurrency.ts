@@ -20,7 +20,7 @@ export interface ScanConcurrencyConfig {
   maxConcurrentTotal: number;
   /** Max scans per engagement to ensure fairness (default: 3) */
   maxPerEngagement: number;
-  /** Max time a scan can wait in queue before being rejected (ms, default: 300000 = 5min) */
+  /** Max time a scan can wait in queue before being rejected (ms, default: 900000 = 15min) */
   queueTimeoutMs: number;
 }
 
@@ -54,10 +54,10 @@ interface ConcurrencyMetrics {
 
 const DEFAULT_CONFIG: ScanConcurrencyConfig = {
   maxConcurrentNuclei: 2,
-  maxConcurrentZap: 1,
-  maxConcurrentTotal: 4,
-  maxPerEngagement: 2,
-  queueTimeoutMs: 5 * 60 * 1000, // 5 minutes
+  maxConcurrentZap: 2,
+  maxConcurrentTotal: 6,
+  maxPerEngagement: 3,
+  queueTimeoutMs: 15 * 60 * 1000, // 15 minutes
 };
 
 let config: ScanConcurrencyConfig = { ...DEFAULT_CONFIG };
