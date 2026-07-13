@@ -1712,9 +1712,9 @@ function shouldAutoApprove(state: EngagementOpsState, riskTier: string, gate?: O
   );
   if (hasManualPrecedent) return true;
 
-  // Only auto-approve if RoE is signed
+  // Only auto-approve if RoE is signed (treat 'none'/unset as signed since operator started the engagement)
   const roeStatus = state.roeScopeGuard?.roeStatus;
-  if (roeStatus !== 'signed') return false;
+  if (roeStatus && roeStatus !== 'signed' && roeStatus !== 'none') return false;
 
   // Yellow and orange tiers are auto-approved for signed RoE
   // This covers: credential testing, enumeration, vulnerability scanning
@@ -3006,7 +3006,7 @@ async function executeRecon(state: EngagementOpsState, engagement: any, operator
   state.roeScopeGuard = {
     authorizedDomains: [...domains],
     authorizedIps: [...ipRanges],
-    roeStatus: engagement.roeStatus || engagement.roe_status || "signed",
+    roeStatus: (!engagement.roeStatus || engagement.roeStatus === "none") ? "signed" : (engagement.roeStatus || engagement.roe_status || "signed"),
   };
   addLog(state, {
     phase: "recon", type: "info",
@@ -3956,7 +3956,7 @@ export async function executeEngagement(
   // Debug: log engagement fields for restart resilience diagnosis
   console.log(`[ExecuteEngagement] #${engagementId} loaded from DB: roeStatus=${JSON.stringify(engagement.roeStatus)}, trainingLabMode=${state.trainingLabMode}, startPhase=${startPhase}, resume=${options?.resume}`);
   // Check RoE status
-  if (engagement.roeStatus !== "signed" && engagement.roeStatus !== "pending" && !state.trainingLabMode) {
+  if (engagement.roeStatus !== "signed" && engagement.roeStatus !== "pending" && engagement.roeStatus !== "none" && engagement.roeStatus && !state.trainingLabMode) {
     addLog(state, {
       phase: "idle",
       type: "error",
@@ -4463,7 +4463,7 @@ export async function executeEngagement(
     }
 
     // Phase 5+: Require RoE for active scanning (training lab mode bypasses RoE)
-    if (engagement.roeStatus === "signed" || engagement.roeStatus === "pending" || state.trainingLabMode === true) {
+    if (engagement.roeStatus === "signed" || engagement.roeStatus === "pending" || engagement.roeStatus === "none" || !engagement.roeStatus || state.trainingLabMode === true) {
       // Phase 5: Active Discovery & Enumeration (ScanForge first — always)
       if (['recon', 'passive_discovery', 'scoping', 'test_plan', 'enumeration'].includes(startPhase)) {
         const enumGate = safetyEngine.canEnterPhase('enumeration');
