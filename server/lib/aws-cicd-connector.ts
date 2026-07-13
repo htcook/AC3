@@ -6,6 +6,7 @@
 
 import { STSClient, AssumeRoleCommand, GetCallerIdentityCommand } from "@aws-sdk/client-sts";
 import crypto from "crypto";
+import { shq } from "./shell-safety";
 
 /** Inline type — avoids depending on @aws-sdk/types package */
 interface AwsCredentialIdentity {
@@ -969,20 +970,20 @@ async function runIacScanCicd(repoOrPath: string, commitSha?: string, incrementa
     if (isUrl) {
       // P2: Incremental scanning — only clone changed files when branch is specified
       if (incrementalBranch && commitSha) {
-        const cloneCmd = `git clone --depth 50 ${repoOrPath} ${scanPath} && cd ${scanPath} && git diff --name-only origin/main...${commitSha} -- '*.tf' '*.yaml' '*.yml' '*.json' 'Dockerfile*' > /tmp/changed-iac-files.txt 2>/dev/null || true`;
+        const cloneCmd = `git clone --depth 50 ${shq(repoOrPath)} ${shq(scanPath)} && cd ${shq(scanPath)} && git diff --name-only origin/main...${shq(commitSha)} -- '*.tf' '*.yaml' '*.yml' '*.json' 'Dockerfile*' > /tmp/changed-iac-files.txt 2>/dev/null || true`;
         await executeRawCommandViaHttp(cloneCmd, 60);
         console.log(`[CICD-IAC] Incremental mode: scanning only changed IaC files on branch ${incrementalBranch}`);
       } else {
         const cloneCmd = commitSha
-          ? `git clone --depth 1 ${repoOrPath} ${scanPath} && cd ${scanPath} && git checkout ${commitSha} 2>/dev/null || true`
-          : `git clone --depth 1 ${repoOrPath} ${scanPath}`;
+          ? `git clone --depth 1 ${shq(repoOrPath)} ${shq(scanPath)} && cd ${shq(scanPath)} && git checkout ${shq(commitSha)} 2>/dev/null || true`
+          : `git clone --depth 1 ${shq(repoOrPath)} ${shq(scanPath)}`;
         await executeRawCommandViaHttp(cloneCmd, 60);
       }
     }
 
     // Run checkov for IaC scanning (Terraform, CloudFormation, K8s, Dockerfile)
     const result = await executeRawCommandViaHttp(
-      `checkov -d ${scanPath} --output json --compact --quiet 2>/dev/null || echo '{"results":{"failed_checks":[]}}'`,
+      `checkov -d ${shq(scanPath)} --output json --compact --quiet 2>/dev/null || echo '{"results":{"failed_checks":[]}}'`,
       180
     );
 
@@ -1061,14 +1062,14 @@ async function runSecretScanCicd(repoOrPath: string, commitSha?: string): Promis
 
     if (isUrl) {
       const cloneCmd = commitSha
-        ? `git clone --depth 10 ${repoOrPath} ${scanPath} && cd ${scanPath} && git checkout ${commitSha} 2>/dev/null || true`
-        : `git clone --depth 10 ${repoOrPath} ${scanPath}`;
+        ? `git clone --depth 10 ${shq(repoOrPath)} ${shq(scanPath)} && cd ${shq(scanPath)} && git checkout ${shq(commitSha)} 2>/dev/null || true`
+        : `git clone --depth 10 ${shq(repoOrPath)} ${shq(scanPath)}`;
       await executeRawCommandViaHttp(cloneCmd, 60);
     }
 
     // Run gitleaks for secret detection
     const result = await executeRawCommandViaHttp(
-      `gitleaks detect --source ${scanPath} --report-format json --report-path /tmp/gitleaks-${Date.now()}.json --no-banner 2>/dev/null; cat /tmp/gitleaks-*.json 2>/dev/null || echo '[]'`,
+      `gitleaks detect --source ${shq(scanPath)} --report-format json --report-path /tmp/gitleaks-${Date.now()}.json --no-banner 2>/dev/null; cat /tmp/gitleaks-*.json 2>/dev/null || echo '[]'`,
       120
     );
 
@@ -1222,11 +1223,11 @@ export async function runProwlerCicd(
 
     let cmd = `prowler ${provider} -M json-ocsf --no-banner`;
     if (provider === "aws" && creds) {
-      cmd = `AWS_ACCESS_KEY_ID='${creds.accessKeyId}' AWS_SECRET_ACCESS_KEY='${creds.secretAccessKey}' ${creds.sessionToken ? `AWS_SESSION_TOKEN='${creds.sessionToken}' ` : ""}AWS_DEFAULT_REGION='${creds.region || "us-east-1"}' ${cmd}`;
-      if (creds.roleArn) cmd += ` -R ${creds.roleArn}`;
+      cmd = `AWS_ACCESS_KEY_ID=${shq(creds.accessKeyId)} AWS_SECRET_ACCESS_KEY=${shq(creds.secretAccessKey)} ${creds.sessionToken ? `AWS_SESSION_TOKEN=${shq(creds.sessionToken)} ` : ""}AWS_DEFAULT_REGION=${shq(creds.region || "us-east-1")} ${cmd}`;
+      if (creds.roleArn) cmd += ` -R ${shq(creds.roleArn)}`;
     }
-    if (services?.length) cmd += ` --services ${services.join(" ")}`;
-    if (compliance) cmd += ` --compliance ${compliance}`;
+    if (services?.length) cmd += ` --services ${services.map(shq).join(" ")}`;
+    if (compliance) cmd += ` --compliance ${shq(compliance)}`;
 
     const result = await executeRawCommandViaHttp(cmd, 600);
 

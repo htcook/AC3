@@ -15,6 +15,7 @@ import { getDb } from "../db";
 import { customerStackProfiles } from "../../drizzle/schema";
 import { eq, desc } from "drizzle-orm";
 import { invokeLLM } from "../_core/llm";
+import { assertSafeFetchUrl } from "../lib/ssrf-guard";
 
 // ─── Version-Specific CVE Database ─────────────────────────────────────────
 
@@ -561,6 +562,12 @@ Return ONLY a JSON array of objects with these fields.`;
     }))
     .mutation(async ({ input }) => {
       const { buildProbeSpecs, analyzeProbeResponse, generateProbeReport } = require('../lib/scanners/live-probe-engine');
+      // SSRF guard: block internal/metadata targets before probing.
+      try {
+        await assertSafeFetchUrl(input.targetUrl);
+      } catch (e: any) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: `Target URL rejected: ${e.message}` });
+      }
       const url = new URL(input.targetUrl);
       const target = {
         baseUrl: `${url.protocol}//${url.host}`,
@@ -629,6 +636,12 @@ Return ONLY a JSON array of objects with these fields.`;
     .mutation(async ({ input }) => {
       const { detectTechnologies } = require('../lib/scanners/tech-auto-detector');
       const axios = require('axios');
+      // SSRF guard: block internal/metadata targets before fetching.
+      try {
+        await assertSafeFetchUrl(input.targetUrl);
+      } catch (e: any) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: `Target URL rejected: ${e.message}` });
+      }
       const url = new URL(input.targetUrl);
 
       try {

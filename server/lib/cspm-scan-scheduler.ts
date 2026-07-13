@@ -10,6 +10,7 @@ import { eq, and, lte, sql } from "drizzle-orm";
 import { createScanRun, completeScanRun, failScanRun, storeFindings, storeContainerVulnerabilities } from "./cspm-db";
 import { decryptCredentialObject } from "./credential-crypto";
 import { executeRawCommand } from "./scan-server-executor";
+import { shq } from "./shell-safety";
 
 // ── State ─────────────────────────────────────────────────────────────────
 let _cronTask: ReturnType<typeof cron.schedule> | null = null;
@@ -204,13 +205,13 @@ async function executeScan(schedule: any) {
     if (schedule.scanTool === "prowler") {
       let cmd = `prowler ${provider} -M json-ocsf --no-banner`;
       if (provider === "aws") {
-        cmd = `AWS_ACCESS_KEY_ID='${credentials.accessKeyId}' AWS_SECRET_ACCESS_KEY='${credentials.secretAccessKey}' ${credentials.sessionToken ? `AWS_SESSION_TOKEN='${credentials.sessionToken}' ` : ""}AWS_DEFAULT_REGION='${credentials.region}' ${cmd}`;
-        if (credentials.roleArn) cmd += ` -R ${credentials.roleArn}`;
+        cmd = `AWS_ACCESS_KEY_ID=${shq(credentials.accessKeyId)} AWS_SECRET_ACCESS_KEY=${shq(credentials.secretAccessKey)} ${credentials.sessionToken ? `AWS_SESSION_TOKEN=${shq(credentials.sessionToken)} ` : ""}AWS_DEFAULT_REGION=${shq(credentials.region)} ${cmd}`;
+        if (credentials.roleArn) cmd += ` -R ${shq(credentials.roleArn)}`;
       } else if (provider === "azure") {
-        cmd = `AZURE_TENANT_ID='${credentials.tenantId}' AZURE_CLIENT_ID='${credentials.clientId}' AZURE_CLIENT_SECRET='${credentials.clientSecret}' ${cmd} --sp-env-auth`;
+        cmd = `AZURE_TENANT_ID=${shq(credentials.tenantId)} AZURE_CLIENT_ID=${shq(credentials.clientId)} AZURE_CLIENT_SECRET=${shq(credentials.clientSecret)} ${cmd} --sp-env-auth`;
       }
-      if (services?.length) cmd += ` --services ${services.join(" ")}`;
-      if (compliance) cmd += ` --compliance ${compliance}`;
+      if (services?.length) cmd += ` --services ${services.map(shq).join(" ")}`;
+      if (compliance) cmd += ` --compliance ${shq(compliance)}`;
 
       const result = await executeRawCommand(cmd, timeout);
       const { parseProwlerJsonOutput } = await import("../routers/prowler-integration");
@@ -230,11 +231,11 @@ async function executeScan(schedule: any) {
     } else if (schedule.scanTool === "scoutsuite") {
       let cmd = `python3 -m ScoutSuite --provider ${provider} --no-browser --result-format json`;
       if (provider === "aws") {
-        cmd = `AWS_ACCESS_KEY_ID='${credentials.accessKeyId}' AWS_SECRET_ACCESS_KEY='${credentials.secretAccessKey}' ${cmd}`;
+        cmd = `AWS_ACCESS_KEY_ID=${shq(credentials.accessKeyId)} AWS_SECRET_ACCESS_KEY=${shq(credentials.secretAccessKey)} ${cmd}`;
       } else if (provider === "azure") {
-        cmd = `AZURE_TENANT_ID='${credentials.tenantId}' AZURE_CLIENT_ID='${credentials.clientId}' AZURE_CLIENT_SECRET='${credentials.clientSecret}' ${cmd} --cli`;
+        cmd = `AZURE_TENANT_ID=${shq(credentials.tenantId)} AZURE_CLIENT_ID=${shq(credentials.clientId)} AZURE_CLIENT_SECRET=${shq(credentials.clientSecret)} ${cmd} --cli`;
       }
-      if (services?.length) cmd += ` --services ${services.join(" ")}`;
+      if (services?.length) cmd += ` --services ${services.map(shq).join(" ")}`;
 
       const result = await executeRawCommand(cmd, timeout);
       // Parse ScoutSuite output (simplified)

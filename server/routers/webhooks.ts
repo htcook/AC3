@@ -10,6 +10,7 @@ import { getDb as _getDb } from "../db";
 import { webhookEndpoints, webhookDeliveries } from "../../drizzle/schema";
 import { eq, desc, like, and, sql } from "drizzle-orm";
 import crypto from "crypto";
+import { assertSafeFetchUrl } from "../lib/ssrf-guard";
 
 async function getDbSafe() {
   const db = await _getDb();
@@ -180,6 +181,15 @@ export const webhooksRouter = router({
         const customHeaders = webhook.headers as Record<string, string> | null;
         if (customHeaders && typeof customHeaders === "object") {
           Object.assign(headers, customHeaders);
+        }
+
+        // SSRF guard: reject internal/metadata targets before sending. The
+        // response body is stored and returned, so an unguarded fetch would let
+        // a webhook be pointed at 169.254.169.254 or localhost to exfiltrate data.
+        try {
+          await assertSafeFetchUrl(webhook.url);
+        } catch (e: any) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: `Webhook URL rejected: ${e.message}` });
         }
 
         const response = await fetch(webhook.url, {

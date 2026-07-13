@@ -246,8 +246,14 @@ export const docTrackerRouter = router({
   diffSnapshots: protectedProcedure
     .input(z.object({ from: z.string(), to: z.string() }))
     .query(({ input }) => {
-      const fromPath = path.join(SNAPSHOT_DIR, input.from);
-      const toPath = path.join(SNAPSHOT_DIR, input.to);
+      // Path-traversal containment: resolved paths must stay inside SNAPSHOT_DIR
+      // (input.from/to are unvalidated strings and could otherwise be "../../..").
+      const base = path.resolve(SNAPSHOT_DIR);
+      const fromPath = path.resolve(base, input.from);
+      const toPath = path.resolve(base, input.to);
+      if (!fromPath.startsWith(base + path.sep) || !toPath.startsWith(base + path.sep)) {
+        return { error: "Invalid snapshot path" };
+      }
       if (!fs.existsSync(fromPath) || !fs.existsSync(toPath)) {
         return { error: "Snapshot not found" };
       }
