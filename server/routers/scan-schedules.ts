@@ -153,6 +153,30 @@ function stopScheduleTimer(scheduleId: number) {
   }
 }
 
+/**
+ * Re-arm timers for all active schedules on server boot.
+ *
+ * Timers live only in the in-memory `activeTimers` map, so without this every
+ * recurring scan schedule silently stops firing after a restart/redeploy until
+ * a human toggles it. Called from the background startup sequence. Idempotent —
+ * startScheduleTimer() clears any existing timer for the same id first.
+ */
+export async function rearmActiveScheduleTimers(): Promise<number> {
+  const db = await getDb();
+  const rows = await db.select().from(scanSchedules);
+  let armed = 0;
+  for (const s of rows) {
+    if (s.isActive && s.cronExpression) {
+      startScheduleTimer(s.id, s.cronExpression);
+      armed++;
+    }
+  }
+  if (armed > 0) {
+    console.log(`[ScanSchedule] Re-armed ${armed} active schedule timer(s) on boot`);
+  }
+  return armed;
+}
+
 export const scanSchedulesRouter = router({
   // List all schedules
   list: protectedProcedure.query(async () => {

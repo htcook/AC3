@@ -438,3 +438,41 @@ export function listActivePollers(): Array<{
     pollCount: p.state.pollCount,
   }));
 }
+
+/**
+ * Restore pollers on server boot for engagements that still have a live Caldera
+ * operation. Poller state is in-memory only, so after a restart/redeploy live
+ * C2 telemetry stops flowing until a poller is re-created. This re-creates
+ * pollers for active engagements that carry a Caldera operation id.
+ *
+ * Self-limiting: pollCalderaOperation() calls stopPolling() as soon as the
+ * operation is finished or no longer exists, so restoring a poller for an
+ * already-finished operation costs at most one poll before it tears itself down.
+ */
+export async function restoreActivePollers(intervalMs: number = 10000): Promise<number> {
+  try {
+    const { getDb } = await import("../db");
+    const { engagements } = await import("../../drizzle/schema");
+    const { and, eq, isNotNull } = await import("drizzle-orm");
+    const db = await getDb();
+    if (!db) return 0;
+    const rows = await db
+      .select({ id: engagements.id, operationId: engagements.calderaOperationId })
+      .from(engagements)
+      .where(and(eq(engagements.status, "active"), isNotNull(engagements.calderaOperationId)));
+    let restored = 0;
+    for (const r of rows) {
+      if (r.operationId) {
+        startPolling(r.id, r.operationId, intervalMs);
+        restored++;
+      }
+    }
+    if (restored > 0) {
+      console.log(`[C2Poller] Restored ${restored} C2 callback poller(s) for active engagements on boot`);
+    }
+    return restored;
+  } catch (err: any) {
+    console.warn("[C2Poller] restoreActivePollers failed (non-fatal):", err.message);
+    return 0;
+  }
+}
