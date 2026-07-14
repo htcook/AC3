@@ -912,10 +912,15 @@ export async function suggestToolCommands(asset: {
           if (hydraModule === 'http-form-post' || hydraModule === 'https-form-post') {
             // Try common login paths with standard form field names
             const loginPaths = ['/login', '/admin/login', '/auth/login', '/api/auth/login', '/signin'];
+            // NOTE: Hydra F= only supports literal substring matching, NOT regex.
+            // Use 'Invalid' (capital I) as it appears in most login failure responses:
+            // "Invalid credentials", "Invalid username or password", "Invalid login"
+            // The credential-attack-engine validation step provides the real verification
+            // with positive signal checks (session cookie, auth redirect, dashboard content)
             const formVariants = [
-              { fields: 'username=^USER^&password=^PASS^', failStr: 'invalid|incorrect|failed|error|denied|wrong' },
-              { fields: 'email=^USER^&password=^PASS^', failStr: 'invalid|incorrect|failed|error|denied|wrong' },
-              { fields: 'user=^USER^&pass=^PASS^', failStr: 'invalid|incorrect|failed|error|denied|wrong' },
+              { fields: 'username=^USER^&password=^PASS^', failStr: 'Invalid' },
+              { fields: 'email=^USER^&password=^PASS^', failStr: 'Invalid' },
+              { fields: 'user=^USER^&pass=^PASS^', failStr: 'Invalid' },
             ];
             // Use first login path + first form variant as primary, others as fallback
             commands.push({
@@ -1010,9 +1015,12 @@ export async function suggestToolCommands(asset: {
       }
 
       // Generic HTTP form credential testing with web-appropriate defaults
+      // Use multiple failure indicators to reduce false positives from WAF/block pages
+      // Hydra F= only supports literal substrings, so we use the most common failure word
+      // The credential-attack-engine validation step will verify with positive signals
       commands.push({
         tool: 'hydra',
-        args: `-l admin -P /opt/SecLists/Passwords/Default-Credentials/default-passwords.txt -s ${wp.port} -t 4 -f -V ${hydraTarget} ${scheme === 'https' ? 'https-form-post' : 'http-form-post'} '/login:username=^USER^&password=^PASS^:incorrect'`,
+        args: `-l admin -P /opt/SecLists/Passwords/Default-Credentials/default-passwords.txt -s ${wp.port} -t 4 -f -V ${hydraTarget} ${scheme === 'https' ? 'https-form-post' : 'http-form-post'} '/login:username=^USER^&password=^PASS^:F=Invalid:H=Content-Type\: application/x-www-form-urlencoded'`,
         purpose: `HTTP form credential testing (web default passwords) on port ${wp.port}`,
         priority: 2,
       });

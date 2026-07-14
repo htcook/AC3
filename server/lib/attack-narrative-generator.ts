@@ -52,6 +52,8 @@ export interface NarrativeInput {
   engagementId: number;
   engagementName: string;
   targetProfile?: {
+    orgName?: string;
+    orgSource?: string; // 'whois' | 'engagement_config' | 'inferred'
     industry?: string;
     waf?: string;
     cdn?: string;
@@ -203,6 +205,7 @@ async function generateSingleNarrative(
   ].filter(Boolean).join('\n');
 
   const targetContext = input.targetProfile ? [
+    input.targetProfile.orgName ? `Organization: ${input.targetProfile.orgName} (source: ${input.targetProfile.orgSource || 'unknown'})` : '',
     `Industry: ${input.targetProfile.industry || 'Unknown (DO NOT infer sector from hostnames — "grid" in a hostname does NOT mean utilities/energy)'}`,
     input.targetProfile.waf ? `WAF: ${input.targetProfile.waf}` : '',
     input.targetProfile.cdn ? `CDN: ${input.targetProfile.cdn}` : '',
@@ -469,6 +472,7 @@ Ports discovered: ${input.stats.portsFound}
 Top attack paths:
 ${topNarratives || 'No critical/high attack paths identified'}
 
+Organization: ${input.targetProfile?.orgName || 'Unknown'}
 Industry: ${input.targetProfile?.industry || 'Unknown (DO NOT infer from hostnames)'}
 WAF/CDN: ${input.targetProfile?.waf || 'None detected'} / ${input.targetProfile?.cdn || 'None detected'}`,
         },

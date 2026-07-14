@@ -5506,7 +5506,9 @@ export async function executeEngagement(
         engagementId: state.engagementId,
         engagementName: state.engagementName || `Engagement #${state.engagementId}`,
         targetProfile: state.targetProfiles ? {
-          industry: undefined,
+          industry: state.identifiedOrg?.sector || state.engagementContext?.inferredSector || undefined,
+          orgName: state.identifiedOrg?.orgName || undefined,
+          orgSource: state.identifiedOrg?.source || undefined,
           waf: Object.values(state.targetProfiles as Record<string, any>)[0]?.waf?.vendor,
           cdn: Object.values(state.targetProfiles as Record<string, any>)[0]?.cdn?.provider,
           techStack: Object.values(state.targetProfiles as Record<string, any>)[0]?.fingerprint?.webServer

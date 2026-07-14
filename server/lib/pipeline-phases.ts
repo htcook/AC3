@@ -17,6 +17,8 @@ import { throttledLLMCall } from "./llm-throttle";
 import type { OpsPhase } from "./engagement-orchestrator";
 import { DnsSecurityValidator } from "./dns-security-validator";
 import type { DnsSecurityReport } from "./dns-security-validator";
+import { securityTrailsWHOIS } from "./discovery-engine";
+import { ENV } from "../_core/env";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -31,6 +33,15 @@ export interface PassiveDiscoveryResult {
   breachExposure: BreachExposureEntry[];
   dnsSecurityFindings: DnsSecurityFinding[];
   passiveServices: PassiveServiceHint[];
+  orgIdentification?: {
+    orgName: string | null;
+    registrantEmail: string | null;
+    registrantOrg: string | null;
+    sector: string | null;
+    source: 'whois' | 'customer_name' | 'llm_inference';
+    confidence: 'high' | 'medium' | 'low';
+    baseDomain: string;
+  };
 }
 
 export interface DnsRecordSet {
@@ -358,6 +369,110 @@ export async function executePassiveDiscovery(
     }
   }
 
+  // ── 2.6: WHOIS Organization Identification ──
+  addLog(state, {
+    phase: "passive_discovery", type: "scan_start",
+    title: "WHOIS Organization Identification",
+    detail: `Identifying target organization from WHOIS records for ${domains.length} domains`,
+  });
+
+  let orgIdentification: PassiveDiscoveryResult['orgIdentification'] = undefined;
+  try {
+    // Extract unique base domains (e.g., celerium.net from dcise3.celerium.net)
+    const baseDomains = new Set<string>();
+    for (const hostname of domains) {
+      const parts = hostname.split('.');
+      if (parts.length >= 2) {
+        // Try 2-part TLD first (e.g., co.uk), fallback to last 2 parts
+        const baseDomain = parts.slice(-2).join('.');
+        baseDomains.add(baseDomain);
+      }
+    }
+
+    if (ENV.SECURITYTRAILS_API_KEY && baseDomains.size > 0) {
+      for (const baseDomain of baseDomains) {
+        try {
+          const whoisData = await securityTrailsWHOIS(baseDomain);
+          const registrantOrg = whoisData?.result?.registrant_org
+            || whoisData?.registrant?.organization
+            || whoisData?.contacts?.registrant?.organization
+            || whoisData?.registrant_org
+            || null;
+          const registrantName = whoisData?.result?.registrant_name
+            || whoisData?.registrant?.name
+            || whoisData?.contacts?.registrant?.name
+            || null;
+          const registrantEmail = whoisData?.result?.registrant_email
+            || whoisData?.registrant?.email
+            || whoisData?.contacts?.registrant?.email
+            || null;
+
+          const orgName = registrantOrg || registrantName;
+
+          if (orgName && !orgName.toLowerCase().includes('privacy') && !orgName.toLowerCase().includes('redacted') && !orgName.toLowerCase().includes('proxy')) {
+            orgIdentification = {
+              orgName,
+              registrantEmail,
+              registrantOrg: registrantOrg || null,
+              sector: null, // Will be inferred by LLM in narrative generation
+              source: 'whois',
+              confidence: 'high',
+              baseDomain,
+            };
+            addLog(state, {
+              phase: "passive_discovery", type: "info",
+              title: `🏢 Organization Identified: ${orgName}`,
+              detail: `WHOIS for ${baseDomain} → Registrant: ${orgName}${registrantEmail ? ` (${registrantEmail})` : ''}`,
+            });
+            break; // Found a valid org, stop looking
+          } else if (orgName) {
+            addLog(state, {
+              phase: "passive_discovery", type: "info",
+              title: `WHOIS Privacy: ${baseDomain}`,
+              detail: `Registrant info redacted/proxied: "${orgName}"`,
+            });
+          }
+        } catch (err: any) {
+          addLog(state, {
+            phase: "passive_discovery", type: "warning",
+            title: `WHOIS Lookup Failed: ${baseDomain}`,
+            detail: err.message,
+          });
+        }
+      }
+    } else if (!ENV.SECURITYTRAILS_API_KEY) {
+      addLog(state, {
+        phase: "passive_discovery", type: "warning",
+        title: "WHOIS Skipped",
+        detail: "SecurityTrails API key not configured — cannot perform WHOIS lookup",
+      });
+    }
+
+    // Fallback: Use engagement customerName if WHOIS didn't identify the org
+    if (!orgIdentification && engagement.customerName && engagement.customerName !== 'Auto') {
+      orgIdentification = {
+        orgName: engagement.customerName,
+        registrantEmail: null,
+        registrantOrg: null,
+        sector: null,
+        source: 'customer_name',
+        confidence: 'medium',
+        baseDomain: domains[0] || '',
+      };
+      addLog(state, {
+        phase: "passive_discovery", type: "info",
+        title: `🏢 Organization (from engagement): ${engagement.customerName}`,
+        detail: `WHOIS was private/unavailable. Using engagement customer name as org identifier.`,
+      });
+    }
+  } catch (err: any) {
+    addLog(state, {
+      phase: "passive_discovery", type: "warning",
+      title: "Org Identification Failed",
+      detail: `Non-fatal error during org identification: ${err.message}`,
+    });
+  }
+
   // Run comprehensive DNS Security Validation
   let dnsSecurityReport: DnsSecurityReport | null = null;
   try {
@@ -376,6 +491,9 @@ export async function executePassiveDiscovery(
     });
   }
 
+  // Store org identification on result
+  result.orgIdentification = orgIdentification;
+
   // Store results in state
   state.passiveDiscovery = {
     completedAt: Date.now(),
@@ -388,7 +506,13 @@ export async function executePassiveDiscovery(
     emailAddresses: result.emailAddresses,
     breachExposure: result.breachExposure,
     dnsSecurityReport,
+    orgIdentification,
   };
+
+  // Also store on top-level state for easy access by narrative/report generators
+  if (orgIdentification) {
+    state.identifiedOrg = orgIdentification;
+  }
 
   addLog(state, {
     phase: "passive_discovery", type: "phase_complete",
