@@ -134,6 +134,7 @@ export async function executeTargetedToolDeployment(
   });
 
   const { suggestToolCommands } = await import("../scan-server-executor");
+  const ASSET_SCAN_TIMEOUT_MS = 15 * 60_000; // 15 min max per asset to prevent one hung asset from blocking the rest
 
   for (const asset of state.assets) {
     if ((asset.ports || []).length === 0) continue;
@@ -149,44 +150,72 @@ export async function executeTargetedToolDeployment(
       continue;
     }
 
-    // Classify asset type
-    const webPorts = (asset.ports || []).filter(
-      (p: any) =>
-        ["http", "https", "http-proxy", "http-alt"].includes(p.service) ||
-        [80, 443, 8080, 8443, 8000, 3000, 5000].includes(p.port)
-    );
-    if (webPorts.length > 0) asset.type = "web_app";
+    // ═══ PER-ASSET TRY/CATCH + TIMEOUT ═══
+    // Prevents one hung/failed asset from killing the entire tool deployment loop.
+    // If an asset scan hangs (SSH drop, scan server OOM, etc.), it will timeout after
+    // ASSET_SCAN_TIMEOUT_MS and the loop will continue to the next asset.
+    try {
+      await Promise.race([
+        (async () => {
+          // Classify asset type
+          const webPorts = (asset.ports || []).filter(
+            (p: any) =>
+              ["http", "https", "http-proxy", "http-alt"].includes(p.service) ||
+              [80, 443, 8080, 8443, 8000, 3000, 5000].includes(p.port)
+          );
+          if (webPorts.length > 0) asset.type = "web_app";
 
-    const target = getEffectiveTarget(asset, "discovery");
-    const httpTarget = getEffectiveTarget(asset, "http");
-    const assetPlan = state.scanPlan?.assetPlans.find(
-      (ap: any) => ap.hostname === asset.hostname || ap.ip === target
-    );
+          const target = getEffectiveTarget(asset, "discovery");
+          const httpTarget = getEffectiveTarget(asset, "http");
+          const assetPlan = state.scanPlan?.assetPlans.find(
+            (ap: any) => ap.hostname === asset.hostname || ap.ip === target
+          );
 
-    // Auto-select scan tool
-    const { autoSelectTool: autoSelectToolB } = await import("../scanforge-discovery");
-    const sfTool = autoSelectToolB({
-      targets: [target],
-      stealthLevel: assetPlan?.evasionTechniques?.length ? "medium" : "minimal",
-    });
+          // Auto-select scan tool
+          const { autoSelectTool: autoSelectToolB } = await import("../scanforge-discovery");
+          const sfTool = autoSelectToolB({
+            targets: [target],
+            stealthLevel: assetPlan?.evasionTechniques?.length ? "medium" : "minimal",
+          });
 
-    // ── Targeted ScanForge discovery ──
-    await runTargetedDiscovery(state, asset, target, httpTarget, assetPlan, sfTool, helpers);
+          // ── Targeted ScanForge discovery ──
+          await runTargetedDiscovery(state, asset, target, httpTarget, assetPlan, sfTool, helpers);
 
-    // ── Build tool command list ──
-    let cmdsToRun = await buildToolCommandList(state, asset, target, httpTarget, assetPlan, helpers);
+          // ── Build tool command list ──
+          let cmdsToRun = await buildToolCommandList(state, asset, target, httpTarget, assetPlan, helpers);
 
-    // ── Merge context-aware strategy tools ──
-    cmdsToRun = mergeContextAwareTools(state, asset, httpTarget, cmdsToRun, helpers);
+          // ── Merge context-aware strategy tools ──
+          cmdsToRun = mergeContextAwareTools(state, asset, httpTarget, cmdsToRun, helpers);
 
-    // ── Filter and sanitize commands ──
-    const highPriorityCmds = filterAndSanitize(state, asset, target, httpTarget, cmdsToRun, helpers);
+          // ── Filter and sanitize commands ──
+          const highPriorityCmds = filterAndSanitize(state, asset, target, httpTarget, cmdsToRun, helpers);
 
-    // ── Apply evasion profile flags ──
-    await applyEvasionFlags(state, asset, highPriorityCmds);
+          // ── Apply evasion profile flags ──
+          await applyEvasionFlags(state, asset, highPriorityCmds);
 
-    // ── Parallel execution ──
-    await executeToolsInParallel(state, asset, highPriorityCmds, helpers);
+          // ── Parallel execution ──
+          await executeToolsInParallel(state, asset, highPriorityCmds, helpers);
+        })(),
+        new Promise<never>((_, reject) =>
+          setTimeout(
+            () => reject(new Error(`Asset scan timeout: ${asset.hostname} exceeded ${ASSET_SCAN_TIMEOUT_MS / 60_000} min limit`)),
+            ASSET_SCAN_TIMEOUT_MS
+          )
+        ),
+      ]);
+    } catch (assetErr: any) {
+      const isTimeout = assetErr?.message?.includes('Asset scan timeout');
+      addLog(state, {
+        phase: "enumeration",
+        type: "error",
+        title: isTimeout
+          ? `⏱️ Asset Timeout: ${asset.hostname}`
+          : `❌ Asset Scan Failed: ${asset.hostname}`,
+        detail: `${assetErr?.message || assetErr}. Continuing to next asset.`.slice(0, 500),
+      });
+      // Continue to next asset instead of dying
+      continue;
+    }
   }
 
   state.progress = 35;
