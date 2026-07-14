@@ -125,6 +125,10 @@ export interface AttackSuccess {
   accessLevel?: string;
   sessionToken?: string;
   additionalInfo?: string;
+  /** Confidence level of the credential validation: high (session cookie/auth redirect), medium (auth content), low (absence of failure only) */
+  confidence?: 'high' | 'medium' | 'low';
+  /** Signals that contributed to the success determination */
+  successSignals?: string[];
 }
 
 export interface LockoutDetection {
@@ -483,30 +487,87 @@ async function testHttpForm(
     const respText = await resp.text();
     const respCode = resp.status;
 
-    // Step 4: Determine success/failure
+    // Step 4: Determine success/failure with positive signal validation
     let success = false;
+    let confidence: 'high' | 'medium' | 'low' = 'low';
+    const successSignals: string[] = [];
 
     // Check explicit indicators first
     if (successIndicator) {
       success = new RegExp(successIndicator, "i").test(respText);
+      if (success) { confidence = 'high'; successSignals.push('explicit_success_indicator'); }
     } else if (failureIndicator) {
-      success = !new RegExp(failureIndicator, "i").test(respText);
+      const hasFailure = new RegExp(failureIndicator, "i").test(respText);
+      if (hasFailure) {
+        success = false;
+      } else {
+        // Absence of failure string alone is NOT sufficient — check for positive signals
+        success = false; // Default to false, upgrade below if positive signals found
+        
+        // Check for session cookie (strong positive signal)
+        const setCookie = resp.headers.get("set-cookie") || "";
+        const hasSessionCookie = /session|token|auth|sid|jwt/i.test(setCookie);
+        if (hasSessionCookie) { success = true; confidence = 'high'; successSignals.push('session_cookie_set'); }
+        
+        // Check for authenticated content (medium positive signal)
+        const hasAuthContent = /dashboard|welcome|logout|profile|my.?account|signed.?in/i.test(respText);
+        if (hasAuthContent) { success = true; confidence = success && confidence === 'high' ? 'high' : 'medium'; successSignals.push('authenticated_content'); }
+        
+        // Check for redirect to authenticated page
+        if (respCode === 302 || respCode === 301) {
+          const location = resp.headers.get("location") || "";
+          const authRedirect = /dashboard|admin|home|panel|account/i.test(location);
+          if (authRedirect) { success = true; confidence = 'high'; successSignals.push('auth_redirect'); }
+        }
+        
+        // If no positive signals found but no failure indicator either,
+        // mark as potential (low confidence) — NOT confirmed
+        if (!success && respCode === 200) {
+          const hasLoginForm = /type=["']password["']/i.test(respText);
+          if (!hasLoginForm) {
+            // Response has no login form and no failure message — suspicious but not confirmed
+            success = true;
+            confidence = 'low';
+            successSignals.push('no_failure_indicator_only');
+          }
+        }
+      }
     } else {
-      // Heuristic: 302 redirect to non-login page = success
+      // No indicators provided — use heuristic with positive signal requirement
       if (respCode === 302 || respCode === 301) {
         const location = resp.headers.get("location") || "";
-        success = !location.includes("login") && !location.includes("error") && !location.includes("fail");
+        const isAuthRedirect = /dashboard|admin|home|panel|account/i.test(location);
+        const isFailRedirect = /login|error|fail|denied/i.test(location);
+        if (isAuthRedirect && !isFailRedirect) {
+          success = true; confidence = 'high'; successSignals.push('auth_redirect');
+        } else if (!isFailRedirect && location.length > 0) {
+          success = true; confidence = 'medium'; successSignals.push('non_login_redirect');
+        }
       }
-      // 200 with dashboard/welcome content = success
       else if (respCode === 200) {
         const hasLoginForm = /type=["']password["']/i.test(respText);
         const hasErrorMsg = /invalid|incorrect|failed|wrong|error|denied/i.test(respText);
-        success = !hasLoginForm && !hasErrorMsg;
+        const hasAuthContent = /dashboard|welcome|logout|profile|my.?account|signed.?in/i.test(respText);
+        const setCookie = resp.headers.get("set-cookie") || "";
+        const hasSessionCookie = /session|token|auth|sid|jwt/i.test(setCookie);
+        
+        if (hasLoginForm || hasErrorMsg) {
+          success = false;
+        } else if (hasSessionCookie) {
+          success = true; confidence = 'high'; successSignals.push('session_cookie_set');
+        } else if (hasAuthContent) {
+          success = true; confidence = 'medium'; successSignals.push('authenticated_content');
+        } else {
+          // No positive signals — mark low confidence
+          success = true; confidence = 'low'; successSignals.push('no_failure_indicator_only');
+        }
       }
     }
 
     return {
       success,
+      confidence,
+      successSignals,
       responseCode: respCode,
       responseSnippet: respText.substring(0, 200),
     };
@@ -941,14 +1002,24 @@ export async function executeCredentialAttack(config: AttackConfig): Promise<Att
     recentResponses.push(result);
 
     if (result.success) {
-      console.log(`[CredAttack] ✓ SUCCESS: ${pair.username}:${pair.password} on ${config.target.host}:${config.target.port}`);
+      const confidence = (result as any).confidence || 'medium';
+      const successSignals = (result as any).successSignals || [];
+      const confidenceLabel = confidence === 'high' ? '✓ CONFIRMED' : confidence === 'medium' ? '⚠ PROBABLE' : '⚡ UNCONFIRMED (low confidence)';
+      console.log(`[CredAttack] ${confidenceLabel}: ${pair.username}:${pair.password} on ${config.target.host}:${config.target.port} [signals: ${successSignals.join(', ')}]`);
+      
+      // Only count as success if confidence is medium or higher
+      // Low-confidence results are stored but flagged for manual review
       successfulLogins.push({
         username: pair.username,
         password: pair.password,
         timestamp: Date.now(),
         responseCode: result.responseCode,
         responseSnippet: result.responseSnippet,
-        additionalInfo: pair.source,
+        additionalInfo: confidence === 'low' 
+          ? `${pair.source || ''} [UNCONFIRMED - needs manual validation. Signal: ${successSignals.join(', ')}]`.trim()
+          : pair.source,
+        confidence,
+        successSignals,
       });
 
       if (config.stopOnFirstSuccess) {

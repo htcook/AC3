@@ -744,6 +744,41 @@ export async function runDeduplicationPipeline(
     }
   }
 
+  // Step 2.5: Flag findings detected on non-200 responses (WAF block pages, 403s)
+  // These may be reporting on error/block page headers rather than actual application responses
+  let blockPageFlagged = 0;
+  for (const asset of processedAssets) {
+    for (const vuln of asset.vulns) {
+      // Check if the finding's evidence shows a non-200 response (particularly 403)
+      const evidence = (vuln as any).evidence || (vuln as any).rawEvidence || '';
+      const evidenceStr = typeof evidence === 'string' ? evidence : JSON.stringify(evidence);
+      const has403 = /HTTP\/[12][.\d]*\s+403|status[_\s]*code[":\s]*403|\b403\s+Forbidden/i.test(evidenceStr);
+      const isHeaderFinding = /missing.*header|header.*not.*set|strict-transport|content-security|referrer-policy|x-frame-options|x-content-type/i.test(vuln.title);
+      
+      if (has403 && isHeaderFinding) {
+        (vuln as any).blockPageFlag = true;
+        (vuln as any).reviewNote = 'Finding detected on HTTP 403 response (possible WAF/block page). Verify against live 200 response.';
+        blockPageFlagged++;
+      }
+    }
+    // Also check ZAP findings
+    for (const zap of asset.zapFindings) {
+      const url = zap.url || '';
+      const evidence = (zap as any).evidence || (zap as any).other || '';
+      const has403 = /403|Forbidden/i.test(evidence);
+      const isHeaderFinding = /missing.*header|header.*not.*set|strict-transport|content-security|referrer-policy|x-frame-options|x-content-type/i.test(zap.alert);
+      
+      if (has403 && isHeaderFinding) {
+        (zap as any).blockPageFlag = true;
+        (zap as any).reviewNote = 'Finding detected on HTTP 403 response (possible WAF/block page). Verify against live 200 response.';
+        blockPageFlagged++;
+      }
+    }
+  }
+  if (blockPageFlagged > 0) {
+    log.push(`[Block-Page Flag] ${blockPageFlagged} header finding(s) detected on 403/block-page responses — flagged for manual review`);
+  }
+
   // Step 3: Multi-tool consolidation (per asset)
   if (enableMultiToolConsolidation) {
     let totalMerged = 0;

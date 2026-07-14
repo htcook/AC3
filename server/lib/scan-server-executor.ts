@@ -1009,12 +1009,12 @@ export async function suggestToolCommands(asset: {
         }
       }
 
-      // Generic HTTP form credential testing with common defaults
+      // Generic HTTP form credential testing with web-appropriate defaults
       commands.push({
         tool: 'hydra',
-        args: `-l admin -P /opt/SecLists/Passwords/Common-Credentials/top-20-common-SSH-passwords.txt -s ${wp.port} -t 4 -f -V ${hydraTarget} ${scheme === 'https' ? 'https-form-post' : 'http-form-post'} '/login:username=^USER^&password=^PASS^:incorrect'`,
-        purpose: `HTTP form credential testing (common passwords) on port ${wp.port}`,
-        priority: 3,
+        args: `-l admin -P /opt/SecLists/Passwords/Default-Credentials/default-passwords.txt -s ${wp.port} -t 4 -f -V ${hydraTarget} ${scheme === 'https' ? 'https-form-post' : 'http-form-post'} '/login:username=^USER^&password=^PASS^:incorrect'`,
+        purpose: `HTTP form credential testing (web default passwords) on port ${wp.port}`,
+        priority: 2,
       });
     }
   }

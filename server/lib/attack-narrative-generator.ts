@@ -203,7 +203,7 @@ async function generateSingleNarrative(
   ].filter(Boolean).join('\n');
 
   const targetContext = input.targetProfile ? [
-    `Industry: ${input.targetProfile.industry || 'Unknown'}`,
+    `Industry: ${input.targetProfile.industry || 'Unknown (DO NOT infer sector from hostnames — "grid" in a hostname does NOT mean utilities/energy)'}`,
     input.targetProfile.waf ? `WAF: ${input.targetProfile.waf}` : '',
     input.targetProfile.cdn ? `CDN: ${input.targetProfile.cdn}` : '',
     input.targetProfile.techStack?.length ? `Tech Stack: ${input.targetProfile.techStack.join(', ')}` : '',
@@ -253,6 +253,15 @@ Target context: ${targetContext}`,
     }
   ],
   "mitreTechniques": ["T1190", "T1059", etc.],
+  // IMPORTANT: Use correct MITRE ATT&CK technique IDs. Common mappings:
+  // - Credential brute force: T1110.001 (Password Guessing)
+  // - Default credentials: T1078.001 (Valid Accounts: Default Accounts)
+  // - Open/external redirect: T1204.001 (User Execution: Malicious Link)
+  // - SQL injection: T1190 (Exploit Public-Facing Application)
+  // - XSS: T1059.007 (Command and Scripting Interpreter: JavaScript)
+  // - SSRF: T1090 (Proxy) or T1190
+  // - DO NOT use T1182 (deprecated - was AppInit DLLs, now T1546.010)
+  // - DO NOT use T1562 (Impair Defenses) unless finding actually disables security tools
   "cvssScore": number or null
 }
 
@@ -437,7 +446,14 @@ export async function generateExecutiveSummary(
       messages: [
         {
           role: 'system',
-          content: `You are a senior penetration testing consultant writing an executive summary for a pentest report. The summary should be 3-5 paragraphs, written for C-level executives and security leadership. Focus on business risk, not technical details. Be direct and specific about what was found and what needs to happen next.`,
+          content: `You are a senior penetration testing consultant writing an executive summary for a pentest report. The summary should be 3-5 paragraphs, written for C-level executives and security leadership. Focus on business risk, not technical details. Be direct and specific about what was found and what needs to happen next.
+
+IMPORTANT RULES:
+- DO NOT infer the client's industry sector from hostnames (e.g., "grid" does NOT mean utilities/energy, "cdn" does NOT mean media company)
+- If industry is "Unknown", write sector-neutral business impact language
+- DO NOT claim compliance frameworks were "assessed" — an external scan can only identify "implications for" specific controls
+- DO NOT reference HIPAA, NERC CIP, or other sector-specific frameworks unless the industry is explicitly confirmed
+- Use qualitative risk language (High/Medium/Low) not precise percentages for threat likelihood`,
         },
         {
           role: 'user',
@@ -453,7 +469,7 @@ Ports discovered: ${input.stats.portsFound}
 Top attack paths:
 ${topNarratives || 'No critical/high attack paths identified'}
 
-Industry: ${input.targetProfile?.industry || 'Unknown'}
+Industry: ${input.targetProfile?.industry || 'Unknown (DO NOT infer from hostnames)'}
 WAF/CDN: ${input.targetProfile?.waf || 'None detected'} / ${input.targetProfile?.cdn || 'None detected'}`,
         },
       ],
