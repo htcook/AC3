@@ -1288,7 +1288,7 @@ export async function suggestToolCommands(asset: {
         tool: "ffuf",
         args: `-w /opt/SecLists/Discovery/DNS/subdomains-top1million-5000.txt -u ${url} -H "Host: FUZZ.${asset.hostname}" -mc 200,204,301,302,307,308,401,403 -json -s -ac`,
         purpose: `Virtual host enumeration on ${url} — discovers hidden vhosts sharing the same IP`,
-        priority: 3,
+        priority: 2,
       });
     }
   }
@@ -1304,7 +1304,7 @@ export async function suggestToolCommands(asset: {
         tool: "wafw00f",
         args: `${url} -o - -a`,
         purpose: `WAF fingerprinting on ${url} — identifies web application firewalls for evasion planning`,
-        priority: 3,
+        priority: 2,
       });
     }
   }

@@ -737,6 +737,29 @@ async function executeToolsInParallel(
       }
     }
 
+    // ── Track completedScans for each tool type ──
+    const assetId = asset.hostname || asset.ip || "unknown";
+    if (state.completedScans) {
+      const toolToCompletionSet: Record<string, keyof typeof state.completedScans> = {
+        nuclei: "nucleiCompleted",
+        zap: "zapCompleted",
+        hydra: "hydraCompleted",
+        katana: "katanaCompleted",
+        feroxbuster: "feroxbusterCompleted",
+        ffuf: "ffufCompleted",
+        "testssl.sh": "testsslCompleted",
+        testssl: "testsslCompleted",
+        wafw00f: "wafw00fCompleted",
+        arjun: "paramDiscoveryCompleted",
+        paramspider: "paramDiscoveryCompleted",
+        burp: "burpCompleted",
+      };
+      const setName = toolToCompletionSet[cmd.tool];
+      if (setName && state.completedScans[setName]) {
+        (state.completedScans[setName] as Set<string>).add(assetId);
+      }
+    }
+
     return { tool: cmd.tool, findings: newCount, timedOut: result.timedOut };
   }
 

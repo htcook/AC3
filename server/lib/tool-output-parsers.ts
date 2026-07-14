@@ -783,6 +783,60 @@ export function parseToolOutput(
       }
       break;
     }
+    case "testssl.sh": {
+      // Alias for testssl — same parsing logic
+      for (const line of stdout.split("\n")) {
+        if (/VULNERABLE/i.test(line)) {
+          const cve = line.match(/CVE-\d{4}-\d+/)?.[0];
+          findings.push({ severity: cve ? "critical" : "high", title: `[testssl] ${line.trim().slice(0, 150)}`, cve });
+        }
+      }
+      if (/NOT\s+ok/i.test(stdout)) findings.push({ severity: "medium", title: "[testssl] TLS configuration issues" });
+      break;
+    }
+    case "wafw00f": {
+      // wafw00f output: "<url> is behind <WAF> (<vendor>)" or "No WAF detected"
+      for (const line of stdout.split("\n")) {
+        const wafMatch = line.match(/is behind\s+(.+?)\s*\(/);
+        if (wafMatch) {
+          findings.push({ severity: "info", title: `[wafw00f] WAF detected: ${wafMatch[1].trim()}` });
+        }
+        if (/no waf/i.test(line) || /is not behind/i.test(line)) {
+          findings.push({ severity: "info", title: "[wafw00f] No WAF detected — target may be directly exposed" });
+        }
+      }
+      break;
+    }
+    case "arjun": {
+      // Arjun JSON output mode: {"url": ..., "params": [...]}
+      try {
+        const parsed = JSON.parse(stdout);
+        if (Array.isArray(parsed)) {
+          for (const entry of parsed) {
+            if (entry.params?.length) {
+              findings.push({ severity: "info", title: `[arjun] Hidden parameters found on ${entry.url}: ${entry.params.join(", ")}` });
+            }
+          }
+        } else if (parsed.params?.length) {
+          findings.push({ severity: "info", title: `[arjun] Hidden parameters: ${parsed.params.join(", ")}` });
+        }
+      } catch {
+        // Line-based fallback
+        for (const line of stdout.split("\n")) {
+          const paramMatch = line.match(/\[(.+?)\]\s*(.+)/);
+          if (paramMatch) findings.push({ severity: "info", title: `[arjun] ${line.trim().slice(0, 150)}` });
+        }
+      }
+      break;
+    }
+    case "paramspider": {
+      // paramspider outputs parameterized URLs from web archives
+      const urls = stdout.split("\n").filter(l => l.trim().startsWith("http"));
+      if (urls.length > 0) {
+        findings.push({ severity: "info", title: `[paramspider] ${urls.length} parameterized URL(s) discovered from web archives` });
+      }
+      break;
+    }
     default:
       break;
   }

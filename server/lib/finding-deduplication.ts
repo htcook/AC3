@@ -81,8 +81,11 @@ export interface DeduplicationResult {
     zapNoiseFiltered: number;
     multiToolMerged: number;
     rescanDuplicatesRemoved: number;
+    crossHostConsolidated: number;
   };
   log: string[];
+  /** Distinct vulnerability types after cross-host consolidation */
+  distinctVulnTypes?: Array<{ title: string; severity: string; affectedHosts: string[]; count: number }>;
 }
 
 // ─── ZAP Noise Patterns ────────────────────────────────────────────────────
@@ -603,7 +606,76 @@ export function getRelevantZapRules(vuln: { title: string; severity: string }): 
   return [...new Set(rules)];
 }
 
-// ─── Master Pipeline ───────────────────────────────────────────────────────
+// ─── Fix 6: Cross-Host Title-Based Consolidation ─────────────────────────────
+
+/**
+ * Consolidates the same finding type across ALL hosts (regardless of IP).
+ * After IP-based dedup handles same-IP hosts, this pass handles the case where
+ * the same vulnerability type (e.g., "Missing HSTS Header") appears on hosts
+ * at different IPs (e.g., 18.209.149.165 and 40.39.3.58).
+ *
+ * This does NOT remove findings from individual assets (they still appear per-host
+ * in detailed views). Instead, it produces a consolidated summary of distinct
+ * vulnerability types with affected host lists for executive reporting.
+ */
+export function consolidateCrossHost(assets: AssetFindings[]): {
+  distinctTypes: Array<{ title: string; severity: string; affectedHosts: string[]; count: number }>;
+  consolidatedCount: number;
+  totalInstances: number;
+} {
+  const typeMap = new Map<string, { title: string; severity: string; affectedHosts: Set<string>; count: number }>();
+
+  for (const asset of assets) {
+    const hostname = asset.hostname;
+
+    for (const vuln of asset.vulns) {
+      const normKey = normalizeFindingTitle(vuln.title);
+      const existing = typeMap.get(normKey);
+      if (!existing) {
+        typeMap.set(normKey, { title: vuln.title, severity: vuln.severity, affectedHosts: new Set([hostname]), count: 1 });
+      } else {
+        existing.affectedHosts.add(hostname);
+        existing.count++;
+        if (getSeverityRank(vuln.severity) > getSeverityRank(existing.severity)) existing.severity = vuln.severity;
+      }
+    }
+
+    for (const zap of asset.zapFindings) {
+      const normKey = normalizeFindingTitle(zap.alert);
+      const existing = typeMap.get(normKey);
+      if (!existing) {
+        typeMap.set(normKey, { title: zap.alert, severity: zap.risk || 'info', affectedHosts: new Set([hostname]), count: 1 });
+      } else {
+        existing.affectedHosts.add(hostname);
+        existing.count++;
+        if (getSeverityRank(zap.risk || 'info') > getSeverityRank(existing.severity)) existing.severity = zap.risk || 'info';
+      }
+    }
+
+    if (asset.nucleiFindings) {
+      for (const nf of asset.nucleiFindings) {
+        const normKey = normalizeFindingTitle(nf.title);
+        const existing = typeMap.get(normKey);
+        if (!existing) {
+          typeMap.set(normKey, { title: nf.title, severity: nf.severity, affectedHosts: new Set([hostname]), count: 1 });
+        } else {
+          existing.affectedHosts.add(hostname);
+          existing.count++;
+          if (getSeverityRank(nf.severity) > getSeverityRank(existing.severity)) existing.severity = nf.severity;
+        }
+      }
+    }
+  }
+
+  const totalInstances = [...typeMap.values()].reduce((sum, t) => sum + t.count, 0);
+  const distinctTypes = [...typeMap.values()]
+    .map(t => ({ title: t.title, severity: t.severity, affectedHosts: [...t.affectedHosts], count: t.count }))
+    .sort((a, b) => getSeverityRank(b.severity) - getSeverityRank(a.severity));
+
+  return { distinctTypes, consolidatedCount: distinctTypes.length, totalInstances };
+}
+
+// ─── Master Pipeline ───────────────────────────────────────────────────────────────────────
 
 /**
  * Runs the complete deduplication pipeline on engagement assets.
@@ -639,6 +711,7 @@ export async function runDeduplicationPipeline(
     zapNoiseFiltered: 0,
     multiToolMerged: 0,
     rescanDuplicatesRemoved: 0,
+    crossHostConsolidated: 0,
   };
 
   let processedAssets = [...assets];
@@ -706,6 +779,13 @@ export async function runDeduplicationPipeline(
     }
   }
 
+  // Step 5: Cross-host title-based consolidation (for reporting)
+  const crossHostResult = consolidateCrossHost(processedAssets);
+  stats.crossHostConsolidated = crossHostResult.totalInstances - crossHostResult.consolidatedCount;
+  if (crossHostResult.consolidatedCount > 0) {
+    log.push(`[Cross-Host] ${crossHostResult.totalInstances} per-endpoint instances consolidated into ${crossHostResult.consolidatedCount} distinct vulnerability types across all hosts`);
+  }
+
   // Calculate final stats
   stats.deduplicatedAssetCount = processedAssets.length;
   stats.deduplicatedVulnCount = processedAssets.reduce((sum, a) => sum + a.vulns.length + a.zapFindings.length, 0);
@@ -714,6 +794,7 @@ export async function runDeduplicationPipeline(
   if (totalReduction > 0) {
     log.push(`[Summary] Total finding reduction: ${stats.originalVulnCount} → ${stats.deduplicatedVulnCount} (${totalReduction} removed, ${Math.round((totalReduction / stats.originalVulnCount) * 100)}% reduction)`);
   }
+  log.push(`[Distinct Types] ${crossHostResult.consolidatedCount} unique vulnerability types identified for executive reporting`);
 
-  return { assets: processedAssets, stats, log };
+  return { assets: processedAssets, stats, log, distinctVulnTypes: crossHostResult.distinctTypes };
 }
