@@ -47,7 +47,7 @@ export async function runHttpxProbing(
   );
   const httpxFlags =
     assetPlan?.httpxFlags ||
-    "-json -tech-detect -status-code -title -cdn -tls-grab -follow-redirects -content-length -web-server -silent";
+    "-json -tech-detect -status-code -title -cdn -tls-grab -follow-redirects -content-length -web-server -include-response-header -silent";
 
   // Build target URLs
   const httpxTargets = webPorts.map((p) => {
@@ -176,6 +176,12 @@ export async function runHttpxProbing(
           ...(asset.passiveRecon.riskSignals || []),
           ...cdnDetected.map((c) => ({ severity: "low", type: "cdn_waf", rationale: `CDN/WAF detected: ${c}` })),
         ];
+        // Set wafDetected on asset so target-profiler and downstream tools know a WAF/CDN is present
+        const wafLikeCdns = ["aws", "cloudflare", "akamai", "imperva", "incapsula", "sucuri", "f5", "fortinet", "barracuda", "radware"];
+        const detectedWaf = cdnDetected.find((c) => wafLikeCdns.some((w) => c.toLowerCase().includes(w)));
+        if (detectedWaf && (!asset.wafDetected || asset.wafDetected === "none")) {
+          asset.wafDetected = detectedWaf;
+        }
       }
       if (webServer) {
         asset.passiveRecon.technologies = Array.from(
