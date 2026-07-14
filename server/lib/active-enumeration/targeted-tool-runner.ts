@@ -766,6 +766,17 @@ async function executeToolsInParallel(
       }
     }
 
+    // ── Wire wafw00f result into asset.wafDetected ──
+    if (cmd.tool === "wafw00f" && findings.length > 0) {
+      const wafFinding = findings.find((f: any) => /WAF detected:/i.test(f.title));
+      if (wafFinding) {
+        const wafName = wafFinding.title.replace(/.*WAF detected:\s*/i, "").trim();
+        if (wafName && (!asset.wafDetected || asset.wafDetected === "none")) {
+          asset.wafDetected = wafName;
+        }
+      }
+    }
+
     // ── Track completedScans for each tool type ──
     const assetId = asset.hostname || asset.ip || "unknown";
     if (state.completedScans) {
