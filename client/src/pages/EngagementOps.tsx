@@ -296,6 +296,44 @@ function RescanEscalationButton({ engagementId, assetHostname, currentProfile }:
   );
 }
 
+// ─── Scan This Asset Button (targeted re-scan for individual assets) ──────────
+function ScanAssetButton({ engagementId, assetHostname, assetStatus }: {
+  engagementId: number;
+  assetHostname: string;
+  assetStatus: string;
+}) {
+  const scanMut = trpc.engagementOps.scanSelectedAssets.useMutation({
+    onSuccess: (result) => {
+      if (result.started) {
+        toast.success(`Targeted scan started for ${result.assets.join(', ')}`);
+      }
+    },
+    onError: (err) => toast.error(`Scan failed: ${err.message}`),
+  });
+  // Show for pending/error assets, or assets that haven't been scanned yet
+  const showButton = assetStatus === 'pending' || assetStatus === 'error' || assetStatus === 'unknown';
+  if (!showButton) return null;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          className="ml-1 h-7 px-2 text-[10px] gap-1 border-green-500/30 text-green-400 hover:bg-green-500/10 hover:border-green-500/50"
+          disabled={scanMut.isPending}
+          onClick={() => scanMut.mutate({ engagementId, assetHostnames: [assetHostname], includeVulnDetection: true })}
+        >
+          {scanMut.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Crosshair className="h-3 w-3" />}
+          Scan
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="max-w-xs">
+        <p className="text-xs">Run a targeted scan on <strong>{assetHostname}</strong> only (DNS → ports → fingerprinting → vuln detection). Does not affect other assets.</p>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 function getPhaseIndex(phase: string): number {
   if (phase === "recon_complete") return 0; // still in recon area
   if (phase === "complete") return PHASES.findIndex(p => p.id === "completed"); // normalize 'complete' → 'completed'
@@ -3206,6 +3244,7 @@ export default function EngagementOps() {
                         <h3 className="font-semibold text-foreground">{selectedAssetData.hostname}{selectedAssetData.ip && selectedAssetData.ip !== selectedAssetData.hostname && <span className="text-sm font-normal text-muted-foreground ml-2">({selectedAssetData.ip})</span>}</h3>
                         {assetStatusBadge(selectedAssetData.status)}
                         <RescanEscalationButton engagementId={engagementId} assetHostname={selectedAssetData.hostname} currentProfile={(ops as any)?.scanProfile || 'quick'} />
+                        <ScanAssetButton engagementId={engagementId} assetHostname={selectedAssetData.hostname} assetStatus={selectedAssetData.status} />
                       </div>
                       {selectedAssetData.wafDetected && (
                         <div className="flex items-center gap-2 text-xs text-orange-400 bg-orange-500/10 rounded px-2 py-1">

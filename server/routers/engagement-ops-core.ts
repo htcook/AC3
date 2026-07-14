@@ -5411,6 +5411,97 @@ Return ONLY a JSON object with vulnerabilities array.`;
         return result;
       }),
 
+    /** Scan specific selected assets within an engagement (targeted re-scan) */
+    scanSelectedAssets: protectedProcedure
+      .input(z.object({
+        engagementId: z.number(),
+        assetHostnames: z.array(z.string().min(1)).min(1).max(20),
+        scanProfile: z.enum(['quick', 'standard', 'deep']).optional(),
+        includeVulnDetection: z.boolean().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const engagement = await db.getEngagementById(input.engagementId);
+        if (!engagement) throw new TRPCError({ code: 'NOT_FOUND', message: 'Engagement not found' });
+        const dbConn = await db.getDb();
+        if (dbConn) await assertEngagementAccess(dbConn, input.engagementId, ctx.user);
+        const { getOpsState, getOpsStateWithRecovery, initOpsState, addLog: addOpsLog, broadcastOpsUpdate } = await import('../lib/engagement-orchestrator');
+        let state = getOpsState(input.engagementId);
+        if (!state) state = await getOpsStateWithRecovery(input.engagementId);
+        if (!state) state = initOpsState(input.engagementId, engagement.engagementType);
+        if (state.isRunning) throw new TRPCError({ code: 'CONFLICT', message: 'Engagement scan already running. Wait for it to complete.' });
+        // Resolve target assets — add any missing ones to state
+        const targetAssets: any[] = [];
+        for (const hostname of input.assetHostnames) {
+          let asset = state.assets.find((a: any) => a.hostname.toLowerCase() === hostname.toLowerCase() || a.ip === hostname);
+          if (!asset) {
+            asset = { hostname, type: 'unknown' as const, ports: [], vulns: [], zapFindings: [], exploitAttempts: [], toolResults: [], status: 'pending' as const };
+            state.assets.push(asset);
+          }
+          asset.status = 'scanning';
+          targetAssets.push(asset);
+        }
+        addOpsLog(state, {
+          phase: 'enumeration', type: 'info',
+          title: `\u{1F3AF} Targeted Scan: ${targetAssets.length} asset(s)`,
+          detail: `Operator ${ctx.user.name || ctx.user.openId} initiated targeted scan for: ${input.assetHostnames.join(', ')}\nProfile: ${input.scanProfile || 'standard'}`,
+        });
+        broadcastOpsUpdate(state.engagementId, { type: 'phase_change', phase: 'enumeration' });
+        state.isRunning = true;
+        // Run scan asynchronously
+        const stateRef = state;
+        (async () => {
+          try {
+            const { buildEnumerationHelpers, resolveAssetDns, executePortDiscovery, runTargetProfiling, executeTargetedToolDeployment } = await import('../lib/active-enumeration');
+            const { getEffectiveTarget } = await import('../lib/engagement-orchestrator');
+            const helpers = buildEnumerationHelpers(stateRef);
+            // Step 1: DNS resolution for selected assets
+            await resolveAssetDns(stateRef, targetAssets, helpers);
+            // Step 2: Port discovery for selected assets
+            const targets = targetAssets.map((a: any) => ({
+              scanTarget: getEffectiveTarget(a, 'discovery'),
+              assetHostname: a.hostname,
+            }));
+            await executePortDiscovery(stateRef, targets, helpers);
+            // Step 3: Target profiling for selected assets
+            await runTargetProfiling(stateRef, targetAssets, helpers);
+            // Step 4: Targeted tool deployment
+            await executeTargetedToolDeployment(stateRef, helpers);
+            // Step 5: Optional vuln detection
+            if (input.includeVulnDetection) {
+              const { executeVulnDetection } = await import('../lib/engagement-orchestrator');
+              await executeVulnDetection(stateRef, engagement, { id: String(ctx.user.id), name: ctx.user.name || undefined });
+            }
+            // Mark assets as scanned
+            for (const asset of targetAssets) { asset.status = 'scanned'; }
+            addOpsLog(stateRef, {
+              phase: 'enumeration', type: 'phase_complete',
+              title: `\u2705 Targeted Scan Complete`,
+              detail: `Finished scanning ${targetAssets.length} asset(s): ${targetAssets.map((a: any) => `${a.hostname} (${(a.ports || []).length} ports, ${(a.vulns || []).length} vulns)`).join(', ')}`,
+            });
+            stateRef.isRunning = false;
+            broadcastOpsUpdate(stateRef.engagementId, { type: 'phase_change', phase: stateRef.phase });
+            const { persistOpsStateNow } = await import('../lib/engagement-orchestrator');
+            await persistOpsStateNow(input.engagementId).catch(() => {});
+          } catch (err: any) {
+            console.error(`[ScanSelectedAssets] Error:`, err.message);
+            for (const asset of targetAssets) { asset.status = 'error'; }
+            addOpsLog(stateRef, {
+              phase: 'enumeration', type: 'error',
+              title: `\u274c Targeted Scan Failed`,
+              detail: `Error scanning ${input.assetHostnames.join(', ')}: ${err.message}`,
+            });
+            stateRef.isRunning = false;
+            broadcastOpsUpdate(stateRef.engagementId, { type: 'phase_change', phase: 'error' });
+          }
+        })();
+        await db.logActivity({
+          userId: ctx.user.id,
+          action: 'targeted_scan_started',
+          details: `Started targeted scan for ${input.assetHostnames.join(', ')} in engagement #${input.engagementId}`,
+        });
+        return { started: true, assetsCount: targetAssets.length, assets: input.assetHostnames };
+      }),
+
     /** Get hot path analysis for a specific engagement */
     getEngagementHotPaths: protectedProcedure
       .input(z.object({
