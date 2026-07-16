@@ -3955,14 +3955,30 @@ export async function executeEngagement(
   }
   // Debug: log engagement fields for restart resilience diagnosis
   console.log(`[ExecuteEngagement] #${engagementId} loaded from DB: roeStatus=${JSON.stringify(engagement.roeStatus)}, trainingLabMode=${state.trainingLabMode}, startPhase=${startPhase}, resume=${options?.resume}`);
-  // Check RoE status
+  // Check RoE status.
+  // A digitally signed RoE is preferred but NOT required: operators may run an
+  // engagement that was manually assigned or verbally approved by the customer,
+  // or that has a customer-provided RoE / approved Test Plan uploaded. Only a
+  // clearly invalid status (e.g. 'expired') blocks active operations.
   if (engagement.roeStatus !== "signed" && engagement.roeStatus !== "pending" && engagement.roeStatus !== "none" && engagement.roeStatus && !state.trainingLabMode) {
     addLog(state, {
       phase: "idle",
       type: "error",
-      title: "⚠️ RoE Not Signed",
-      detail: "Rules of Engagement must be signed before active operations can begin. Only passive recon is allowed.",
+      title: "⚠️ RoE Not Valid",
+      detail: `Rules of Engagement status is "${engagement.roeStatus}". Resolve the RoE (sign, or set to a valid status) before active operations. Only passive recon is allowed.`,
     });
+  } else if (!state.trainingLabMode && engagement.roeStatus !== "signed") {
+    // Launching without a digitally signed RoE — record an explicit operator
+    // attestation so there is an audit trail for the manual/verbal-approval and
+    // customer-provided-document cases.
+    const attestor = operatorCtx.name || operatorCtx.id || (engagement.createdBy != null ? `user#${engagement.createdBy}` : "operator");
+    addLog(state, {
+      phase: "idle",
+      type: "info",
+      title: "📝 Launching without a digitally signed RoE",
+      detail: `RoE status: "${engagement.roeStatus || "none"}". Proceeding under operator-attested manual/verbal customer authorization (attestor: ${attestor}). A digitally signed RoE or approved Test Plan is preferred — upload it to the engagement when available.`,
+    });
+    console.warn(`[Orchestrator] Engagement #${engagementId} launched without a signed RoE (status=${engagement.roeStatus || "none"}); recorded operator attestation by ${attestor}.`);
   }
 
   state.isRunning = true;

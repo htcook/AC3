@@ -48,17 +48,13 @@ export const calderaAuthRouter = router({
       }))
       .mutation(async ({ input, ctx }) => {
         const validUsernames = ['red', 'blue', 'admin'];
-        // Password must come from env var CALDERA_PASSWORD — no hardcoded fallbacks.
-        const CANONICAL_PASSWORD = ENV.calderaPassword;
+        // Credentials come only from env (CALDERA_PASSWORD / CALDERA_API_KEY) or
+        // the live Caldera API. No hardcoded/canonical password, no backdoor.
         const envPassword = ENV.calderaPassword;
         const calderaApiKey = ENV.calderaApiKey;
 
-        // Log diagnostic info (password lengths and char hints, not full values)
-        const inputFirst = input.password.charAt(0);
-        const inputLast = input.password.charAt(input.password.length - 1);
-        const canonFirst = CANONICAL_PASSWORD.charAt(0);
-        const canonLast = CANONICAL_PASSWORD.charAt(CANONICAL_PASSWORD.length - 1);
-        console.log(`[Auth] Login attempt: user=${input.username}, inputLen=${input.password.length}, canonLen=${CANONICAL_PASSWORD.length}, envLen=${envPassword?.length || 0}, inputHint=${inputFirst}...${inputLast}, canonHint=${canonFirst}...${canonLast}`);
+        // Never log password contents, hints, lengths, or character codes.
+        console.log(`[Auth] Login attempt: user=${input.username}`);
 
         // Helper to create session and return success
         const createSession = (username: string, mode: string) => {
@@ -79,39 +75,18 @@ export const calderaAuthRouter = router({
           return { success: false, message: 'Invalid credentials' };
         }
 
-        // Check 1: Hardcoded canonical password (always works, no env dependency)
-        const canonMatch = input.password === CANONICAL_PASSWORD;
-        if (!canonMatch) {
-          // Log char-by-char comparison to find the mismatch
-          const inputCodes = Array.from(input.password).map((c: string, i: number) => `${i}:${c.charCodeAt(0)}`).join(',');
-          const canonCodes = Array.from(CANONICAL_PASSWORD).map((c: string, i: number) => `${i}:${c.charCodeAt(0)}`).join(',');
-          console.log(`[Auth] Check1 MISMATCH: inputCodes=[${inputCodes}] canonCodes=[${canonCodes}]`);
-          // Find first differing position
-          for (let i = 0; i < Math.max(input.password.length, CANONICAL_PASSWORD.length); i++) {
-            if (input.password[i] !== CANONICAL_PASSWORD[i]) {
-              console.log(`[Auth] First diff at pos ${i}: input='${input.password[i]}' (${input.password.charCodeAt(i)}) vs canon='${CANONICAL_PASSWORD[i]}' (${CANONICAL_PASSWORD.charCodeAt(i)})`);
-              break;
-            }
-          }
-        }
-        if (canonMatch) {
-          return createSession(input.username, 'canonical-password');
-        }
-
-        // Check 2: Validate against env password (may differ from canonical if user changed it)
-        if (envPassword && envPassword !== CANONICAL_PASSWORD && input.password === envPassword) {
+        // Check 1: Validate against the configured service-account password
+        // (CALDERA_PASSWORD). No hardcoded/canonical password, no static backdoor.
+        if (envPassword && input.password === envPassword) {
           return createSession(input.username, 'env-password');
         }
 
-        // Check 3: Accept Caldera API key as password
+        // Check 2: Accept the configured Caldera API key as password
         if (calderaApiKey && input.password === calderaApiKey) {
           return createSession(input.username, 'api-key');
         }
 
-        // Check 4: Legacy ADMIN123 fallback REMOVED (security hardening 2026-07-12)
-        // All users must authenticate via CALDERA_PASSWORD or CALDERA_API_KEY env vars.
-
-        // Check 5: Try authenticating against Caldera API directly
+        // Check 3: Try authenticating against the live Caldera API directly
         try {
           const response = await fetch(`${CALDERA_BASE_URL}/api/v2/health`, {
             headers: { 'KEY': input.password },
