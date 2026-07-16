@@ -19,6 +19,7 @@ import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { executeRawCommand } from "../lib/scan-server-executor";
+import { shq } from "../lib/shell-safety";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -209,46 +210,46 @@ export const scoutsuiteIntegrationRouter = router({
 
       // Provider-specific credential setup
       if (input.provider === "aws") {
-        envPrefix = `AWS_ACCESS_KEY_ID='${input.credentials.accessKeyId || ""}' ` +
-          `AWS_SECRET_ACCESS_KEY='${input.credentials.secretAccessKey || ""}' `;
+        envPrefix = `AWS_ACCESS_KEY_ID=${shq(input.credentials.accessKeyId || "")} ` +
+          `AWS_SECRET_ACCESS_KEY=${shq(input.credentials.secretAccessKey || "")} `;
         if (input.credentials.sessionToken) {
-          envPrefix += `AWS_SESSION_TOKEN='${input.credentials.sessionToken}' `;
+          envPrefix += `AWS_SESSION_TOKEN=${shq(input.credentials.sessionToken)} `;
         }
         if (input.credentials.region) {
-          envPrefix += `AWS_DEFAULT_REGION='${input.credentials.region}' `;
+          envPrefix += `AWS_DEFAULT_REGION=${shq(input.credentials.region)} `;
         }
         if (input.credentials.roleArn) {
-          cmd += ` --role-arn ${input.credentials.roleArn}`;
+          cmd += ` --role-arn ${shq(input.credentials.roleArn)}`;
           if (input.credentials.externalId) {
-            cmd += ` --external-id ${input.credentials.externalId}`;
+            cmd += ` --external-id ${shq(input.credentials.externalId)}`;
           }
         }
       } else if (input.provider === "azure") {
         cmd += ` --cli`;
-        envPrefix = `AZURE_TENANT_ID='${input.credentials.tenantId || ""}' ` +
-          `AZURE_CLIENT_ID='${input.credentials.clientId || ""}' ` +
-          `AZURE_CLIENT_SECRET='${input.credentials.clientSecret || ""}' `;
+        envPrefix = `AZURE_TENANT_ID=${shq(input.credentials.tenantId || "")} ` +
+          `AZURE_CLIENT_ID=${shq(input.credentials.clientId || "")} ` +
+          `AZURE_CLIENT_SECRET=${shq(input.credentials.clientSecret || "")} `;
         if (input.credentials.subscriptionId) {
-          cmd += ` --subscription-ids ${input.credentials.subscriptionId}`;
+          cmd += ` --subscription-ids ${shq(input.credentials.subscriptionId)}`;
         }
       } else if (input.provider === "gcp") {
         // GCP uses service account key file — write to temp file
         cmd += ` --service-account /tmp/scoutsuite-gcp-sa.json`;
         if (input.credentials.projectId) {
-          cmd += ` --project-id ${input.credentials.projectId}`;
+          cmd += ` --project-id ${shq(input.credentials.projectId)}`;
         }
       } else if (input.provider === "do") {
-        envPrefix = `DIGITALOCEAN_ACCESS_TOKEN='${input.credentials.token || ""}' `;
+        envPrefix = `DIGITALOCEAN_ACCESS_TOKEN=${shq(input.credentials.token || "")} `;
       }
 
       // Service filters
       if (input.services?.length) {
-        cmd += ` --services ${input.services.join(" ")}`;
+        cmd += ` --services ${input.services.map(shq).join(" ")}`;
       }
 
       // Region filters
       if (input.regions?.length) {
-        cmd += ` --regions ${input.regions.join(" ")}`;
+        cmd += ` --regions ${input.regions.map(shq).join(" ")}`;
       }
 
       cmd = `${envPrefix}${cmd}`;
@@ -257,7 +258,7 @@ export const scoutsuiteIntegrationRouter = router({
         // For GCP, write the service account key to a temp file
         if (input.provider === "gcp" && input.credentials.serviceAccountKey) {
           await executeRawCommand(
-            `echo '${input.credentials.serviceAccountKey.replace(/'/g, "\\'")}' > /tmp/scoutsuite-gcp-sa.json && chmod 600 /tmp/scoutsuite-gcp-sa.json`,
+            `echo ${shq(input.credentials.serviceAccountKey)} > /tmp/scoutsuite-gcp-sa.json && chmod 600 /tmp/scoutsuite-gcp-sa.json`,
             10
           );
         }
@@ -406,31 +407,31 @@ export const scoutsuiteIntegrationRouter = router({
       let envPrefix = "";
 
       if (scoutProvider === "aws") {
-        envPrefix = `AWS_ACCESS_KEY_ID='${credentials.accessKeyId}' AWS_SECRET_ACCESS_KEY='${credentials.secretAccessKey}' `;
-        if (credentials.sessionToken) envPrefix += `AWS_SESSION_TOKEN='${credentials.sessionToken}' `;
-        if (credentials.region) envPrefix += `AWS_DEFAULT_REGION='${credentials.region}' `;
+        envPrefix = `AWS_ACCESS_KEY_ID=${shq(credentials.accessKeyId)} AWS_SECRET_ACCESS_KEY=${shq(credentials.secretAccessKey)} `;
+        if (credentials.sessionToken) envPrefix += `AWS_SESSION_TOKEN=${shq(credentials.sessionToken)} `;
+        if (credentials.region) envPrefix += `AWS_DEFAULT_REGION=${shq(credentials.region)} `;
         if (credentials.roleArn) {
-          cmd += ` --role-arn ${credentials.roleArn}`;
-          if (credentials.externalId) cmd += ` --external-id ${credentials.externalId}`;
+          cmd += ` --role-arn ${shq(credentials.roleArn)}`;
+          if (credentials.externalId) cmd += ` --external-id ${shq(credentials.externalId)}`;
         }
       } else if (scoutProvider === "azure") {
         cmd += ` --cli`;
-        envPrefix = `AZURE_TENANT_ID='${credentials.tenantId}' AZURE_CLIENT_ID='${credentials.clientId}' AZURE_CLIENT_SECRET='${credentials.clientSecret}' `;
-        if (credentials.subscriptionId) cmd += ` --subscription-ids ${credentials.subscriptionId}`;
+        envPrefix = `AZURE_TENANT_ID=${shq(credentials.tenantId)} AZURE_CLIENT_ID=${shq(credentials.clientId)} AZURE_CLIENT_SECRET=${shq(credentials.clientSecret)} `;
+        if (credentials.subscriptionId) cmd += ` --subscription-ids ${shq(credentials.subscriptionId)}`;
       } else if (scoutProvider === "gcp") {
         await executeRawCommand(
-          `echo '${credentials.serviceAccountKey?.replace(/'/g, "\\'")}' > /tmp/scoutsuite-gcp-sa.json && chmod 600 /tmp/scoutsuite-gcp-sa.json`,
+          `echo ${shq(credentials.serviceAccountKey ?? "")} > /tmp/scoutsuite-gcp-sa.json && chmod 600 /tmp/scoutsuite-gcp-sa.json`,
           10
         );
         cmd += ` --service-account /tmp/scoutsuite-gcp-sa.json`;
-        if (credentials.projectId) cmd += ` --project-id ${credentials.projectId}`;
+        if (credentials.projectId) cmd += ` --project-id ${shq(credentials.projectId)}`;
       } else if (scoutProvider === "do") {
-        envPrefix = `DIGITALOCEAN_ACCESS_TOKEN='${credentials.token}' `;
+        envPrefix = `DIGITALOCEAN_ACCESS_TOKEN=${shq(credentials.token)} `;
       }
 
       cmd = `${envPrefix}${cmd}`;
-      if (input.services?.length) cmd += ` --services ${input.services.join(" ")}`;
-      if (input.regions?.length) cmd += ` --regions ${input.regions.join(" ")}`;
+      if (input.services?.length) cmd += ` --services ${input.services.map(shq).join(" ")}`;
+      if (input.regions?.length) cmd += ` --regions ${input.regions.map(shq).join(" ")}`;
 
       try {
         const result = await executeRawCommand(cmd, input.timeoutSeconds);

@@ -11,6 +11,7 @@ import { Client as SSHClient } from "ssh2";
 import { createHash } from "crypto";
 import * as fs from "fs";
 import { FIPS_SSH_ALGORITHMS } from "../lib/fips-ssh";
+import { shq } from "../lib/shell-safety";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -310,26 +311,27 @@ export const payloadGeneratorRouter = router({
       }
 
       // Build the msfvenom command
+      // All user-controlled values are shell-escaped (shq) so they cannot break
+      // out of the command that runs on the exploit server. lport is a number
+      // validated by the zod schema.
       const parts = [
         "/opt/metasploit-framework/bin/msfvenom",
-        `-p ${input.payload}`,
-        `LHOST=${input.lhost}`,
+        `-p ${shq(input.payload)}`,
+        `LHOST=${shq(input.lhost)}`,
         `LPORT=${input.lport}`,
       ];
 
-      if (input.format) parts.push(`-f ${input.format}`);
-      if (input.encoder) parts.push(`-e ${input.encoder}`);
+      if (input.format) parts.push(`-f ${shq(input.format)}`);
+      if (input.encoder) parts.push(`-e ${shq(input.encoder)}`);
       if (input.iterations && input.iterations > 1) parts.push(`-i ${input.iterations}`);
-      if (input.arch) parts.push(`-a ${input.arch}`);
-      if (input.platform) parts.push(`--platform ${input.platform}`);
+      if (input.arch) parts.push(`-a ${shq(input.arch)}`);
+      if (input.platform) parts.push(`--platform ${shq(input.platform)}`);
 
-      // Add extra options
+      // Add extra options — flag name restricted to [A-Za-z0-9_], value escaped.
       if (input.extraOptions) {
         for (const [key, val] of Object.entries(input.extraOptions)) {
-          // Sanitize key/value to prevent command injection
           const safeKey = key.replace(/[^a-zA-Z0-9_]/g, "");
-          const safeValue = String(val).replace(/[;&|`$()]/g, "");
-          parts.push(`${safeKey}=${safeValue}`);
+          parts.push(`${safeKey}=${shq(String(val))}`);
         }
       }
 
@@ -602,24 +604,25 @@ export const payloadGeneratorRouter = router({
       })
     )
     .query(({ input }) => {
+      // Shell-escape all user-controlled values (this preview must mirror the
+      // command built in `generate`, which runs on the server).
       const parts = [
         "msfvenom",
-        `-p ${input.payload}`,
-        `LHOST=${input.lhost}`,
+        `-p ${shq(input.payload)}`,
+        `LHOST=${shq(input.lhost)}`,
         `LPORT=${input.lport}`,
       ];
 
-      if (input.format) parts.push(`-f ${input.format}`);
-      if (input.encoder) parts.push(`-e ${input.encoder}`);
+      if (input.format) parts.push(`-f ${shq(input.format)}`);
+      if (input.encoder) parts.push(`-e ${shq(input.encoder)}`);
       if (input.iterations && input.iterations > 1) parts.push(`-i ${input.iterations}`);
-      if (input.arch) parts.push(`-a ${input.arch}`);
-      if (input.platform) parts.push(`--platform ${input.platform}`);
+      if (input.arch) parts.push(`-a ${shq(input.arch)}`);
+      if (input.platform) parts.push(`--platform ${shq(input.platform)}`);
 
       if (input.extraOptions) {
         for (const [key, val] of Object.entries(input.extraOptions)) {
           const safeKey = key.replace(/[^a-zA-Z0-9_]/g, "");
-          const safeValue = String(val).replace(/[;&|`$()]/g, "");
-          parts.push(`${safeKey}=${safeValue}`);
+          parts.push(`${safeKey}=${shq(String(val))}`);
         }
       }
 

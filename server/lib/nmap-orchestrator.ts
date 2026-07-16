@@ -32,6 +32,7 @@ import * as fs from "fs";
 import * as path from "path";
 import * as crypto from "crypto";
 import { FIPS_SSH_ALGORITHMS } from "./fips-ssh";
+import { shq } from "./shell-safety";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -518,11 +519,12 @@ export async function executeNmapScan(config: NmapScanConfig): Promise<NmapScanR
     profileArgs.push("--exclude", config.excludeHosts.join(","));
   }
 
-  // Build full command
-  const targetStr = config.targets.join(" ");
-  // Sanitise targets to prevent command injection
-  const safeTargets = config.targets.map(t => t.replace(/[;&|`$(){}]/g, "")).join(" ");
-  const command = `sudo ${nmapPath} ${profileArgs.join(" ")} ${safeTargets} 2>/dev/null`;
+  // Build full command. Every interpolated value is shell-escaped: nmapPath
+  // and each profile arg (custom args are user/config supplied and would
+  // otherwise allow `cmd`-substitution tokens through), and each target.
+  const targetStr = config.targets.join(" "); // display-only (see return metadata below)
+  const safeTargets = config.targets.map(shq).join(" ");
+  const command = `sudo ${shq(nmapPath)} ${profileArgs.map(shq).join(" ")} ${safeTargets} 2>/dev/null`;
 
   try {
     const { stdout, stderr, exitCode } = await executeSSHCommand(config.server, command, timeoutMs);
@@ -679,7 +681,7 @@ export async function preflightCheck(server: ScanServerConfig): Promise<{
 }> {
   try {
     const nmapPath = server.nmapPath || "nmap";
-    const { stdout, exitCode } = await executeSSHCommand(server, `${nmapPath} --version 2>&1`, 10000);
+    const { stdout, exitCode } = await executeSSHCommand(server, `${shq(nmapPath)} --version 2>&1`, 10000);
 
     if (exitCode !== 0 && !stdout.includes("Nmap")) {
       return { available: false, error: "Nmap not found on remote server" };

@@ -12,6 +12,7 @@ import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { executeRawCommand } from "../lib/scan-server-executor";
+import { shq } from "../lib/shell-safety";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -176,14 +177,14 @@ export const trivyIntegrationRouter = router({
       // Add registry credentials if provided
       let envPrefix = "";
       if (input.registryCredentials) {
-        envPrefix = `TRIVY_USERNAME='${input.registryCredentials.username}' ` +
-          `TRIVY_PASSWORD='${input.registryCredentials.password}' `;
+        envPrefix = `TRIVY_USERNAME=${shq(input.registryCredentials.username)} ` +
+          `TRIVY_PASSWORD=${shq(input.registryCredentials.password)} `;
         if (input.registryCredentials.registry) {
-          envPrefix += `TRIVY_REGISTRY='${input.registryCredentials.registry}' `;
+          envPrefix += `TRIVY_REGISTRY=${shq(input.registryCredentials.registry)} `;
         }
       }
 
-      cmd = `${envPrefix}${cmd} '${input.image}'`;
+      cmd = `${envPrefix}${cmd} ${shq(input.image)}`;
 
       try {
         const result = await executeRawCommand(cmd, input.timeoutSeconds);
@@ -242,7 +243,7 @@ export const trivyIntegrationRouter = router({
         cmd += ` --severity ${input.severity.join(",")}`;
       }
 
-      cmd += ` '${input.path}'`;
+      cmd += ` ${shq(input.path)}`;
 
       try {
         const result = await executeRawCommand(cmd, input.timeoutSeconds);

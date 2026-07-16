@@ -3,8 +3,35 @@ import type { User } from "../../drizzle/schema";
 import { sdk } from "./sdk";
 import jwt from "jsonwebtoken";
 import { logSessionEvent, extractRequestInfo } from "../lib/session-activity-logger";
+import { getDb } from "../db";
+import { activeSessions } from "../../drizzle/schema";
+import { and, eq } from "drizzle-orm";
 
 const CALDERA_JWT_SECRET = process.env.CALDERA_JWT_SECRET || process.env.JWT_SECRET || '';
+
+/**
+ * Server-side session validation. Account (email) sessions are recorded in
+ * active_sessions at login and deleted on logout / admin revoke. Checking the
+ * row here makes revocation effective: a JWT that is still cryptographically
+ * valid but whose session row is gone is rejected.
+ *
+ * Fails OPEN on infrastructure errors (DB blip) so a transient outage does not
+ * lock every user out — the JWT signature and expiry still gate access.
+ */
+async function isActiveSessionValid(accountId: number, sessionId: string): Promise<boolean> {
+  try {
+    const db = await getDb();
+    const rows = await db
+      .select({ id: activeSessions.id })
+      .from(activeSessions)
+      .where(and(eq(activeSessions.accountId, accountId), eq(activeSessions.sessionToken, sessionId)))
+      .limit(1);
+    return rows.length > 0;
+  } catch (err) {
+    console.error("[Auth] active-session check failed (allowing request):", (err as Error).message);
+    return true;
+  }
+}
 
 /**
  * Detect whether this server is running on a Manus-hosted environment.
@@ -69,6 +96,26 @@ export async function createContext(
           authType?: string;
           sessionId?: string;
         };
+
+        // Server-side revocation check for account (email) sessions. Service
+        // accounts (caldera username tokens) carry no accountId/sessionId and
+        // are stateless by design, so they are not checked here.
+        if (decoded.accountId && decoded.sessionId) {
+          const stillValid = await isActiveSessionValid(decoded.accountId, decoded.sessionId);
+          if (!stillValid) {
+            logSessionEvent({
+              type: "session_invalidated",
+              userId: decoded.accountId,
+              email: decoded.email,
+              loginMethod: decoded.authType || "email",
+              ipAddress,
+              userAgent,
+              sessionId: decoded.sessionId,
+              detail: "Session revoked or no longer active",
+            });
+            return { req: opts.req, res: opts.res, user: null };
+          }
+        }
 
         // Resolve identity from whichever JWT format was used
         const resolvedName = decoded.username || decoded.displayName || decoded.email?.split('@')[0] || 'user';

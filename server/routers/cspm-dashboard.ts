@@ -16,6 +16,7 @@ import {
   getComplianceTrend,
 } from "../lib/cspm-db";
 import { executeRawCommand } from "../lib/scan-server-executor";
+import { shq } from "../lib/shell-safety";
 
 // ── Reuse parsers from prowler-integration ────────────────────────────────
 
@@ -251,30 +252,30 @@ export const cspmDashboardRouter = router({
         let cmd = `prowler ${input.provider} -M json-ocsf --no-banner`;
 
         if (input.provider === "aws") {
-          const envPrefix = `AWS_ACCESS_KEY_ID='${input.credentials.accessKeyId || ""}' ` +
-            `AWS_SECRET_ACCESS_KEY='${input.credentials.secretAccessKey || ""}' `;
+          const envPrefix = `AWS_ACCESS_KEY_ID=${shq(input.credentials.accessKeyId || "")} ` +
+            `AWS_SECRET_ACCESS_KEY=${shq(input.credentials.secretAccessKey || "")} `;
           const sessionToken = input.credentials.sessionToken
-            ? `AWS_SESSION_TOKEN='${input.credentials.sessionToken}' ` : "";
+            ? `AWS_SESSION_TOKEN=${shq(input.credentials.sessionToken)} ` : "";
           const region = input.credentials.region || "us-east-1";
-          cmd = `${envPrefix}${sessionToken}AWS_DEFAULT_REGION='${region}' ${cmd}`;
+          cmd = `${envPrefix}${sessionToken}AWS_DEFAULT_REGION=${shq(region)} ${cmd}`;
           if (input.credentials.roleArn) {
-            cmd += ` -R ${input.credentials.roleArn}`;
-            if (input.credentials.externalId) cmd += ` -T ${input.credentials.externalId}`;
+            cmd += ` -R ${shq(input.credentials.roleArn)}`;
+            if (input.credentials.externalId) cmd += ` -T ${shq(input.credentials.externalId)}`;
           }
         } else if (input.provider === "azure") {
           cmd += ` --sp-env-auth`;
-          const envPrefix = `AZURE_TENANT_ID='${input.credentials.tenantId || ""}' ` +
-            `AZURE_CLIENT_ID='${input.credentials.clientId || ""}' ` +
-            `AZURE_CLIENT_SECRET='${input.credentials.clientSecret || ""}' `;
-          if (input.credentials.subscriptionId) cmd += ` --subscription-ids ${input.credentials.subscriptionId}`;
+          const envPrefix = `AZURE_TENANT_ID=${shq(input.credentials.tenantId || "")} ` +
+            `AZURE_CLIENT_ID=${shq(input.credentials.clientId || "")} ` +
+            `AZURE_CLIENT_SECRET=${shq(input.credentials.clientSecret || "")} `;
+          if (input.credentials.subscriptionId) cmd += ` --subscription-ids ${shq(input.credentials.subscriptionId)}`;
           cmd = `${envPrefix}${cmd}`;
         } else if (input.provider === "gcp") {
           cmd += ` --credentials-file /tmp/gcp-sa-key.json`;
         }
 
-        if (input.services?.length) cmd += ` --services ${input.services.join(" ")}`;
-        if (input.severity?.length) cmd += ` --severity ${input.severity.join(" ")}`;
-        if (input.compliance) cmd += ` --compliance ${input.compliance}`;
+        if (input.services?.length) cmd += ` --services ${input.services.map(shq).join(" ")}`;
+        if (input.severity?.length) cmd += ` --severity ${input.severity.map(shq).join(" ")}`;
+        if (input.compliance) cmd += ` --compliance ${shq(input.compliance)}`;
 
         const result = await executeRawCommand(cmd, input.timeoutSeconds);
         const stdout = result.stdout || "";
@@ -337,18 +338,18 @@ export const cspmDashboardRouter = router({
         let cmd = `python3 -m ScoutSuite --provider ${input.provider} --no-browser --result-format json`;
 
         if (input.provider === "aws") {
-          const envPrefix = `AWS_ACCESS_KEY_ID='${input.credentials.accessKeyId || ""}' ` +
-            `AWS_SECRET_ACCESS_KEY='${input.credentials.secretAccessKey || ""}' `;
+          const envPrefix = `AWS_ACCESS_KEY_ID=${shq(input.credentials.accessKeyId || "")} ` +
+            `AWS_SECRET_ACCESS_KEY=${shq(input.credentials.secretAccessKey || "")} `;
           cmd = `${envPrefix}${cmd}`;
         } else if (input.provider === "azure") {
           cmd += ` --cli`;
-          const envPrefix = `AZURE_TENANT_ID='${input.credentials.tenantId || ""}' ` +
-            `AZURE_CLIENT_ID='${input.credentials.clientId || ""}' ` +
-            `AZURE_CLIENT_SECRET='${input.credentials.clientSecret || ""}' `;
+          const envPrefix = `AZURE_TENANT_ID=${shq(input.credentials.tenantId || "")} ` +
+            `AZURE_CLIENT_ID=${shq(input.credentials.clientId || "")} ` +
+            `AZURE_CLIENT_SECRET=${shq(input.credentials.clientSecret || "")} `;
           cmd = `${envPrefix}${cmd}`;
         }
 
-        if (input.services?.length) cmd += ` --services ${input.services.join(" ")}`;
+        if (input.services?.length) cmd += ` --services ${input.services.map(shq).join(" ")}`;
 
         const result = await executeRawCommand(cmd, input.timeoutSeconds);
         const stdout = result.stdout || "";
@@ -458,13 +459,13 @@ export const cspmDashboardRouter = router({
         try {
           let cmd = `prowler ${provider} -M json-ocsf --no-banner`;
           if (provider === "aws") {
-            cmd = `AWS_ACCESS_KEY_ID='${credentials.accessKeyId}' AWS_SECRET_ACCESS_KEY='${credentials.secretAccessKey}' ${credentials.sessionToken ? `AWS_SESSION_TOKEN='${credentials.sessionToken}' ` : ""}AWS_DEFAULT_REGION='${credentials.region}' ${cmd}`;
-            if (credentials.roleArn) cmd += ` -R ${credentials.roleArn}`;
+            cmd = `AWS_ACCESS_KEY_ID=${shq(credentials.accessKeyId)} AWS_SECRET_ACCESS_KEY=${shq(credentials.secretAccessKey)} ${credentials.sessionToken ? `AWS_SESSION_TOKEN=${shq(credentials.sessionToken)} ` : ""}AWS_DEFAULT_REGION=${shq(credentials.region)} ${cmd}`;
+            if (credentials.roleArn) cmd += ` -R ${shq(credentials.roleArn)}`;
           } else if (provider === "azure") {
-            cmd = `AZURE_TENANT_ID='${credentials.tenantId}' AZURE_CLIENT_ID='${credentials.clientId}' AZURE_CLIENT_SECRET='${credentials.clientSecret}' ${cmd} --sp-env-auth`;
+            cmd = `AZURE_TENANT_ID=${shq(credentials.tenantId)} AZURE_CLIENT_ID=${shq(credentials.clientId)} AZURE_CLIENT_SECRET=${shq(credentials.clientSecret)} ${cmd} --sp-env-auth`;
           }
-          if (input.services?.length) cmd += ` --services ${input.services.join(" ")}`;
-          if (input.compliance) cmd += ` --compliance ${input.compliance}`;
+          if (input.services?.length) cmd += ` --services ${input.services.map(shq).join(" ")}`;
+          if (input.compliance) cmd += ` --compliance ${shq(input.compliance)}`;
 
           const result = await executeRawCommand(cmd, input.timeoutSeconds);
           const findings = parseProwlerJsonOutput(result.stdout || "");
@@ -499,11 +500,11 @@ export const cspmDashboardRouter = router({
         try {
           let cmd = `python3 -m ScoutSuite --provider ${provider} --no-browser --result-format json`;
           if (provider === "aws") {
-            cmd = `AWS_ACCESS_KEY_ID='${credentials.accessKeyId}' AWS_SECRET_ACCESS_KEY='${credentials.secretAccessKey}' ${cmd}`;
+            cmd = `AWS_ACCESS_KEY_ID=${shq(credentials.accessKeyId)} AWS_SECRET_ACCESS_KEY=${shq(credentials.secretAccessKey)} ${cmd}`;
           } else if (provider === "azure") {
-            cmd = `AZURE_TENANT_ID='${credentials.tenantId}' AZURE_CLIENT_ID='${credentials.clientId}' AZURE_CLIENT_SECRET='${credentials.clientSecret}' ${cmd} --cli`;
+            cmd = `AZURE_TENANT_ID=${shq(credentials.tenantId)} AZURE_CLIENT_ID=${shq(credentials.clientId)} AZURE_CLIENT_SECRET=${shq(credentials.clientSecret)} ${cmd} --cli`;
           }
-          if (input.services?.length) cmd += ` --services ${input.services.join(" ")}`;
+          if (input.services?.length) cmd += ` --services ${input.services.map(shq).join(" ")}`;
 
           const result = await executeRawCommand(cmd, input.timeoutSeconds);
           const findings = parseScoutSuiteOutput(result.stdout || "");
@@ -550,7 +551,7 @@ export const cspmDashboardRouter = router({
 
       const startTime = Date.now();
       try {
-        const cmd = `trivy image --format json --severity CRITICAL,HIGH,MEDIUM,LOW ${input.image}`;
+        const cmd = `trivy image --format json --severity CRITICAL,HIGH,MEDIUM,LOW ${shq(input.image)}`;
         const result = await executeRawCommand(cmd, input.timeoutSeconds);
         const stdout = result.stdout || "";
 

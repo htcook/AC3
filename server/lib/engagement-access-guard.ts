@@ -25,6 +25,12 @@ import { engagements } from "../../drizzle/schema";
 /**
  * Roles with full visibility across all engagements.
  * These are internal AC3 staff roles.
+ *
+ * INTENTIONAL (MSSP model): admin/operator/team_lead are global and manage all
+ * client tenants — they are deliberately NOT scoped by `eng_tenant_id`. This was
+ * reviewed and confirmed as the desired behavior; do not "fix" it into per-tenant
+ * scoping without a product decision. Customer-facing roles remain scoped by the
+ * `createdBy` column (see SCOPED_ROLES / scopeEngagementWhere).
  */
 export const FULL_ACCESS_ROLES = new Set([
   "admin",

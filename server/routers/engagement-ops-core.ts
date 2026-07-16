@@ -1,4 +1,5 @@
 import { TRPCError } from "@trpc/server";
+import { shq } from "../lib/shell-safety";
 import { protectedProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import * as db from "../db";
@@ -2599,7 +2600,7 @@ export const engagementOpsRouter = router({
                   const nucleiSeverity = nucleiCfg?.severityFilter || 'critical,high,medium';
                   const nucleiRateLimit = nucleiCfg?.rateLimit || 100;
                   let nucleiCustomHeaders = nucleiCfg?.customHeaders
-                    ? Object.entries(nucleiCfg.customHeaders).map(([k, v]: [string, any]) => `-H "${k}: ${v}"`).join(' ')
+                    ? Object.entries(nucleiCfg.customHeaders).map(([k, v]: [string, any]) => `-H ${shq(`${k}: ${v}`)}`).join(' ')
                     : '';
 
                   // ── Authenticated Scanning: Auto-login for known training targets ──
@@ -2699,8 +2700,8 @@ export const engagementOpsRouter = router({
                         addLog(state!, { phase: 'scanning', type: 'info', title: `\u{1f511} Auth: ${asset.hostname}`, detail: `Attempting login with confirmed creds (${cred.username}) at ${cred.loginPath}` });
                         const loginResult = await executeRawCommand(
                           `curl -sD - -c /tmp/auth_cookies_${asset.hostname.replace(/[^a-z0-9]/gi, '_')}.txt -L ` +
-                          `--data-urlencode 'username=${cred.username}' --data-urlencode 'password=${cred.password}' ` +
-                          `'${loginBase}${cred.loginPath}' 2>&1`,
+                          `--data-urlencode ${shq(`username=${cred.username}`)} --data-urlencode ${shq(`password=${cred.password}`)} ` +
+                          `${shq(`${loginBase}${cred.loginPath}`)} 2>&1`,
                           15
                         );
                         // Extract Set-Cookie headers
@@ -2711,7 +2712,7 @@ export const engagementOpsRouter = router({
                             return val;
                           }).join('; ');
                           authSessionCookie = cookies;
-                          nucleiCustomHeaders += ` -H "Cookie: ${authSessionCookie}"`;
+                          nucleiCustomHeaders += ` -H ${shq(`Cookie: ${authSessionCookie}`)}`;
                           addLog(state!, { phase: 'scanning', type: 'success', title: `\u2705 Auth: ${asset.hostname}`, detail: `Session obtained via ${cred.loginPath}. Injecting into nuclei/DAST.` });
                         }
                       } catch (authErr: any) {
@@ -2736,12 +2737,12 @@ export const engagementOpsRouter = router({
                     : [`http://${asset.hostname}`, `https://${asset.hostname}`];
 
                   addLog(state!, { phase: 'scanning', type: 'info', title: `\u{1f50d} Nuclei: ${asset.hostname}`, detail: nucleiCfg ? `Handoff config: ${nucleiCfg.rationale}` : 'Vulnerability templates (default config)...' });
-                  const nucleiCmd = `echo "${nucleiTargetUrls.join('\n')}" | nuclei -severity ${nucleiSeverity} -jsonl -nc -duc -ni -timeout 20 -retries 2 -rate-limit ${nucleiRateLimit} -tags ${nucleiTags} ${nucleiCustomHeaders} 2>&1`;
+                  const nucleiCmd = `echo ${shq(nucleiTargetUrls.join('\n'))} | nuclei -severity ${shq(nucleiSeverity)} -jsonl -nc -duc -ni -timeout 20 -retries 2 -rate-limit ${shq(String(nucleiRateLimit))} -tags ${shq(nucleiTags)} ${nucleiCustomHeaders} 2>&1`;
                   try {
                     // Use stdin piping to avoid nuclei hanging on PDCP TTY auth prompt
                     const nucleiStartTime = Date.now();
                     const nucleiInput = nucleiTargetUrls.join('\n');
-                    const nucleiResult = await executeRawCommand(`echo "${nucleiInput}" | nuclei -severity ${nucleiSeverity} -jsonl -nc -duc -ni -timeout 20 -retries 2 -rate-limit ${nucleiRateLimit} -tags ${nucleiTags} ${nucleiCustomHeaders} 2>&1`, 300);
+                    const nucleiResult = await executeRawCommand(`echo ${shq(nucleiInput)} | nuclei -severity ${shq(nucleiSeverity)} -jsonl -nc -duc -ni -timeout 20 -retries 2 -rate-limit ${shq(String(nucleiRateLimit))} -tags ${shq(nucleiTags)} ${nucleiCustomHeaders} 2>&1`, 300);
                     const findings = nucleiResult.stdout.split('\n').filter(Boolean).map((line: string) => {
                       try { return JSON.parse(line); } catch { return null; }
                     }).filter(Boolean);

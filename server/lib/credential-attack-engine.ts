@@ -1005,7 +1005,9 @@ export async function executeCredentialAttack(config: AttackConfig): Promise<Att
       const confidence = (result as any).confidence || 'medium';
       const successSignals = (result as any).successSignals || [];
       const confidenceLabel = confidence === 'high' ? '✓ CONFIRMED' : confidence === 'medium' ? '⚠ PROBABLE' : '⚡ UNCONFIRMED (low confidence)';
-      console.log(`[CredAttack] ${confidenceLabel}: ${pair.username}:${pair.password} on ${config.target.host}:${config.target.port} [signals: ${successSignals.join(', ')}]`);
+      // Do not log the recovered password — only username + target. The full
+      // credential pair is still returned to the caller/DB for the operator.
+      console.log(`[CredAttack] ${confidenceLabel}: ${pair.username} on ${config.target.host}:${config.target.port} [signals: ${successSignals.join(', ')}]`);
       
       // Only count as success if confidence is medium or higher
       // Low-confidence results are stored but flagged for manual review

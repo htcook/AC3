@@ -159,7 +159,17 @@ These stores track in-flight operations and are **lost on process restart**. Thi
 | `disclosureDocs` | `client-ip-disclosure.ts` | engagement ID | IP disclosure documents | Lost disclosure state |
 | `approvalGates` | `client-ip-disclosure.ts` | engagement ID | IP disclosure approval gates | Blocked workflows |
 
-> **Architectural Note:** Active operation state is the most critical gap in the current architecture. For production resilience, these stores should be migrated to database-backed state machines with heartbeat-based recovery. The `campaignRunStates` and `activePlans` stores are the highest priority candidates because they represent long-running multi-step operations that cannot be easily re-derived.
+> **Architectural Note:** Active operation state is the most critical resilience
+> concern. The two highest-priority stores — `campaignRunStates`
+> (`campaign-orchestrator.ts`) and `activePlans` (`c2-orchestrator.ts`) — now have
+> a write-through database persistence layer (`lib/operation-state-persistence.ts`)
+> with node heartbeats and boot-time recovery (`recoverOperationState()` runs in
+> the startup sequence; orphaned rows from a crashed node are marked failed). The
+> remaining active-operation stores (`activeExecutions`, `chainRuns`, `activeLoops`,
+> the `client-ip-disclosure` gates, etc.) are still volatile and re-derived or
+> lost on restart. Two boot-time re-armers were added for stores that are purely
+> in-memory: external scan-schedule timers (`scan-schedules.ts`) and Caldera C2
+> callback pollers (`caldera-c2-callback-poller.ts`).
 
 ### 4.5 Performance Trackers (Degraded Optimization)
 
@@ -358,30 +368,43 @@ The platform integrates with numerous external services:
 
 ## 11. Deployment Considerations
 
-### 11.1 Cloud Run Limitations
+### 11.1 Runtime Model (AWS ECS)
 
-The platform deploys on Cloud Run, which has important implications for the in-memory architecture:
+The platform now deploys as a long-lived container on **AWS ECS** (see
+`infrastructure/` and `Dockerfile.aws`), not the earlier Cloud Run target. The
+container stays running, so internal `node-cron`/`setInterval` schedulers and
+singleton engines persist for the process lifetime. The historical Cloud Run
+constraints below still matter for **restarts and redeploys**, which reset all
+volatile state:
 
-1. **Instance shutdown on idle** — All volatile state (§4.4) is lost when the instance scales to zero.
-2. **No persistent filesystem** — File-based caches are not viable.
-3. **Cold start latency** — Singleton engines (§4.6) must re-initialize on each cold start.
+1. **State reset on restart/redeploy** — All volatile state (§4.4) is lost when the container is replaced. Recovery is via DB persistence + boot-time re-arming, not by keeping the process alive.
+2. **No durable local filesystem** — File-based caches do not survive a new task.
+3. **Cold start latency** — Singleton engines (§4.6) re-initialize on each start via the phased background startup sequence in `_core/index.ts`.
 
 ### 11.2 Recommended Mitigations
 
-For production hardening, the following in-memory stores should be migrated to database-backed persistence:
+Progress on migrating volatile stores to durable/boot-recoverable state:
 
-| Priority | Store | Current Module | Recommended Migration |
+| Priority | Store | Current Module | Status |
 |---|---|---|---|
-| **P0** | `campaignRunStates` | `campaign-orchestrator.ts` | DB state machine with heartbeat recovery |
-| **P0** | `activePlans` | `c2-orchestrator.ts` | DB-backed plan state with checkpoint/resume |
-| **P1** | `activeExecutions` | `caldera-graph-executor.ts` | DB execution log with replay capability |
-| **P1** | `pollers` | `caldera-c2-callback-poller.ts` | DB-backed poller registration |
-| **P2** | `graduationStore` | `adaptive-scan-strategy.ts` | DB table for graduation scores |
-| **P2** | `performanceStore` | `c2-actor-feedback-loop.ts` | DB table for technique performance |
+| **P0** | `campaignRunStates` | `campaign-orchestrator.ts` | ✅ Done — write-through DB persistence + heartbeat recovery (`operation-state-persistence.ts`) |
+| **P0** | `activePlans` | `c2-orchestrator.ts` | ✅ Done — DB-backed plan state + checkpoint/recovery |
+| **P1** | `activeExecutions` | `caldera-graph-executor.ts` | ⛔ Still volatile — DB execution log with replay recommended |
+| **P1** | `pollers` | `caldera-c2-callback-poller.ts` | ⚠️ Partial — re-armed on boot from active engagements (`restoreActivePollers()`); no per-poller DB row |
+| **P1** | scan-schedule timers | `scan-schedules.ts` | ✅ Done — re-armed on boot from the persisted `scanSchedules` table (`rearmActiveScheduleTimers()`) |
+| **P2** | `graduationStore` | `adaptive-scan-strategy.ts` | ⛔ Still volatile — DB table for graduation scores recommended |
+| **P2** | `performanceStore` | `c2-actor-feedback-loop.ts` | ⛔ Still volatile — DB table for technique performance recommended |
 
 ### 11.3 Scheduled Tasks
 
-Periodic data updates (NVD refresh, CISA KEV sync, EPSS updates) must not use `setInterval` or `node-cron` due to Cloud Run's idle shutdown behavior. Instead, these are implemented via the Manus scheduled task system, which POSTs to `/api/scheduled/<name>` endpoints.
+On the current long-lived ECS runtime, periodic data updates (NVD refresh, CISA
+KEV sync, EPSS updates, threat-intel pipelines) run via **internal `node-cron` /
+`setInterval` schedulers** started in the phased background startup sequence in
+`_core/index.ts` (Phases 3–4). The Manus `/api/scheduled/<name>` endpoints remain
+available as an optional external trigger, but the platform no longer depends on
+them to fire periodic work. Schedulers and in-memory timers are re-created on
+every boot, so a restart re-arms them; anything keyed to a specific due-time is
+persisted in the DB and re-evaluated on the next tick.
 
 ---
 

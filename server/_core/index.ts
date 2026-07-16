@@ -2469,6 +2469,16 @@ async function startServer() {
         console.warn("[CICDCron] Failed to initialize CI/CD cron scheduler:", err);
       });
 
+      // Re-arm external-scanner schedule timers (Nessus/Qualys/etc.). These live
+      // only in memory, so without this they silently stop firing after a restart.
+      import("../routers/scan-schedules").then(({ rearmActiveScheduleTimers }) => {
+        rearmActiveScheduleTimers().catch((err) =>
+          console.warn("[ScanSchedule] Boot re-arm failed (non-fatal):", err.message)
+        );
+      }).catch((err) => {
+        console.warn("[ScanSchedule] Failed to import scan-schedules for boot re-arm:", err);
+      });
+
       // Initialize Auto-Generation Pipeline Scheduler (daily at 02:00 UTC)
       import("../lib/auto-generation-scheduler").then(({ initAutoGenerationSchedule }) => {
         initAutoGenerationSchedule();
@@ -2559,6 +2569,18 @@ async function startServer() {
         console.log("[ScanScheduler] Automated domain scan scheduler initialized");
       }).catch((err) => {
         console.warn("[ScanScheduler] Failed to initialize scan scheduler:", err);
+      });
+
+      // Restore C2 callback pollers for active engagements with a live Caldera
+      // operation. Poller state is in-memory only; without this, live C2
+      // telemetry stops after a restart until a poller is re-triggered. Each
+      // restored poller self-stops once its operation is finished/absent.
+      import("../lib/caldera-c2-callback-poller").then(({ restoreActivePollers }) => {
+        restoreActivePollers().catch((err) =>
+          console.warn("[C2Poller] Boot restore failed (non-fatal):", err.message)
+        );
+      }).catch((err) => {
+        console.warn("[C2Poller] Failed to import poller for boot restore:", err);
       });
 
       // Initialize Agent Watchdog Scheduler (every 5 minutes — reduced from 60s)

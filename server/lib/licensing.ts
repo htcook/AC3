@@ -23,13 +23,30 @@
  */
 
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import type { LicenseTier, FeatureModule } from './white-label';
 
 // ─── License Signing Key ─────────────────────────────────────────────────────
 // In production, this should be an RSA/EC key pair. The public key is embedded
 // in the customer's deployment; the private key stays with AceofCloud for signing.
+// Resolved once at module load so HS256 sign and verify use the same value in a
+// process. No committed fallback — a static default would let anyone forge
+// license tokens. Production requires an explicit secret; dev/test falls back to
+// an ephemeral random secret (tokens won't survive a restart).
+let cachedLicenseSigningSecret: string | undefined;
 function getLicenseSigningSecret(): string {
-  return process.env.WL_LICENSE_SIGNING_SECRET ?? process.env.JWT_SECRET ?? 'ac3-license-dev-key';
+  if (cachedLicenseSigningSecret !== undefined) return cachedLicenseSigningSecret;
+  const secret = process.env.WL_LICENSE_SIGNING_SECRET ?? process.env.JWT_SECRET;
+  if (secret && secret.length > 0) {
+    cachedLicenseSigningSecret = secret;
+  } else if (process.env.NODE_ENV === 'production') {
+    throw new Error(
+      'WL_LICENSE_SIGNING_SECRET (or JWT_SECRET) is not set. Refusing to sign licenses with an insecure default in production.'
+    );
+  } else {
+    cachedLicenseSigningSecret = crypto.randomBytes(48).toString('hex');
+  }
+  return cachedLicenseSigningSecret;
 }
 
 function getLicensePublicKey(): string {
