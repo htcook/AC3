@@ -1038,47 +1038,119 @@ let lastZapRestart = 0;
 const ZAP_RESTART_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes between restarts
 
 /**
- * Restart ZAP Docker container via SSH to the scan server.
- * Used when ZAP becomes unresponsive (memory leak, hung process).
+ * Restart ZAP Docker container — multi-strategy recovery.
+ * 
+ * Strategy order:
+ * 1. SSH: `docker restart zap` via scan-server-executor (fastest, ~60s)
+ * 2. EC2 Reboot: `ec2:RebootInstances` via AWS SDK (forces full instance reboot, ~3-5min)
+ *    - User data script ensures Docker containers auto-start with --restart=unless-stopped
+ * 3. EC2 Stop/Start: Last resort — stops and starts the instance (new IP possible, ~5-7min)
+ * 
+ * Used when ZAP becomes unresponsive (memory leak, hung process, Docker daemon crash).
  */
-async function restartZapDocker(): Promise<boolean> {
+export async function restartZapDocker(strategy?: 'ssh' | 'ec2-reboot' | 'ec2-stop-start'): Promise<boolean> {
   const now = Date.now();
   if (now - lastZapRestart < ZAP_RESTART_COOLDOWN_MS) {
     console.warn(`[ZAP Recovery] Restart cooldown active (${Math.round((ZAP_RESTART_COOLDOWN_MS - (now - lastZapRestart)) / 1000)}s remaining). Skipping restart.`);
     return false;
   }
 
-  try {
-    // Use scan bridge HTTP API instead of SSH (SSH keys not available in ECS Fargate)
-    const scanHost = process.env.SCAN_SERVER_HOST || process.env.SCANFORGE_HOST || "";
-    const scanApiKey = process.env.SCAN_API_KEY || "";
-    const bridgeUrl = `https://${scanHost}:4443/api/scan/tool`;
-    console.log(`[ZAP Recovery] Restarting ZAP Docker container via scan bridge API (${scanHost})...`);
-    const axios = (await import("axios")).default;
-    const https = await import("https");
-    const resp = await axios.post(bridgeUrl, {
-      tool: "docker",
-      args: "restart zap"
-    }, {
-      headers: { "X-Scan-Key": scanApiKey, "Content-Type": "application/json" },
-      httpsAgent: new https.Agent({ rejectUnauthorized: false }),
-      timeout: 90000
-    });
-    const exitCode = resp.data?.exitCode ?? resp.data?.exit_code ?? -1;
-    if (exitCode === 0) {
-      lastZapRestart = Date.now();
-      console.log(`[ZAP Recovery] ZAP container restarted successfully via scan bridge. Waiting for startup...`);
-      // Wait for ZAP to fully start (typically 30-60s for addon loading)
-      await new Promise(r => setTimeout(r, 60000));
-      return true;
+  // Strategy 1: SSH Docker restart (fastest path)
+  if (!strategy || strategy === 'ssh') {
+    try {
+      const { executeViaChildProcessSSH } = await import("./scan-server-executor");
+      console.log(`[ZAP Recovery] Strategy 1: Restarting ZAP Docker container via SSH...`);
+      const result = await executeViaChildProcessSSH("docker restart zap", 60);
+      if (result.exitCode === 0) {
+        lastZapRestart = Date.now();
+        console.log(`[ZAP Recovery] ZAP container restarted successfully via SSH. Waiting 60s for startup...`);
+        await new Promise(r => setTimeout(r, 60000));
+        return true;
+      } else {
+        console.warn(`[ZAP Recovery] SSH docker restart failed: exit=${result.exitCode} ${result.stderr}. Falling back to EC2 API...`);
+      }
+    } catch (err: any) {
+      console.warn(`[ZAP Recovery] SSH unreachable: ${err.message}. Falling back to EC2 API reboot...`);
+    }
+  }
+
+  // Strategy 2: EC2 Reboot via AWS API
+  if (!strategy || strategy === 'ec2-reboot') {
+    const instanceId = await getScanServerInstanceId();
+    if (instanceId) {
+      try {
+        const { rebootInstance } = await import("./aws-ec2-infra");
+        console.log(`[ZAP Recovery] Strategy 2: Rebooting EC2 instance ${instanceId} via AWS API...`);
+        await rebootInstance(instanceId);
+        lastZapRestart = Date.now();
+        console.log(`[ZAP Recovery] EC2 reboot initiated. Instance will restart Docker containers via user data script. Waiting 180s...`);
+        // EC2 reboot takes ~2-3 min + Docker startup ~1 min
+        await new Promise(r => setTimeout(r, 180000));
+        return true;
+      } catch (err: any) {
+        console.error(`[ZAP Recovery] EC2 reboot failed: ${err.message}`);
+        if (strategy === 'ec2-reboot') return false;
+      }
     } else {
-      console.error(`[ZAP Recovery] Docker restart via scan bridge failed: exit=${exitCode} output=${resp.data?.stdout || resp.data?.output || ""}`);
-      return false;
+      console.warn(`[ZAP Recovery] No SCAN_SERVER_INSTANCE_ID configured. Cannot use EC2 API fallback.`);
+    }
+  }
+
+  // Strategy 3: EC2 Stop/Start (last resort — may change IP)
+  if (strategy === 'ec2-stop-start') {
+    const instanceId = await getScanServerInstanceId();
+    if (instanceId) {
+      try {
+        const { stopInstance, startInstance } = await import("./aws-ec2-infra");
+        console.log(`[ZAP Recovery] Strategy 3: Stop/Start EC2 instance ${instanceId}...`);
+        await stopInstance(instanceId);
+        // Wait for stopped state
+        await new Promise(r => setTimeout(r, 60000));
+        await startInstance(instanceId);
+        lastZapRestart = Date.now();
+        console.log(`[ZAP Recovery] Instance stop/start initiated. WARNING: IP may change. Waiting 300s...`);
+        await new Promise(r => setTimeout(r, 300000));
+        return true;
+      } catch (err: any) {
+        console.error(`[ZAP Recovery] EC2 stop/start failed: ${err.message}`);
+      }
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Resolve the scan server EC2 instance ID.
+ * Checks SCANFORGE_INSTANCE_ID / SCAN_SERVER_INSTANCE_ID env vars,
+ * or attempts auto-discovery via EC2 tags.
+ */
+async function getScanServerInstanceId(): Promise<string | null> {
+  const { ENV } = await import("../_core/env");
+  // Direct env var (preferred)
+  if (ENV.SCAN_SERVER_INSTANCE_ID) {
+    return ENV.SCAN_SERVER_INSTANCE_ID;
+  }
+  // Auto-discovery: find instance by tag or IP
+  try {
+    const { listInstances } = await import("./aws-ec2-infra");
+    const instances = await listInstances();
+    // Look for instance tagged as scan-server
+    const scanServer = instances.find(i => 
+      i.tags["Purpose"] === "scan-server" || 
+      i.tags["Role"] === "scan-server" ||
+      i.name.toLowerCase().includes("scan")
+    );
+    if (scanServer) return scanServer.id;
+    // Fallback: match by known IP
+    if (ENV.SCAN_SERVER_HOST) {
+      const byIp = instances.find(i => i.ipv4Public === ENV.SCAN_SERVER_HOST);
+      if (byIp) return byIp.id;
     }
   } catch (err: any) {
-    console.error(`[ZAP Recovery] Failed to restart ZAP via scan bridge: ${err.message}`);
-    return false;
+    console.warn(`[ZAP Recovery] Auto-discovery failed: ${err.message}`);
   }
+  return null;
 }
 
 // ─── Scan Lifecycle Functions ─────────────────────────────────────────────────────

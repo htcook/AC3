@@ -244,6 +244,34 @@ export const THREAT_INTEL_FEEDS: FeedSource[] = [
     targets: ["incident_reports"],
     enabled: true,
   },
+  // ── Tier 1: Government Joint Advisories (NSA/CISA/FBI) ──
+  {
+    id: "cisa-joint-advisories",
+    name: "CISA Joint Cybersecurity Advisories (AA series)",
+    url: "https://www.cisa.gov/cybersecurity-advisories/aa.xml",
+    tier: 1,
+    category: "threat_intel",
+    targets: ["incident_reports", "threat_group_events"],
+    enabled: true,
+  },
+  {
+    id: "ic3-alerts",
+    name: "FBI IC3 Public Service Announcements",
+    url: "https://www.ic3.gov/RSS",
+    tier: 1,
+    category: "threat_intel",
+    targets: ["incident_reports", "threat_group_events"],
+    enabled: true,
+  },
+  {
+    id: "nsa-cybersecurity-advisories",
+    name: "NSA Cybersecurity Advisories & Guidance",
+    url: "https://www.nsa.gov/About/Cybersecurity-Collaboration-Center/Cybersecurity-Advisories/rss/",
+    tier: 1,
+    category: "threat_intel",
+    targets: ["incident_reports", "threat_group_events"],
+    enabled: true,
+  },
 ];
 
 // ─── Known Threat Groups for Extraction ─────────────────────────────
@@ -264,7 +292,8 @@ const KNOWN_THREAT_GROUPS = [
   "APT28", "APT29", "APT41", "Lazarus", "Kimsuky", "Sandworm",
   "Cozy Bear", "Fancy Bear", "Turla", "Gamaredon", "Volt Typhoon",
   "Salt Typhoon", "Silk Typhoon", "Charming Kitten", "MuddyWater",
-  "Scattered Spider", "Star Blizzard", "Midnight Blizzard",
+  "Scattered Spider", "Star Blizzard", "Midnight Blizzard", "Laundry Bear",
+  "Cadet Blizzard", "Forest Blizzard", "Seashell Blizzard", "Secret Blizzard",
   // Hacktivist
   "Handala", "Anonymous", "KillNet", "NoName057",
   "CyberAv3ngers", "SiegedSec", "GhostSec",

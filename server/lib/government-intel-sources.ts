@@ -11,6 +11,8 @@
  *   5. NSA Cybersecurity Advisories — Joint advisories with actor attribution
  *   6. ACSC (Australia) — Five Eyes partner advisories
  *   7. CCCS (Canada) — Five Eyes partner advisories
+ *   8. NSA/CISA Joint CSAs (media.defense.gov) — Full PDF advisories with TTPs/IOCs
+ *   9. FBI IC3 Advisories (ic3.gov) — Cyber crime alerts and joint advisories
  *
  * All sources are unclassified/public. No TLP restrictions.
  */
@@ -775,6 +777,221 @@ async function processAdvisoryFeed(db: any, xml: string, source: string, result:
   }
 }
 
+// ─── 8. NSA/CISA Joint CSAs (media.defense.gov) ─────────────────────────────
+
+/**
+ * Ingests joint cybersecurity advisories from media.defense.gov.
+ * These are the full PDF advisories published by NSA/CISA/FBI with
+ * detailed TTPs, IOCs, and threat actor attribution (e.g., LAUNDRY BEAR,
+ * FANCY BEAR, SANDWORM). Primary source for attributed nation-state campaigns.
+ *
+ * Strategy: Scrape the CISA advisories page which links to media.defense.gov PDFs,
+ * and also directly query the NSA press room for CSA/CSI documents.
+ */
+export async function ingestMediaDefenseAdvisories(): Promise<GovSourceResult> {
+  const start = Date.now();
+  const result: GovSourceResult = { source: "NSA/CISA Joint CSAs (media.defense.gov)", fetched: 0, newRecords: 0, errors: [], durationMs: 0 };
+  try {
+    const db = await requireDb();
+
+    // Source 1: CISA cybersecurity advisories page (links to media.defense.gov PDFs)
+    const cisaAdvisoriesUrl = "https://www.cisa.gov/news-events/cybersecurity-advisories";
+    const res = await safeFetch(cisaAdvisoriesUrl, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; AC3-ThreatIntel/2.0)' }
+    }, 25000);
+
+    if (res.ok) {
+      const html = await res.text();
+
+      // Extract advisory links — look for AA (Alert/Advisory) pattern links
+      const advisoryLinkRegex = /href="([^"]*(?:aa\d{2}-\d{3}[a-z]?|cybersecurity-advisories\/aa\d{2})[^"]*)"/gi;
+      const advisoryLinks: string[] = [];
+      let linkMatch;
+      while ((linkMatch = advisoryLinkRegex.exec(html)) !== null) {
+        const link = linkMatch[1].startsWith('http') ? linkMatch[1] : `https://www.cisa.gov${linkMatch[1]}`;
+        if (!advisoryLinks.includes(link)) advisoryLinks.push(link);
+      }
+
+      // Also extract media.defense.gov PDF links directly
+      const defenseGovRegex = /href="(https?:\/\/media\.defense\.gov\/[^"]+\.PDF)"/gi;
+      let defMatch;
+      while ((defMatch = defenseGovRegex.exec(html)) !== null) {
+        if (!advisoryLinks.includes(defMatch[1])) advisoryLinks.push(defMatch[1]);
+      }
+
+      result.fetched += advisoryLinks.length;
+
+      // Process the most recent advisories (limit to 20 per run)
+      for (const link of advisoryLinks.slice(0, 20)) {
+        try {
+          // Extract title from URL pattern (e.g., CSA_RUSSIA_PHISHING_TARGET_ZIMBRA)
+          const filenameMatch = link.match(/\/([A-Z][A-Z0-9_]+)\.PDF$/i) || link.match(/\/(aa\d{2}-\d{3}[a-z]?)$/i);
+          const titleFromUrl = filenameMatch ? filenameMatch[1].replace(/_/g, ' ') : link.split('/').pop() || 'Unknown';
+
+          // Determine severity from URL/title keywords
+          const titleLower = titleFromUrl.toLowerCase();
+          let severity: 'critical' | 'high' | 'medium' | 'low' = 'high';
+          if (titleLower.includes('russia') || titleLower.includes('china') || titleLower.includes('iran') || titleLower.includes('dprk') || titleLower.includes('apt')) severity = 'critical';
+
+          await db.insert(incidentReports).values({
+            sourceId: `media-defense-${hashString(link)}`,
+            title: `Joint CSA: ${titleFromUrl}`,
+            source: 'NSA/CISA Joint Advisory',
+            url: link,
+            irSeverity: severity,
+            incidentType: 'advisory',
+            summary: `Joint Cybersecurity Advisory published via media.defense.gov. Source: ${link}`,
+            publishedAt: new Date().toISOString(),
+          }).onDuplicateKeyUpdate({ set: { irUpdatedAt: sql`NOW()` } });
+          result.newRecords++;
+        } catch { /* duplicate or DB error */ }
+      }
+    } else {
+      result.errors.push(`CISA advisories page returned ${res.status}`);
+    }
+
+    // Source 2: Direct NSA press room for CSA/CSI/CTR documents
+    const nsaPressUrl = "https://www.nsa.gov/Press-Room/Cybersecurity-Advisories-Guidance/";
+    const nsaRes = await safeFetch(nsaPressUrl, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; AC3-ThreatIntel/2.0)' }
+    }, 20000);
+
+    if (nsaRes.ok) {
+      const nsaHtml = await nsaRes.text();
+      // Look for media.defense.gov PDF links on NSA page
+      const nsaPdfRegex = /href="(https?:\/\/media\.defense\.gov\/[^"]+\.PDF)"/gi;
+      let nsaPdfMatch;
+      const nsaPdfs: string[] = [];
+      while ((nsaPdfMatch = nsaPdfRegex.exec(nsaHtml)) !== null) {
+        if (!nsaPdfs.includes(nsaPdfMatch[1])) nsaPdfs.push(nsaPdfMatch[1]);
+      }
+
+      result.fetched += nsaPdfs.length;
+
+      for (const pdfUrl of nsaPdfs.slice(0, 15)) {
+        try {
+          const filenameMatch = pdfUrl.match(/\/([A-Z][A-Z0-9_]+)\.PDF$/i);
+          const titleFromUrl = filenameMatch ? filenameMatch[1].replace(/_/g, ' ') : 'NSA Advisory';
+          const titleLower = titleFromUrl.toLowerCase();
+          let severity: 'critical' | 'high' | 'medium' | 'low' = 'high';
+          if (titleLower.includes('russia') || titleLower.includes('china') || titleLower.includes('iran') || titleLower.includes('dprk') || titleLower.includes('apt')) severity = 'critical';
+
+          await db.insert(incidentReports).values({
+            sourceId: `nsa-csa-${hashString(pdfUrl)}`,
+            title: `NSA CSA: ${titleFromUrl}`,
+            source: 'NSA/CISA Joint Advisory',
+            url: pdfUrl,
+            irSeverity: severity,
+            incidentType: 'advisory',
+            summary: `NSA Cybersecurity Advisory (PDF). Source: ${pdfUrl}`,
+            publishedAt: new Date().toISOString(),
+          }).onDuplicateKeyUpdate({ set: { irUpdatedAt: sql`NOW()` } });
+          result.newRecords++;
+        } catch { /* duplicate */ }
+      }
+    } else {
+      result.errors.push(`NSA press room returned ${nsaRes.status}`);
+    }
+  } catch (err: any) {
+    result.errors.push(`media.defense.gov ingest error: ${err.message}`);
+  }
+  result.durationMs = Date.now() - start;
+  return result;
+}
+
+// ─── 9. FBI IC3 Advisories (ic3.gov) ────────────────────────────────────────
+
+/**
+ * Ingests FBI Internet Crime Complaint Center (IC3) cybersecurity advisories.
+ * IC3 publishes joint advisories with CISA/NSA that contain detailed IOCs,
+ * YARA rules, and MITRE ATT&CK mappings. These are primary attribution sources
+ * for threat actors and are often the FBI's version of joint CSAs.
+ *
+ * Feed: https://www.ic3.gov/PSA (Public Service Announcements)
+ * Also: https://www.ic3.gov/CSA (Cybersecurity Advisories - joint with CISA)
+ */
+export async function ingestFBIIC3Advisories(): Promise<GovSourceResult> {
+  const start = Date.now();
+  const result: GovSourceResult = { source: "FBI IC3 Advisories", fetched: 0, newRecords: 0, errors: [], durationMs: 0 };
+  try {
+    const db = await requireDb();
+
+    // IC3 CSA page — joint cybersecurity advisories
+    const ic3Urls = [
+      "https://www.ic3.gov/PSA",
+      "https://www.ic3.gov/CSA",
+    ];
+
+    for (const pageUrl of ic3Urls) {
+      try {
+        const res = await safeFetch(pageUrl, {
+          headers: { 'User-Agent': 'Mozilla/5.0 (compatible; AC3-ThreatIntel/2.0)' }
+        }, 20000);
+
+        if (!res.ok) {
+          result.errors.push(`IC3 ${pageUrl} returned ${res.status}`);
+          continue;
+        }
+
+        const html = await res.text();
+
+        // Extract advisory links — IC3 uses /Media/PDF/ or /CSA/YYYY/ patterns
+        const linkRegex = /href="([^"]*(?:\/CSA\/\d{4}\/|\/ Media\/PDF\/|\/ PSA\/\d{4}\/)[^"]*)"/gi;
+        const altLinkRegex = /href="([^"]*\.pdf)"/gi;
+        const titleLinkRegex = /<a[^>]*href="([^"]+)"[^>]*>([^<]*(?:advisory|alert|warning|cyber|ransomware|phishing|threat|APT|malware)[^<]*)<\/a>/gi;
+
+        const links: Array<{ url: string; title: string }> = [];
+
+        // Pattern 1: PDF links
+        let pdfMatch;
+        while ((pdfMatch = altLinkRegex.exec(html)) !== null) {
+          const link = pdfMatch[1].startsWith('http') ? pdfMatch[1] : `https://www.ic3.gov${pdfMatch[1]}`;
+          links.push({ url: link, title: link.split('/').pop()?.replace(/\.pdf$/i, '').replace(/[-_]/g, ' ') || 'IC3 Advisory' });
+        }
+
+        // Pattern 2: Advisory page links with cyber-relevant titles
+        let titleMatch;
+        while ((titleMatch = titleLinkRegex.exec(html)) !== null) {
+          const link = titleMatch[1].startsWith('http') ? titleMatch[1] : `https://www.ic3.gov${titleMatch[1]}`;
+          const title = titleMatch[2].replace(/<[^>]+>/g, '').trim();
+          if (title.length > 5 && !links.find(l => l.url === link)) {
+            links.push({ url: link, title });
+          }
+        }
+
+        result.fetched += links.length;
+
+        for (const advisory of links.slice(0, 20)) {
+          try {
+            const titleLower = advisory.title.toLowerCase();
+            let severity: 'critical' | 'high' | 'medium' | 'low' = 'high';
+            if (titleLower.includes('russia') || titleLower.includes('china') || titleLower.includes('iran') || titleLower.includes('dprk') || titleLower.includes('critical')) severity = 'critical';
+            else if (titleLower.includes('ransomware') || titleLower.includes('apt')) severity = 'high';
+
+            await db.insert(incidentReports).values({
+              sourceId: `ic3-${hashString(advisory.url)}`,
+              title: `FBI IC3: ${advisory.title.slice(0, 450)}`,
+              source: 'FBI IC3 Advisory',
+              url: advisory.url,
+              irSeverity: severity,
+              incidentType: 'advisory',
+              summary: `FBI Internet Crime Complaint Center advisory. Source: ${advisory.url}`,
+              publishedAt: new Date().toISOString(),
+            }).onDuplicateKeyUpdate({ set: { irUpdatedAt: sql`NOW()` } });
+            result.newRecords++;
+          } catch { /* duplicate */ }
+        }
+      } catch (err: any) {
+        result.errors.push(`IC3 ${pageUrl} error: ${err.message}`);
+      }
+    }
+  } catch (err: any) {
+    result.errors.push(`IC3 ingest error: ${err.message}`);
+  }
+  result.durationMs = Date.now() - start;
+  return result;
+}
+
 // ─── Master Ingest Function ─────────────────────────────────────────────────
 
 /**
@@ -802,6 +1019,8 @@ export async function runGovernmentIntelIngest(): Promise<{
     { name: "NSA", fn: ingestNSAAdvisories },
     { name: "ACSC", fn: ingestACSCAdvisories },
     { name: "CCCS", fn: ingestCCCSAdvisories },
+    { name: "Media.Defense.Gov", fn: ingestMediaDefenseAdvisories },
+    { name: "FBI-IC3", fn: ingestFBIIC3Advisories },
   ];
 
   for (const source of sources) {

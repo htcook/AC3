@@ -96,6 +96,7 @@ export const ENV = {
   AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID || process.env.AWS_USERNAME || "",
   AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY || process.env.AWS_PASSWORD || "",
   AWS_REGION: process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || "us-east-1",
+  AWS_SESSION_TOKEN: process.env.AWS_SESSION_TOKEN || "",
   AWS_VPC_ID: process.env.AWS_VPC_ID || "",
   AWS_SUBNET_ID: process.env.AWS_SUBNET_ID || "",
   AWS_SECURITY_GROUP_ID: process.env.AWS_SECURITY_GROUP_ID || "",
@@ -128,9 +129,10 @@ export const ENV = {
   DO_SPACES_BUCKET: process.env.DO_SPACES_BUCKET ?? "aceofcloud-reports",
   DO_SPACES_REGION: process.env.DO_SPACES_REGION ?? "nyc3",
   DO_SPACES_ENDPOINT: process.env.DO_SPACES_ENDPOINT ?? "https://nyc3.digitaloceanspaces.com",
-  // Scan Server (DigitalOcean droplet with offensive tools)
+  // Scan Server (AWS EC2 instance with offensive tools)
   SCAN_SERVER_HOST: process.env.SCAN_SERVER_HOST ?? "",
   SCAN_SERVER_USER: process.env.SCAN_SERVER_USER ?? "root",
+  SCAN_SERVER_INSTANCE_ID: process.env.SCANFORGE_INSTANCE_ID ?? process.env.SCAN_SERVER_INSTANCE_ID ?? "",
   // SCAN_SERVER_SSH_KEY removed — multi-line PEM breaks Docker build command
   // SSH key is loaded at runtime via S3 fallback in scan-server-executor.ts
   // Metasploit MSGRPC

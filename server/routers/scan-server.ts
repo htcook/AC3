@@ -235,4 +235,47 @@ export const scanServerRouter = router({
         const result = await executeTool({ tool: 'bash', args: `-c "${input.command.replace(/"/g, '\\"')}"`, timeoutSeconds: input.timeoutSeconds });
         return { stdout: result.stdout, stderr: result.stderr, exitCode: result.exitCode };
       }),
+
+    // ─── ZAP Recovery ────────────────────────────────────────────────────
+
+    /** Restart ZAP scanner with configurable strategy (ssh → ec2-reboot → ec2-stop-start) */
+    restartZap: protectedProcedure
+      .input(z.object({
+        strategy: z.enum(['ssh', 'ec2-reboot', 'ec2-stop-start']).optional(),
+      }).optional())
+      .mutation(async ({ input }) => {
+        const { restartZapDocker } = await import('../lib/zap-scanner');
+        const strategy = input?.strategy;
+        const success = await restartZapDocker(strategy);
+        return { success, strategy: strategy || 'auto (ssh → ec2-reboot)' };
+      }),
+
+    /** Check ZAP health and auto-restart if down */
+    zapHealth: protectedProcedure.query(async () => {
+      const { checkZapHealth } = await import('../lib/zap-scanner');
+      return checkZapHealth();
+    }),
+
+    /** Get scan server EC2 instance status */
+    ec2Status: protectedProcedure.query(async () => {
+      try {
+        const instanceId = process.env.SCANFORGE_INSTANCE_ID || process.env.SCAN_SERVER_INSTANCE_ID || '';
+        if (!instanceId) {
+          return { configured: false, instanceId: null, state: null, ip: null, error: null };
+        }
+        const { getInstance } = await import('../lib/aws-ec2-infra');
+        const instance = await getInstance(instanceId);
+        return {
+          configured: true,
+          instanceId,
+          state: instance?.status || 'unknown',
+          ip: instance?.ipv4Public || null,
+          instanceType: instance?.instanceType || null,
+          name: instance?.name || null,
+          error: null,
+        };
+      } catch (err: any) {
+        return { configured: false, instanceId: null, state: null, ip: null, error: err.message };
+      }
+    }),
   });

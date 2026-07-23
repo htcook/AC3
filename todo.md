@@ -3138,209 +3138,33 @@
 - [ ] Support CIDR ranges (e.g., 192.168.1.0/24)
 - [ ] Ensure IP targets are passed to the backend scan pipeline correctly
 
-### ScanForge Bridge Timeout Fix & Scan State Tracking (Jul 3)
-- [x] Deep audit of ScanForge bridge: trace all code paths, dependencies, and tool integrations
-- [x] Identify root cause: 6-min hard cap in do-scan-api.ts kills long-running nuclei/ZAP scans
-- [x] Extend timeout for long-running tools (nuclei, ZAP, sqlmap, etc.) from 6 min to 15 min
-- [x] Add async submit + poll mode (future-proofed for when ScanBridge supports async)
-- [x] Implement Scan State Tracker: running/stalled/errored/timed_out detection
-- [x] Wire state tracker into executeToolViaHttp and executeRawCommandViaHttp
-- [x] Expose scan execution summary via doApiHealth tRPC endpoint
-- [x] Add stall detection (90s silence threshold) with auto-state transition
-- [x] Fix executeRawCommandViaHttp to also track tool state from piped commands
-- [x] Write vitest tests for scan state tracker (13 tests passing)
-- [x] Checkpoint and push to GitHub
+### Burp Findings Import (Jul 20)
+- [x] Create burp-findings-importer.ts module
+- [x] Pull scan findings from Burp REST API (issues endpoint)
+- [x] Map Burp severity/confidence to platform vuln schema
+- [x] Deduplicate against existing engagement findings
+- [x] Add tRPC route and UI button for manual/auto import
 
-### Exploit Phase Approval & Printable Export (Jul 7)
-- [x] Investigate why engagement #37 completed while paused (exploit approval gate bypassed)
-- [x] Fix exploit phase to require explicit operator approval before executing (no auto-approve/timeout bypass)
-- [x] Add printable exploit plan export for operators to share with clients for confirmation
-- [x] Add clientConfirmation field to ApprovalGate interface (72h timeout, auto-deny on expiry)
-- [x] Add timeoutDisabled field to ApprovalGate interface
-- [x] Fix shouldAutoApprove to respect pause state (isPaused → never auto-approve)
-- [x] Fix shouldAutoApprove to never auto-approve clientConfirmation gates
-- [x] Make trainingLabMode opt-in only (removed IP whitelist auto-detection)
-- [x] Add Print for Client button to ExploitPlanReviewCard (opens printable HTML in new tab)
-- [x] Write exploit-plan-printable.ts with getExploitImpactDescription() and generateExploitPlanHtml()
-- [x] Add getExploitPlanPrintable tRPC procedure
+### ZAP Docker Auto-Restart Mechanism (Jul 22)
+- [x] Implement robust restartZapDocker() with multi-strategy recovery (SSH → EC2 Reboot → EC2 Stop/Start)
+- [x] Add EC2 API fallback via aws-ec2-infra.ts rebootInstance (for when SSH is unreachable due to host firewall)
+- [x] Add getScanServerInstanceId() auto-discovery (env var + tag-based + IP-based)
+- [x] Add AWS_SESSION_TOKEN support to getCredentials() for STS-based auth
+- [x] Add SCAN_SERVER_INSTANCE_ID env var (falls back to SCANFORGE_INSTANCE_ID)
+- [x] Add tRPC endpoints: scanServer.restartZap, scanServer.zapHealth, scanServer.ec2Status
+- [x] Apply MIME multipart user data with per-boot cloud-init config (disables UFW, starts Docker containers)
+- [x] Open port 8090 in security group for public ZAP API access
+- [ ] Integrate with engagement orchestrator to auto-restart before ZAP scans
+- [ ] Add WebSocket notification when ZAP is restarted during a scan
+- [ ] Add UI button in Scan Server page for manual ZAP restart with strategy selector
 
-### OFAC Data Contamination Fix (Jul 7)
-- [x] Restrict OFAC ingestion to CYBER2 and CYBER-RELATED programs only (removed DPRK, IRAN, RUSSIA-EO14024)
-- [x] Add OFAC SDN List display filter to threat-intel router (belt & suspenders)
-
-### Infrastructure IPs Fix (Jul 7)
-- [x] Show external/public IPs only in infrastructure panel (filter RFC1918)
-- [x] Add isPublicIp() helper to scan-server-discovery.ts
-- [x] Add Platform NAT IP (52.23.137.98), C2 NAT IP (98.91.65.223), Wazuh SIEM IP (13.216.71.182)
-- [x] Support env var overrides (PLATFORM_NAT_IP, C2_NAT_IP, WAZUH_EXTERNAL_IP)
-
-### S3 RoE Upload Fix (Jul 7)
-- [x] Add S3_SESSION_TOKEN support to do-storage.ts (STS temporary credentials)
-- [x] Add sessionToken to StorageConfig interface and resolveConfig()
-- [x] Pass sessionToken to S3Client credentials when available
-- [x] Add default credential chain fallback for ECS task roles (no explicit keys needed in prod)
-- [x] Add credential error retry logic (InvalidToken, ExpiredToken → reset client and retry)
-- [x] Add ACL-disabled bucket handling (AccessControlListNotSupported → retry without ACL)
-- [x] Add S3_SESSION_TOKEN to env.ts
-- [x] Write vitest tests for all session fixes (41 tests passing)
-
-### Next Steps Implementation (Jul 7)
-- [x] Refresh S3 credentials with new AWS DEV keys (submitted via webdev_request_secrets — token expired, code fix deployed)
-- [x] Implement RoE document parsing after upload — ALREADY IMPLEMENTED (roe-document-parser.ts + roe-auto-engagement.ts)
-- [x] Add email notification on exploit plan approval/denial (from AC3@AceofCloud.com)
-  - [x] Created exploit-plan-notifications.ts with sendExploitPlanNotification()
-  - [x] Sends to: operator, client POC(s) from roe_personnel, reporting recipients from comms protocol
-  - [x] Includes exploit impact descriptions, removed targets, AI reasoning, platform link
-  - [x] Wired into resolveApproval tRPC procedure (non-blocking, fire-and-forget)
-  - [x] getEngagementNotificationRecipients() queries roe_personnel + comms protocol
-- [x] Write vitest tests for email notification (14 tests passing)
-
-### Notification Preferences per Engagement (Jul 7)
-- [x] Add engagement_notification_prefs table to schema (engagement_id, event_type, channel, enabled)
-- [x] Add DB helpers for getNotificationPrefs / upsertNotificationPrefs
-- [x] Add tRPC procedures for reading/updating notification preferences
-- [x] Wire preferences into exploit-plan-notifications dispatch (check prefs before sending email)
-- [x] Support event types: exploit_plan_approved, exploit_plan_denied, exploit_plan_modified, phase_completed, gate_timeout, roe_uploaded
-- [x] Support channels: email, in_app, both, none
-- [x] Write vitest tests for notification preferences logic (31 tests passing)
-
-### Progressive Evasion Scan Pipeline (Jul 7)
-- [ ] WAF/IDS fingerprinting module (wafw00f-style detection before scanning)
-- [ ] Evasion profile system with 5 levels: stealth, low, medium, aggressive, noisy
-- [ ] Each profile configures: timing/rate-limit, fragmentation, decoys, user-agents, encoding, source-port randomization
-- [ ] Operator can adjust evasion settings per-scan (override profile defaults)
-- [ ] Progressive pipeline: starts at stealth, escalates through levels on subsequent runs
-- [ ] Pipeline pause gates between scan types (recon → port scan → vuln scan → exploit)
-- [ ] Operator can re-scan at current or different evasion level from pause gate
-- [ ] Support manual tool result upload/ingest at any pause gate
-- [ ] Client approval gate before exploit phase (sends printable plan for review)
-- [ ] Track which evasion level triggered detection/blocking per target
-- [ ] tRPC procedures for evasion profile CRUD and scan pipeline control
-- [ ] Wire into engagement orchestrator pipeline
-- [ ] Available to both Red Team AND Pentest engagement types
-- [ ] Write vitest tests for evasion profiles and pipeline gates
-- [x] Fix hosts scanned duplication bug — re-scans double-count hosts (shows 12 instead of 6 for 6 assets)
-- [x] wafw00f secondary WAF fingerprinting integration into progressive evasion pipeline
-- [x] Fix scan resume/retry: operator should be able to resume from current phase, not restart from passive discovery
-
-### OFAC Data Filtering (Jul 7-8)
-- [x] Exclude OFAC SDN List entries from homepage threat actor counter (server/db.ts getThreatActorCount)
-- [x] Exclude OFAC SDN List entries from homepage feed (server/db.ts listThreatActors)
-- [x] Exclude OFAC SDN List entries from dashboard stats (server/lib/dashboard-aggregation.ts)
-- [x] Exclude OFAC SDN List entries from Master Threat Catalog TOTAL ACTORS (server/lib/threat-intel-connectors.ts getCatalogStats)
-- [x] Push fixes to both GitHub repos (htcook/caldera-dashboard + htcook/AC3)
-- [ ] Deploy latest commit (a921b220) to AWS ECS via CodeBuild (pending fresh AWS credentials)
-
-### ZAP JSON.parse Crash Fix (Jul 7)
-- [x] Wrap zapRequest() response.json() in try/catch with retry logic for non-JSON responses (HTML error pages, empty responses)
-
-### PTES Test Plan Adherence Fix + CVE Freshness + Exploit Bug Fix (Jul 8)
-- [x] Investigate PTES adherence tracking: 40% (2/7 phases) — root cause is mismatched log phase names and overly strict completion criteria
-- [x] Fix PTES_PHASES definitions in engagement-report-handoff.ts: added all actual pipeline phase names (passive_discovery, discovery, targeted_enum, credential_testing, etc.)
-- [x] Broaden PTES indicator keywords to match actual log entry titles/details
-- [x] Fix status determination logic: phases that ran (≥3 activity logs) count as "completed" even without explicit findings
-- [x] Add special-case completions: exploitation (exploitsAttempted > 0), vuln analysis (vulnsFound > 0), intel gathering (hostsScanned + portsFound > 0)
-- [x] Fix countFindingsForPhase: count tool_exec/scan_start log types + asset vulns/zapFindings/exploitAttempts
-- [x] Add CVE freshness pre-scan step in nuclei-scanner.ts: updates Nuclei templates + refreshes CISA KEV/NVD/Project Zero/Exploit-DB caches before scanning
-- [x] Fix undefined.length bug in enhanced-exploit-orchestration.ts: guard nucleiHint.tags with null check at 4 locations
-- [x] Fix undefined.length bug in functional-exploit-generator.ts: normalize prerequisites/explanation/verificationSteps/mitreTechniques in improveExploit() return
-
-### Scan Tool Issues (July 8)
-- [x] Fix cloud_enum exit 127 - auto-install via scan API on first failure + retry
-- [x] Fix Nikto scan timeouts - phase-aware stall threshold (20 min for scan phases) + heartbeat propagation
-- [x] Fix Nuclei scan timeouts - phase-aware stall threshold (20 min for scan phases) + heartbeat propagation
-- [x] Add zero-findings validation: verify scan tools ran correctly when they return 0 findings
-- [ ] Delete accidental DO scan server via DigitalOcean API
-- [ ] Verify AWS scan server is accessible and working
-- [x] Install cloud_enum on AWS scan server (auto-install via cloud-storage-scanner.ts on first use)
-
-### Engagement Ops Re-Launch Bug Fix (Jul 9)
-- [x] Fix: DB engagement status not synced to 'active' on re-launch of completed/errored engagement
-- [x] Added db.updateEngagement(id, { status: 'active' }) to re-launch reset block (line 193)
-- [x] Manually updated Celerium engagement #37 status from 'completed' to 'active' on production
-- [x] Fix: Add pre-exploitation sanity filter to skip DOM XSS on non-functional (403/404/503) endpoints
-- [x] Fix: Filter out truncated parameter name artifacts (e.g., 'erabilities') from exploitation targets
-### LLM Exploit Validation Analyst Pipeline Step (Jul 9)
-- [x] Create server/lib/exploit-validation-analyst.ts module with validateVulnsForExploitation() and assessExploitOutcome() functions
-- [x] Implement structured JSON schema for pre-exploitation go/no-go decisions (PRE_EXPLOIT_VALIDATION_SCHEMA)
-- [x] Implement structured JSON schema for post-exploitation evidence classification (POST_EXPLOIT_ASSESSMENT_SCHEMA)
-- [x] Integrate pre-exploitation LLM validation gate into engagement-ops-core.ts (before toExploit loop)
-- [x] Integrate post-exploitation evidence assessment after each exploit attempt (after training data collection)
-- [x] Add generateAuditTrail() function for end-of-phase summary generation
-- [x] Add audit trail generation at exploitation completion (before fine-tuning check)
-- [x] Add getExploitValidationAuditTrail tRPC query endpoint for UI access
-- [x] Graceful degradation: if LLM fails, pipeline continues without blocking
-- [x] Uses _priority: 'essential' for accuracy-critical analysis (routes to best model)
-- [x] Push to GitHub (caldera remote)
-
-### RoE Parser - Testing Permission Extraction Bug Fix (Jul 9)
-- [x] Identified bug: LLM parser defaulting all testing permissions to DENIED for Red Team plans
-- [x] Root cause: System prompt didn't instruct LLM to infer permissions from methodology/threat emulation descriptions
-- [x] Enhanced ROE_EXTRACTION_SYSTEM_PROMPT with explicit permission extraction rules
-- [x] Rules: Activities in methodology/phases/ATT&CK mappings imply ALLOWED; only FALSE when explicitly prohibited
-- [x] Pushed fix to both GitHub repos (htcook/caldera-dashboard and htcook/AC3)
-- [x] Updated Ontic engagement (ID 39) scope constraints in DB with correct permissions
-### Celerium Engagement #37 Crash Loop Fix (Jul 9-10)
-- [x] Investigated crash loop: identified 3 root causes (LLM safety interceptor ESM bug, NVD API 404, HackerOne 401)
-- [x] Fix LLM Safety Interceptor: added middleware registry to server/_core/llm.ts (registerLLMMiddlewarePre, registerLLMMiddlewarePost)
-- [x] Rewrote installSafetyInterceptor in server/lib/llm-safety-interceptor.ts to use middleware registry (ESM-safe, no monkey-patching)
-- [x] Fix NVD API 404: changed version-threshold-service.ts from cpeName (partial CPE) to virtualMatchString (full 13-field CPE wildcard)
-- [x] Deployed fix to AWS Dev via GitHub Actions (Run #29060122321 — all jobs passed)
-- [ ] Deploy to Production (requires manual workflow_dispatch with environments=production)
-- [ ] Rotate expired HackerOne API key in AWS Secrets Manager (ac3/dev/app and ac3/prod/app)
-- [ ] Verify Celerium engagement #37 resumes without crash loop after production deploy (Mase will handle SQLMap approval gate)
-### ScanForge Discovery exit:127 Fix (Jul 9-10)
-- [x] Root cause analysis: 'scanforge-discovery' is a TS module name sent as literal tool name to SSH executor
-- [x] Added resolveToolBinary() in scan-server-executor.ts: maps 'scanforge-discovery' → nmap (if --script flags) or naabu (port scan)
-- [x] Fixed callback naming mismatch: executeNmap → executeScanForgeDiscovery in chain-execution-callbacks.ts
-- [x] Expanded availableTools in engagement-orchestrator.ts: added nmap, naabu, masscan, feroxbuster, ffuf, whatweb, wpscan, sslscan, arjun
-- [x] Expanded toolToActionType map to route new tools to correct action types
-- [x] Pushed to GitHub (htcook/caldera-dashboard + htcook/AC3) and triggered Deploy Multi-Environment
-- [ ] Verify nmap is installed on EC2 scan server (requires SSH access to SCANFORGE_HOST)
-### Cloud Scan Auto-Install Fallback Fix (Jul 9-10)
-- [x] Fixed bash/sh exit:127: skip pip install (installs unrelated Python 'bash' package), retry with /bin/sh -c wrapper
-- [x] Fixed cloud_enum exit:127: use python3 -m cloud_enum fallback + create /usr/local/bin/cloud_enum wrapper
-- [x] Added s3scanner-specific auto-install with wrapper script creation and python3 -m fallback
-- [x] Route piped commands (containing |, ;, `) through executeRawCommand instead of executeTool (which blocks dangerous chars)
-- [x] Pushed to GitHub and triggered production deployment
-- [ ] Verify bash is installed on scan server (apt-get install -y bash)
-- [ ] Verify s3scanner is installed on scan server (pip3 install s3scanner)
-- [ ] Quick Re-Scan Stell engagement to verify cloud storage enumeration works end-to-end
-
-### Selective Re-Run Feature — Granular Engagement Re-execution (Jul 11)
-- [x] Backend: Add `selectiveRerun` tRPC endpoint supporting per-asset, per-tool, per-vuln re-run
-- [x] Backend: Fix `rerunFromPhase` to capture previousScanFindings before clearing (dedup parity with rerunFullPipeline)
-- [x] Backend: Auto-trigger LLM re-analysis when new findings are detected after any partial re-run
-- [x] Backend: Refresh engagement_results/engagement_findings DB tables after re-run completes (no stale duplicates)
-- [x] UI: Build enhanced Selective Re-Run panel with asset/tool/phase granular checkboxes
-- [x] UI: Show dedup stats after re-run completes (new vs duplicate findings)
-- [x] UI: Add standalone "Re-analyze" button that triggers LLM re-analysis on current findings without re-scanning
-- [x] Integration: Ensure no duplicates in final engagement results after any re-run path
-
-### Mobile Responsiveness — EngagementOps Dashboard (Jul 11)
-- [x] Add mobile bottom action bar with re-run pipeline controls (visible on < lg screens)
-- [x] Make sidebar collapsible on mobile with Sheet/drawer pattern (right-side Sheet)
-- [x] Add responsive breakpoints to main content grid (assets tab stacks vertically on mobile)
-- [x] Ensure vuln tables and asset lists are horizontally scrollable on mobile (already wrapped)
-- [x] Pipeline Control section accessible via mobile bottom bar + Sheet drawer
-- [x] Dialogs max-h-[85vh]/[90vh] + overflow-y-auto for mobile scroll
-- [x] Responsive header padding (px-3 py-3 on mobile, px-6 py-4 on desktop)
-- [x] Tab content responsive padding (px-3 mobile, px-6 desktop)
-- [x] Safe area padding for notched devices (env(safe-area-inset-bottom))
-- [x] Header metadata wraps on mobile, less important items hidden on small screens
-
-### Finding Count Inflation Fixes (Celereum 700+ findings)
-- [x] Fix 1: Clear asset.zapFindings after dedup-coverage-bridge merges them into vulns
-- [x] Fix 2: Apply FP suppression to asset.vulns (not just vulnAnalysis)
-- [x] Fix 3: Skip toolResults.findings in dedup-coverage-bridge (already in asset.vulns)
-- [x] Fix 4: Fuzzy title matching in report pipeline translateSignals (4-strategy dedup)
-- [x] Fix 5: UI stat shows post-dedup/post-suppression verified count
-- [x] Sync engagement_findings DB table with clean deduplicated results after pipeline completes
-
-### Evidence-Gated Findings & Credential Evidence
-- [x] Add evidence validation to recalculateFindings — demote/filter findings without tool evidence
-- [x] Add evidence scoring: findings with rawEvidence/curl_command/matched_at get priority; no-evidence findings demoted to info
-- [x] Enhance Hydra/credential scan result capture with full evidence (command, response, session proof)
-- [x] Capture successful logon evidence: exact credentials used, target URL, response headers, session tokens
-- [x] Add evidence summary field to engagement_findings for operator reporting (rawEvidence + toolResult enrichment)
-- [x] Ensure exploit attempts with successful auth have full proof-of-access in rawEvidence
+### Add media.defense.gov and IC3 as Threat Intel Feed Sources (Jul 23)
+- [x] Add media.defense.gov CSA/CSI PDF advisory scraper to government-intel-sources.ts (ingestMediaDefenseAdvisories)
+- [x] Add FBI IC3 advisory feed (ic3.gov/CSA/) to government-intel-sources.ts (ingestFBIIC3Advisories)
+- [x] Add CISA joint advisories RSS feed (aa.xml) to threat-intel-rss.ts
+- [x] Add FBI IC3 RSS feed to threat-intel-rss.ts
+- [x] Add NSA Cybersecurity Advisories RSS to threat-intel-rss.ts
+- [x] Add LAUNDRY BEAR + Blizzard variants to KNOWN_THREAT_GROUPS
+- [x] Register new sources in runGovernmentIntelIngest() master function
+- [x] Verify compilation and daily scheduler integration
+- [ ] Ensure LLM extraction pipeline processes PDF advisories for TTPs, IOCs, and actor attribution

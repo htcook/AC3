@@ -15,7 +15,11 @@ function getCredentials() {
   if (!accessKeyId || !secretAccessKey) {
     throw new Error("AWS credentials not configured (AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY)");
   }
-  return { accessKeyId, secretAccessKey };
+  const creds: { accessKeyId: string; secretAccessKey: string; sessionToken?: string } = { accessKeyId, secretAccessKey };
+  if (ENV.AWS_SESSION_TOKEN) {
+    creds.sessionToken = ENV.AWS_SESSION_TOKEN;
+  }
+  return creds;
 }
 
 async function getEc2Client(region?: string) {
