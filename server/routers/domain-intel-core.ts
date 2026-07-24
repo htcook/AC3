@@ -1757,7 +1757,21 @@ export const domainIntelRouter = router({
         // Determine if this was a full engagement or scan-only
         const wasFullEngagement = scan.status === 'completed';
 
-        // Clean up old assets (they will be re-discovered)
+        // ═══ PRESERVE IN-SCOPE ASSET HOSTNAMES before deletion ═══
+        // This prevents scope loss when the pipeline doesn't re-discover all original assets
+        let preservedScopeAssets: string[] = [];
+        try {
+          const existingAssets = await db.getDiscoveredAssetsByScan(input.scanId);
+          preservedScopeAssets = existingAssets
+            .filter((a: any) => !a.excluded) // Only keep non-excluded (in-scope) assets
+            .map((a: any) => a.hostname)
+            .filter(Boolean);
+          if (preservedScopeAssets.length > 0) {
+            console.log(`[DomainIntel] Refresh: Preserved ${preservedScopeAssets.length} in-scope asset hostnames for re-discovery: ${preservedScopeAssets.slice(0, 5).join(', ')}${preservedScopeAssets.length > 5 ? '...' : ''}`);
+          }
+        } catch { /* ignore */ }
+
+        // Clean up old assets (they will be re-discovered with preserved scope)
         try {
           await db.deleteDiscoveredAssetsByScan(input.scanId);
         } catch { /* ignore if no assets exist */ }
@@ -1814,7 +1828,13 @@ export const domainIntelRouter = router({
               {
                 scanMode: (orgProfile?.scanMode as any) || 'standard',
                 skipEngagement: !wasFullEngagement,
-                scopedAssets: (orgProfile?.scopedAssets as string[])?.length > 0 ? (orgProfile.scopedAssets as string[]) : undefined,
+                // Use preserved scope assets (from pre-deletion snapshot) merged with orgProfile.scopedAssets
+                // This ensures assets that were in-scope before refresh are re-created even if not re-discovered
+                scopedAssets: (() => {
+                  const orgScoped = (orgProfile?.scopedAssets as string[]) || [];
+                  const merged = [...new Set([...orgScoped, ...preservedScopeAssets])];
+                  return merged.length > 0 ? merged : undefined;
+                })(),
               }
             );
 

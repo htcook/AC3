@@ -1991,6 +1991,14 @@ export const engagementOpsRouter = router({
 
         // ── Recon scope: assets, domain intel, host/port stats ──
         if (rs.recon) {
+          // ═══ PRESERVE IN-SCOPE ASSET HOSTNAMES before clearing ═══
+          // This prevents scope loss when passive recon doesn't re-discover all original assets
+          const preservedAssetHostnames = (state.assets || []).map((a: any) => a.hostname).filter(Boolean);
+          if (preservedAssetHostnames.length > 0) {
+            console.log(`[RerunPipeline] Preserved ${preservedAssetHostnames.length} asset hostnames for re-seeding: ${preservedAssetHostnames.slice(0, 5).join(', ')}${preservedAssetHostnames.length > 5 ? '...' : ''}`);
+          }
+          // Store on state so the pipeline can re-seed them if not re-discovered
+          (state as any)._preservedScopeHostnames = preservedAssetHostnames;
           state.assets = [];
           state.skippedDomains = new Set();
           state.stats.hostsScanned = 0;
@@ -2208,6 +2216,30 @@ export const engagementOpsRouter = router({
               }
             }
 
+            // ═══ RE-SEED PRESERVED SCOPE ASSETS that weren't re-discovered ═══
+            const preserved = (state as any)._preservedScopeHostnames as string[] | undefined;
+            if (preserved && preserved.length > 0) {
+              const currentHostnames = new Set(state!.assets.map(a => a.hostname));
+              let reseeded = 0;
+              for (const hostname of preserved) {
+                if (!currentHostnames.has(hostname)) {
+                  state!.assets.push({
+                    hostname, ip: '', type: 'web' as any,
+                    status: 'pending' as any, ports: [] as any, vulns: [], zapFindings: [],
+                  } as any);
+                  reseeded++;
+                }
+              }
+              if (reseeded > 0) {
+                addLog(state!, {
+                  phase: 'recon', type: 'info',
+                  title: `\u{1f504} Re-seeded ${reseeded} previously in-scope assets`,
+                  detail: `These assets were in scope before the re-run but were not re-discovered by passive recon. They remain in scope for active scanning.`,
+                });
+                console.log(`[RerunPipeline] Re-seeded ${reseeded} preserved scope assets that passive recon didn't re-discover`);
+              }
+              delete (state as any)._preservedScopeHostnames;
+            }
             // ── Recalculate stats after Phase 1 (Passive Recon) ──
             state!.stats.assetsDiscovered = state!.assets.length;
             state!.stats.portsFound = state!.assets.reduce((sum, a) => sum + (a.ports || []).length, 0);

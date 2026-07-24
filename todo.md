@@ -3168,3 +3168,8 @@
 - [x] Register new sources in runGovernmentIntelIngest() master function
 - [x] Verify compilation and daily scheduler integration
 - [ ] Ensure LLM extraction pipeline processes PDF advisories for TTPs, IOCs, and actor attribution
+
+### Fix: In-Scope Assets Disappearing on Re-Calculate/Re-Analyze (Jul 24)
+- [ ] Fix refreshScan to preserve scoped asset hostnames before deleting discovered_assets
+- [ ] Fix rerunFullPipeline to preserve asset hostnames before clearing state.assets
+- [ ] Ensure preserved scope list is passed to pipeline so stub assets are created for any not re-discovered
