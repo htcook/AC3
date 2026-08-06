@@ -8,6 +8,7 @@ import * as db from "./db";
 import jwt from "jsonwebtoken";
 import type { InsertIocFeed } from "../drizzle/schema";
 import { threatIntelRouter } from "./routers/threat-intel";
+import { evidenceExportRouter } from "./routers/evidence-export";
 import { darkwebBridgeRouter } from "./routers/darkweb-bridge";
 import { campaignArchetypeRouter } from "./routers/campaign-archetypes";
 import { phishingOpsRouter } from "./routers/phishing";
@@ -327,6 +328,7 @@ export const appRouter = router({
   knowledgeBase: knowledgeBaseRouter,
   knowledgeCache: knowledgeCacheRouter,
   threatIntel: threatIntelRouter,
+  evidenceExport: evidenceExportRouter,
   darkwebBridge: darkwebBridgeRouter,
   campaignArchetypes: campaignArchetypeRouter,
   phishingOps: phishingOpsRouter,
