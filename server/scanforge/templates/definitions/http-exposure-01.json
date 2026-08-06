@@ -1,0 +1,45 @@
+{
+  "id": "http-exposure-env-file",
+  "name": "Exposed .env File",
+  "description": "Detects publicly accessible .env files that may contain database credentials, API keys, and other secrets.",
+  "author": "AC3 ScanForge",
+  "severity": "critical",
+  "protocol": "http",
+  "tags": ["exposure", "credentials", "owasp-top10", "dfir-persistence"],
+  "request": {
+    "method": "GET",
+    "path": "/.env",
+    "followRedirects": false
+  },
+  "matchers": [
+    {
+      "type": "status",
+      "values": ["200"],
+      "condition": "and"
+    },
+    {
+      "type": "regex",
+      "part": "body",
+      "values": ["(DB_PASSWORD|DATABASE_URL|API_KEY|SECRET_KEY|AWS_ACCESS|SMTP_PASSWORD)\\s*="],
+      "condition": "and"
+    },
+    {
+      "type": "header",
+      "values": ["content-type: text/plain", "content-type: application/octet-stream"],
+      "condition": "or",
+      "negative": false
+    }
+  ],
+  "references": {
+    "cwes": ["CWE-200", "CWE-538"],
+    "urls": ["https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/02-Configuration_and_Deployment_Management_Testing/05-Enumerate_Infrastructure_and_Application_Admin_Interfaces"]
+  },
+  "remediation": "Remove the .env file from the web root immediately. Add .env to .gitignore. Rotate all exposed credentials. Configure the web server to block access to dotfiles.",
+  "attack": {
+    "techniqueIds": ["T1552.001"]
+  },
+  "intelligence": {
+    "feeds": ["kev"],
+    "dfirRelevance": "Exposed .env files are a top initial access vector found in DFIR investigations. Attackers use leaked credentials for database access, cloud account takeover, and lateral movement."
+  }
+}

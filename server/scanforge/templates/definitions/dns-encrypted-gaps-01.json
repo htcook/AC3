@@ -1,0 +1,69 @@
+{
+  "id": "dns-encrypted-dns-gaps",
+  "name": "Encrypted DNS (DoT/DoH/DoQ) Deployment Gaps",
+  "description": "Detects missing or misconfigured encrypted DNS transport (DNS over TLS, DNS over HTTPS, DNS over QUIC). Per NIST SP 800-81r3 Section 4.2.1, organizations should deploy encrypted DNS to prevent eavesdropping and manipulation of DNS queries. Also detects rogue encrypted DNS endpoints that could bypass organizational security controls.",
+  "author": "AC3 ScanForge",
+  "severity": "medium",
+  "protocol": "dns",
+  "tags": ["dns", "encryption", "dot", "doh", "doq", "transport-security", "nist-800-81r3", "sc-8"],
+  "request": {
+    "rawPayload": "ENCRYPTED_DNS_CHECK"
+  },
+  "matchers": [
+    {
+      "type": "word",
+      "part": "body",
+      "values": [
+        "DoT not supported on port 853",
+        "DoH not supported",
+        "DoQ not supported",
+        "TLS certificate invalid for DNS",
+        "TLS version below 1.3",
+        "Rogue DoH endpoint detected",
+        "Rogue DoT endpoint detected",
+        "Unencrypted DNS queries observed",
+        "Public resolver bypass detected"
+      ],
+      "condition": "or"
+    }
+  ],
+  "references": {
+    "cves": [],
+    "cwes": ["CWE-319", "CWE-523"],
+    "urls": [
+      "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-81r3.pdf",
+      "https://datatracker.ietf.org/doc/html/rfc7858",
+      "https://datatracker.ietf.org/doc/html/rfc8484",
+      "https://datatracker.ietf.org/doc/html/rfc9250"
+    ]
+  },
+  "remediation": "Deploy DNS over TLS (DoT) on TCP port 853 for internal resolvers. Deploy DNS over HTTPS (DoH) for browser-based resolution. Block unauthorized DoT traffic on TCP 853 via firewall. Detect and block rogue DoH endpoints using Response Policy Zones (RPZ) and firewall rules. Block direct queries to public DNS resolvers (8.8.8.8, 1.1.1.1) to prevent security control bypass. Use TLS 1.3 for all encrypted DNS connections. Consider DNS over QUIC (DoQ) on UDP 853 for improved performance.",
+  "attack": {
+    "techniqueIds": ["T1040", "T1557"],
+    "tactics": ["Credential Access", "Collection"]
+  },
+  "intelligence": {
+    "kevRelated": false,
+    "threatActors": [],
+    "dfirRelevance": "Unencrypted DNS traffic is a primary source of intelligence for network-level adversaries. DNS eavesdropping reveals browsing patterns, internal service names, and can be used for DNS hijacking attacks.",
+    "industries": [],
+    "feeds": []
+  },
+  "environments": ["traditional", "cloud", "hybrid"],
+  "complianceMapping": [
+    {
+      "framework": "nist_800_53",
+      "controlId": "SC-8",
+      "controlTitle": "Transmission Confidentiality and Integrity",
+      "status": "non_compliant",
+      "confidence": 80
+    },
+    {
+      "framework": "nist_800_53",
+      "controlId": "SC-21",
+      "controlTitle": "Secure Name/Address Resolution Service (Recursive or Caching Resolver)",
+      "status": "non_compliant",
+      "confidence": 80
+    }
+  ]
+}

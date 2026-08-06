@@ -1,0 +1,44 @@
+{
+  "id": "owasp-path-traversal-lfi",
+  "name": "Path Traversal / Local File Inclusion (LFI)",
+  "description": "Tests for path traversal and local file inclusion by injecting directory traversal sequences (../) to access sensitive system files. Detects when the application returns contents of /etc/passwd, /etc/shadow, win.ini, or other sensitive files.",
+  "author": "AC3 ScanForge",
+  "severity": "critical",
+  "protocol": "http",
+  "tags": ["owasp-a01", "lfi", "path-traversal", "owasp-top10", "dfir-collection"],
+  "request": {
+    "method": "GET",
+    "path": "/?file=../../../etc/passwd",
+    "followRedirects": true
+  },
+  "matchers": [
+    {
+      "type": "word",
+      "part": "body",
+      "values": [
+        "root:x:0:0",
+        "root:*:0:0",
+        "daemon:x:",
+        "nobody:x:",
+        "[boot loader]",
+        "[fonts]",
+        "for 16-bit app support"
+      ],
+      "condition": "or"
+    }
+  ],
+  "references": {
+    "cwes": ["CWE-22", "CWE-98"],
+    "urls": [
+      "https://owasp.org/Top10/A01_2021-Broken_Access_Control/",
+      "https://portswigger.net/web-security/file-path-traversal"
+    ]
+  },
+  "remediation": "Validate and sanitize all file path inputs. Use a whitelist of allowed files. Implement chroot jails or containerization. Never concatenate user input with file system paths directly.",
+  "attack": {
+    "techniqueIds": ["T1005", "T1083"]
+  },
+  "intelligence": {
+    "dfirRelevance": "LFI is used to read configuration files containing credentials, SSH keys, and database connection strings. Combined with log poisoning, LFI can escalate to RCE."
+  }
+}

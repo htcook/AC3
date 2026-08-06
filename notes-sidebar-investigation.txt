@@ -1,0 +1,22 @@
+Production sidebar sections (from user screenshot):
+1. Home
+2. COMMAND & CONTROL
+3. CAMPAIGN OPERATIONS
+4. EXPLOIT & EMULATION
+5. C2 & AGENTS
+6. TEST LAB
+7. INTELLIGENCE & RECON
+8. SCANNING & ASSESSMENT
+9. DETECTION & VALIDATION
+10. AD & CLOUD
+11. INFRASTRUCTURE & INTEGR...
+12. COMPLIANCE & REPORTING
+13. KSI & FEDRAMP
+14. LLM & AI MANAGEMENT
+15. ADMIN & SYSTEM
+
+No "ATTACK SURFACE" section visible.
+No "Bug Bounty Hub" visible.
+The code in AppShell.tsx has "ATTACK SURFACE" with "Discovery & Recon" subsection.
+Production seems to be using a DIFFERENT sidebar structure.
+Need to check if there are multiple sidebar components or if the nav structure changed.

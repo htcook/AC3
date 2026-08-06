@@ -1,0 +1,65 @@
+{
+  "id": "dns-tunneling-exfiltration-indicators",
+  "name": "DNS Tunneling and Data Exfiltration Indicators",
+  "description": "Detects indicators of DNS tunneling and data exfiltration by analyzing DNS query patterns for anomalous characteristics including excessive query lengths, high entropy subdomain labels, unusual query volumes, and TXT record abuse. Per NIST SP 800-81r3 Section 4.2.4, DNS tunneling is a common technique for C2 communication and data exfiltration that bypasses traditional security controls.",
+  "author": "AC3 ScanForge",
+  "severity": "high",
+  "protocol": "dns",
+  "tags": ["dns", "tunneling", "exfiltration", "c2", "data-loss", "nist-800-81r3", "sc-7"],
+  "request": {
+    "rawPayload": "DNS_TUNNEL_DETECT"
+  },
+  "matchers": [
+    {
+      "type": "regex",
+      "part": "body",
+      "values": [
+        "Query length exceeds \\d+ characters",
+        "High entropy subdomain label detected",
+        "Excessive TXT record queries",
+        "Unusual query volume to single domain",
+        "Base64-encoded subdomain pattern",
+        "Hex-encoded subdomain pattern",
+        "Known DNS tunnel tool signature"
+      ],
+      "condition": "or"
+    }
+  ],
+  "references": {
+    "cves": [],
+    "cwes": ["CWE-200", "CWE-311"],
+    "urls": [
+      "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-81r3.pdf",
+      "https://attack.mitre.org/techniques/T1071/004/"
+    ]
+  },
+  "remediation": "Deploy DNS query inspection and anomaly detection at recursive resolvers. Implement Response Policy Zones (RPZ) to block known malicious domains. Monitor DNS query logs for anomalous patterns (high entropy labels, excessive lengths, unusual TXT queries). Integrate DNS logs with SIEM for correlation with other network indicators. Block direct DNS queries to external resolvers to force traffic through monitored infrastructure. Consider deploying dedicated DNS security solutions with machine learning-based tunnel detection.",
+  "attack": {
+    "techniqueIds": ["T1071.004", "T1048.003", "T1572"],
+    "tactics": ["Command and Control", "Exfiltration"]
+  },
+  "intelligence": {
+    "kevRelated": false,
+    "threatActors": ["APT34", "APT29", "Lazarus Group"],
+    "dfirRelevance": "DNS tunneling is a primary C2 and exfiltration technique used by advanced persistent threat groups. Tools like iodine, dnscat2, and Cobalt Strike DNS beacon are commonly found in DFIR investigations. DNS tunnel traffic often persists for extended periods before detection.",
+    "industries": ["government", "defense", "finance", "healthcare"],
+    "feeds": []
+  },
+  "environments": ["traditional", "cloud", "hybrid"],
+  "complianceMapping": [
+    {
+      "framework": "nist_800_53",
+      "controlId": "SC-7",
+      "controlTitle": "Boundary Protection",
+      "status": "non_compliant",
+      "confidence": 85
+    },
+    {
+      "framework": "nist_800_53",
+      "controlId": "SI-4",
+      "controlTitle": "System Monitoring",
+      "status": "non_compliant",
+      "confidence": 80
+    }
+  ]
+}

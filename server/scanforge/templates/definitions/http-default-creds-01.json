@@ -1,0 +1,38 @@
+{
+  "id": "http-default-creds-admin-panels",
+  "name": "Default Credentials on Admin Panel",
+  "description": "Common admin panels (phpMyAdmin, Adminer, Grafana, Jenkins, etc.) are accessible with default or no credentials, allowing full administrative access.",
+  "author": "AC3 ScanForge",
+  "severity": "critical",
+  "protocol": "http",
+  "tags": ["default-creds", "admin-panel", "owasp-top10", "dfir-credential-access"],
+  "request": {
+    "method": "GET",
+    "path": "/phpmyadmin/",
+    "followRedirects": true
+  },
+  "matchers": [
+    {
+      "type": "status",
+      "values": ["200"],
+      "condition": "and"
+    },
+    {
+      "type": "word",
+      "part": "body",
+      "values": ["phpMyAdmin", "pma_username", "Server Choice"],
+      "condition": "or"
+    }
+  ],
+  "references": {
+    "cwes": ["CWE-798", "CWE-521"],
+    "urls": ["https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/04-Authentication_Testing/02-Testing_for_Default_Credentials"]
+  },
+  "remediation": "Change all default credentials immediately. Restrict admin panel access to specific IP addresses or VPN. Enable multi-factor authentication where possible.",
+  "attack": {
+    "techniqueIds": ["T1078.001", "T1110"]
+  },
+  "intelligence": {
+    "dfirRelevance": "Default credentials on admin panels are the #1 initial access vector in DFIR cases. Attackers use automated scanners to find exposed panels and attempt default logins within minutes of discovery."
+  }
+}

@@ -1,0 +1,361 @@
+{
+  "sessionId": "eng-1770049-1774021086420",
+  "engagementId": "1770049",
+  "targetPreset": "juice-shop",
+  "targetUrl": "dvwa.lab.aceofcloud.io",
+  "scanType": "red_team",
+  "precision": 0.141,
+  "recall": 0.619,
+  "f1Score": 0.23,
+  "truePositives": 26,
+  "falsePositives": 158,
+  "falseNegatives": 16,
+  "totalFindings": 184,
+  "totalGroundTruth": 42,
+  "matchedFindings": [
+    "SQL Injection in Login",
+    "HTTP Header XSS",
+    "Missing Security Headers",
+    "NoSQL Injection in Product Reviews",
+    "Reflected XSS in Search",
+    "DOM XSS",
+    "Weak Password Policy",
+    "Broken Access Control - Admin Panel",
+    "View Other Users' Baskets",
+    "Directory Traversal - File Access",
+    "Exposed Credentials",
+    "Exposed Metrics",
+    "CSRF - No Token Validation",
+    "Negative Order Quantity",
+    "Unvalidated Redirect",
+    "XXE Data Access",
+    "JWT Vulnerability - None Algorithm",
+    "Sensitive Data Exposure - FTP Directory",
+    "Server-Side Template Injection (SSTI)",
+    "Password Hash Leak",
+    "SSRF via Profile Image URL",
+    "Broken Authentication - Admin Account",
+    "Password Strength",
+    "Password Reset Exploitation",
+    "SQL Injection - Database Schema",
+    "SQL Injection - User Credentials"
+  ],
+  "missedVulns": [
+    "NoSQL DoS",
+    "Stored XSS via API",
+    "Video XSS",
+    "Two-Factor Authentication Bypass",
+    "Forged Feedback",
+    "Product Tampering",
+    "Manipulate Basket",
+    "Forged Signed JWT",
+    "Weak Crypto - MD5 Password Hashes",
+    "XXE DoS",
+    "Insecure Deserialization",
+    "Information Disclosure - Error Messages",
+    "Deprecated Interface",
+    "Outdated Dependencies",
+    "Vulnerable Library",
+    "Zero Stars Feedback"
+  ],
+  "falsePositiveFindings": [],
+  "f1Delta": -0.012999999999999984,
+  "precisionDelta": -0.029000000000000026,
+  "recallDelta": 0.19,
+  "vulnTypeBreakdown": [
+    {
+      "vulnType": "SQL Injection in Login",
+      "detectionRate": 100,
+      "falsePositiveRate": 0,
+      "timesFound": 1,
+      "timesMissed": 0
+    },
+    {
+      "vulnType": "HTTP Header XSS",
+      "detectionRate": 100,
+      "falsePositiveRate": 0,
+      "timesFound": 1,
+      "timesMissed": 0
+    },
+    {
+      "vulnType": "Missing Security Headers",
+      "detectionRate": 100,
+      "falsePositiveRate": 0,
+      "timesFound": 1,
+      "timesMissed": 0
+    },
+    {
+      "vulnType": "NoSQL Injection in Product Reviews",
+      "detectionRate": 100,
+      "falsePositiveRate": 0,
+      "timesFound": 1,
+      "timesMissed": 0
+    },
+    {
+      "vulnType": "Reflected XSS in Search",
+      "detectionRate": 100,
+      "falsePositiveRate": 0,
+      "timesFound": 1,
+      "timesMissed": 0
+    },
+    {
+      "vulnType": "DOM XSS",
+      "detectionRate": 100,
+      "falsePositiveRate": 0,
+      "timesFound": 1,
+      "timesMissed": 0
+    },
+    {
+      "vulnType": "Weak Password Policy",
+      "detectionRate": 100,
+      "falsePositiveRate": 0,
+      "timesFound": 1,
+      "timesMissed": 0
+    },
+    {
+      "vulnType": "Broken Access Control - Admin Panel",
+      "detectionRate": 100,
+      "falsePositiveRate": 0,
+      "timesFound": 1,
+      "timesMissed": 0
+    },
+    {
+      "vulnType": "View Other Users' Baskets",
+      "detectionRate": 100,
+      "falsePositiveRate": 0,
+      "timesFound": 1,
+      "timesMissed": 0
+    },
+    {
+      "vulnType": "Directory Traversal - File Access",
+      "detectionRate": 100,
+      "falsePositiveRate": 0,
+      "timesFound": 1,
+      "timesMissed": 0
+    },
+    {
+      "vulnType": "Exposed Credentials",
+      "detectionRate": 100,
+      "falsePositiveRate": 0,
+      "timesFound": 1,
+      "timesMissed": 0
+    },
+    {
+      "vulnType": "Exposed Metrics",
+      "detectionRate": 100,
+      "falsePositiveRate": 0,
+      "timesFound": 1,
+      "timesMissed": 0
+    },
+    {
+      "vulnType": "CSRF - No Token Validation",
+      "detectionRate": 100,
+      "falsePositiveRate": 0,
+      "timesFound": 1,
+      "timesMissed": 0
+    },
+    {
+      "vulnType": "Negative Order Quantity",
+      "detectionRate": 100,
+      "falsePositiveRate": 0,
+      "timesFound": 1,
+      "timesMissed": 0
+    },
+    {
+      "vulnType": "Unvalidated Redirect",
+      "detectionRate": 100,
+      "falsePositiveRate": 0,
+      "timesFound": 1,
+      "timesMissed": 0
+    },
+    {
+      "vulnType": "XXE Data Access",
+      "detectionRate": 100,
+      "falsePositiveRate": 0,
+      "timesFound": 1,
+      "timesMissed": 0
+    },
+    {
+      "vulnType": "JWT Vulnerability - None Algorithm",
+      "detectionRate": 100,
+      "falsePositiveRate": 0,
+      "timesFound": 1,
+      "timesMissed": 0
+    },
+    {
+      "vulnType": "Sensitive Data Exposure - FTP Directory",
+      "detectionRate": 100,
+      "falsePositiveRate": 0,
+      "timesFound": 1,
+      "timesMissed": 0
+    },
+    {
+      "vulnType": "Server-Side Template Injection (SSTI)",
+      "detectionRate": 100,
+      "falsePositiveRate": 0,
+      "timesFound": 1,
+      "timesMissed": 0
+    },
+    {
+      "vulnType": "Password Hash Leak",
+      "detectionRate": 100,
+      "falsePositiveRate": 0,
+      "timesFound": 1,
+      "timesMissed": 0
+    },
+    {
+      "vulnType": "SSRF via Profile Image URL",
+      "detectionRate": 100,
+      "falsePositiveRate": 0,
+      "timesFound": 1,
+      "timesMissed": 0
+    },
+    {
+      "vulnType": "Broken Authentication - Admin Account",
+      "detectionRate": 100,
+      "falsePositiveRate": 0,
+      "timesFound": 1,
+      "timesMissed": 0
+    },
+    {
+      "vulnType": "Password Strength",
+      "detectionRate": 100,
+      "falsePositiveRate": 0,
+      "timesFound": 1,
+      "timesMissed": 0
+    },
+    {
+      "vulnType": "Password Reset Exploitation",
+      "detectionRate": 100,
+      "falsePositiveRate": 0,
+      "timesFound": 1,
+      "timesMissed": 0
+    },
+    {
+      "vulnType": "SQL Injection - Database Schema",
+      "detectionRate": 100,
+      "falsePositiveRate": 0,
+      "timesFound": 1,
+      "timesMissed": 0
+    },
+    {
+      "vulnType": "SQL Injection - User Credentials",
+      "detectionRate": 100,
+      "falsePositiveRate": 0,
+      "timesFound": 1,
+      "timesMissed": 0
+    },
+    {
+      "vulnType": "NoSQL DoS",
+      "detectionRate": 0,
+      "falsePositiveRate": 0,
+      "timesFound": 0,
+      "timesMissed": 1
+    },
+    {
+      "vulnType": "Stored XSS via API",
+      "detectionRate": 0,
+      "falsePositiveRate": 0,
+      "timesFound": 0,
+      "timesMissed": 1
+    },
+    {
+      "vulnType": "Video XSS",
+      "detectionRate": 0,
+      "falsePositiveRate": 0,
+      "timesFound": 0,
+      "timesMissed": 1
+    },
+    {
+      "vulnType": "Two-Factor Authentication Bypass",
+      "detectionRate": 0,
+      "falsePositiveRate": 0,
+      "timesFound": 0,
+      "timesMissed": 1
+    },
+    {
+      "vulnType": "Forged Feedback",
+      "detectionRate": 0,
+      "falsePositiveRate": 0,
+      "timesFound": 0,
+      "timesMissed": 1
+    },
+    {
+      "vulnType": "Product Tampering",
+      "detectionRate": 0,
+      "falsePositiveRate": 0,
+      "timesFound": 0,
+      "timesMissed": 1
+    },
+    {
+      "vulnType": "Manipulate Basket",
+      "detectionRate": 0,
+      "falsePositiveRate": 0,
+      "timesFound": 0,
+      "timesMissed": 1
+    },
+    {
+      "vulnType": "Forged Signed JWT",
+      "detectionRate": 0,
+      "falsePositiveRate": 0,
+      "timesFound": 0,
+      "timesMissed": 1
+    },
+    {
+      "vulnType": "Weak Crypto - MD5 Password Hashes",
+      "detectionRate": 0,
+      "falsePositiveRate": 0,
+      "timesFound": 0,
+      "timesMissed": 1
+    },
+    {
+      "vulnType": "XXE DoS",
+      "detectionRate": 0,
+      "falsePositiveRate": 0,
+      "timesFound": 0,
+      "timesMissed": 1
+    },
+    {
+      "vulnType": "Insecure Deserialization",
+      "detectionRate": 0,
+      "falsePositiveRate": 0,
+      "timesFound": 0,
+      "timesMissed": 1
+    },
+    {
+      "vulnType": "Information Disclosure - Error Messages",
+      "detectionRate": 0,
+      "falsePositiveRate": 0,
+      "timesFound": 0,
+      "timesMissed": 1
+    },
+    {
+      "vulnType": "Deprecated Interface",
+      "detectionRate": 0,
+      "falsePositiveRate": 0,
+      "timesFound": 0,
+      "timesMissed": 1
+    },
+    {
+      "vulnType": "Outdated Dependencies",
+      "detectionRate": 0,
+      "falsePositiveRate": 0,
+      "timesFound": 0,
+      "timesMissed": 1
+    },
+    {
+      "vulnType": "Vulnerable Library",
+      "detectionRate": 0,
+      "falsePositiveRate": 0,
+      "timesFound": 0,
+      "timesMissed": 1
+    },
+    {
+      "vulnType": "Zero Stars Feedback",
+      "detectionRate": 0,
+      "falsePositiveRate": 0,
+      "timesFound": 0,
+      "timesMissed": 1
+    }
+  ]
+}

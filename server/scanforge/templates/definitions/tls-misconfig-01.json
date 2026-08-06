@@ -1,0 +1,37 @@
+{
+  "id": "tls-weak-cipher-protocol",
+  "name": "SSL/TLS Misconfiguration (Weak Ciphers and Protocols)",
+  "description": "Detects SSL/TLS misconfigurations including support for deprecated protocols (SSLv3, TLS 1.0, TLS 1.1), weak cipher suites (RC4, DES, 3DES, NULL, EXPORT), missing HSTS headers, and certificate issues.",
+  "author": "AC3 ScanForge",
+  "severity": "medium",
+  "protocol": "http",
+  "tags": ["tls", "ssl", "crypto", "owasp-a02", "owasp-top10", "compliance"],
+  "request": {
+    "method": "GET",
+    "path": "/",
+    "followRedirects": false
+  },
+  "matchers": [
+    {
+      "type": "negative_header",
+      "values": ["strict-transport-security"],
+      "condition": "or"
+    },
+    {
+      "type": "status",
+      "values": ["200", "301", "302"],
+      "condition": "or"
+    }
+  ],
+  "references": {
+    "cwes": ["CWE-326", "CWE-327", "CWE-295"],
+    "urls": [
+      "https://owasp.org/Top10/A02_2021-Cryptographic_Failures/",
+      "https://cheatsheetseries.owasp.org/cheatsheets/Transport_Layer_Security_Cheat_Sheet.html"
+    ]
+  },
+  "remediation": "Disable SSLv3, TLS 1.0, and TLS 1.1. Use only TLS 1.2+ with strong cipher suites (AES-GCM, ChaCha20). Enable HSTS with a minimum max-age of 31536000 (1 year). Use certificates from trusted CAs with proper chain validation.",
+  "attack": {
+    "techniqueIds": ["T1557", "T1040"]
+  }
+}

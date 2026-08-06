@@ -1,0 +1,56 @@
+{
+  "id": "dns-lookalike-typosquat-domains",
+  "name": "Lookalike and Typosquat Domain Detection",
+  "description": "Detects registered domains that are visually similar to the target domain through character substitution, homoglyph attacks, TLD variations, and other permutation techniques. Per NIST SP 800-81r3 Section 3.6.3, lookalike domains are used for phishing, malware distribution, brand impersonation, and credential harvesting. Organizations should also monitor for re-registration of retired domains.",
+  "author": "AC3 ScanForge",
+  "severity": "medium",
+  "protocol": "dns",
+  "tags": ["dns", "typosquat", "homoglyph", "phishing", "brand-protection", "nist-800-81r3", "sc-20"],
+  "request": {
+    "rawPayload": "TYPOSQUAT_ENUM"
+  },
+  "matchers": [
+    {
+      "type": "word",
+      "part": "body",
+      "values": [
+        "Lookalike domain registered",
+        "Typosquat domain active",
+        "Homoglyph domain detected",
+        "TLD variation registered",
+        "Retired domain re-registered",
+        "Domain permutation resolves to IP"
+      ],
+      "condition": "or"
+    }
+  ],
+  "references": {
+    "cves": [],
+    "cwes": ["CWE-451"],
+    "urls": [
+      "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-81r3.pdf"
+    ]
+  },
+  "remediation": "Register common typosquat variations of your primary domain proactively. Monitor domain registration feeds for new lookalike domains. Implement DMARC with reject policy to prevent email spoofing from lookalike domains. Use brand protection services to detect and take down impersonating domains. Maintain retired domain registrations in a parked state to prevent re-registration. Consider registering homoglyph IDN variants of your domain.",
+  "attack": {
+    "techniqueIds": ["T1583.001", "T1566.002"],
+    "tactics": ["Resource Development", "Initial Access"]
+  },
+  "intelligence": {
+    "kevRelated": false,
+    "threatActors": [],
+    "dfirRelevance": "Typosquat and lookalike domains are a primary vector for phishing campaigns and business email compromise (BEC). DFIR investigations frequently trace initial access to credential harvesting on lookalike domains.",
+    "industries": ["finance", "healthcare", "government", "technology"],
+    "feeds": []
+  },
+  "environments": ["traditional", "cloud", "hybrid"],
+  "complianceMapping": [
+    {
+      "framework": "nist_800_53",
+      "controlId": "SC-20",
+      "controlTitle": "Secure Name/Address Resolution Service (Authoritative Source)",
+      "status": "non_compliant",
+      "confidence": 70
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "id": "http-vuln-open-redirect",
+  "name": "Open Redirect Vulnerability",
+  "description": "The application redirects users to attacker-controlled URLs via URL parameters, enabling phishing attacks and OAuth token theft.",
+  "author": "AC3 ScanForge",
+  "severity": "medium",
+  "protocol": "http",
+  "tags": ["vuln", "redirect", "owasp-top10", "phishing"],
+  "request": {
+    "method": "GET",
+    "path": "/redirect?url=https://evil.com",
+    "followRedirects": false
+  },
+  "matchers": [
+    {
+      "type": "status",
+      "values": ["301", "302", "303", "307", "308"],
+      "condition": "and"
+    },
+    {
+      "type": "header",
+      "values": ["location: https://evil.com"],
+      "condition": "and"
+    }
+  ],
+  "references": {
+    "cwes": ["CWE-601"],
+    "urls": ["https://cheatsheetseries.owasp.org/cheatsheets/Unvalidated_Redirects_and_Forwards_Cheat_Sheet.html"]
+  },
+  "remediation": "Validate redirect URLs against a whitelist of allowed domains. Use relative URLs for internal redirects. Never pass user-controlled URLs directly to redirect functions.",
+  "attack": {
+    "techniqueIds": ["T1566.002"]
+  }
+}

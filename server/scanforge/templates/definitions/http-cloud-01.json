@@ -1,0 +1,33 @@
+{
+  "id": "http-cloud-k8s-api-exposed",
+  "name": "Kubernetes API Server Exposed",
+  "description": "The Kubernetes API server is publicly accessible, potentially allowing cluster enumeration, pod listing, and container escape. This is a critical finding in cloud environments.",
+  "author": "AC3 ScanForge",
+  "severity": "critical",
+  "protocol": "https",
+  "tags": ["cloud", "kubernetes", "container", "exposure"],
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/namespaces",
+    "followRedirects": true
+  },
+  "matchers": [
+    {
+      "type": "word",
+      "part": "body",
+      "values": ["\"kind\":\"NamespaceList\"", "\"apiVersion\":\"v1\""],
+      "condition": "and"
+    }
+  ],
+  "references": {
+    "cwes": ["CWE-284"],
+    "urls": ["https://kubernetes.io/docs/concepts/security/controlling-access/"]
+  },
+  "remediation": "Restrict Kubernetes API access to authorized networks only. Enable RBAC and disable anonymous authentication. Use a VPN or bastion host for cluster management.",
+  "attack": {
+    "techniqueIds": ["T1613", "T1610"]
+  },
+  "intelligence": {
+    "dfirRelevance": "Exposed Kubernetes APIs are increasingly targeted by cryptomining groups and APTs for persistent access to cloud infrastructure. Volt Typhoon and other groups have exploited exposed container orchestration APIs."
+  }
+}

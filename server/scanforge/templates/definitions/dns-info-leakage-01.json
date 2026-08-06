@@ -1,0 +1,58 @@
+{
+  "id": "dns-information-leakage",
+  "name": "DNS Information Leakage (HINFO, TXT, LOC, RP Records)",
+  "description": "Detects excessive information disclosure through DNS resource records that reveal internal infrastructure details, operating systems, physical locations, or responsible persons. Per NIST SP 800-81r3 Section 3.5, organizations should minimize public-facing record content and implement split-horizon DNS to separate internal and external views.",
+  "author": "AC3 ScanForge",
+  "severity": "low",
+  "protocol": "dns",
+  "tags": ["dns", "information-disclosure", "hinfo", "txt", "loc", "split-horizon", "nist-800-81r3", "sc-20"],
+  "request": {
+    "rawPayload": "INFO_RECORD_ENUM"
+  },
+  "matchers": [
+    {
+      "type": "regex",
+      "part": "body",
+      "values": [
+        "HINFO\\s+\"[^\"]+\"\\s+\"[^\"]+\"",
+        "LOC\\s+\\d+\\s+\\d+",
+        "RP\\s+[^\\s]+\\s+[^\\s]+",
+        "TXT\\s+\"v=spf1.*-all\"",
+        "TXT\\s+\".*internal.*\"",
+        "TXT\\s+\".*password.*\"",
+        "TXT\\s+\".*secret.*\"",
+        "TXT\\s+\".*private.*\""
+      ],
+      "condition": "or"
+    }
+  ],
+  "references": {
+    "cves": [],
+    "cwes": ["CWE-200", "CWE-538"],
+    "urls": [
+      "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-81r3.pdf"
+    ]
+  },
+  "remediation": "Remove unnecessary HINFO, LOC, and RP records from public-facing DNS zones. Audit TXT records for sensitive information disclosure. Implement split-horizon DNS to separate internal and external DNS views. Minimize the information exposed in public DNS records. Review SPF, DKIM, and DMARC TXT records for overly permissive configurations.",
+  "attack": {
+    "techniqueIds": ["T1596.001", "T1590.002"],
+    "tactics": ["Reconnaissance"]
+  },
+  "intelligence": {
+    "kevRelated": false,
+    "threatActors": [],
+    "dfirRelevance": "DNS information leakage provides attackers with infrastructure mapping data during the reconnaissance phase. HINFO records revealing OS types and LOC records revealing physical locations have been used in targeted attacks.",
+    "industries": [],
+    "feeds": []
+  },
+  "environments": ["traditional", "cloud", "hybrid"],
+  "complianceMapping": [
+    {
+      "framework": "nist_800_53",
+      "controlId": "SC-20",
+      "controlTitle": "Secure Name/Address Resolution Service (Authoritative Source)",
+      "status": "non_compliant",
+      "confidence": 75
+    }
+  ]
+}

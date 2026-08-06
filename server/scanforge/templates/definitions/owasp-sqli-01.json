@@ -1,0 +1,50 @@
+{
+  "id": "owasp-sqli-error-based",
+  "name": "SQL Injection (Error-Based Detection)",
+  "description": "Tests for error-based SQL injection by injecting common payloads into URL parameters and checking for database error messages in the response. Covers MySQL, PostgreSQL, MSSQL, Oracle, and SQLite error patterns.",
+  "author": "AC3 ScanForge",
+  "severity": "critical",
+  "protocol": "http",
+  "tags": ["owasp-a03", "sqli", "injection", "owasp-top10", "dfir-initial-access"],
+  "request": {
+    "method": "GET",
+    "path": "/?id=1'%20OR%201=1--",
+    "followRedirects": true
+  },
+  "matchers": [
+    {
+      "type": "word",
+      "part": "body",
+      "values": [
+        "You have an error in your SQL syntax",
+        "mysql_fetch_array()",
+        "pg_query()",
+        "ORA-01756",
+        "SQLite3::query",
+        "Unclosed quotation mark",
+        "SQLSTATE[",
+        "syntax error at or near",
+        "Microsoft OLE DB Provider for SQL Server",
+        "Warning: mysql_",
+        "Warning: pg_",
+        "Warning: sqlite_"
+      ],
+      "condition": "or"
+    }
+  ],
+  "references": {
+    "cwes": ["CWE-89"],
+    "cves": [],
+    "urls": [
+      "https://owasp.org/Top10/A03_2021-Injection/",
+      "https://portswigger.net/web-security/sql-injection"
+    ]
+  },
+  "remediation": "Use parameterized queries or prepared statements for all database interactions. Implement input validation and output encoding. Use an ORM where possible. Apply least-privilege database accounts.",
+  "attack": {
+    "techniqueIds": ["T1190", "T1059"]
+  },
+  "intelligence": {
+    "dfirRelevance": "SQL injection remains the most exploited web vulnerability. Attackers use SQLi to exfiltrate databases, escalate privileges, and establish persistence through stored procedures or file writes."
+  }
+}

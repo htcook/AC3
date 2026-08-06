@@ -1,0 +1,151 @@
+# PR Infrastructure Check — Terraform Lint + CFN Validate
+# =========================================================
+# Runs on PRs that touch infrastructure/ or CloudFormation files.
+# Validates Terraform formatting, linting, and CloudFormation template syntax.
+#
+# Author: Harrison Cook — AceofCloud (https://aceofcloud.com)
+name: PR — Infrastructure Check
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'infrastructure/**'
+      - '.github/workflows/pr-infra-check.yml'
+
+concurrency:
+  group: pr-infra-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ─────────────────────────────────────────────
+  # 1. Terraform Format & Lint
+  # ─────────────────────────────────────────────
+  terraform-check:
+    name: Terraform Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.7.0"
+
+      - name: Install tflint
+        run: |
+          curl -s https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh | bash
+
+      - name: Terraform Format Check
+        working-directory: infrastructure/terraform
+        run: |
+          terraform fmt -check -recursive -diff 2>&1 | tee /tmp/fmt-output.txt
+          if [ ${PIPESTATUS[0]} -ne 0 ]; then
+            echo "::error::Terraform files are not properly formatted. Run 'terraform fmt -recursive' locally."
+            exit 1
+          fi
+          echo "::notice::All Terraform files are properly formatted."
+
+      - name: Terraform Init (validation only)
+        working-directory: infrastructure/terraform
+        run: |
+          terraform init -backend=false -input=false
+
+      - name: Terraform Validate
+        working-directory: infrastructure/terraform
+        run: |
+          terraform validate 2>&1 | tee /tmp/validate-output.txt
+          if [ ${PIPESTATUS[0]} -ne 0 ]; then
+            echo "::error::Terraform validation failed."
+            cat /tmp/validate-output.txt
+            exit 1
+          fi
+          echo "::notice::Terraform configuration is valid."
+
+      - name: TFLint
+        working-directory: infrastructure/terraform
+        run: |
+          tflint --init 2>/dev/null || true
+          tflint --recursive 2>&1 | tee /tmp/tflint-output.txt
+          WARNINGS=$(grep -c "Warning:" /tmp/tflint-output.txt || echo "0")
+          ERRORS=$(grep -c "Error:" /tmp/tflint-output.txt || echo "0")
+          echo "::notice::TFLint: $ERRORS errors, $WARNINGS warnings"
+          if [ "$ERRORS" -gt 0 ]; then
+            echo "::error::TFLint found $ERRORS errors."
+            exit 1
+          fi
+
+  # ─────────────────────────────────────────────
+  # 2. CloudFormation Template Validation
+  # ─────────────────────────────────────────────
+  cfn-validate:
+    name: CloudFormation Validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install cfn-lint
+        run: pip install cfn-lint
+
+      - name: Validate CloudFormation Templates
+        run: |
+          TEMPLATES=$(find infrastructure/cloudformation -name "*.yaml" -o -name "*.yml" -o -name "*.json" 2>/dev/null)
+          if [ -z "$TEMPLATES" ]; then
+            echo "::notice::No CloudFormation templates found to validate."
+            exit 0
+          fi
+
+          ERRORS=0
+          for template in $TEMPLATES; do
+            echo "━━━ Validating: $template ━━━"
+            cfn-lint "$template" 2>&1 | tee -a /tmp/cfn-output.txt
+            if [ ${PIPESTATUS[0]} -ne 0 ]; then
+              echo "::error::CloudFormation lint failed for $template"
+              ERRORS=$((ERRORS + 1))
+            else
+              echo "::notice::$template passed validation."
+            fi
+          done
+
+          if [ "$ERRORS" -gt 0 ]; then
+            echo "::error::$ERRORS CloudFormation template(s) failed validation."
+            exit 1
+          fi
+          echo "::notice::All CloudFormation templates passed validation."
+
+  # ─────────────────────────────────────────────
+  # 3. Shell Script Lint (shellcheck)
+  # ─────────────────────────────────────────────
+  shellcheck:
+    name: Shell Script Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install shellcheck
+        run: sudo apt-get install -y shellcheck
+
+      - name: Lint Shell Scripts
+        run: |
+          SCRIPTS=$(find infrastructure/scripts -name "*.sh" 2>/dev/null)
+          if [ -z "$SCRIPTS" ]; then
+            echo "::notice::No shell scripts found."
+            exit 0
+          fi
+
+          ERRORS=0
+          for script in $SCRIPTS; do
+            echo "━━━ Checking: $script ━━━"
+            # SC1091: Don't follow sourced files (they may not exist in CI)
+            # SC2034: Unused variables (often used by sourced scripts)
+            # SC2086: Double quote to prevent globbing (too noisy for infra scripts)
+            shellcheck -e SC1091,SC2034,SC2086 -S warning "$script" 2>&1 || ERRORS=$((ERRORS + 1))
+          done
+
+          if [ "$ERRORS" -gt 0 ]; then
+            echo "::warning::$ERRORS script(s) have shellcheck warnings."
+          fi
+          echo "::notice::Shell script check complete."

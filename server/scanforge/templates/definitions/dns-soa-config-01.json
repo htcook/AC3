@@ -1,0 +1,59 @@
+{
+  "id": "dns-soa-configuration-drift",
+  "name": "DNS SOA Configuration Drift and TTL Misconfiguration",
+  "description": "Detects SOA record misconfigurations that can lead to zone drift (primary/secondary mismatch) or zone thrash (excessive zone transfers causing DoS). Per NIST SP 800-81r3 Section 3.2.2, SOA Refresh should be 1200s-43200s, Retry should be a fraction of Refresh, and TTL values should be 1800s-86400s. TTL of zero is explicitly prohibited, and values below 30s are discouraged for DNSSEC-signed records.",
+  "author": "AC3 ScanForge",
+  "severity": "low",
+  "protocol": "dns",
+  "tags": ["dns", "soa", "ttl", "configuration", "zone-drift", "zone-thrash", "nist-800-81r3", "sc-20"],
+  "request": {
+    "rawPayload": "SOA_TTL_CHECK"
+  },
+  "matchers": [
+    {
+      "type": "word",
+      "part": "body",
+      "values": [
+        "SOA Refresh below 1200 seconds",
+        "SOA Refresh above 43200 seconds",
+        "SOA Retry exceeds Refresh value",
+        "TTL value of zero detected",
+        "TTL below 30 seconds on DNSSEC-signed record",
+        "TTL below 1800 seconds",
+        "TTL above 86400 seconds",
+        "SOA serial mismatch between primary and secondary",
+        "Zone drift detected"
+      ],
+      "condition": "or"
+    }
+  ],
+  "references": {
+    "cves": [],
+    "cwes": ["CWE-16"],
+    "urls": [
+      "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-81r3.pdf"
+    ]
+  },
+  "remediation": "Set SOA Refresh to between 1200 seconds (20 minutes) and 43200 seconds (12 hours). Set SOA Retry to a fraction of the Refresh interval. Ensure TTL values are between 1800 seconds (30 minutes) and 86400 seconds (1 day). Never use TTL of zero. For DNSSEC-signed records, ensure TTL is at least 30 seconds. Monitor SOA serial numbers across primary and secondary servers to detect zone drift. Verify primary/secondary synchronization after zone changes.",
+  "attack": {
+    "techniqueIds": ["T1498"],
+    "tactics": ["Impact"]
+  },
+  "intelligence": {
+    "kevRelated": false,
+    "threatActors": [],
+    "dfirRelevance": "SOA misconfigurations can cause DNS service degradation or outages. Zone thrash from overly aggressive Refresh/Retry values can be exploited as an amplification vector for DoS attacks against DNS infrastructure.",
+    "industries": [],
+    "feeds": []
+  },
+  "environments": ["traditional", "cloud", "hybrid"],
+  "complianceMapping": [
+    {
+      "framework": "nist_800_53",
+      "controlId": "SC-20",
+      "controlTitle": "Secure Name/Address Resolution Service (Authoritative Source)",
+      "status": "non_compliant",
+      "confidence": 70
+    }
+  ]
+}

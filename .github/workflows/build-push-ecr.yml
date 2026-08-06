@@ -1,0 +1,83 @@
+name: Build & Push to ECR
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, dev]
+    paths:
+      - 'server/**'
+      - 'Dockerfile.aws'
+      - 'infrastructure/**'
+
+env:
+  AWS_REGION: us-east-1
+  AWS_ACCOUNT_ID: "808038814732"
+  ECR_REPO: ac3/caldera-dashboard
+  ECS_CLUSTER: ac3-dev
+  ECS_SERVICE: ac3-dev-app
+
+jobs:
+  build-and-push:
+    name: Build & Push Docker Image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set image tag
+        id: tag
+        run: echo "IMAGE_TAG=$(echo $GITHUB_SHA | cut -c1-7)" >> $GITHUB_OUTPUT
+
+      - name: Build Docker image
+        run: |
+          docker build \
+            --file Dockerfile.aws \
+            --build-arg BUILD_SHA=${{ github.sha }} \
+            --build-arg BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ) \
+            --tag ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO }}:${{ steps.tag.outputs.IMAGE_TAG }} \
+            --tag ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO }}:latest \
+            .
+
+      - name: Push to ECR
+        run: |
+          docker push ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO }}:${{ steps.tag.outputs.IMAGE_TAG }}
+          docker push ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO }}:latest
+
+      - name: Register updated ECS task definition
+        id: task-def
+        run: |
+          # Update the image tag in the task definition
+          IMAGE_URI="${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO }}:${{ steps.tag.outputs.IMAGE_TAG }}"
+          cat infrastructure/ecs-task-definition.json | \
+            jq --arg img "$IMAGE_URI" '.containerDefinitions[0].image = $img' > /tmp/task-def.json
+          
+          # Register the new task definition revision
+          TASK_DEF_ARN=$(aws ecs register-task-definition \
+            --cli-input-json file:///tmp/task-def.json \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text \
+            --no-cli-pager)
+          echo "Registered task definition: $TASK_DEF_ARN"
+          echo "TASK_DEF_ARN=$TASK_DEF_ARN" >> $GITHUB_OUTPUT
+
+      - name: Update ECS service with new task definition
+        run: |
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service ${{ env.ECS_SERVICE }} \
+            --task-definition ${{ steps.task-def.outputs.TASK_DEF_ARN }} \
+            --force-new-deployment \
+            --no-cli-pager
+          echo "ECS service updated with new task definition and redeployment triggered"

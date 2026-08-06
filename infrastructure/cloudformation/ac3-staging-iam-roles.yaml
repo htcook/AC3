@@ -1,0 +1,380 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  AC3 Platform — Staging IAM Roles for ECS Fargate
+  Creates the ECS execution role and application task role for the staging
+  environment, matching the role structure already provisioned in the dev account.
+  Author: Harrison Cook — AceofCloud (https://aceofcloud.com)
+  FedRAMP Controls: AC-6 (Least Privilege), AC-2 (Account Management), AU-2 (Audit Events)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Parameters
+# ─────────────────────────────────────────────────────────────────────────────
+Parameters:
+  Environment:
+    Type: String
+    Default: staging
+    AllowedValues: [staging, prod]
+    Description: Target environment (staging or prod)
+
+  ProjectName:
+    Type: String
+    Default: ac3
+    Description: Project identifier used in resource naming
+
+  EcrAccountId:
+    Type: String
+    Default: '890319879326'
+    Description: AWS account ID hosting the shared ECR repository (SharedServices)
+
+  EcrRepositoryName:
+    Type: String
+    Default: ace-c3/caldera-dashboard
+    Description: ECR repository name (without registry prefix)
+
+  EcrKmsKeyArn:
+    Type: String
+    Default: 'arn:aws:kms:us-east-1:890319879326:key/8e215533-9e88-4cae-b514-93a892e6e6c8'
+    Description: KMS key ARN used to encrypt ECR images in SharedServices account
+
+  SecretsKmsKeyArn:
+    Type: String
+    Default: ''
+    Description: >
+      KMS key ARN for encrypting Secrets Manager secrets in this account.
+      Leave empty to use the AWS-managed key (aws/secretsmanager).
+
+  LogRetentionDays:
+    Type: Number
+    Default: 90
+    AllowedValues: [1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, 3653]
+    Description: CloudWatch Logs retention period in days
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Conditions
+# ─────────────────────────────────────────────────────────────────────────────
+Conditions:
+  HasSecretsKmsKey: !Not [!Equals [!Ref SecretsKmsKeyArn, '']]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Resources
+# ─────────────────────────────────────────────────────────────────────────────
+Resources:
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # ECS Task Execution Role
+  # ═══════════════════════════════════════════════════════════════════════════
+  # This role is assumed by the ECS agent to:
+  #   - Pull container images from cross-account ECR
+  #   - Write container logs to CloudWatch
+  #   - Retrieve secrets from Secrets Manager for container env injection
+  #   - Decrypt ECR images and secrets via KMS
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  EcsExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ProjectName}-${Environment}-ecs-execution-role'
+      Description: !Sub >
+        ECS task execution role for ${ProjectName} ${Environment}.
+        Allows ECS agent to pull images, write logs, and inject secrets.
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+            Condition:
+              ArnLike:
+                aws:SourceArn: !Sub 'arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:*'
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Role
+          Value: ecs-execution
+        - Key: ManagedBy
+          Value: cloudformation
+        - Key: FedRAMP
+          Value: AC-6
+
+  # ── Base ECS Execution Policy ──────────────────────────────────────────────
+  ExecutionBasePolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Sub '${ProjectName}-${Environment}-ecs-execution-base'
+      Description: Base permissions for ECS task execution (logs + ECR)
+      Roles:
+        - !Ref EcsExecutionRole
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          # CloudWatch Logs — create streams and put log events
+          - Sid: CloudWatchLogs
+            Effect: Allow
+            Action:
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Resource:
+              - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/ecs/${ProjectName}-${Environment}/*'
+
+          # ECR — authenticate and pull images from cross-account registry
+          - Sid: EcrAuth
+            Effect: Allow
+            Action:
+              - ecr:GetAuthorizationToken
+            Resource: '*'
+
+          - Sid: EcrPull
+            Effect: Allow
+            Action:
+              - ecr:BatchCheckLayerAvailability
+              - ecr:GetDownloadUrlForLayer
+              - ecr:BatchGetImage
+            Resource:
+              - !Sub 'arn:aws:ecr:${AWS::Region}:${EcrAccountId}:repository/${EcrRepositoryName}'
+
+          # KMS — decrypt ECR images encrypted with the SharedServices KMS key
+          - Sid: EcrKmsDecrypt
+            Effect: Allow
+            Action:
+              - kms:Decrypt
+              - kms:DescribeKey
+            Resource:
+              - !Ref EcrKmsKeyArn
+
+  # ── Secrets Manager Access Policy ──────────────────────────────────────────
+  ExecutionSecretsPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Sub '${ProjectName}-${Environment}-ecs-execution-secrets'
+      Description: Allows ECS execution role to inject secrets into containers
+      Roles:
+        - !Ref EcsExecutionRole
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: ReadSecrets
+            Effect: Allow
+            Action:
+              - secretsmanager:GetSecretValue
+            Resource:
+              - !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${ProjectName}/${Environment}/*'
+
+          - !If
+            - HasSecretsKmsKey
+            - Sid: DecryptSecrets
+              Effect: Allow
+              Action:
+                - kms:Decrypt
+                - kms:DescribeKey
+              Resource:
+                - !Ref SecretsKmsKeyArn
+            - !Ref AWS::NoValue
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # ECS Application Task Role
+  # ═══════════════════════════════════════════════════════════════════════════
+  # This role is assumed by the running application container to:
+  #   - Read/write to S3 (file storage, backups)
+  #   - Read secrets at runtime (beyond initial injection)
+  #   - Publish CloudWatch metrics
+  #   - Send SES emails (if enabled)
+  #   - Execute ECS tasks (for scheduled jobs)
+  #   - Access SSM for parameter store values
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  AppTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ProjectName}-${Environment}-app-task-role'
+      Description: !Sub >
+        Application task role for ${ProjectName} ${Environment}.
+        Grants runtime permissions to the running container.
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+            Condition:
+              ArnLike:
+                aws:SourceArn: !Sub 'arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:*'
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Role
+          Value: app-task
+        - Key: ManagedBy
+          Value: cloudformation
+        - Key: FedRAMP
+          Value: AC-6
+
+  # ── Application Runtime Policy ─────────────────────────────────────────────
+  AppRuntimePolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Sub '${ProjectName}-${Environment}-app-runtime'
+      Description: Runtime permissions for the AC3 application container
+      Roles:
+        - !Ref AppTaskRole
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          # S3 — file storage (reports, exports, scan artifacts)
+          - Sid: S3ReadWrite
+            Effect: Allow
+            Action:
+              - s3:GetObject
+              - s3:PutObject
+              - s3:DeleteObject
+              - s3:ListBucket
+              - s3:GetBucketLocation
+            Resource:
+              - !Sub 'arn:aws:s3:::${ProjectName}-${Environment}-*'
+              - !Sub 'arn:aws:s3:::${ProjectName}-${Environment}-*/*'
+
+          # Secrets Manager — runtime secret reads
+          - Sid: SecretsRead
+            Effect: Allow
+            Action:
+              - secretsmanager:GetSecretValue
+              - secretsmanager:DescribeSecret
+            Resource:
+              - !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${ProjectName}/${Environment}/*'
+
+          # CloudWatch — publish custom metrics
+          - Sid: CloudWatchMetrics
+            Effect: Allow
+            Action:
+              - cloudwatch:PutMetricData
+            Resource: '*'
+            Condition:
+              StringEquals:
+                cloudwatch:namespace: !Sub '${ProjectName}/${Environment}'
+
+          # SSM Parameter Store — read configuration
+          - Sid: SsmRead
+            Effect: Allow
+            Action:
+              - ssm:GetParameter
+              - ssm:GetParameters
+              - ssm:GetParametersByPath
+            Resource:
+              - !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${ProjectName}/${Environment}/*'
+
+          # SES — send notification emails
+          - Sid: SesSend
+            Effect: Allow
+            Action:
+              - ses:SendEmail
+              - ses:SendRawEmail
+            Resource: '*'
+            Condition:
+              StringLike:
+                ses:FromAddress: !Sub '*@aceofcloud.com'
+
+          # ECS — run scheduled tasks / one-off jobs
+          - Sid: EcsRunTask
+            Effect: Allow
+            Action:
+              - ecs:RunTask
+              - ecs:DescribeTasks
+              - ecs:StopTask
+            Resource:
+              - !Sub 'arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/${ProjectName}-${Environment}-*'
+              - !Sub 'arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:task/*'
+
+          # IAM — pass execution role to ECS for scheduled tasks
+          - Sid: PassRole
+            Effect: Allow
+            Action:
+              - iam:PassRole
+            Resource:
+              - !GetAtt EcsExecutionRole.Arn
+              - !GetAtt AppTaskRole.Arn
+            Condition:
+              StringEquals:
+                iam:PassedToService: ecs-tasks.amazonaws.com
+
+          # KMS — decrypt secrets at runtime (if CMK is used)
+          - !If
+            - HasSecretsKmsKey
+            - Sid: KmsDecrypt
+              Effect: Allow
+              Action:
+                - kms:Decrypt
+                - kms:DescribeKey
+                - kms:GenerateDataKey
+              Resource:
+                - !Ref SecretsKmsKeyArn
+            - !Ref AWS::NoValue
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # ECS Exec Policy (for debugging via `aws ecs execute-command`)
+  # ═══════════════════════════════════════════════════════════════════════════
+  EcsExecPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Sub '${ProjectName}-${Environment}-ecs-exec'
+      Description: Allows ECS Exec (interactive shell) for debugging
+      Roles:
+        - !Ref AppTaskRole
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: SsmMessages
+            Effect: Allow
+            Action:
+              - ssmmessages:CreateControlChannel
+              - ssmmessages:CreateDataChannel
+              - ssmmessages:OpenControlChannel
+              - ssmmessages:OpenDataChannel
+            Resource: '*'
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Outputs
+# ─────────────────────────────────────────────────────────────────────────────
+Outputs:
+  ExecutionRoleArn:
+    Description: ECS task execution role ARN — use in task definitions and staging.tfvars
+    Value: !GetAtt EcsExecutionRole.Arn
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-execution-role-arn'
+
+  ExecutionRoleName:
+    Description: ECS task execution role name
+    Value: !Ref EcsExecutionRole
+
+  TaskRoleArn:
+    Description: Application task role ARN — use in task definitions and staging.tfvars
+    Value: !GetAtt AppTaskRole.Arn
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-task-role-arn'
+
+  TaskRoleName:
+    Description: Application task role name
+    Value: !Ref AppTaskRole
+
+  TfvarsSnippet:
+    Description: >
+      Copy these lines into infrastructure/terraform/environments/staging.tfvars
+      to wire the Terraform ECS module to these pre-created roles.
+    Value: !Sub |
+      # ── Pre-existing IAM Roles (${Environment} account: ${AWS::AccountId}) ──
+      external_execution_role_arn = "${EcsExecutionRole.Arn}"
+      external_task_role_arn      = "${AppTaskRole.Arn}"
+
+  RequiredPermissionsSummary:
+    Description: Summary of permissions granted to each role
+    Value: |
+      Execution Role: ECR pull (cross-account), CloudWatch Logs, Secrets Manager inject, KMS decrypt
+      Task Role: S3 read/write, Secrets Manager read, CloudWatch metrics, SSM read, SES send, ECS run-task, ECS Exec

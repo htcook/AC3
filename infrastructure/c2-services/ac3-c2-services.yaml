@@ -1,0 +1,350 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  AC3 Platform - C2 Services (Caldera + GoPhish)
+  Internal-only ECS Fargate services with CloudMap service discovery.
+  Caldera: C2 framework for adversary emulation (MITRE ATT&CK)
+  GoPhish: Phishing simulation platform
+  
+  Security posture:
+  - No public IPs assigned to tasks
+  - Internal DNS via CloudMap (ac3-dev.local)
+  - C2 subnets are isolated from public internet except for:
+    - Outbound to agents (Caldera)
+    - Outbound SMTP (GoPhish)
+    - Inbound C2 callbacks via NLB (Caldera only)
+  - All API access restricted to App security group
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, staging, prod]
+  
+  ProjectName:
+    Type: String
+    Default: ac3
+  
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC ID for the AC3 environment
+  
+  C2SubnetA:
+    Type: AWS::EC2::Subnet::Id
+    Description: C2 subnet in AZ-a (isolated)
+  
+  C2SubnetB:
+    Type: AWS::EC2::Subnet::Id
+    Description: C2 subnet in AZ-b (isolated)
+  
+  AppSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: Security group of the AC3 app service (for inbound API access)
+  
+  EcsClusterArn:
+    Type: String
+    Description: ARN of the existing ECS cluster
+  
+  ExecutionRoleArn:
+    Type: String
+    Description: ECS task execution role ARN (for pulling images and reading secrets)
+  
+  ExistingNamespaceId:
+    Type: String
+    Default: ns-mkonnyacgwah6ane
+    Description: Existing CloudMap namespace ID (ac3-dev.local)
+
+  CalderaApiKey:
+    Type: String
+    NoEcho: true
+    Description: API key for Caldera REST API
+    Default: ADMIN123
+  
+  CalderaImage:
+    Type: String
+    Default: ghcr.io/mitre/caldera:latest
+    Description: Docker image for Caldera (official MITRE GHCR or custom)
+  
+  GophishImage:
+    Type: String
+    Default: gophish/gophish:latest
+    Description: Docker image for GoPhish
+  
+  GophishAdminPassword:
+    Type: String
+    NoEcho: true
+    Default: ''
+    Description: Initial admin password for GoPhish (auto-generated if empty)
+
+Resources:
+  # ===========================================================================
+  # CloudMap Service Discovery - uses existing ac3-dev.local namespace
+  # ===========================================================================
+  CalderaServiceDiscovery:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Name: caldera
+      NamespaceId: !Ref ExistingNamespaceId
+      DnsConfig:
+        DnsRecords:
+          - Type: A
+            TTL: 10
+        RoutingPolicy: MULTIVALUE
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+
+  GophishServiceDiscovery:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Name: gophish
+      NamespaceId: !Ref ExistingNamespaceId
+      DnsConfig:
+        DnsRecords:
+          - Type: A
+            TTL: 10
+        RoutingPolicy: MULTIVALUE
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+
+  # ===========================================================================
+  # Security Groups
+  # ===========================================================================
+  CalderaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub '${ProjectName}-${Environment} Caldera C2 - internal API and agent callbacks'
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        # API access from AC3 dashboard only
+        - IpProtocol: tcp
+          FromPort: 8888
+          ToPort: 8888
+          SourceSecurityGroupId: !Ref AppSecurityGroupId
+          Description: Caldera API from AC3 app
+        # Agent callback ports (HTTP/S contact)
+        - IpProtocol: tcp
+          FromPort: 7010
+          ToPort: 7012
+          CidrIp: 0.0.0.0/0
+          Description: Agent C2 callbacks (HTTP/UDP/TCP contacts)
+        # Agent callback - HTTPS
+        - IpProtocol: tcp
+          FromPort: 8443
+          ToPort: 8443
+          CidrIp: 0.0.0.0/0
+          Description: Agent C2 callbacks (HTTPS contact)
+      SecurityGroupEgress:
+        - IpProtocol: '-1'
+          CidrIp: 0.0.0.0/0
+          Description: All outbound (agents, MITRE updates)
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-${Environment}-caldera-sg'
+        - Key: Purpose
+          Value: c2-emulation
+
+  GophishSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub '${ProjectName}-${Environment} GoPhish - internal API and SMTP outbound'
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        # Admin API access from AC3 dashboard only
+        - IpProtocol: tcp
+          FromPort: 3333
+          ToPort: 3333
+          SourceSecurityGroupId: !Ref AppSecurityGroupId
+          Description: GoPhish admin API from AC3 app
+        # Phishing landing page (internal only for now)
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          SourceSecurityGroupId: !Ref AppSecurityGroupId
+          Description: GoPhish landing pages
+      SecurityGroupEgress:
+        - IpProtocol: '-1'
+          CidrIp: 0.0.0.0/0
+          Description: All outbound (SMTP, DNS)
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-${Environment}-gophish-sg'
+        - Key: Purpose
+          Value: phishing-simulation
+
+  # NOTE: Using the existing app task role for C2 services.
+  # Create a dedicated ac3-dev-c2-task-role via IAM console if stricter isolation is needed.
+
+  # ===========================================================================
+  # CloudWatch Log Groups
+  # ===========================================================================
+  CalderaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/ecs/${ProjectName}-${Environment}/c2/caldera'
+      RetentionInDays: 30
+
+  GophishLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/ecs/${ProjectName}-${Environment}/c2/gophish'
+      RetentionInDays: 30
+
+  # ===========================================================================
+  # ECS Task Definitions
+  # ===========================================================================
+  CalderaTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub '${ProjectName}-${Environment}-caldera'
+      NetworkMode: awsvpc
+      RequiresCompatibilities: [FARGATE]
+      Cpu: '2048'
+      Memory: '4096'
+      ExecutionRoleArn: !Ref ExecutionRoleArn
+      TaskRoleArn: !Ref ExecutionRoleArn
+      ContainerDefinitions:
+        - Name: caldera
+          Image: !Ref CalderaImage
+          Essential: true
+          Command:
+            - '--insecure'
+            - '--log'
+            - 'DEBUG'
+          PortMappings:
+            - ContainerPort: 8888
+              Protocol: tcp
+              Name: api
+            - ContainerPort: 7010
+              Protocol: tcp
+              Name: http-contact
+            - ContainerPort: 7011
+              Protocol: tcp
+              Name: udp-contact
+            - ContainerPort: 7012
+              Protocol: tcp
+              Name: tcp-contact
+            - ContainerPort: 8443
+              Protocol: tcp
+              Name: https-contact
+          Environment:
+            - Name: CALDERA_API_KEY
+              Value: !Ref CalderaApiKey
+            - Name: CALDERA_ADMIN_NAME
+              Value: red
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref CalderaLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: caldera
+          # Health check disabled until we confirm the right command for this container
+          # HealthCheck:
+          #   Command: ['CMD-SHELL', 'python3 -c "import urllib.request; urllib.request.urlopen(\"http://localhost:8888/api/v2/health\")" || exit 1']
+          #   Interval: 30
+          #   Timeout: 10
+          #   Retries: 5
+          #   StartPeriod: 120
+
+  GophishTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub '${ProjectName}-${Environment}-gophish'
+      NetworkMode: awsvpc
+      RequiresCompatibilities: [FARGATE]
+      Cpu: '512'
+      Memory: '1024'
+      ExecutionRoleArn: !Ref ExecutionRoleArn
+      TaskRoleArn: !Ref ExecutionRoleArn
+      ContainerDefinitions:
+        - Name: gophish
+          Image: !Ref GophishImage
+          Essential: true
+          PortMappings:
+            - ContainerPort: 3333
+              Protocol: tcp
+              Name: admin-api
+            - ContainerPort: 8080
+              Protocol: tcp
+              Name: landing-pages
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref GophishLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: gophish
+          # Health check disabled until we confirm the right command for this container
+          # HealthCheck:
+          #   Command: ['CMD-SHELL', 'wget --no-check-certificate -q -O /dev/null https://localhost:3333/ || exit 1']
+          #   Interval: 30
+          #   Timeout: 10
+          #   Retries: 5
+          #   StartPeriod: 60
+
+  # ===========================================================================
+  # ECS Services
+  # ===========================================================================
+  CalderaService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: !Sub '${ProjectName}-${Environment}-caldera'
+      Cluster: !Ref EcsClusterArn
+      TaskDefinition: !Ref CalderaTaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          Subnets:
+            - !Ref C2SubnetA
+            - !Ref C2SubnetB
+          SecurityGroups:
+            - !Ref CalderaSecurityGroup
+      ServiceRegistries:
+        - RegistryArn: !GetAtt CalderaServiceDiscovery.Arn
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 100
+      EnableExecuteCommand: true
+
+  GophishService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: !Sub '${ProjectName}-${Environment}-gophish'
+      Cluster: !Ref EcsClusterArn
+      TaskDefinition: !Ref GophishTaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          Subnets:
+            - !Ref C2SubnetA
+            - !Ref C2SubnetB
+          SecurityGroups:
+            - !Ref GophishSecurityGroup
+      ServiceRegistries:
+        - RegistryArn: !GetAtt GophishServiceDiscovery.Arn
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 100
+      EnableExecuteCommand: true
+
+Outputs:
+  CalderaInternalDns:
+    Description: Internal DNS name for Caldera API
+    Value: caldera.ac3-dev.local
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-caldera-dns'
+
+  GophishInternalDns:
+    Description: Internal DNS name for GoPhish API
+    Value: gophish.ac3-dev.local
+    Export:
+      Name: !Sub '${ProjectName}-${Environment}-gophish-dns'
+
+  CalderaApiEndpoint:
+    Description: Full Caldera API URL (internal)
+    Value: 'http://caldera.ac3-dev.local:8888'
+
+  GophishApiEndpoint:
+    Description: Full GoPhish admin API URL (internal)
+    Value: 'https://gophish.ac3-dev.local:3333'

@@ -1,0 +1,40 @@
+{
+  "id": "owasp-auth-weak-session",
+  "name": "Broken Authentication (Weak Session Management)",
+  "description": "Detects weak session management including missing Secure/HTTPOnly flags on session cookies, session tokens in URLs, and lack of session expiration headers.",
+  "author": "AC3 ScanForge",
+  "severity": "high",
+  "protocol": "http",
+  "tags": ["owasp-a07", "authentication", "session", "owasp-top10", "dfir-credential-access"],
+  "request": {
+    "method": "GET",
+    "path": "/login",
+    "followRedirects": true
+  },
+  "matchers": [
+    {
+      "type": "header",
+      "values": ["set-cookie"],
+      "condition": "and"
+    },
+    {
+      "type": "negative_header",
+      "values": ["httponly", "secure", "samesite"],
+      "condition": "or"
+    }
+  ],
+  "references": {
+    "cwes": ["CWE-384", "CWE-614", "CWE-1004"],
+    "urls": [
+      "https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/",
+      "https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html"
+    ]
+  },
+  "remediation": "Set HttpOnly, Secure, and SameSite flags on all session cookies. Implement session expiration and idle timeout. Regenerate session IDs after authentication. Never expose session tokens in URLs.",
+  "attack": {
+    "techniqueIds": ["T1539", "T1550.004"]
+  },
+  "intelligence": {
+    "dfirRelevance": "Session hijacking through stolen cookies is a primary persistence mechanism. Missing HttpOnly allows XSS-based session theft; missing Secure allows network sniffing of session tokens."
+  }
+}

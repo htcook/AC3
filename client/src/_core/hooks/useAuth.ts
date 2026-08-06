@@ -1,0 +1,100 @@
+import { getLoginUrl } from "@/const";
+import { trpc } from "@/lib/trpc";
+import { TRPCClientError } from "@trpc/client";
+import { useCallback, useEffect, useMemo } from "react";
+
+type UseAuthOptions = {
+  redirectOnUnauthenticated?: boolean;
+  redirectPath?: string;
+};
+
+export function useAuth(options?: UseAuthOptions) {
+  const { redirectOnUnauthenticated = false, redirectPath } =
+    options ?? {};
+  // Lazily resolve the login URL only when actually needed for redirect,
+  // avoiding the eager new URL() call that throws when VITE_OAUTH_PORTAL_URL is undefined.
+  const resolvedRedirectPath = redirectPath ?? getLoginUrl();
+  const utils = trpc.useUtils();
+
+  const meQuery = trpc.auth.me.useQuery(undefined, {
+    retry: false,
+    refetchOnWindowFocus: false,
+    staleTime: 60_000, // Cache auth state for 60s to avoid redundant network calls
+  });
+
+  const logoutMutation = trpc.auth.logout.useMutation({
+    onSuccess: () => {
+      utils.auth.me.setData(undefined, null);
+    },
+  });
+
+  // Also prepare calderaAuth logout to clear the Caldera session cookie
+  const calderaLogoutMutation = trpc.calderaAuth.logout.useMutation();
+
+  const logout = useCallback(async () => {
+    try {
+      // Clear both auth sessions in parallel
+      await Promise.allSettled([
+        logoutMutation.mutateAsync(),
+        calderaLogoutMutation.mutateAsync(),
+      ]);
+    } catch (error: unknown) {
+      if (
+        error instanceof TRPCClientError &&
+        error.data?.code === "UNAUTHORIZED"
+      ) {
+        // Already logged out — ignore
+      }
+    } finally {
+      // Clear client-side auth state
+      utils.auth.me.setData(undefined, null);
+      await utils.auth.me.invalidate();
+      // Clear cached user info from localStorage
+      localStorage.removeItem("manus-runtime-user-info");
+      // Redirect to login page so the user stays logged out
+      window.location.href = "/login";
+    }
+  }, [logoutMutation, calderaLogoutMutation, utils]);
+
+  const state = useMemo(() => {
+    localStorage.setItem(
+      "manus-runtime-user-info",
+      JSON.stringify(meQuery.data)
+    );
+    return {
+      user: meQuery.data ?? null,
+      loading: meQuery.isLoading || logoutMutation.isPending || calderaLogoutMutation.isPending,
+      error: meQuery.error ?? logoutMutation.error ?? null,
+      isAuthenticated: Boolean(meQuery.data),
+    };
+  }, [
+    meQuery.data,
+    meQuery.error,
+    meQuery.isLoading,
+    logoutMutation.error,
+    logoutMutation.isPending,
+    calderaLogoutMutation.isPending,
+  ]);
+
+  useEffect(() => {
+    if (!redirectOnUnauthenticated) return;
+    if (meQuery.isLoading || logoutMutation.isPending) return;
+    if (state.user) return;
+    if (typeof window === "undefined") return;
+    if (window.location.pathname === resolvedRedirectPath) return;
+
+    window.location.href = resolvedRedirectPath;
+  }, [
+    redirectOnUnauthenticated,
+    resolvedRedirectPath,
+    logoutMutation.isPending,
+    meQuery.isLoading,
+    state.user,
+  ]);
+
+  return {
+    ...state,
+    refresh: () => meQuery.refetch(),
+    logout,
+  };
+}

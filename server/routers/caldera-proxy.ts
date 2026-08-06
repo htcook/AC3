@@ -1,0 +1,2196 @@
+import { fetchCalderaAPI, CALDERA_BASE_URL, CALDERA_API_KEY, cachedFetch } from "../lib/api-helpers";
+import { TRPCError } from "@trpc/server";
+import { protectedProcedure, router } from "../_core/trpc";
+import { z } from "zod";
+import * as db from "../db";
+import { and, count, min, not, sql } from "drizzle-orm";
+import * as schema from "../../drizzle/schema";
+
+export const calderaProxyRouter = router({
+    // Direct stats from C2 server
+    getStats: protectedProcedure.query(async () => {
+      return cachedFetch('caldera:stats', async () => {
+        const [adversaries, abilities, operations, agents] = await Promise.all([
+          fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, '/api/v2/adversaries'),
+          fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, '/api/v2/abilities'),
+          fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, '/api/v2/operations'),
+          fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, '/api/v2/agents'),
+        ]);
+
+        return {
+          totalAdversaries: Array.isArray(adversaries) ? adversaries.length : 0,
+          totalThreatActors: await db.getThreatActorCount(),
+          totalAbilities: Array.isArray(abilities) ? abilities.length : 0,
+          activeOperations: Array.isArray(operations) ? operations.filter((o: any) => o.state === 'running').length : 0,
+          totalAgents: Array.isArray(agents) ? agents.length : 0,
+        };
+      }, 30_000);
+    }),
+
+    // Get all adversaries from DigitalOcean Caldera
+    getAdversaries: protectedProcedure.query(async () => {
+      const adversaries = await fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, '/api/v2/adversaries');
+      return Array.isArray(adversaries) ? adversaries : [];
+    }),
+
+    // Get single adversary by ID
+    getAdversary: protectedProcedure
+      .input(z.object({ adversaryId: z.string() }))
+      .query(async ({ input }) => {
+        return fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, `/api/v2/adversaries/${input.adversaryId}`);
+      }),
+
+    // Get all abilities from DigitalOcean Caldera
+    getAbilities: protectedProcedure.query(async () => {
+      const abilities = await fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, '/api/v2/abilities');
+      return Array.isArray(abilities) ? abilities : [];
+    }),
+
+    // Get abilities by tactic
+    getAbilitiesByTactic: protectedProcedure
+      .input(z.object({ tactic: z.string() }))
+      .query(async ({ input }) => {
+        const abilities = await fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, '/api/v2/abilities');
+        if (!Array.isArray(abilities)) return [];
+        return abilities.filter((a: any) => a.tactic === input.tactic);
+      }),
+
+    // Get all tactics (derived from abilities)
+    getTactics: protectedProcedure.query(async () => {
+      const abilities = await fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, '/api/v2/abilities');
+      if (!Array.isArray(abilities)) return [];
+
+      const tacticCounts: Record<string, number> = {};
+      abilities.forEach((a: any) => {
+        const tactic = a.tactic || 'unknown';
+        tacticCounts[tactic] = (tacticCounts[tactic] || 0) + 1;
+      });
+
+      return Object.entries(tacticCounts).map(([name, count]) => ({ name, count })).sort((a, b) => a.name.localeCompare(b.name));
+    }),
+
+    // Get all operations from DigitalOcean Caldera
+    getOperations: protectedProcedure.query(async () => {
+      const operations = await fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, '/api/v2/operations');
+      return Array.isArray(operations) ? operations : [];
+    }),
+
+    // Get all agents from DigitalOcean Caldera
+    getAgents: protectedProcedure.query(async () => {
+      const agents = await fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, '/api/v2/agents');
+      return Array.isArray(agents) ? agents : [];
+    }),
+
+    // Get single agent by paw (agent ID)
+    getAgent: protectedProcedure
+      .input(z.object({ paw: z.string() }))
+      .query(async ({ input }) => {
+        return fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, `/api/v2/agents/${input.paw}`);
+      }),
+
+    // Kill an agent
+    killAgent: protectedProcedure
+      .input(z.object({ paw: z.string() }))
+      .mutation(async ({ input }) => {
+        try {
+          const response = await fetch(`${CALDERA_BASE_URL}/api/v2/agents/${input.paw}`, {
+            method: 'DELETE',
+            headers: { 'KEY': CALDERA_API_KEY },
+          });
+          return { success: response.ok };
+        } catch {
+          return { success: false };
+        }
+      }),
+
+    // Update agent trust level
+    updateAgentTrust: protectedProcedure
+      .input(z.object({ paw: z.string(), trusted: z.boolean() }))
+      .mutation(async ({ input }) => {
+        try {
+          const response = await fetch(`${CALDERA_BASE_URL}/api/v2/agents/${input.paw}`, {
+            method: 'PATCH',
+            headers: { 
+              'KEY': CALDERA_API_KEY,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ trusted: input.trusted }),
+          });
+          return { success: response.ok };
+        } catch {
+          return { success: false };
+        }
+      }),
+
+    // Get agent deployable commands
+    getDeployCommands: protectedProcedure.query(async () => {
+      const deploy = await fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, '/api/v2/deploy_commands');
+      return deploy || {};
+    }),
+
+    // Check C2 server health — retries once on failure to reduce false negatives
+    // during heavy ScanForge discovery scans that temporarily slow the Caldera server
+    checkHealth: protectedProcedure.query(async () => {
+      return cachedFetch('caldera:health', async () => {
+        try {
+          const response = await fetch(`${CALDERA_BASE_URL}/api/v2/health`, {
+            headers: { 'KEY': CALDERA_API_KEY },
+            signal: AbortSignal.timeout(3000),
+          });
+          if (response.ok) return true;
+        } catch {
+          // Server unreachable — return false immediately, don't retry
+        }
+        return false;
+      }, 10_000);
+    }),
+
+    // Create a new ability on the C2 server
+    createAbility: protectedProcedure
+      .input(z.object({
+        ability_id: z.string(),
+        name: z.string(),
+        description: z.string(),
+        tactic: z.string(),
+        technique_id: z.string(),
+        technique_name: z.string(),
+        executors: z.array(z.object({
+          platform: z.string(),
+          name: z.string(),
+          command: z.string(),
+          cleanup: z.string().optional(),
+          timeout: z.number().optional(),
+        })),
+        singleton: z.boolean().optional(),
+        repeatable: z.boolean().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        try {
+          const response = await fetch(`${CALDERA_BASE_URL}/api/v2/abilities`, {
+            method: 'POST',
+            headers: {
+              'KEY': CALDERA_API_KEY,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              ability_id: input.ability_id,
+              name: input.name,
+              description: input.description,
+              tactic: input.tactic,
+              technique_id: input.technique_id,
+              technique_name: input.technique_name,
+              executors: input.executors,
+              singleton: input.singleton ?? false,
+              repeatable: input.repeatable ?? true,
+            }),
+            signal: AbortSignal.timeout(15000),
+          });
+          if (!response.ok) {
+            const errText = await response.text();
+            return { success: false, error: `HTTP ${response.status}: ${errText}` };
+          }
+          const result = await response.json();
+          return { success: true, ability: result };
+        } catch (err: any) {
+          return { success: false, error: err.message };
+        }
+      }),
+
+    // Create a new adversary profile on the C2 server
+    createAdversary: protectedProcedure
+      .input(z.object({
+        adversary_id: z.string(),
+        name: z.string(),
+        description: z.string(),
+        atomic_ordering: z.array(z.string()),
+        objective: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        try {
+          const response = await fetch(`${CALDERA_BASE_URL}/api/v2/adversaries`, {
+            method: 'POST',
+            headers: {
+              'KEY': CALDERA_API_KEY,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              adversary_id: input.adversary_id,
+              name: input.name,
+              description: input.description,
+              atomic_ordering: input.atomic_ordering,
+              objective: input.objective || '',
+            }),
+            signal: AbortSignal.timeout(15000),
+          });
+          if (!response.ok) {
+            const errText = await response.text();
+            return { success: false, error: `HTTP ${response.status}: ${errText}` };
+          }
+          const result = await response.json();
+          return { success: true, adversary: result };
+        } catch (err: any) {
+          return { success: false, error: err.message };
+        }
+      }),
+
+    // Deploy a full ransomware ability profile to Caldera (abilities + adversary)
+    deployRansomwareProfile: protectedProcedure
+      .input(z.object({
+        groupId: z.string(),
+        groupName: z.string(),
+        adversaryId: z.string(),
+        description: z.string(),
+        abilities: z.array(z.object({
+          ability_id: z.string(),
+          name: z.string(),
+          description: z.string(),
+          tactic: z.string(),
+          technique_id: z.string(),
+          technique_name: z.string(),
+          platforms: z.record(z.string(), z.record(z.string(), z.object({
+            command: z.string(),
+            cleanup: z.string().optional(),
+            timeout: z.number().optional(),
+          }))),
+        })),
+      }))
+      .mutation(async ({ input }) => {
+        const results: Array<{ ability_id: string; name: string; success: boolean; error?: string }> = [];
+
+        // Step 1: Create each ability
+        for (const ability of input.abilities) {
+          const executors: Array<{ platform: string; name: string; command: string; cleanup?: string; timeout?: number }> = [];
+          for (const [platform, execs] of Object.entries(ability.platforms)) {
+            for (const [executor, config] of Object.entries(execs as Record<string, { command: string; cleanup?: string; timeout?: number }>)) {
+              executors.push({
+                platform,
+                name: executor,
+                command: config.command,
+                cleanup: config.cleanup,
+                timeout: config.timeout,
+              });
+            }
+          }
+
+          try {
+            const response = await fetch(`${CALDERA_BASE_URL}/api/v2/abilities`, {
+              method: 'POST',
+              headers: { 'KEY': CALDERA_API_KEY, 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                ability_id: ability.ability_id,
+                name: `[${input.groupName}] ${ability.name}`,
+                description: ability.description,
+                tactic: ability.tactic,
+                technique_id: ability.technique_id,
+                technique_name: ability.technique_name,
+                executors,
+                singleton: false,
+                repeatable: true,
+              }),
+              signal: AbortSignal.timeout(15000),
+            });
+            results.push({
+              ability_id: ability.ability_id,
+              name: ability.name,
+              success: response.ok,
+              error: response.ok ? undefined : `HTTP ${response.status}`,
+            });
+          } catch (err: any) {
+            results.push({ ability_id: ability.ability_id, name: ability.name, success: false, error: err.message });
+          }
+        }
+
+        // Step 2: Create the adversary profile
+        let adversaryResult: { success: boolean; error?: string } = { success: false };
+        try {
+          const response = await fetch(`${CALDERA_BASE_URL}/api/v2/adversaries`, {
+            method: 'POST',
+            headers: { 'KEY': CALDERA_API_KEY, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              adversary_id: input.adversaryId,
+              name: `${input.groupName} Simulation`,
+              description: input.description,
+              atomic_ordering: input.abilities.map(a => a.ability_id),
+            }),
+            signal: AbortSignal.timeout(15000),
+          });
+          adversaryResult = { success: response.ok, error: response.ok ? undefined : `HTTP ${response.status}` };
+        } catch (err: any) {
+          adversaryResult = { success: false, error: err.message };
+        }
+
+        return {
+          abilitiesDeployed: results.filter(r => r.success).length,
+          abilitiesFailed: results.filter(r => !r.success).length,
+          abilityResults: results,
+          adversaryCreated: adversaryResult.success,
+          adversaryError: adversaryResult.error,
+        };
+      }),
+
+    // ─── Campaign Execution Dashboard Endpoints ───
+    // Get detailed operation with chain analysis
+    getOperationDetail: protectedProcedure
+      .input(z.object({ operationId: z.string() }))
+      .query(async ({ input }) => {
+        const operations = await fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, '/api/v2/operations');
+        const op = Array.isArray(operations) ? operations.find((o: any) => o.id === input.operationId) : null;
+        if (!op) return null;
+
+        const chain = op.chain || [];
+        const totalSteps = chain.length;
+        const completedSteps = chain.filter((s: any) => s.finish).length;
+        const successSteps = chain.filter((s: any) => s.status === 0 && s.finish).length;
+        const failedSteps = chain.filter((s: any) => s.status !== 0 && s.finish).length;
+
+        // Group by technique
+        const techniqueMap: Record<string, { id: string; name: string; status: string; steps: any[] }> = {};
+        for (const step of chain) {
+          const ab = step.ability || {};
+          const techId = ab.technique_id || 'unknown';
+          if (!techniqueMap[techId]) {
+            techniqueMap[techId] = {
+              id: techId,
+              name: ab.technique_name || ab.name || techId,
+              status: 'pending',
+              steps: [],
+            };
+          }
+          techniqueMap[techId].steps.push({
+            id: step.id,
+            abilityName: ab.name,
+            abilityId: ab.ability_id,
+            status: step.finish ? (step.status === 0 ? 'success' : 'failed') : 'running',
+            paw: step.paw,
+            executor: step.executor?.name || step.executor,
+            command: step.command,
+            output: step.output,
+            decide: step.decide,
+            finish: step.finish,
+            score: step.score,
+          });
+          // Update technique status
+          const statuses = techniqueMap[techId].steps.map((s: any) => s.status);
+          if (statuses.includes('running')) techniqueMap[techId].status = 'running';
+          else if (statuses.every((s: string) => s === 'success')) techniqueMap[techId].status = 'success';
+          else if (statuses.some((s: string) => s === 'failed')) techniqueMap[techId].status = 'partial';
+          else techniqueMap[techId].status = 'pending';
+        }
+
+        // Timeline events
+        const timeline = chain.map((step: any) => ({
+          time: step.decide || step.finish,
+          finishTime: step.finish,
+          abilityName: step.ability?.name || 'Unknown',
+          techniqueId: step.ability?.technique_id || 'Unknown',
+          status: step.finish ? (step.status === 0 ? 'success' : 'failed') : 'running',
+          paw: step.paw,
+        })).sort((a: any, b: any) => new Date(a.time).getTime() - new Date(b.time).getTime());
+
+        return {
+          id: op.id,
+          name: op.name,
+          state: op.state,
+          start: op.start,
+          adversary: op.adversary,
+          planner: op.planner,
+          group: op.group,
+          jitter: op.jitter,
+          objective: op.objective,
+          // Metrics
+          metrics: {
+            totalSteps,
+            completedSteps,
+            successSteps,
+            failedSteps,
+            pendingSteps: totalSteps - completedSteps,
+            successRate: totalSteps > 0 ? Math.round((successSteps / totalSteps) * 100) : 0,
+            detectionRate: totalSteps > 0 ? Math.round((failedSteps / totalSteps) * 100) : 0,
+            progress: totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0,
+          },
+          techniques: Object.values(techniqueMap),
+          timeline,
+          agentPaws: Array.from(new Set(chain.map((s: any) => s.paw))),
+        };
+      }),
+
+    // Get all operations summary for dashboard
+    getOperationsSummary: protectedProcedure.query(async () => {
+      const [operations, agents] = await Promise.all([
+        fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, '/api/v2/operations'),
+        fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, '/api/v2/agents'),
+      ]);
+      const ops = Array.isArray(operations) ? operations : [];
+      const agentList = Array.isArray(agents) ? agents : [];
+
+      const summary = ops.map((op: any) => {
+        const chain = op.chain || [];
+        const totalSteps = chain.length;
+        const completedSteps = chain.filter((s: any) => s.finish).length;
+        const successSteps = chain.filter((s: any) => s.status === 0 && s.finish).length;
+        const failedSteps = chain.filter((s: any) => s.status !== 0 && s.finish).length;
+        const uniqueTechniques = new Set(chain.map((s: any) => s.ability?.technique_id).filter(Boolean));
+        return {
+          id: op.id,
+          name: op.name,
+          state: op.state,
+          start: op.start,
+          adversaryName: op.adversary?.name || 'Unknown',
+          totalSteps,
+          completedSteps,
+          successSteps,
+          failedSteps,
+          uniqueTechniques: uniqueTechniques.size,
+          progress: totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0,
+          successRate: completedSteps > 0 ? Math.round((successSteps / completedSteps) * 100) : 0,
+          agentPaws: Array.from(new Set(chain.map((s: any) => s.paw).filter(Boolean))),
+        };
+      });
+
+      // Agent summary
+      const agentSummary = agentList.map((a: any) => {
+        const now = Date.now();
+        const lastSeen = new Date(a.last_seen).getTime();
+        const isAlive = (now - lastSeen) < 5 * 60 * 1000; // 5 min threshold
+        return {
+          paw: a.paw,
+          host: a.host,
+          platform: a.platform,
+          username: a.username,
+          privilege: a.privilege,
+          contact: a.contact,
+          lastSeen: a.last_seen,
+          created: a.created,
+          status: isAlive ? 'alive' : 'dead',
+          executors: a.executors || [],
+          hostIpAddrs: a.host_ip_addrs || [],
+          displayName: a.display_name || a.host,
+        };
+      });
+
+      return {
+        operations: summary,
+        agents: agentSummary,
+        totals: {
+          totalOperations: ops.length,
+          runningOperations: ops.filter((o: any) => o.state === 'running').length,
+          pausedOperations: ops.filter((o: any) => o.state === 'paused').length,
+          finishedOperations: ops.filter((o: any) => o.state === 'finished').length,
+          totalAgents: agentList.length,
+          aliveAgents: agentSummary.filter((a: any) => a.status === 'alive').length,
+        },
+      };
+    }),
+
+    // Control operation (pause, resume, stop)
+    controlOperation: protectedProcedure
+      .input(z.object({
+        operationId: z.string(),
+        action: z.enum(['pause', 'resume', 'stop', 'cleanup']),
+      }))
+      .mutation(async ({ input }) => {
+        const stateMap: Record<string, string> = {
+          pause: 'paused',
+          resume: 'running',
+          stop: 'finished',
+          cleanup: 'cleanup',
+        };
+        const response = await fetch(`${CALDERA_BASE_URL}/api/v2/operations/${input.operationId}`, {
+          method: 'PATCH',
+          headers: { 'KEY': CALDERA_API_KEY, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ state: stateMap[input.action] }),
+        });
+        if (!response.ok) throw new Error(`Failed to ${input.action} operation: ${response.status}`);
+        return { success: true, newState: stateMap[input.action] };
+      }),
+
+    // Build intelligent attack chain for a specific operation
+    buildChain: protectedProcedure
+      .input(z.object({
+        operationId: z.string(),
+        scanId: z.number().optional(),
+        campaignIndex: z.number().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { buildOperationChain } = await import('../lib/chain-builder');
+        const { matchTechnologiesAgainstAllFeeds, getVulnFeedChainSteps } = await import('../lib/vuln-feeds');
+        const abilities = await fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, '/api/v2/abilities');
+        let scanData: any = null;
+        if (input.scanId) {
+          const scan = await db.getDomainIntelScanById(input.scanId);
+          scanData = scan?.pipelineOutput;
+        }
+        const campaigns = scanData?.campaignRecommendations || [];
+        const actorMatches = scanData?.threatActorMatches?.topMatches || [];
+        const kevChainSteps = scanData?.kevEnrichment?.chainSteps || [];
+        const campaign = input.campaignIndex !== undefined ? campaigns[input.campaignIndex] : undefined;
+
+        // Enrich with vulnerability feed data from discovered technologies
+        // Only confirmed/probable findings are included to prevent false-positive noise in adversary emulation
+        let vulnSteps: Array<{ techniqueId: string; priority: number; source: "vuln_feed"; context: string; corroborationTier?: string }> = [];
+        try {
+          if (input.scanId) {
+            const scanForTech = await db.getDomainIntelScanById(input.scanId);
+            const pipelineAssets = (scanForTech?.pipelineOutput as any)?.assets || [];
+            const techs = new Set<string>();
+            const detectedVersions: Record<string, string> = {};
+            pipelineAssets.forEach((a: any) => {
+              const asset = a?.asset || a;
+              ((asset.technologies || []) as string[]).forEach((t: string) => techs.add(t));
+              // Collect detected versions for corroboration
+              if (asset.technologyVersions) {
+                Object.entries(asset.technologyVersions).forEach(([tech, ver]) => {
+                  if (ver) detectedVersions[tech] = ver as string;
+                });
+              }
+            });
+            if (techs.size > 0) {
+              const vulnMatches = await matchTechnologiesAgainstAllFeeds(Array.from(techs));
+              vulnSteps = getVulnFeedChainSteps(vulnMatches.matches, Object.keys(detectedVersions).length > 0 ? detectedVersions : undefined);
+            }
+          }
+        } catch (e) {
+          console.warn('[Chain Builder] Vuln feed enrichment failed, continuing without:', e);
+        }
+
+        const result = await buildOperationChain({
+          operationId: input.operationId,
+          scanId: input.scanId,
+          campaignRecommendation: campaign,
+          threatActorMatches: actorMatches,
+          kevSteps: kevChainSteps,
+          vulnSteps,
+          allAbilities: abilities || [],
+          calderaBaseUrl: CALDERA_BASE_URL,
+          calderaApiKey: CALDERA_API_KEY,
+        });
+        return result;
+      }),
+
+    // Auto-build chains for ALL paused operations without chains
+    autoBuildAllChains: protectedProcedure
+      .input(z.object({ scanId: z.number().optional() }))
+      .mutation(async ({ input }) => {
+        const { autoBuildAllChains } = await import('../lib/chain-builder');
+        const { matchTechnologiesAgainstAllFeeds, getVulnFeedChainSteps } = await import('../lib/vuln-feeds');
+        let scanData: any = undefined;
+        let vulnSteps: Array<{ techniqueId: string; priority: number; source: "vuln_feed"; context: string; corroborationTier?: string }> = [];
+        if (input.scanId) {
+          const scan = await db.getDomainIntelScanById(input.scanId);
+          if (scan) {
+            scanData = { pipelineOutput: scan.pipelineOutput, findings: [] };
+            // Extract technologies and match against vuln feeds with version corroboration
+            try {
+              const pipelineAssets = (scan.pipelineOutput as any)?.assets || [];
+              const techs = new Set<string>();
+              const detectedVersions: Record<string, string> = {};
+              pipelineAssets.forEach((a: any) => {
+                const asset = a?.asset || a;
+                ((asset.technologies || []) as string[]).forEach((t: string) => techs.add(t));
+                if (asset.technologyVersions) {
+                  Object.entries(asset.technologyVersions).forEach(([tech, ver]) => {
+                    if (ver) detectedVersions[tech] = ver as string;
+                  });
+                }
+              });
+              if (techs.size > 0) {
+                const vulnMatches = await matchTechnologiesAgainstAllFeeds(Array.from(techs));
+                vulnSteps = getVulnFeedChainSteps(vulnMatches.matches, Object.keys(detectedVersions).length > 0 ? detectedVersions : undefined);
+              }
+            } catch (e) {
+              console.warn('[Auto Chain Builder] Vuln feed enrichment failed:', e);
+            }
+          }
+        }
+        const results = await autoBuildAllChains({
+          calderaBaseUrl: CALDERA_BASE_URL,
+          calderaApiKey: CALDERA_API_KEY,
+          scanData,
+          vulnSteps,
+        });
+        return {
+          totalOperations: results.length,
+          results: results.map(r => ({
+            operationId: r.operationId,
+            operationName: r.operationName,
+            adversaryName: r.adversaryName,
+            totalAbilities: r.totalAbilities,
+            techniquesCovered: r.techniquesCovered.length,
+            techniquesNotCovered: r.techniquesNotCovered.length,
+          })),
+        };
+      }),
+
+    // Build chain with LLM intelligence
+    buildChainWithLLM: protectedProcedure
+      .input(z.object({
+        operationId: z.string(),
+        scanId: z.number(),
+        campaignIndex: z.number(),
+      }))
+      .mutation(async ({ input }) => {
+        const { buildChainWithLLM, buildOperationChain } = await import('../lib/chain-builder');
+        const { matchTechnologiesAgainstAllFeeds, getVulnFeedChainSteps } = await import('../lib/vuln-feeds');
+        const abilities = await fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, '/api/v2/abilities');
+        const scan = await db.getDomainIntelScanById(input.scanId);
+        const scanData = scan?.pipelineOutput as any;
+        const campaigns = scanData?.campaignRecommendations || [];
+        const actorMatches = scanData?.threatActorMatches?.topMatches || [];
+        const campaign = campaigns[input.campaignIndex];
+        if (!campaign) throw new TRPCError({ code: 'NOT_FOUND', message: 'Campaign recommendation not found' });
+
+        // Enrich with vuln feed data — only confirmed/probable findings to prevent false-positive noise
+        let vulnSteps: Array<{ techniqueId: string; priority: number; source: "vuln_feed"; context: string; corroborationTier?: string }> = [];
+        try {
+          const pipelineAssets = scanData?.assets || [];
+          const techs = new Set<string>();
+          const detectedVersions: Record<string, string> = {};
+          pipelineAssets.forEach((a: any) => {
+            const asset = a?.asset || a;
+            ((asset.technologies || []) as string[]).forEach((t: string) => techs.add(t));
+            if (asset.technologyVersions) {
+              Object.entries(asset.technologyVersions).forEach(([tech, ver]) => {
+                if (ver) detectedVersions[tech] = ver as string;
+              });
+            }
+          });
+          if (techs.size > 0) {
+            const vulnMatches = await matchTechnologiesAgainstAllFeeds(Array.from(techs));
+            vulnSteps = getVulnFeedChainSteps(vulnMatches.matches, Object.keys(detectedVersions).length > 0 ? detectedVersions : undefined);
+          }
+        } catch (e) {
+          console.warn('[LLM Chain Builder] Vuln feed enrichment failed:', e);
+        }
+        const llmResult = await buildChainWithLLM({
+          campaignRecommendation: campaign,
+          orgProfile: (scanData as any)?.orgProfile,
+          findings: [],
+          threatActors: actorMatches,
+          availableAbilities: abilities || [],
+        });
+        if (llmResult.selectedAbilities.length > 0) {
+          const adversaryName = `llm-${campaign.name.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase().substring(0, 40)}-${Date.now().toString(36)}`;
+          const advResponse = await fetch(`${CALDERA_BASE_URL}/api/v2/adversaries`, {
+            method: 'POST',
+            headers: { 'KEY': CALDERA_API_KEY, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name: adversaryName,
+              description: `LLM-designed adversary. ${llmResult.reasoning}`,
+              atomic_ordering: llmResult.selectedAbilities,
+              tags: ['llm-generated', 'chain-builder'],
+            }),
+          });
+          if (advResponse.ok) {
+            const adv = await advResponse.json() as any;
+            await fetch(`${CALDERA_BASE_URL}/api/v2/operations/${input.operationId}`, {
+              method: 'PATCH',
+              headers: { 'KEY': CALDERA_API_KEY, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ adversary: { adversary_id: adv.adversary_id } }),
+            });
+            return { success: true, method: 'llm' as const, adversaryName, totalAbilities: llmResult.selectedAbilities.length, reasoning: llmResult.reasoning, attackNarrative: llmResult.attackNarrative };
+          }
+        }
+        const kevChainSteps2 = (scanData as any)?.kevEnrichment?.chainSteps || [];
+        const result = await buildOperationChain({
+          operationId: input.operationId,
+          scanId: input.scanId,
+          campaignRecommendation: campaign,
+          threatActorMatches: actorMatches,
+          kevSteps: kevChainSteps2,
+          vulnSteps,
+          allAbilities: abilities || [],
+          calderaBaseUrl: CALDERA_BASE_URL,
+          calderaApiKey: CALDERA_API_KEY,
+        });
+        return { success: true, method: 'rule-based' as const, adversaryName: result.adversaryName, totalAbilities: result.totalAbilities, reasoning: 'Rule-based selection from campaign attack chain', attackNarrative: '' };
+      }),
+
+    // ─── Sigma/YARA Rule Validation Engine ───
+    validateRule: protectedProcedure
+      .input(z.object({
+        ruleType: z.enum(['sigma', 'yara', 'suricata', 'splunk', 'kql']),
+        ruleContent: z.string(),
+        ruleName: z.string().optional(),
+        techniqueId: z.string().optional(),
+        sampleData: z.string().optional(),
+        useLLM: z.boolean().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { validateRule } = await import('../lib/rule-validator');
+        return validateRule({
+          ruleType: input.ruleType,
+          ruleContent: input.ruleContent,
+          ruleName: input.ruleName,
+          techniqueId: input.techniqueId,
+          sampleData: input.sampleData,
+        }, input.useLLM ?? true);
+      }),
+
+    validateRuleBatch: protectedProcedure
+      .input(z.object({
+        rules: z.array(z.object({
+          ruleType: z.enum(['sigma', 'yara', 'suricata', 'splunk', 'kql']),
+          ruleContent: z.string(),
+          ruleName: z.string().optional(),
+          techniqueId: z.string().optional(),
+        })),
+        useLLM: z.boolean().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { validateRuleBatch } = await import('../lib/rule-validator');
+        return validateRuleBatch(input.rules, input.useLLM ?? false);
+      }),
+
+    generateSampleLog: protectedProcedure
+      .input(z.object({ techniqueId: z.string() }))
+      .query(async ({ input }) => {
+        const { generateSampleLogData } = await import('../lib/rule-validator');
+        return { sampleData: generateSampleLogData(input.techniqueId) };
+      }),
+
+    // ─── Detection Rule Generator ───
+    generateActorRules: protectedProcedure
+      .input(z.object({
+        actorId: z.string(),
+        useLLM: z.boolean().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { generateRulesForActor, generateRulesWithLLM } = await import('../lib/rule-generator');
+        const actor = await db.getThreatActor(input.actorId);
+        if (!actor) throw new TRPCError({ code: 'NOT_FOUND', message: 'Threat actor not found' });
+        const techniques = (actor.techniques as Array<{ id: string; name: string; tactic: string }>) || [];
+        const tools = (actor.tools as string[]) || [];
+        const malware = (actor.malware as string[]) || [];
+        if (input.useLLM) {
+          return generateRulesWithLLM({
+            actorName: actor.name,
+            techniques,
+            tools,
+            malware,
+            description: actor.description || undefined,
+          });
+        }
+        return generateRulesForActor({ actorName: actor.name, techniques, tools, malware });
+      }),
+
+    // ─── Detection Coverage Matrix ───
+    getDetectionCoverageMatrix: protectedProcedure
+      .input(z.object({
+        operationId: z.string().optional(),
+      }))
+      .query(async ({ input }) => {
+        const { generateRulesForActor } = await import('../lib/rule-generator');
+
+        // Get all operations
+        const operations = await fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, '/api/v2/operations');
+        const ops = Array.isArray(operations) ? operations : [];
+        const targetOps = input.operationId ? ops.filter((o: any) => o.id === input.operationId) : ops;
+
+        // Collect all techniques used across operations
+        const techniqueUsage: Record<string, {
+          id: string; name: string; tactic: string;
+          operations: Array<{ opId: string; opName: string; status: string }>;
+        }> = {};
+
+        for (const op of targetOps) {
+          const chain = op.chain || [];
+          for (const step of chain) {
+            const ab = step.ability || {};
+            const techId = ab.technique_id || 'unknown';
+            if (techId === 'unknown') continue;
+            if (!techniqueUsage[techId]) {
+              techniqueUsage[techId] = {
+                id: techId,
+                name: ab.technique_name || ab.name || techId,
+                tactic: ab.tactic || 'unknown',
+                operations: [],
+              };
+            }
+            const stepStatus = step.finish ? (step.status === 0 ? 'success' : 'failed') : 'running';
+            const existing = techniqueUsage[techId].operations.find((o: any) => o.opId === op.id);
+            if (!existing) {
+              techniqueUsage[techId].operations.push({ opId: op.id, opName: op.name, status: stepStatus });
+            }
+          }
+        }
+
+        // Get all threat actors to generate rules
+        const actorResult = await db.listThreatActors();
+        const actors = actorResult.actors || [];
+        const allActorTechniques: Array<{ id: string; name: string; tactic: string }> = [];
+        for (const actor of actors) {
+          const techs = (actor.techniques as Array<{ id: string; name: string; tactic: string }>) || [];
+          allActorTechniques.push(...techs);
+        }
+
+        // Deduplicate techniques
+        const uniqueTechMap = new Map<string, { id: string; name: string; tactic: string }>();
+        for (const t of allActorTechniques) {
+          if (!uniqueTechMap.has(t.id)) uniqueTechMap.set(t.id, t);
+        }
+
+        // Generate rules for coverage analysis
+        const genResult = generateRulesForActor({
+          actorName: 'All Actors',
+          techniques: Array.from(uniqueTechMap.values()),
+        });
+
+        // Build coverage matrix
+        const matrix: Array<{
+          techniqueId: string;
+          techniqueName: string;
+          tactic: string;
+          operationCoverage: Array<{ opId: string; opName: string; status: string }>;
+          rulesCoverage: Array<{ ruleType: string; confidence: number; severity: string }>;
+          coverageStatus: 'full' | 'partial' | 'rules-only' | 'ops-only' | 'none';
+        }> = [];
+
+        // Merge techniques from both operations and rules
+        const allTechIds = new Set([
+          ...Object.keys(techniqueUsage),
+          ...genResult.rules.map(r => r.techniqueId),
+        ]);
+
+        for (const techId of Array.from(allTechIds)) {
+          const opData = techniqueUsage[techId];
+          const ruleData = genResult.rules.filter(r => r.techniqueId === techId);
+          const techInfo = opData || uniqueTechMap.get(techId) || { id: techId, name: techId, tactic: 'unknown' };
+
+          const hasOps = !!opData && opData.operations.length > 0;
+          const hasRules = ruleData.length > 0;
+          const hasHighConfRules = ruleData.some(r => r.confidence >= 65);
+
+          let coverageStatus: 'full' | 'partial' | 'rules-only' | 'ops-only' | 'none' = 'none';
+          if (hasOps && hasHighConfRules) coverageStatus = 'full';
+          else if (hasOps && hasRules) coverageStatus = 'partial';
+          else if (hasRules) coverageStatus = 'rules-only';
+          else if (hasOps) coverageStatus = 'ops-only';
+
+          matrix.push({
+            techniqueId: techId,
+            techniqueName: (techInfo as any).name || techId,
+            tactic: (techInfo as any).tactic || 'unknown',
+            operationCoverage: opData?.operations || [],
+            rulesCoverage: ruleData.map(r => ({
+              ruleType: r.ruleType,
+              confidence: r.confidence,
+              severity: r.severity,
+            })),
+            coverageStatus,
+          });
+        }
+
+        // Sort by tactic order then technique ID
+        const tacticOrder = ['reconnaissance','resource-development','initial-access','execution','persistence','privilege-escalation','defense-evasion','credential-access','discovery','lateral-movement','collection','command-and-control','exfiltration','impact'];
+        matrix.sort((a, b) => {
+          const aIdx = tacticOrder.indexOf(a.tactic);
+          const bIdx = tacticOrder.indexOf(b.tactic);
+          if (aIdx !== bIdx) return (aIdx === -1 ? 99 : aIdx) - (bIdx === -1 ? 99 : bIdx);
+          return a.techniqueId.localeCompare(b.techniqueId);
+        });
+
+        // Summary stats
+        const summary = {
+          totalTechniques: matrix.length,
+          fullCoverage: matrix.filter(m => m.coverageStatus === 'full').length,
+          partialCoverage: matrix.filter(m => m.coverageStatus === 'partial').length,
+          rulesOnly: matrix.filter(m => m.coverageStatus === 'rules-only').length,
+          opsOnly: matrix.filter(m => m.coverageStatus === 'ops-only').length,
+          noCoverage: matrix.filter(m => m.coverageStatus === 'none').length,
+          totalOperations: targetOps.length,
+          totalRules: genResult.totalRules,
+          byTactic: Object.fromEntries(
+            tacticOrder.map(t => [t, {
+              total: matrix.filter(m => m.tactic === t).length,
+              covered: matrix.filter(m => m.tactic === t && (m.coverageStatus === 'full' || m.coverageStatus === 'partial')).length,
+            }])
+          ),
+        };
+
+        return {
+          matrix,
+          summary,
+          operations: targetOps.map((o: any) => ({ id: o.id, name: o.name, state: o.state })),
+        };
+      }),
+
+    // ─── Post-Engagement Report Generator ───
+    generateReport: protectedProcedure
+      .input(z.object({
+        operationId: z.string(),
+        clientName: z.string().optional(),
+        engagementType: z.string().optional(),
+        customNotes: z.string().optional(),
+        engagementId: z.number().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { generateReport, renderReportHTML } = await import('../lib/report-generator');
+
+        // Get operation detail
+        const operations = await fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, '/api/v2/operations');
+        const op = Array.isArray(operations) ? operations.find((o: any) => o.id === input.operationId) : null;
+        if (!op) throw new TRPCError({ code: 'NOT_FOUND', message: 'Operation not found' });
+
+        const chain = op.chain || [];
+        const totalSteps = chain.length;
+        const completedSteps = chain.filter((s: any) => s.finish).length;
+        const successSteps = chain.filter((s: any) => s.status === 0 && s.finish).length;
+        const failedSteps = chain.filter((s: any) => s.status !== 0 && s.finish).length;
+
+        // Build technique map
+        const techniqueMap: Record<string, any> = {};
+        for (const step of chain) {
+          const ab = step.ability || {};
+          const techId = ab.technique_id || 'unknown';
+          if (!techniqueMap[techId]) {
+            techniqueMap[techId] = {
+              id: techId, name: ab.technique_name || ab.name || techId,
+              tactic: ab.tactic || 'unknown', status: 'pending', steps: [],
+            };
+          }
+          techniqueMap[techId].steps.push({
+            id: step.id, abilityName: ab.name, abilityId: ab.ability_id,
+            status: step.finish ? (step.status === 0 ? 'success' : 'failed') : 'running',
+            paw: step.paw, finish: step.finish,
+          });
+          const statuses = techniqueMap[techId].steps.map((s: any) => s.status);
+          if (statuses.includes('running')) techniqueMap[techId].status = 'running';
+          else if (statuses.every((s: string) => s === 'success')) techniqueMap[techId].status = 'success';
+          else if (statuses.some((s: string) => s === 'failed')) techniqueMap[techId].status = 'partial';
+        }
+
+        const timeline = chain.map((step: any) => ({
+          time: step.decide || step.finish,
+          finishTime: step.finish,
+          abilityName: step.ability?.name || 'Unknown',
+          techniqueId: step.ability?.technique_id || 'Unknown',
+          status: step.finish ? (step.status === 0 ? 'success' : 'failed') : 'running',
+          paw: step.paw,
+        })).sort((a: any, b: any) => new Date(a.time).getTime() - new Date(b.time).getTime());
+
+        const operationData = {
+          ...op,
+          techniques: Object.values(techniqueMap),
+          timeline,
+          metrics: {
+            totalSteps, completedSteps, successSteps, failedSteps,
+            pendingSteps: totalSteps - completedSteps,
+            successRate: totalSteps > 0 ? Math.round((successSteps / totalSteps) * 100) : 0,
+            detectionRate: totalSteps > 0 ? Math.round((failedSteps / totalSteps) * 100) : 0,
+            progress: totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0,
+          },
+        };
+
+        // Get coverage data
+        let coverageData = null;
+        try {
+          const { generateRulesForActor } = await import('../lib/rule-generator');
+          const actorResult = await db.listThreatActors();
+          const actors = actorResult.actors || [];
+          const allTechs: Array<{ id: string; name: string; tactic: string }> = [];
+          for (const actor of actors) {
+            const techs = (actor.techniques as Array<{ id: string; name: string; tactic: string }>) || [];
+            allTechs.push(...techs);
+          }
+          const uniqueTechMap = new Map<string, { id: string; name: string; tactic: string }>();
+          for (const t of allTechs) { if (!uniqueTechMap.has(t.id)) uniqueTechMap.set(t.id, t); }
+          const genResult = generateRulesForActor({ actorName: 'All Actors', techniques: Array.from(uniqueTechMap.values()) });
+
+          const techUsage: Record<string, any> = {};
+          for (const step of chain) {
+            const ab = step.ability || {};
+            const techId = ab.technique_id || 'unknown';
+            if (techId === 'unknown') continue;
+            if (!techUsage[techId]) techUsage[techId] = { operations: [] };
+            if (!techUsage[techId].operations.find((o: any) => o.opId === op.id)) {
+              techUsage[techId].operations.push({ opId: op.id, opName: op.name, status: step.finish ? (step.status === 0 ? 'success' : 'failed') : 'running' });
+            }
+          }
+
+          const allTechIds = new Set([...Object.keys(techUsage), ...genResult.rules.map(r => r.techniqueId)]);
+          const matrix: any[] = [];
+          for (const techId of Array.from(allTechIds)) {
+            const opData = techUsage[techId];
+            const ruleData = genResult.rules.filter(r => r.techniqueId === techId);
+            const hasOps = !!opData && opData.operations.length > 0;
+            const hasRules = ruleData.length > 0;
+            const hasHighConf = ruleData.some(r => r.confidence >= 65);
+            let coverageStatus = 'none';
+            if (hasOps && hasHighConf) coverageStatus = 'full';
+            else if (hasOps && hasRules) coverageStatus = 'partial';
+            else if (hasRules) coverageStatus = 'rules-only';
+            else if (hasOps) coverageStatus = 'ops-only';
+            matrix.push({ techniqueId: techId, techniqueName: (uniqueTechMap.get(techId) as any)?.name || techId, tactic: (uniqueTechMap.get(techId) as any)?.tactic || 'unknown', coverageStatus });
+          }
+          coverageData = {
+            matrix,
+            summary: {
+              totalTechniques: matrix.length,
+              fullCoverage: matrix.filter(m => m.coverageStatus === 'full').length,
+              partialCoverage: matrix.filter(m => m.coverageStatus === 'partial').length,
+              opsOnly: matrix.filter(m => m.coverageStatus === 'ops-only').length,
+              noCoverage: matrix.filter(m => m.coverageStatus === 'none').length,
+            },
+          };
+        } catch (e) { console.error('Coverage data fetch failed:', e); }
+
+        // Get threat actors
+        let threatActors: Array<{ name: string; techniques: number; type: string }> = [];
+        try {
+          const actorResult = await db.listThreatActors();
+          threatActors = (actorResult.actors || []).map((a: any) => ({
+            name: a.name, techniques: Array.isArray(a.techniques) ? a.techniques.length : 0, type: a.type,
+          }));
+        } catch (e) { /* ignore */ }
+
+        // Fetch engagement ops data if engagementId provided
+        let engagementOpsData: any = undefined;
+        if (input.engagementId) {
+          const { getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
+          let opsState = getOpsState(input.engagementId);
+          if (!opsState) opsState = await getOpsStateWithRecovery(input.engagementId);
+          if (opsState) {
+            engagementOpsData = {
+              assets: opsState.assets.map(a => ({
+                hostname: a.hostname,
+                ip: a.ip,
+                type: a.type,
+                status: a.status,
+                knownPorts: a.knownPorts,
+                passiveRecon: a.passiveRecon,
+                toolResults: a.toolResults,
+              })),
+              scanPlan: opsState.scanPlan,
+              passiveReconResults: opsState.passiveReconResults,
+              targetProfiles: opsState.targetProfiles,
+            };
+          }
+        }
+
+        const report = await generateReport({
+          operationId: input.operationId,
+          operationData,
+          coverageData,
+          threatActors,
+          clientName: input.clientName,
+          engagementType: input.engagementType,
+          customNotes: input.customNotes,
+          engagementOpsData,
+        });
+
+        const html = renderReportHTML(report);
+        return { report, html };
+      }),
+
+    generateAndValidateActorRules: protectedProcedure
+      .input(z.object({
+        actorId: z.string(),
+        useLLM: z.boolean().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { generateRulesForActor } = await import('../lib/rule-generator');
+        const { validateRule } = await import('../lib/rule-validator');
+        const actor = await db.getThreatActor(input.actorId);
+        if (!actor) throw new TRPCError({ code: 'NOT_FOUND', message: 'Threat actor not found' });
+        const techniques = (actor.techniques as Array<{ id: string; name: string; tactic: string }>) || [];
+        const tools = (actor.tools as string[]) || [];
+        const malware = (actor.malware as string[]) || [];
+        const genResult = generateRulesForActor({ actorName: actor.name, techniques, tools, malware });
+        // Validate each rule (no LLM to keep it fast)
+        const validated = await Promise.all(
+          genResult.rules.map(async (rule) => {
+            const validation = await validateRule({
+              ruleType: rule.ruleType,
+              ruleContent: rule.ruleContent,
+              ruleName: rule.ruleName,
+              techniqueId: rule.techniqueId,
+            }, false);
+            return { ...rule, validation };
+          })
+        );
+        return { ...genResult, rules: validated };
+      }),
+
+    // ─── CISA KEV Endpoints ───
+    getKevCatalog: protectedProcedure
+      .query(async () => {
+        const { fetchKevCatalog, getKevStats } = await import('../lib/kev-service');
+        const catalog = await fetchKevCatalog();
+        const stats = getKevStats(catalog);
+        const vulns = catalog.vulnerabilities || [];
+        return {
+          totalVulnerabilities: vulns.length,
+          catalogVersion: catalog.catalogVersion,
+          dateReleased: catalog.dateReleased,
+          vulnerabilities: vulns.slice(0, 500),
+          ransomwareCount: stats.ransomwareLinked,
+          recentlyAdded: stats.recentlyAdded,
+          topVendors: stats.topVendors,
+          topProducts: stats.topProducts,
+        };
+      }),
+
+    searchKev: protectedProcedure
+      .input(z.object({
+        query: z.string().optional(),
+        vendor: z.string().optional(),
+        product: z.string().optional(),
+        ransomwareOnly: z.boolean().optional(),
+        limit: z.number().optional(),
+      }))
+      .query(async ({ input }) => {
+        const { fetchKevCatalog } = await import('../lib/kev-service');
+        const catalog = await fetchKevCatalog();
+        let results = catalog.vulnerabilities || [];
+        if (input.query) {
+          const q = input.query.toLowerCase();
+          results = results.filter((v) =>
+            v.cveID?.toLowerCase().includes(q) ||
+            v.vulnerabilityName?.toLowerCase().includes(q) ||
+            v.vendorProject?.toLowerCase().includes(q) ||
+            v.product?.toLowerCase().includes(q) ||
+            v.shortDescription?.toLowerCase().includes(q)
+          );
+        }
+        if (input.vendor) {
+          results = results.filter((v) => v.vendorProject?.toLowerCase().includes(input.vendor!.toLowerCase()));
+        }
+        if (input.product) {
+          results = results.filter((v) => v.product?.toLowerCase().includes(input.product!.toLowerCase()));
+        }
+        if (input.ransomwareOnly) {
+          results = results.filter((v) => v.knownRansomwareCampaignUse === 'Known');
+        }
+        return { total: results.length, results: results.slice(0, input.limit || 100) };
+      }),
+
+    matchKevToScan: protectedProcedure
+      .input(z.object({ scanId: z.number() }))
+      .query(async ({ input }) => {
+        const { fetchKevCatalog, matchTechnologiesAgainstKev, calculateKevRiskBoost, getKevChainSteps } = await import('../lib/kev-service');
+        const scan = await db.getDomainIntelScanById(input.scanId);
+        if (!scan) throw new TRPCError({ code: 'NOT_FOUND', message: 'Scan not found' });
+        const pipeline = scan.pipelineOutput as any;
+        const allTechs = (pipeline?.assets || []).flatMap((a: any) => a?.asset?.technologies || []);
+        const uniqueTechs = Array.from(new Set(allTechs.filter(Boolean))) as string[];
+        const catalog = await fetchKevCatalog();
+        const matches = matchTechnologiesAgainstKev(uniqueTechs, catalog);
+        const boost = calculateKevRiskBoost(matches);
+        const chainSteps = getKevChainSteps(matches);
+        return {
+          scanId: input.scanId,
+          domain: scan.primaryDomain,
+          technologiesScanned: uniqueTechs.length,
+          kevMatches: matches,
+          riskBoost: boost,
+          chainSteps,
+        };
+      }),
+
+    // ─── Unified Vulnerability Feed Endpoints ───
+    getVulnFeedStats: protectedProcedure
+      .query(async () => {
+        const { getVulnFeedStats } = await import('../lib/vuln-feeds');
+        return getVulnFeedStats();
+      }),
+
+    getVulnTrendData: protectedProcedure
+      .input(z.object({ days: z.number().optional() }).optional())
+      .query(async ({ input }) => {
+        const { getVulnTrendData } = await import('../lib/vuln-feeds');
+        return getVulnTrendData(input?.days || 7);
+      }),
+
+    getRecentZeroDays: protectedProcedure
+      .input(z.object({ limit: z.number().optional() }).optional())
+      .query(async ({ input }) => {
+        const { getRecentZeroDays } = await import('../lib/vuln-feeds');
+        return getRecentZeroDays(input?.limit || 50);
+      }),
+
+    getWeaponizedCves: protectedProcedure
+      .input(z.object({ limit: z.number().optional() }).optional())
+      .query(async ({ input }) => {
+        const { getWeaponizedCves } = await import('../lib/vuln-feeds');
+        return getWeaponizedCves(input?.limit || 50);
+      }),
+
+    getCveDetail: protectedProcedure
+      .input(z.object({ cveId: z.string() }))
+      .query(async ({ input }) => {
+        const { searchVulnerabilities } = await import('../lib/vuln-feeds');
+        const results = await searchVulnerabilities(input.cveId, {}, 1);
+        const vuln = results.find(r => r.cveId === input.cveId) || results[0] || null;
+        if (!vuln) return null;
+
+        // Enrich with exploit matching
+        let exploitMatches: any = null;
+        try {
+          const { matchExploitsToFindings } = await import('../lib/exploit-matcher');
+          const matches = await matchExploitsToFindings([{
+            title: vuln.title || vuln.cveId,
+            cveIds: [vuln.cveId],
+            severity: vuln.cvssScore || 7,
+            corroborationTier: 'confirmed',
+          }]);
+          if (matches.matches.length > 0) {
+            exploitMatches = matches.matches[0];
+          }
+        } catch (e) {
+          // Exploit matching is optional enrichment
+        }
+
+        // Check for threat actor associations from local DB
+        let associatedActors: any[] = [];
+        try {
+          const dbConn = await (await import('../db')).getDb();
+          if (dbConn) {
+            const { threatActors } = await import('../../drizzle/schema');
+            const { sql } = await import('drizzle-orm');
+            const actors = await dbConn.select({
+              actorId: threatActors.actorId,
+              name: threatActors.name,
+              type: threatActors.actorType,
+              origin: threatActors.origin,
+              threatLevel: threatActors.threatLevel,
+            }).from(threatActors)
+              .where(sql`JSON_CONTAINS(${threatActors.techniques}, JSON_QUOTE(${input.cveId}))`)
+              .limit(10);
+            associatedActors = actors;
+          }
+        } catch (e) {
+          // Actor association is optional enrichment
+        }
+
+        return {
+          ...vuln,
+          exploitMatches,
+          associatedActors,
+        };
+      }),
+
+    searchVulnerabilities: protectedProcedure
+      .input(z.object({
+        query: z.string(),
+        severity: z.string().optional(),
+        source: z.enum(['cisa_kev', 'project_zero', 'nvd', 'circl', 'exploit_db']).optional(),
+        exploitOnly: z.boolean().optional(),
+        kevOnly: z.boolean().optional(),
+        zeroDayOnly: z.boolean().optional(),
+        limit: z.number().optional(),
+      }))
+      .query(async ({ input }) => {
+        const { searchVulnerabilities } = await import('../lib/vuln-feeds');
+        const { query, limit, ...filters } = input;
+        return searchVulnerabilities(query, filters, limit || 100);
+      }),
+
+    matchTechVulns: protectedProcedure
+      .input(z.object({ scanId: z.number() }))
+      .query(async ({ input }) => {
+        const { matchTechnologiesAgainstAllFeeds } = await import('../lib/vuln-feeds');
+        const scan = await db.getDomainIntelScanById(input.scanId);
+        if (!scan) throw new Error('Scan not found');
+        const output = scan.pipelineOutput as any;
+        const techs = new Set<string>();
+        (output?.assets || []).forEach((a: any) => {
+          // Handle both nested (a.asset.technologies) and flat (a.technologies) structures
+          const techList = a.technologies || a.asset?.technologies || [];
+          (Array.isArray(techList) ? techList : []).forEach((t: string) => techs.add(t));
+        });
+        // Also pull technologies from discovered_assets DB rows as fallback
+        const dbAssets = await db.getDiscoveredAssetsByScan(input.scanId);
+        dbAssets.forEach((a: any) => {
+          const techList = a.technologies || [];
+          (Array.isArray(techList) ? techList : []).forEach((t: string) => techs.add(t));
+        });
+        // Extract detected versions from scan data for tier classification
+        const detectedVersions: Record<string, string> = {};
+        (output?.assets || []).forEach((a: any) => {
+          const versions = a.detectedVersions || a.asset?.detectedVersions || {};
+          if (typeof versions === 'object') {
+            Object.entries(versions).forEach(([k, v]) => { if (typeof v === 'string') detectedVersions[k] = v; });
+          }
+        });
+        return matchTechnologiesAgainstAllFeeds(Array.from(techs), detectedVersions);
+      }),
+
+    enrichCve: protectedProcedure
+      .input(z.object({ cveId: z.string() }))
+      .query(async ({ input }) => {
+        const { enrichCve } = await import('../lib/vuln-feeds');
+        return enrichCve(input.cveId);
+      }),
+
+    triggerSync: protectedProcedure
+      .mutation(async () => {
+        const { runVulnFeedSync } = await import('../lib/vuln-feed-sync');
+        return runVulnFeedSync('manual');
+      }),
+
+    inferInfrastructure: protectedProcedure
+      .input(z.object({ scanId: z.number() }))
+      .query(async ({ input }) => {
+        const { inferInfrastructure } = await import('../lib/infrastructure-inference');
+        const scan = await db.getDomainIntelScanById(input.scanId);
+        if (!scan) throw new TRPCError({ code: 'NOT_FOUND', message: 'Scan not found' });
+        const output = scan.pipelineOutput as any;
+        const observations = output?.passiveRecon?.allObservations || [];
+        const assets = (output?.assets || []).map((a: any) => ({
+          hostname: a.hostname || a.asset?.hostname || '',
+          technologies: a.technologies || a.asset?.technologies || [],
+          technologyVersions: a.detectedVersions || a.asset?.detectedVersions || a.asset?.technologyVersions || {},
+          assetClasses: a.assetClasses || a.asset?.assetClasses || [],
+          headers: a.headers || a.asset?.headers || '',
+          tags: a.tags || a.asset?.tags || [],
+        }));
+        const emailSecurity = output?.emailSecurity || null;
+        const managedProvider = output?.emailSecurity?.managedProvider || null;
+        const primaryDomain = (scan as any).primaryDomain || '';
+        return inferInfrastructure(primaryDomain, observations, assets, emailSecurity, managedProvider);
+      }),
+
+    // ─── Vendor Risk History (Trend Indicators) ─────────────────────────────
+
+    getVendorRiskHistory: protectedProcedure
+      .input(z.object({ scanId: z.number(), domain: z.string() }))
+      .query(async ({ input }) => {
+        const { getDb } = await import('../db');
+        const { domainIntelScans } = await import('../../drizzle/schema');
+        const { eq, and: drizzleAnd, or: drizzleOr, desc: drizzleDesc } = await import('drizzle-orm');
+        const { createAssetOwnershipFilter } = await import('../../shared/managed-provider-filter');
+
+        const dbConn = await getDb();
+        if (!dbConn) return { history: [], trend: 'stable' as const, delta: 0 };
+
+        // Fetch last 6 completed scans for this domain (current + 5 historical)
+        const scans = await dbConn.select({
+          id: domainIntelScans.id,
+          pipelineOutput: domainIntelScans.pipelineOutput,
+          overallRiskScore: domainIntelScans.overallRiskScore,
+          overallRiskBand: domainIntelScans.overallRiskBand,
+          totalAssets: domainIntelScans.totalAssets,
+          totalFindings: domainIntelScans.totalFindings,
+          createdAt: domainIntelScans.createdAt,
+        }).from(domainIntelScans)
+          .where(
+            drizzleAnd(
+              eq(domainIntelScans.primaryDomain, input.domain),
+              drizzleOr(
+                eq(domainIntelScans.status, 'completed'),
+                eq(domainIntelScans.status, 'scan_complete'),
+              )!,
+            )!,
+          )
+          .orderBy(drizzleDesc(domainIntelScans.createdAt))
+          .limit(6);
+
+        if (scans.length === 0) return { history: [], trend: 'stable' as const, delta: 0 };
+
+        // Compute vendor risk score for each scan
+        const history = scans.map(scan => {
+          const pipeline = scan.pipelineOutput as any;
+          if (!pipeline) return {
+            scanId: scan.id,
+            date: scan.createdAt,
+            vendorRiskScore: 0,
+            vendorRiskBand: 'MINIMAL',
+            vendorCveCount: 0,
+            overallRiskScore: scan.overallRiskScore || 0,
+            overallRiskBand: scan.overallRiskBand || 'MINIMAL',
+            totalAssets: scan.totalAssets || 0,
+            totalFindings: scan.totalFindings || 0,
+          };
+
+          // Extract managed provider
+          const emailSec = pipeline?.emailSecurity || pipeline?.emailSecurityReport || null;
+          const mp = emailSec?.managedProvider || null;
+          const mxProv = emailSec?.mx?.provider || null;
+          const provName = mp?.name || mxProv || null;
+
+          // Build ownership filter
+          const filter = createAssetOwnershipFilter({
+            managedProviderName: provName,
+            primaryDomain: input.domain,
+          });
+
+          // Get managed hostnames
+          const allAssets = pipeline?.assets || [];
+          const managedHostnames = new Set<string>();
+          for (const a of allAssets) {
+            const hostname = (a.hostname || a.asset?.hostname || '').toLowerCase();
+            if (hostname && !filter.isClientOwned({ hostname, tags: a.tags || a.asset?.tags || [] })) {
+              managedHostnames.add(hostname);
+            }
+          }
+
+          // Count vendor CVEs
+          const connectorResults = pipeline?.passiveRecon?.connectorResults || [];
+          const seenCves = new Set<string>();
+          let critical = 0, high = 0, medium = 0, low = 0, kev = 0;
+
+          for (const cr of connectorResults) {
+            if (!cr.observations) continue;
+            for (const obs of cr.observations) {
+              const ev = obs.evidence || {};
+              const cveId = ev.cve_id || ev.cveId;
+              if (!cveId || seenCves.has(cveId)) continue;
+              const hostname = (ev.hostname || obs.assetHostname || '').toLowerCase();
+              if (managedHostnames.has(hostname) || ev.providerManagedOnly) {
+                seenCves.add(cveId);
+                const cvss = ev.cvss || ev.cvssScore || ev.cvss_score || 0;
+                const sev = ev.severity || (cvss >= 9 ? 'critical' : cvss >= 7 ? 'high' : cvss >= 4 ? 'medium' : 'low');
+                if (sev === 'critical' || cvss >= 9) critical++;
+                else if (sev === 'high' || cvss >= 7) high++;
+                else if (sev === 'medium' || cvss >= 4) medium++;
+                else low++;
+                if (ev.kevListed || ev.kev_listed) kev++;
+              }
+            }
+          }
+
+          const total = seenCves.size;
+          const score = total === 0 ? 0 : Math.min(100, Math.round(
+            (critical * 25 + high * 15 + medium * 8 + low * 3 + kev * 10) /
+            Math.max(1, total) * 10
+          ));
+          const band = score >= 80 ? 'CRITICAL' : score >= 60 ? 'HIGH' : score >= 40 ? 'MEDIUM' : score >= 20 ? 'LOW' : 'MINIMAL';
+
+          return {
+            scanId: scan.id,
+            date: scan.createdAt,
+            vendorRiskScore: score,
+            vendorRiskBand: band,
+            vendorCveCount: total,
+            overallRiskScore: scan.overallRiskScore || 0,
+            overallRiskBand: scan.overallRiskBand || 'MINIMAL',
+            totalAssets: scan.totalAssets || 0,
+            totalFindings: scan.totalFindings || 0,
+          };
+        });
+
+        // Compute trend (current vs previous)
+        const current = history.find(h => h.scanId === input.scanId);
+        const previous = history.find(h => h.scanId !== input.scanId);
+        let trend: 'improving' | 'worsening' | 'stable' = 'stable';
+        let delta = 0;
+
+        if (current && previous) {
+          delta = current.vendorRiskScore - previous.vendorRiskScore;
+          if (delta >= 5) trend = 'worsening';
+          else if (delta <= -5) trend = 'improving';
+        }
+
+        return {
+          history: history.reverse(), // oldest first for chart
+          trend,
+          delta,
+        };
+      }),
+
+    // ─── JARM Historical Tracking ──────────────────────────────────────────
+
+    getJarmTimeline: protectedProcedure
+      .input(z.object({ domain: z.string() }))
+      .query(async ({ input }) => {
+        const { getJarmTimeline } = await import('../lib/jarm-history');
+        const { getDb } = await import('../db');
+        const dbConn = await getDb();
+        if (!dbConn) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database unavailable' });
+        return getJarmTimeline(dbConn, schema, input.domain);
+      }),
+
+    getJarmHistoryByScan: protectedProcedure
+      .input(z.object({ scanId: z.number() }))
+      .query(async ({ input }) => {
+        const { getJarmHistoryByScan } = await import('../lib/jarm-history');
+        const { getDb } = await import('../db');
+        const dbConn = await getDb();
+        if (!dbConn) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database unavailable' });
+        return getJarmHistoryByScan(dbConn, schema, input.scanId);
+      }),
+
+    getRecentJarmAlerts: protectedProcedure
+      .input(z.object({ limit: z.number().optional() }))
+      .query(async ({ input }) => {
+        const { getRecentJarmAlerts } = await import('../lib/jarm-history');
+        const { getDb } = await import('../db');
+        const dbConn = await getDb();
+        if (!dbConn) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database unavailable' });
+        return getRecentJarmAlerts(dbConn, schema, input.limit || 50);
+      }),
+
+    storeJarmHistory: protectedProcedure
+      .input(z.object({
+        scanId: z.number(),
+        domain: z.string(),
+        jarmMatches: z.array(z.object({
+          hash: z.string(),
+          matchedProvider: z.string().nullable(),
+          matchType: z.enum(['cdn', 'cloud', 'server', 'c2', 'unknown']),
+          confidence: z.number(),
+          source: z.string(),
+          port: z.number().nullable(),
+        })),
+      }))
+      .mutation(async ({ input }) => {
+        const { processAndStoreJarmHistory } = await import('../lib/jarm-history');
+        const { getDb } = await import('../db');
+        const dbConn = await getDb();
+        if (!dbConn) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database unavailable' });
+        return processAndStoreJarmHistory(dbConn, schema, input.scanId, input.domain, input.jarmMatches, Date.now());
+      }),
+
+    // ─── JARM Community Signature Feeds ────────────────────────────────────
+
+    getJarmFeedSources: protectedProcedure
+      .query(async () => {
+        const { getFeedSources } = await import('../lib/jarm-community-feeds');
+        const { getDb } = await import('../db');
+        const dbConn = await getDb();
+        if (!dbConn) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database unavailable' });
+        return getFeedSources(dbConn, schema);
+      }),
+
+    getJarmFeedStats: protectedProcedure
+      .query(async () => {
+        const { getFeedStats } = await import('../lib/jarm-community-feeds');
+        const { getDb } = await import('../db');
+        const dbConn = await getDb();
+        if (!dbConn) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database unavailable' });
+        return getFeedStats(dbConn, schema);
+      }),
+
+    getCommunitySignatures: protectedProcedure
+      .input(z.object({ limit: z.number().optional() }))
+      .query(async ({ input }) => {
+        const { getCommunitySignatures } = await import('../lib/jarm-community-feeds');
+        const { getDb } = await import('../db');
+        const dbConn = await getDb();
+        if (!dbConn) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database unavailable' });
+        const sigs = await getCommunitySignatures(dbConn, schema);
+        return input.limit ? sigs.slice(0, input.limit) : sigs;
+      }),
+
+    initializeJarmFeeds: protectedProcedure
+      .mutation(async () => {
+        const { initializeDefaultFeeds } = await import('../lib/jarm-community-feeds');
+        const { getDb } = await import('../db');
+        const dbConn = await getDb();
+        if (!dbConn) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database unavailable' });
+        const added = await initializeDefaultFeeds(dbConn, schema);
+        return { feedsAdded: added };
+      }),
+
+    refreshJarmFeed: protectedProcedure
+      .input(z.object({ feedId: z.string() }))
+      .mutation(async ({ input }) => {
+        const { refreshFeed, getFeedSources } = await import('../lib/jarm-community-feeds');
+        const { getDb } = await import('../db');
+        const dbConn = await getDb();
+        if (!dbConn) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database unavailable' });
+        const feeds = await getFeedSources(dbConn, schema);
+        const feed = feeds.find((f: any) => f.feedId === input.feedId);
+        if (!feed) throw new TRPCError({ code: 'NOT_FOUND', message: 'Feed not found' });
+        return refreshFeed(dbConn, schema, feed);
+      }),
+
+    refreshAllJarmFeeds: protectedProcedure
+      .mutation(async () => {
+        const { refreshAllFeeds } = await import('../lib/jarm-community-feeds');
+        const { getDb } = await import('../db');
+        const dbConn = await getDb();
+        if (!dbConn) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database unavailable' });
+        return refreshAllFeeds(dbConn, schema);
+      }),
+
+    addJarmFeedSource: protectedProcedure
+      .input(z.object({
+        feedId: z.string(),
+        name: z.string(),
+        feedType: z.enum(['github_csv', 'github_json', 'censys_dataset', 'custom_api']),
+        url: z.string().url(),
+        description: z.string().nullable(),
+        enabled: z.boolean().default(true),
+        autoRefresh: z.boolean().default(true),
+        refreshIntervalHours: z.number().default(24),
+      }))
+      .mutation(async ({ input }) => {
+        const { addFeedSource } = await import('../lib/jarm-community-feeds');
+        const { getDb } = await import('../db');
+        const dbConn = await getDb();
+        if (!dbConn) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database unavailable' });
+        await addFeedSource(dbConn, schema, input);
+        return { success: true };
+      }),
+
+    toggleJarmFeed: protectedProcedure
+      .input(z.object({ feedId: z.string(), enabled: z.boolean() }))
+      .mutation(async ({ input }) => {
+        const { toggleFeedSource } = await import('../lib/jarm-community-feeds');
+        const { getDb } = await import('../db');
+        const dbConn = await getDb();
+        if (!dbConn) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database unavailable' });
+        await toggleFeedSource(dbConn, schema, input.feedId, input.enabled);
+        return { success: true };
+      }),
+
+    deleteJarmFeed: protectedProcedure
+      .input(z.object({ feedId: z.string() }))
+      .mutation(async ({ input }) => {
+        const { deleteFeedSource } = await import('../lib/jarm-community-feeds');
+        const { getDb } = await import('../db');
+        const dbConn = await getDb();
+        if (!dbConn) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database unavailable' });
+        await deleteFeedSource(dbConn, schema, input.feedId);
+        return { success: true };
+      }),
+
+    analyzeDiscoveryContext: protectedProcedure
+      .input(z.object({
+        assetIdentifier: z.string(),
+        discoveryResult: z.any(),
+        deterministicOnly: z.boolean().optional().default(false),
+        customerIndustry: z.string().optional(),
+        customerSize: z.string().optional(),
+        whoisData: z.any().optional(),
+        httpFingerprint: z.any().optional(),
+        businessIntelData: z.any().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { analyzeAssetContext } = await import('../lib/discovery-context-engine');
+        const { invokeLLM } = await import('../_core/llm');
+        const result = await analyzeAssetContext(
+          input.assetIdentifier,
+          input.discoveryResult,
+          {
+            deterministicOnly: input.deterministicOnly,
+            customerIndustry: input.customerIndustry,
+            customerSize: input.customerSize,
+            llmInvoke: input.deterministicOnly ? undefined : (messages: any) => invokeLLM({ messages }),
+          },
+          input.whoisData,
+          input.httpFingerprint,
+          input.businessIntelData
+        );
+        return result;
+      }),
+
+    analyzeDiscoveryContextBatch: protectedProcedure
+      .input(z.object({
+        discoveryResult: z.any(),
+        deterministicOnly: z.boolean().optional().default(false),
+        customerIndustry: z.string().optional(),
+        customerSize: z.string().optional(),
+        whoisData: z.any().optional(),
+        httpFingerprints: z.record(z.string(), z.any()).optional(),
+        businessIntelData: z.any().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { analyzeDiscoveryContext } = await import('../lib/discovery-context-engine');
+        const { invokeLLM } = await import('../_core/llm');
+        const results = await analyzeDiscoveryContext(
+          input.discoveryResult,
+          {
+            deterministicOnly: input.deterministicOnly,
+            customerIndustry: input.customerIndustry,
+            customerSize: input.customerSize,
+            llmInvoke: input.deterministicOnly ? undefined : (messages: any) => invokeLLM({ messages }),
+          },
+          input.whoisData,
+          input.httpFingerprints,
+          input.businessIntelData
+        );
+        return results;
+      }),
+
+    // ─── Modular Discovery Context Specialists ──────────────────────
+    // Individual specialist invocations for fine-grained control
+
+    invokeAttributionSpecialistRPC: protectedProcedure
+      .input(z.object({
+        assetIdentifier: z.string(),
+        assetId: z.string().optional(),
+        discoveryResult: z.any(),
+        deterministicOnly: z.boolean().optional().default(false),
+        whoisData: z.any().optional(),
+        httpFingerprint: z.any().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { buildEvidencePackage } = await import('../lib/llm-specialists/evidence-package');
+        const { invokeAttributionSpecialist } = await import('../lib/llm-specialists/asset-attribution');
+        const { invokeLLM } = await import('../_core/llm');
+
+        const pkg = buildEvidencePackage(
+          input.assetIdentifier,
+          input.discoveryResult,
+          input.whoisData,
+          input.httpFingerprint
+        );
+
+        return invokeAttributionSpecialist(
+          { evidencePackage: pkg },
+          input.deterministicOnly ? undefined : (messages: any) => invokeLLM({ messages })
+        );
+      }),
+
+    invokeRoleSpecialistRPC: protectedProcedure
+      .input(z.object({
+        assetIdentifier: z.string(),
+        assetId: z.string().optional(),
+        discoveryResult: z.any(),
+        deterministicOnly: z.boolean().optional().default(false),
+        whoisData: z.any().optional(),
+        httpFingerprint: z.any().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { buildEvidencePackage } = await import('../lib/llm-specialists/evidence-package');
+        const { invokeRoleSpecialist } = await import('../lib/llm-specialists/asset-role');
+        const { invokeLLM } = await import('../_core/llm');
+
+        const pkg = buildEvidencePackage(
+          input.assetIdentifier,
+          input.discoveryResult,
+          input.whoisData,
+          input.httpFingerprint
+        );
+
+        return invokeRoleSpecialist(
+          { evidencePackage: pkg },
+          input.deterministicOnly ? undefined : (messages: any) => invokeLLM({ messages })
+        );
+      }),
+
+    invokeLifecycleSpecialistRPC: protectedProcedure
+      .input(z.object({
+        assetIdentifier: z.string(),
+        assetId: z.string().optional(),
+        discoveryResult: z.any(),
+        deterministicOnly: z.boolean().optional().default(false),
+        whoisData: z.any().optional(),
+        httpFingerprint: z.any().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { buildEvidencePackage } = await import('../lib/llm-specialists/evidence-package');
+        const { invokeLifecycleSpecialist } = await import('../lib/llm-specialists/lifecycle-stage');
+        const { invokeLLM } = await import('../_core/llm');
+
+        const pkg = buildEvidencePackage(
+          input.assetIdentifier,
+          input.discoveryResult,
+          input.whoisData,
+          input.httpFingerprint
+        );
+
+        return invokeLifecycleSpecialist(
+          { evidencePackage: pkg },
+          input.deterministicOnly ? undefined : (messages: any) => invokeLLM({ messages })
+        );
+      }),
+
+    invokeBusinessContextSpecialistRPC: protectedProcedure
+      .input(z.object({
+        assetIdentifier: z.string(),
+        assetId: z.string().optional(),
+        discoveryResult: z.any(),
+        deterministicOnly: z.boolean().optional().default(false),
+        customerIndustry: z.string().optional(),
+        customerSize: z.string().optional(),
+        whoisData: z.any().optional(),
+        httpFingerprint: z.any().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { buildEvidencePackage } = await import('../lib/llm-specialists/evidence-package');
+        const { invokeBusinessContextSpecialist } = await import('../lib/llm-specialists/business-context');
+        const { invokeLLM } = await import('../_core/llm');
+
+        const pkg = buildEvidencePackage(
+          input.assetIdentifier,
+          input.discoveryResult,
+          input.whoisData,
+          input.httpFingerprint
+        );
+
+        return invokeBusinessContextSpecialist(
+          { evidencePackage: pkg, customerIndustry: input.customerIndustry, customerSize: input.customerSize },
+          input.deterministicOnly ? undefined : (messages: any) => invokeLLM({ messages })
+        );
+      }),
+
+    invokeThreatRelevanceSpecialistRPC: protectedProcedure
+      .input(z.object({
+        assetIdentifier: z.string(),
+        assetId: z.string().optional(),
+        discoveryResult: z.any(),
+        deterministicOnly: z.boolean().optional().default(false),
+        customerIndustry: z.string().optional(),
+        whoisData: z.any().optional(),
+        httpFingerprint: z.any().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { buildEvidencePackage } = await import('../lib/llm-specialists/evidence-package');
+        const { invokeThreatRelevanceSpecialist } = await import('../lib/llm-specialists/threat-relevance');
+        const { invokeLLM } = await import('../_core/llm');
+
+        const pkg = buildEvidencePackage(
+          input.assetIdentifier,
+          input.discoveryResult,
+          input.whoisData,
+          input.httpFingerprint
+        );
+
+        return invokeThreatRelevanceSpecialist(
+          { evidencePackage: pkg, customerIndustry: input.customerIndustry },
+          input.deterministicOnly ? undefined : (messages: any) => invokeLLM({ messages })
+        );
+      }),
+
+    // Full modular pipeline: runs all 5 specialists and aggregates results
+    runModularDiscoveryPipeline: protectedProcedure
+      .input(z.object({
+        assetIdentifier: z.string(),
+        assetId: z.string().optional(),
+        discoveryResult: z.any(),
+        deterministicOnly: z.boolean().optional().default(false),
+        customerIndustry: z.string().optional(),
+        customerSize: z.string().optional(),
+        whoisData: z.any().optional(),
+        httpFingerprint: z.any().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { buildEvidencePackage } = await import('../lib/llm-specialists/evidence-package');
+        const { invokeAttributionSpecialist } = await import('../lib/llm-specialists/asset-attribution');
+        const { invokeRoleSpecialist } = await import('../lib/llm-specialists/asset-role');
+        const { invokeLifecycleSpecialist } = await import('../lib/llm-specialists/lifecycle-stage');
+        const { invokeBusinessContextSpecialist } = await import('../lib/llm-specialists/business-context');
+        const { invokeThreatRelevanceSpecialist } = await import('../lib/llm-specialists/threat-relevance');
+        const { invokeLLM } = await import('../_core/llm');
+
+        const pkg = buildEvidencePackage(
+          input.assetIdentifier,
+          input.discoveryResult,
+          input.whoisData,
+          input.httpFingerprint
+        );
+
+        const llmFn = input.deterministicOnly ? undefined : (messages: any) => invokeLLM({ messages });
+
+        const [attribution, role, lifecycle, businessContext, threatRelevance] = await Promise.all([
+          invokeAttributionSpecialist({ evidencePackage: pkg }, llmFn),
+          invokeRoleSpecialist({ evidencePackage: pkg }, llmFn),
+          invokeLifecycleSpecialist({ evidencePackage: pkg }, llmFn),
+          invokeBusinessContextSpecialist({ evidencePackage: pkg, customerIndustry: input.customerIndustry, customerSize: input.customerSize }, llmFn),
+          invokeThreatRelevanceSpecialist({ evidencePackage: pkg, customerIndustry: input.customerIndustry }, llmFn),
+        ]);
+
+        const result = {
+          assetIdentifier: input.assetIdentifier,
+          attribution,
+          role,
+          lifecycle,
+          businessContext,
+          threatRelevance,
+          aggregatedAt: new Date().toISOString(),
+        };
+
+        // Auto-persist if assetId (DB row ID) is provided
+        if (input.assetId) {
+          try {
+            const { db } = await import('../db');
+            const { discoveredAssets } = await import('../../drizzle/schema');
+            const { eq } = await import('drizzle-orm');
+            await db.update(discoveredAssets)
+              .set({
+                discoveryContext: result as any,
+                discoveryContextAnalyzedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+              })
+              .where(eq(discoveredAssets.id, parseInt(input.assetId)));
+          } catch (e) {
+            console.error('[DiscoveryContext] Failed to persist:', e);
+          }
+        }
+
+        return result;
+      }),
+
+    // Save discovery context for an asset
+    saveDiscoveryContext: protectedProcedure
+      .input(z.object({
+        assetDbId: z.number(),
+        discoveryContext: z.any(),
+      }))
+      .mutation(async ({ input }) => {
+        const { db } = await import('../db');
+        const { discoveredAssets } = await import('../../drizzle/schema');
+        const { eq } = await import('drizzle-orm');
+        // Snapshot previous context into history before overwriting
+        const [existing] = await db.select({
+          discoveryContext: discoveredAssets.discoveryContext,
+          discoveryContextHistory: discoveredAssets.discoveryContextHistory,
+          discoveryContextAnalyzedAt: discoveredAssets.discoveryContextAnalyzedAt,
+        })
+          .from(discoveredAssets)
+          .where(eq(discoveredAssets.id, input.assetDbId))
+          .limit(1);
+        let history: any[] = [];
+        if (existing?.discoveryContextHistory && Array.isArray(existing.discoveryContextHistory)) {
+          history = existing.discoveryContextHistory as any[];
+        }
+        // Push previous snapshot (if it exists) into history, keep last 10
+        if (existing?.discoveryContext) {
+          history.push({
+            context: existing.discoveryContext,
+            analyzedAt: existing.discoveryContextAnalyzedAt || new Date().toISOString(),
+            snapshotId: `snap-${Date.now()}`,
+          });
+          if (history.length > 10) history = history.slice(-10);
+        }
+        await db.update(discoveredAssets)
+          .set({
+            discoveryContext: input.discoveryContext as any,
+            discoveryContextHistory: history as any,
+            discoveryContextAnalyzedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+          })
+          .where(eq(discoveredAssets.id, input.assetDbId));
+        return { success: true, historyCount: history.length };
+      }),
+
+    // Get discovery context for an asset
+    getDiscoveryContext: protectedProcedure
+      .input(z.object({
+        assetDbId: z.number(),
+      }))
+      .query(async ({ input }) => {
+        const { db } = await import('../db');
+        const { discoveredAssets } = await import('../../drizzle/schema');
+        const { eq } = await import('drizzle-orm');
+        const [row] = await db.select({
+          discoveryContext: discoveredAssets.discoveryContext,
+          discoveryContextAnalyzedAt: discoveredAssets.discoveryContextAnalyzedAt,
+        })
+          .from(discoveredAssets)
+          .where(eq(discoveredAssets.id, input.assetDbId))
+          .limit(1);
+        return row || null;
+      }),
+
+    // Get discovery context history for an asset (for comparison view)
+    getDiscoveryContextHistory: protectedProcedure
+      .input(z.object({
+        assetDbId: z.number(),
+      }))
+      .query(async ({ input }) => {
+        const { db } = await import('../db');
+        const { discoveredAssets } = await import('../../drizzle/schema');
+        const { eq } = await import('drizzle-orm');
+        const [row] = await db.select({
+          discoveryContext: discoveredAssets.discoveryContext,
+          discoveryContextHistory: discoveredAssets.discoveryContextHistory,
+          discoveryContextAnalyzedAt: discoveredAssets.discoveryContextAnalyzedAt,
+          hostname: discoveredAssets.hostname,
+        })
+          .from(discoveredAssets)
+          .where(eq(discoveredAssets.id, input.assetDbId))
+          .limit(1);
+        return row || null;
+      }),
+
+    // Get discovery context for multiple assets (batch)
+    getDiscoveryContextBatch: protectedProcedure
+      .input(z.object({
+        assetDbIds: z.array(z.number()),
+      }))
+      .query(async ({ input }) => {
+        if (input.assetDbIds.length === 0) return [];
+        const { db } = await import('../db');
+        const { discoveredAssets } = await import('../../drizzle/schema');
+        const { inArray } = await import('drizzle-orm');
+        const rows = await db.select({
+          id: discoveredAssets.id,
+          hostname: discoveredAssets.hostname,
+          discoveryContext: discoveredAssets.discoveryContext,
+          discoveryContextAnalyzedAt: discoveredAssets.discoveryContextAnalyzedAt,
+        })
+          .from(discoveredAssets)
+          .where(inArray(discoveredAssets.id, input.assetDbIds));
+        return rows;
+      }),
+
+    // Export discovery context as structured CSV data
+    exportDiscoveryContextCSV: protectedProcedure
+      .input(z.object({
+        assetDbIds: z.array(z.number()),
+      }))
+      .query(async ({ input }) => {
+        if (input.assetDbIds.length === 0) return { csv: '', filename: 'discovery-context-export.csv' };
+        const { db } = await import('../db');
+        const { discoveredAssets } = await import('../../drizzle/schema');
+        const { inArray } = await import('drizzle-orm');
+        const rows = await db.select({
+          id: discoveredAssets.id,
+          hostname: discoveredAssets.hostname,
+          discoveryContext: discoveredAssets.discoveryContext,
+          discoveryContextAnalyzedAt: discoveredAssets.discoveryContextAnalyzedAt,
+        })
+          .from(discoveredAssets)
+          .where(inArray(discoveredAssets.id, input.assetDbIds));
+
+        // Build CSV
+        const headers = [
+          'Hostname', 'Analyzed At',
+          'Attribution Org', 'Attribution Confidence', 'Attribution Tier',
+          'Role Exposure', 'Role Environment', 'Role Criticality',
+          'Lifecycle Stage', 'Lifecycle Direction',
+          'Business Function', 'Revenue Impact',
+          'Threat Score', 'Threat Band', 'Actor Types',
+          'Analysis Mode'
+        ];
+        const csvRows = [headers.join(',')];
+        for (const row of rows) {
+          const ctx = row.discoveryContext as any;
+          if (!ctx) continue;
+          const attr = ctx.attribution?.primaryClaim;
+          const role = ctx.role?.role;
+          const lc = ctx.lifecycle;
+          const bc = ctx.businessContext;
+          const tr = ctx.threatRelevance;
+          const escapeCsv = (v: any) => {
+            if (v == null) return '';
+            const s = String(v);
+            return s.includes(',') || s.includes('"') || s.includes('\n')
+              ? `"${s.replace(/"/g, '""')}"`
+              : s;
+          };
+          csvRows.push([
+            escapeCsv(row.hostname),
+            escapeCsv(row.discoveryContextAnalyzedAt),
+            escapeCsv(attr?.attributedTo?.organization),
+            escapeCsv(attr?.confidenceScore),
+            escapeCsv(attr?.claimType),
+            escapeCsv(role?.exposure),
+            escapeCsv(role?.environment),
+            escapeCsv(role?.criticality),
+            escapeCsv(lc?.stage),
+            escapeCsv(lc?.direction),
+            escapeCsv(bc?.businessFunction),
+            escapeCsv(bc?.revenueImpact),
+            escapeCsv(tr?.overallThreatScore),
+            escapeCsv(tr?.threatBand),
+            escapeCsv((tr?.relevantActorTypes || []).join('; ')),
+            escapeCsv(ctx.attribution?.metadata?.mode || 'unknown'),
+          ].join(','));
+        }
+        return { csv: csvRows.join('\n'), filename: `discovery-context-${new Date().toISOString().slice(0,10)}.csv` };
+      }),
+
+    // Export discovery context as markdown (for PDF rendering on client)
+    exportDiscoveryContextMarkdown: protectedProcedure
+      .input(z.object({
+        assetDbIds: z.array(z.number()),
+        scanDomain: z.string().optional(),
+      }))
+      .query(async ({ input }) => {
+        if (input.assetDbIds.length === 0) return { markdown: '', filename: 'discovery-context-report.md' };
+        const { db } = await import('../db');
+        const { discoveredAssets } = await import('../../drizzle/schema');
+        const { inArray } = await import('drizzle-orm');
+        const rows = await db.select({
+          id: discoveredAssets.id,
+          hostname: discoveredAssets.hostname,
+          discoveryContext: discoveredAssets.discoveryContext,
+          discoveryContextAnalyzedAt: discoveredAssets.discoveryContextAnalyzedAt,
+        })
+          .from(discoveredAssets)
+          .where(inArray(discoveredAssets.id, input.assetDbIds));
+
+        const domain = input.scanDomain || 'Unknown Domain';
+        const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+        let md = `# Discovery Context Intelligence Report\n\n`;
+        md += `**Domain:** ${domain}  \n`;
+        md += `**Generated:** ${now}  \n`;
+        md += `**Assets Analyzed:** ${rows.filter(r => r.discoveryContext).length}/${rows.length}  \n\n`;
+        md += `---\n\n`;
+
+        // Summary table
+        md += `## Summary\n\n`;
+        md += `| Hostname | Attribution | Confidence | Lifecycle | Threat Score | Threat Band |\n`;
+        md += `|----------|-------------|------------|-----------|--------------|-------------|\n`;
+        for (const row of rows) {
+          const ctx = row.discoveryContext as any;
+          if (!ctx) continue;
+          const attr = ctx.attribution?.primaryClaim;
+          const lc = ctx.lifecycle;
+          const tr = ctx.threatRelevance;
+          md += `| ${row.hostname} | ${attr?.attributedTo?.organization || '—'} | ${attr?.confidenceScore ?? '—'}% | ${lc?.stage || '—'} | ${tr?.overallThreatScore ?? '—'} | ${tr?.threatBand || '—'} |\n`;
+        }
+        md += `\n`;
+
+        // Per-asset details
+        md += `## Per-Asset Analysis\n\n`;
+        for (const row of rows) {
+          const ctx = row.discoveryContext as any;
+          if (!ctx) continue;
+          md += `### ${row.hostname}\n\n`;
+          md += `**Analyzed:** ${row.discoveryContextAnalyzedAt || 'Unknown'}  \n\n`;
+
+          // Attribution
+          const attr = ctx.attribution?.primaryClaim;
+          if (attr) {
+            md += `#### Attribution\n`;
+            md += `- **Organization:** ${attr.attributedTo?.organization || '—'}\n`;
+            md += `- **Confidence:** ${attr.confidenceScore ?? '—'}%\n`;
+            md += `- **Claim Type:** ${(attr.claimType || '—').replace(/_/g, ' ')}\n`;
+            if (attr.reasoning) md += `- **Reasoning:** ${attr.reasoning}\n`;
+            md += `\n`;
+          }
+
+          // Role
+          const role = ctx.role?.role;
+          if (role) {
+            md += `#### Asset Role\n`;
+            md += `- **Exposure:** ${(role.exposure || '—').replace(/_/g, ' ')}\n`;
+            md += `- **Environment:** ${role.environment || '—'}\n`;
+            md += `- **Criticality:** ${role.criticality || '—'}\n`;
+            if (role.primaryFunction) md += `- **Primary Function:** ${role.primaryFunction}\n`;
+            md += `\n`;
+          }
+
+          // Lifecycle
+          const lc = ctx.lifecycle;
+          if (lc) {
+            md += `#### Lifecycle\n`;
+            md += `- **Stage:** ${lc.stage || '—'}\n`;
+            md += `- **Direction:** ${lc.direction || '—'}\n`;
+            md += `\n`;
+          }
+
+          // Business Context
+          const bc = ctx.businessContext;
+          if (bc) {
+            md += `#### Business Context\n`;
+            if (bc.businessFunction) md += `- **Function:** ${bc.businessFunction}\n`;
+            if (bc.revenueImpact) md += `- **Revenue Impact:** ${bc.revenueImpact}\n`;
+            if (bc.regulatoryScope) md += `- **Regulatory Scope:** ${bc.regulatoryScope}\n`;
+            if (bc.dataClassification) md += `- **Data Classification:** ${bc.dataClassification}\n`;
+            md += `\n`;
+          }
+
+          // Threat Relevance
+          const tr = ctx.threatRelevance;
+          if (tr) {
+            md += `#### Threat Relevance\n`;
+            md += `- **Overall Score:** ${tr.overallThreatScore ?? '—'}\n`;
+            md += `- **Threat Band:** ${tr.threatBand || '—'}\n`;
+            if (tr.relevantActorTypes?.length) md += `- **Actor Types:** ${tr.relevantActorTypes.join(', ')}\n`;
+            if (tr.campaignCorrelations?.length) {
+              md += `- **Campaign Correlations:** ${tr.campaignCorrelations.map((c: any) => c.campaignName || c.campaignId).join(', ')}\n`;
+            }
+            md += `\n`;
+          }
+
+          md += `---\n\n`;
+        }
+
+        return { markdown: md, filename: `discovery-context-${domain}-${new Date().toISOString().slice(0,10)}.md` };
+      }),
+  });

@@ -1,0 +1,52 @@
+{
+  "id": "owasp-vulnerable-outdated-components",
+  "name": "Vulnerable and Outdated Components (Version Disclosure)",
+  "description": "Detects version disclosure of known vulnerable software components in HTTP response headers and body. Identifies outdated versions of Apache, Nginx, PHP, jQuery, WordPress, Drupal, and other commonly exploited software.",
+  "author": "AC3 ScanForge",
+  "severity": "medium",
+  "protocol": "http",
+  "tags": ["owasp-a06", "outdated-components", "version-disclosure", "owasp-top10", "dfir-reconnaissance"],
+  "request": {
+    "method": "GET",
+    "path": "/",
+    "followRedirects": true
+  },
+  "matchers": [
+    {
+      "type": "regex",
+      "part": "header",
+      "values": [
+        "(?i)server:\\s*(apache|nginx|iis|lighttpd|tomcat)/[0-9]",
+        "(?i)x-powered-by:\\s*(php|asp\\.net|express|ruby)",
+        "(?i)x-aspnet-version:"
+      ],
+      "condition": "or"
+    },
+    {
+      "type": "regex",
+      "part": "body",
+      "values": [
+        "(?i)jquery[/-]([0-2]\\.[0-9]|3\\.[0-4])",
+        "(?i)wordpress\\s+([0-5]\\.[0-9])",
+        "(?i)drupal\\s+([0-8]\\.[0-9])",
+        "(?i)bootstrap[/-]([0-3]\\.[0-9])",
+        "(?i)angular[/-]1\\.[0-5]"
+      ],
+      "condition": "or"
+    }
+  ],
+  "references": {
+    "cwes": ["CWE-1104", "CWE-200"],
+    "urls": [
+      "https://owasp.org/Top10/A06_2021-Vulnerable_and_Outdated_Components/",
+      "https://cheatsheetseries.owasp.org/cheatsheets/Vulnerable_Dependency_Management_Cheat_Sheet.html"
+    ]
+  },
+  "remediation": "Remove version information from HTTP headers (ServerTokens Prod for Apache, server_tokens off for Nginx). Keep all software components updated to latest stable versions. Implement automated dependency scanning in CI/CD pipelines. Subscribe to security advisories for all deployed components.",
+  "attack": {
+    "techniqueIds": ["T1592.002", "T1190"]
+  },
+  "intelligence": {
+    "dfirRelevance": "Version disclosure enables targeted exploitation. Attackers cross-reference disclosed versions with CVE databases to find known exploits. Log4Shell, Heartbleed, and EternalBlue all targeted specific software versions."
+  }
+}

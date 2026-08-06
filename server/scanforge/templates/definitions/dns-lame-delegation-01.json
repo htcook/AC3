@@ -1,0 +1,63 @@
+{
+  "id": "dns-lame-delegation",
+  "name": "Lame DNS Delegation (Subdomain Hijacking Risk)",
+  "description": "Detects NS delegation records pointing to nameservers that are no longer authoritative for the delegated zone, either because the hosting contract lapsed or the server was decommissioned. Per NIST SP 800-81r3 Section 3.6.2, an attacker can contract with the same DNS hosting provider to hijack resolution for the subdomain.",
+  "author": "AC3 ScanForge",
+  "severity": "high",
+  "protocol": "dns",
+  "tags": ["dns", "lame-delegation", "subdomain-hijacking", "ns-record", "nist-800-81r3", "sc-20", "sc-22"],
+  "request": {
+    "rawPayload": "NS_DELEGATION_CHECK"
+  },
+  "matchers": [
+    {
+      "type": "word",
+      "part": "body",
+      "values": [
+        "Lame delegation detected",
+        "NS not authoritative",
+        "REFUSED for delegated zone",
+        "SERVFAIL for delegated zone",
+        "NS record points to non-existent server",
+        "Delegation to deprovisioned nameserver"
+      ],
+      "condition": "or"
+    }
+  ],
+  "references": {
+    "cves": [],
+    "cwes": ["CWE-672", "CWE-284"],
+    "urls": [
+      "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-81r3.pdf"
+    ]
+  },
+  "remediation": "Remove or update NS delegation records pointing to non-authoritative nameservers. Audit all subdomain delegations to verify the hosting provider contract is active. Implement automated monitoring for lame delegations. When decommissioning DNS hosting, remove delegation records from the parent zone before canceling the service. Check both parent zone delegations AND child zone NS records for consistency.",
+  "attack": {
+    "techniqueIds": ["T1584.001", "T1583.001"],
+    "tactics": ["Resource Development"]
+  },
+  "intelligence": {
+    "kevRelated": false,
+    "threatActors": [],
+    "dfirRelevance": "Lame delegation exploitation is a stealthier variant of subdomain takeover. Unlike dangling CNAMEs, lame delegations give the attacker full control over all record types for the subdomain, enabling more sophisticated attacks including email interception.",
+    "industries": [],
+    "feeds": []
+  },
+  "environments": ["traditional", "cloud", "hybrid"],
+  "complianceMapping": [
+    {
+      "framework": "nist_800_53",
+      "controlId": "SC-20",
+      "controlTitle": "Secure Name/Address Resolution Service (Authoritative Source)",
+      "status": "non_compliant",
+      "confidence": 90
+    },
+    {
+      "framework": "nist_800_53",
+      "controlId": "SC-22",
+      "controlTitle": "Architecture and Provisioning for Name/Address Resolution Service",
+      "status": "non_compliant",
+      "confidence": 85
+    }
+  ]
+}

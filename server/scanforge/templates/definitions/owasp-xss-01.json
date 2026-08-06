@@ -1,0 +1,47 @@
+{
+  "id": "owasp-xss-reflected",
+  "name": "Cross-Site Scripting (Reflected XSS Detection)",
+  "description": "Tests for reflected XSS by injecting script payloads into URL parameters and checking if they appear unescaped in the response body. Detects missing output encoding and Content Security Policy gaps.",
+  "author": "AC3 ScanForge",
+  "severity": "high",
+  "protocol": "http",
+  "tags": ["owasp-a03", "xss", "injection", "owasp-top10", "dfir-execution"],
+  "request": {
+    "method": "GET",
+    "path": "/?q=%3Cscript%3Ealert(1)%3C/script%3E",
+    "followRedirects": true
+  },
+  "matchers": [
+    {
+      "type": "word",
+      "part": "body",
+      "values": [
+        "<script>alert(1)</script>",
+        "<script>alert(1)",
+        "onerror=alert(",
+        "onload=alert(",
+        "javascript:alert("
+      ],
+      "condition": "or"
+    },
+    {
+      "type": "negative_header",
+      "values": ["content-security-policy"],
+      "condition": "and"
+    }
+  ],
+  "references": {
+    "cwes": ["CWE-79"],
+    "urls": [
+      "https://owasp.org/Top10/A03_2021-Injection/",
+      "https://portswigger.net/web-security/cross-site-scripting"
+    ]
+  },
+  "remediation": "Implement context-aware output encoding for all user-supplied data. Deploy Content Security Policy (CSP) headers. Use HTTPOnly and Secure flags on session cookies. Consider using a templating engine with auto-escaping.",
+  "attack": {
+    "techniqueIds": ["T1189", "T1059.007"]
+  },
+  "intelligence": {
+    "dfirRelevance": "XSS is commonly used for session hijacking, credential theft via phishing overlays, and as a stepping stone to more complex attacks like CSRF or drive-by downloads."
+  }
+}

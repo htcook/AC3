@@ -1,0 +1,303 @@
+# Security Scanning — Trivy Container Scan + npm Audit + SBOM
+# ==============================================================
+# Runs on push to main, PRs, and weekly schedule.
+# Produces SBOM (CycloneDX) for FedRAMP compliance.
+#
+# Author: Harrison Cook — AceofCloud (https://aceofcloud.com)
+name: Security Scan & SBOM
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Weekly scan every Monday at 06:00 UTC
+    - cron: '0 6 * * 1'
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_OPTIONS: "--max-old-space-size=4096"
+
+jobs:
+  # ─────────────────────────────────────────────
+  # 1. npm Audit — Dependency Vulnerability Check
+  # ─────────────────────────────────────────────
+  npm-audit:
+    name: npm Audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run npm audit
+        run: |
+          echo "━━━ Dependency Vulnerability Audit ━━━"
+          pnpm audit --json > /tmp/audit-report.json 2>&1 || true
+
+          # Parse results
+          CRITICAL=$(jq '.metadata.vulnerabilities.critical // 0' /tmp/audit-report.json 2>/dev/null || echo "0")
+          HIGH=$(jq '.metadata.vulnerabilities.high // 0' /tmp/audit-report.json 2>/dev/null || echo "0")
+          MODERATE=$(jq '.metadata.vulnerabilities.moderate // 0' /tmp/audit-report.json 2>/dev/null || echo "0")
+          LOW=$(jq '.metadata.vulnerabilities.low // 0' /tmp/audit-report.json 2>/dev/null || echo "0")
+
+          echo "::notice::Vulnerabilities — Critical: $CRITICAL, High: $HIGH, Moderate: $MODERATE, Low: $LOW"
+
+          # Fail on critical or high
+          if [ "$CRITICAL" -gt 0 ] || [ "$HIGH" -gt 0 ]; then
+            echo "::error::Found $CRITICAL critical and $HIGH high severity vulnerabilities."
+            pnpm audit --audit-level=high 2>&1 | tail -50
+            exit 1
+          fi
+
+      - name: Upload audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-audit-${{ github.sha }}
+          path: /tmp/audit-report.json
+          retention-days: 30
+
+  # ─────────────────────────────────────────────
+  # 2. SBOM Generation (CycloneDX for FedRAMP)
+  # ─────────────────────────────────────────────
+  sbom:
+    name: SBOM Generation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install CycloneDX
+        run: |
+          npm install -g @cyclonedx/cyclonedx-npm
+
+      - name: Generate SBOM (CycloneDX JSON)
+        run: |
+          echo "━━━ Generating Software Bill of Materials ━━━"
+          cyclonedx-npm --output-file sbom.json --output-format json \
+            --spec-version 1.5 \
+            --mc-type application 2>&1 || {
+            # Fallback: use pnpm list for basic SBOM
+            echo "::warning::CycloneDX failed, generating basic SBOM from pnpm list"
+            pnpm list --json --depth=0 > sbom-basic.json
+          }
+
+          if [ -f sbom.json ]; then
+            COMPONENT_COUNT=$(jq '.components | length' sbom.json 2>/dev/null || echo "unknown")
+            echo "::notice::SBOM generated with $COMPONENT_COUNT components (CycloneDX 1.5)"
+          fi
+
+      - name: Generate SBOM (SPDX — supplementary)
+        run: |
+          npx --yes @cyclonedx/cyclonedx-npm --output-file sbom-spdx.json \
+            --output-format json --spec-version 1.5 2>/dev/null || true
+
+      - name: Upload SBOM artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-${{ github.sha }}
+          path: |
+            sbom.json
+            sbom-spdx.json
+            sbom-basic.json
+          retention-days: 90
+          if-no-files-found: warn
+
+  # ─────────────────────────────────────────────
+  # 3. Trivy Container Scan
+  # ─────────────────────────────────────────────
+  trivy-container:
+    name: Trivy Container Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Only run on main push (not PRs — too slow for PR feedback)
+    if: github.event_name == 'push' || github.event_name == 'schedule'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build container image for scanning
+        run: |
+          docker build \
+            -f Dockerfile.aws \
+            -t caldera-dashboard:scan-${{ github.sha }} \
+            --build-arg NODE_ENV=production \
+            . 2>&1 | tail -20
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'caldera-dashboard:scan-${{ github.sha }}'
+          format: 'table'
+          exit-code: '0'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+          output: '/tmp/trivy-report.txt'
+
+      - name: Trivy SARIF output (for GitHub Security tab)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'caldera-dashboard:scan-${{ github.sha }}'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Upload Trivy SARIF to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+      - name: Parse Trivy results
+        if: always()
+        run: |
+          if [ -f /tmp/trivy-report.txt ]; then
+            CRITICAL=$(grep -c "CRITICAL" /tmp/trivy-report.txt || echo "0")
+            HIGH=$(grep -c "HIGH" /tmp/trivy-report.txt || echo "0")
+            echo "::notice::Container scan — Critical: $CRITICAL, High: $HIGH"
+            if [ "$CRITICAL" -gt 0 ]; then
+              echo "::error::$CRITICAL critical container vulnerabilities found!"
+              cat /tmp/trivy-report.txt
+            fi
+          fi
+
+      - name: Upload Trivy report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-report-${{ github.sha }}
+          path: /tmp/trivy-report.txt
+          retention-days: 30
+
+  # ─────────────────────────────────────────────
+  # 4. Trivy Filesystem Scan (source code secrets + misconfig)
+  # ─────────────────────────────────────────────
+  trivy-filesystem:
+    name: Trivy Source Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Trivy filesystem scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'table'
+          exit-code: '0'
+          ignore-unfixed: true
+          vuln-type: 'library'
+          severity: 'CRITICAL,HIGH'
+          output: '/tmp/trivy-fs-report.txt'
+
+      - name: Secret scanning
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          scanners: 'secret'
+          format: 'table'
+          exit-code: '1'
+          output: '/tmp/trivy-secrets-report.txt'
+        continue-on-error: true
+
+      - name: Parse filesystem results
+        if: always()
+        run: |
+          echo "━━━ Source Code Vulnerability Summary ━━━"
+          if [ -f /tmp/trivy-fs-report.txt ]; then
+            cat /tmp/trivy-fs-report.txt | head -50
+          fi
+          echo ""
+          echo "━━━ Secret Detection Summary ━━━"
+          if [ -f /tmp/trivy-secrets-report.txt ]; then
+            SECRETS_FOUND=$(wc -l < /tmp/trivy-secrets-report.txt)
+            if [ "$SECRETS_FOUND" -gt 2 ]; then
+              echo "::error::Potential secrets detected in source code!"
+              cat /tmp/trivy-secrets-report.txt
+            else
+              echo "::notice::No secrets detected in source code."
+            fi
+          fi
+
+      - name: Upload filesystem scan reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-fs-report-${{ github.sha }}
+          path: |
+            /tmp/trivy-fs-report.txt
+            /tmp/trivy-secrets-report.txt
+          retention-days: 30
+
+  # ─────────────────────────────────────────────
+  # 5. License Compliance Check
+  # ─────────────────────────────────────────────
+  license-check:
+    name: License Compliance
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check licenses
+        run: |
+          npx --yes license-checker --json --out /tmp/licenses.json 2>/dev/null || true
+
+          if [ -f /tmp/licenses.json ]; then
+            # Check for copyleft / problematic licenses
+            COPYLEFT=$(jq -r 'to_entries[] | select(.value.licenses | test("GPL|AGPL|SSPL|EUPL"; "i")) | .key' /tmp/licenses.json 2>/dev/null | head -20)
+            if [ -n "$COPYLEFT" ]; then
+              echo "::warning::Copyleft-licensed dependencies detected:"
+              echo "$COPYLEFT"
+              echo ""
+              echo "Review these for FedRAMP / commercial license compliance."
+            else
+              echo "::notice::No copyleft licenses detected."
+            fi
+
+            TOTAL=$(jq 'length' /tmp/licenses.json 2>/dev/null || echo "unknown")
+            echo "::notice::Scanned $TOTAL dependencies for license compliance."
+          fi
+
+      - name: Upload license report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: license-report-${{ github.sha }}
+          path: /tmp/licenses.json
+          retention-days: 90

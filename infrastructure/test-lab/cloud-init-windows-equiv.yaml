@@ -1,0 +1,203 @@
+#cloud-config
+# AC3 Test Lab - Windows-Equivalent Target (Ubuntu 22.04 simulating Windows attack surface)
+# Provides: SMB (445), RDP-like (3389 via xrdp), WinRM-like (5985 via HTTP), IIS-like (80/443)
+
+package_update: true
+package_upgrade: false
+
+packages:
+  - samba
+  - xrdp
+  - nginx
+  - openssh-server
+  - curl
+  - net-tools
+  - python3
+  - python3-pip
+  - docker.io
+  - socat
+
+write_files:
+  - path: /opt/setup/provision-win-equiv.sh
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      set -e
+      echo "[WIN-EQUIV] Starting Windows-equivalent service provisioning..."
+
+      # 1. Samba (SMB 445) - Mimics Windows file shares with weak creds
+      echo "[WIN-EQUIV] Configuring SMB shares (Windows-like)..."
+      cat > /etc/samba/smb.conf << 'SAMBA'
+      [global]
+        workgroup = ACEOFCLOUD
+        server string = AC3-WIN-TARGET
+        security = user
+        map to guest = Bad User
+        ntlm auth = yes
+        lanman auth = yes
+        server min protocol = NT1
+        server max protocol = SMB3
+
+      [C$]
+        path = /srv/samba/c-drive
+        browseable = yes
+        writable = yes
+        valid users = administrator
+        create mask = 0777
+
+      [ADMIN$]
+        path = /srv/samba/admin
+        browseable = no
+        writable = yes
+        valid users = administrator
+
+      [Users]
+        path = /srv/samba/users
+        browseable = yes
+        writable = yes
+        guest ok = yes
+        create mask = 0777
+
+      [IT-Share]
+        path = /srv/samba/it-share
+        browseable = yes
+        writable = yes
+        valid users = @staff
+        create mask = 0644
+      SAMBA
+      mkdir -p /srv/samba/{c-drive,admin,users,it-share}
+      chmod 777 /srv/samba/users
+      # Create Windows-like user accounts
+      useradd -m -s /bin/bash administrator 2>/dev/null || true
+      echo "administrator:P@ssw0rd123" | chpasswd
+      (echo "P@ssw0rd123"; echo "P@ssw0rd123") | smbpasswd -a administrator -s
+      useradd -m -s /bin/bash svc_backup 2>/dev/null || true
+      echo "svc_backup:Backup2024!" | chpasswd
+      (echo "Backup2024!"; echo "Backup2024!") | smbpasswd -a svc_backup -s
+      # Plant sensitive files
+      echo "Domain Admin: administrator / P@ssw0rd123" > /srv/samba/it-share/credentials.txt
+      echo "SQL SA: sa / SqlServer2024!" >> /srv/samba/it-share/credentials.txt
+      systemctl restart smbd nmbd
+      echo "[WIN-EQUIV] SMB configured"
+
+      # 2. xRDP (3389) - Simulates Windows RDP
+      echo "[WIN-EQUIV] Configuring RDP (xrdp)..."
+      systemctl enable xrdp
+      systemctl start xrdp
+      sed -i 's/^security_layer=.*/security_layer=rdp/' /etc/xrdp/xrdp.ini 2>/dev/null || true
+      systemctl restart xrdp
+      echo "[WIN-EQUIV] RDP configured on port 3389"
+
+      # 3. WinRM-like (5985) - HTTP management endpoint
+      echo "[WIN-EQUIV] Configuring WinRM-equivalent (HTTP 5985)..."
+      cat > /opt/winrm-sim.py << 'WINRM'
+      #!/usr/bin/env python3
+      """Simulated WinRM endpoint for testing"""
+      from http.server import HTTPServer, BaseHTTPRequestHandler
+      import base64, subprocess, json
+
+      class WinRMHandler(BaseHTTPRequestHandler):
+          def do_POST(self):
+              auth = self.headers.get('Authorization', '')
+              if not auth.startswith('Basic '):
+                  self.send_response(401)
+                  self.send_header('WWW-Authenticate', 'Basic realm="WinRM"')
+                  self.end_headers()
+                  return
+              try:
+                  creds = base64.b64decode(auth[6:]).decode()
+                  user, passwd = creds.split(':', 1)
+                  valid = {'administrator': 'P@ssw0rd123', 'svc_backup': 'Backup2024!'}
+                  if valid.get(user) != passwd:
+                      raise ValueError('bad creds')
+              except:
+                  self.send_response(401)
+                  self.end_headers()
+                  return
+              length = int(self.headers.get('Content-Length', 0))
+              body = self.rfile.read(length).decode()
+              try:
+                  cmd = json.loads(body).get('command', 'whoami')
+                  result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)
+                  response = json.dumps({'stdout': result.stdout, 'stderr': result.stderr, 'exitCode': result.returncode})
+              except Exception as e:
+                  response = json.dumps({'error': str(e)})
+              self.send_response(200)
+              self.send_header('Content-Type', 'application/json')
+              self.end_headers()
+              self.wfile.write(response.encode())
+
+          def log_message(self, format, *args):
+              pass
+
+      HTTPServer(('0.0.0.0', 5985), WinRMHandler).serve_forever()
+      WINRM
+      chmod +x /opt/winrm-sim.py
+      cat > /etc/systemd/system/winrm-sim.service << 'SVC'
+      [Unit]
+      Description=Simulated WinRM Endpoint
+      After=network.target
+      [Service]
+      Type=simple
+      ExecStart=/usr/bin/python3 /opt/winrm-sim.py
+      Restart=always
+      [Install]
+      WantedBy=multi-user.target
+      SVC
+      systemctl daemon-reload
+      systemctl enable winrm-sim
+      systemctl start winrm-sim
+      echo "[WIN-EQUIV] WinRM-sim configured on port 5985"
+
+      # 4. IIS-like (nginx on 80 with vulnerable configs)
+      echo "[WIN-EQUIV] Configuring IIS-equivalent (nginx)..."
+      cat > /etc/nginx/sites-available/default << 'NGINX'
+      server {
+          listen 80 default_server;
+          server_name _;
+          add_header X-Powered-By "ASP.NET";
+          add_header Server "Microsoft-IIS/10.0";
+
+          location / {
+              root /var/www/html;
+              index index.html;
+              autoindex on;
+          }
+          location /files/ {
+              alias /etc/;
+          }
+      }
+      NGINX
+      echo "<html><head><title>AC3-WIN-TARGET</title></head><body><h1>IIS Windows Server</h1></body></html>" > /var/www/html/index.html
+      mkdir -p /var/www/html/aspnet_client
+      systemctl restart nginx
+      echo "[WIN-EQUIV] IIS-equivalent configured"
+
+      # 5. SSH with weak creds
+      sed -i 's/#PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
+      sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
+      systemctl restart sshd
+
+      # 6. Disable firewall
+      ufw disable 2>/dev/null || true
+      iptables -F 2>/dev/null || true
+      iptables -P INPUT ACCEPT
+      iptables -P FORWARD ACCEPT
+      iptables -P OUTPUT ACCEPT
+
+      # 7. C2 Agent staging
+      mkdir -p /tmp/caldera-agents
+      chmod 777 /tmp/caldera-agents
+
+      echo "[WIN-EQUIV] ══════════════════════════════════════════════"
+      echo "[WIN-EQUIV] Provisioning complete!"
+      echo "[WIN-EQUIV] Services:"
+      echo "[WIN-EQUIV]   Port 22   - SSH (weak creds)"
+      echo "[WIN-EQUIV]   Port 80   - IIS-equivalent (path traversal)"
+      echo "[WIN-EQUIV]   Port 445  - SMB (weak creds, sensitive shares)"
+      echo "[WIN-EQUIV]   Port 3389 - RDP (xrdp)"
+      echo "[WIN-EQUIV]   Port 5985 - WinRM-sim (basic auth, RCE)"
+      echo "[WIN-EQUIV] ══════════════════════════════════════════════"
+
+runcmd:
+  - /opt/setup/provision-win-equiv.sh > /var/log/win-equiv-provision.log 2>&1

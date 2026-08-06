@@ -1,0 +1,36 @@
+{
+  "family": "ac3-dev-caldera-seed",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "1024",
+  "memory": "2048",
+  "executionRoleArn": "arn:aws:iam::808038814732:role/ac3-dev-ecs-execution-role",
+  "taskRoleArn": "arn:aws:iam::808038814732:role/ac3-dev-app-task-role",
+  "containerDefinitions": [
+    {
+      "name": "caldera-seed",
+      "image": "808038814732.dkr.ecr.us-east-1.amazonaws.com/ac3/caldera-dashboard:latest",
+      "essential": true,
+      "command": ["node", "scripts/seed-caldera.mjs"],
+      "environment": [
+        { "name": "CALDERA_BASE_URL", "value": "http://caldera.ac3-dev.local:8888" },
+        { "name": "CALDERA_API_KEY", "value": "REPLACE_WITH_CALDERA_API_KEY" },
+        { "name": "SEED_USE_LLM", "value": "true" },
+        { "name": "NODE_OPTIONS", "value": "--max-old-space-size=1536" }
+      ],
+      "secrets": [
+        { "name": "DATABASE_URL", "valueFrom": "arn:aws:ssm:us-east-1:808038814732:parameter/ac3/dev/DATABASE_URL" },
+        { "name": "BUILT_IN_FORGE_API_URL", "valueFrom": "arn:aws:ssm:us-east-1:808038814732:parameter/ac3/dev/BUILT_IN_FORGE_API_URL" },
+        { "name": "BUILT_IN_FORGE_API_KEY", "valueFrom": "arn:aws:ssm:us-east-1:808038814732:parameter/ac3/dev/BUILT_IN_FORGE_API_KEY" }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/ac3-dev-caldera-seed",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "seed"
+        }
+      }
+    }
+  ]
+}

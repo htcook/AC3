@@ -1,0 +1,133 @@
+{
+  "report_type": "domain_intel",
+  "metadata": {
+    "scan_id": "2160011",
+    "target": "criticalsec.com",
+    "scan_mode": "standard",
+    "sector": "Technology",
+    "client_type": "enterprise",
+    "scan_date": "2026-05-06"
+  },
+  "coverage": {
+    "nuclei_findings": 0,
+    "actively_verified": 0,
+    "web_assets_crawled": 5,
+    "tool_executions": 0,
+    "evidence_quality": "PASSIVE ONLY"
+  },
+  "risk": {
+    "overall_score": 50,
+    "overall_band": "MEDIUM",
+    "peak_asset_score": 65,
+    "peak_asset_band": "MEDIUM"
+  },
+  "counts": {
+    "total_assets": 13,
+    "confirmed_findings": 17,
+    "potential_findings": 8,
+    "data_sources": 28,
+    "kev_matches": 6,
+    "breach_exposures": 2,
+    "breach_emails": 2,
+    "blacklist_actionable": 2,
+    "blacklist_total": 2
+  },
+  "assets": [
+    {"hostname": "mail.criticalsec.com", "ip": "68.178.176.1",
+     "type": "mail gateway", "risk_score": 65, "risk_band": "MEDIUM",
+     "technologies": ["Google Workspace"]},
+    {"hostname": "criticalsec.com", "ip": "104.198.14.52",
+     "type": "other", "risk_score": 27, "risk_band": "LOW",
+     "technologies": ["Netlify", "jQuery", "Bootstrap"]},
+    {"hostname": "www.criticalsec.com", "ip": "3.33.186.135",
+     "type": "other", "risk_score": 26, "risk_band": "LOW",
+     "technologies": ["Netlify", "jQuery", "Bootstrap"]},
+    {"hostname": "critical-sec.com", "ip": "104.26.5.236",
+     "type": "other", "risk_score": 21, "risk_band": "LOW",
+     "technologies": ["Cloudflare", "Google Fonts"]},
+    {"hostname": "criticalec.com", "ip": "15.197.148.33",
+     "type": "other", "risk_score": 20, "risk_band": "LOW",
+     "technologies": []}
+  ],
+  "vendor_assets": [
+    {"hostname": "google.com", "vendor": "Google Workspace",
+     "category": "Email Provider", "exclusion_reason": "Third-party registrant"},
+    {"hostname": "googlemail.com", "vendor": "Google Workspace",
+     "category": "Email Provider", "exclusion_reason": "Third-party registrant"},
+    {"hostname": "domaincontrol.com", "vendor": "GoDaddy",
+     "category": "Domain Registrar", "exclusion_reason": "Third-party registrant"}
+  ],
+  "dnsbl": [
+    {"zone": "multi.uribl.com",
+     "return_code": "127.0.0.1",
+     "txt_record": "Query Refused. See http://uribl.com/refused.shtml for more information [Your DNS resolver is not allowed to query this list]",
+     "severity": "HIGH",
+     "action_required": true},
+    {"zone": "cbl.anti-spam.org.cn",
+     "return_code": "208.98.40.203",
+     "txt_record": "CBL — IP detected sending spam, likely compromised/infected",
+     "severity": "MEDIUM",
+     "action_required": true}
+  ],
+  "registration": {
+    "registrar": "N/A",
+    "registration_date": "N/A",
+    "expiration_date": "N/A",
+    "last_changed": "N/A",
+    "dnssec_enabled": false,
+    "transfer_lock": false,
+    "delete_lock": false
+  },
+  "email_security": {
+    "mail_provider": "Google Workspace (Managed Service)",
+    "spf": "v=spf1 include:_spf.google.com ~all",
+    "dkim": null,
+    "dmarc": null,
+    "score": 44,
+    "grade": "D"
+  },
+  "domain_health": {
+    "mail_server_grade": "F",
+    "mail_ports_grade": "D",
+    "mail_security_grade": "C",
+    "overall_grade": "B"
+  },
+  "ports": [
+    {"port": 25, "service": "SMTP", "host": "mail.criticalsec.com",
+     "status": "CLOSED", "severity": "HIGH",
+     "rationale": "Open relay abuse for spam/phishing if misconfigured"},
+    {"port": 143, "service": "IMAP", "host": "mail.criticalsec.com",
+     "status": "CLOSED", "severity": "MEDIUM",
+     "rationale": "Cleartext credential transmission"},
+    {"port": 110, "service": "POP3", "host": "mail.criticalsec.com",
+     "status": "CLOSED", "severity": "MEDIUM",
+     "rationale": "Cleartext credential transmission"}
+  ],
+  "recommendations": [
+    {"priority": "P1",
+     "recommendation": "Configure DMARC and DKIM records for criticalsec.com..."},
+    {"priority": "P3",
+     "recommendation": "Review the necessity of exposing IMAP (port 143) and POP3 (port 110) on mail.criticalsec.com. If these protocols are required, ensure they are accessed only via encrypted connections."},
+    {"priority": "P4",
+     "recommendation": "While SMTP (port 25) is necessary for mail flow, review the configuration of mail.criticalsec.com to ensure it is not an open relay. This addresses the 'SMTP (port 25) exposed' (Sev 5/10) finding."}
+  ],
+  "compliance": {
+    "benchmark": "CIS + DISA STIG + NIST 800-53 (External Audit)",
+    "score": 47,
+    "total_checks": 16,
+    "passed": 7,
+    "failed": 8
+  },
+  "web_security": [
+    {"asset": "google.com", "grade": "F", "server": "gws", "findings": 13,
+     "missing_headers": ["HSTS", "CSP", "X-Frame", "X-Content-Type"]},
+    {"asset": "www.criticalsec.com", "grade": "F", "server": "Netlify",
+     "findings": 10, "missing_headers": ["HSTS", "CSP", "X-Frame"]},
+    {"asset": "googlemail.com", "grade": "B", "server": "ESF", "findings": 5,
+     "missing_headers": ["HSTS"]}
+  ],
+  "rendered_text": {
+    "executive_summary": "This Domain Intelligence assessment was conducted on May 6, 2026 to evaluate the external attack surface and security posture of the target organization. The assessment scope encompassed 13 discovered assets analyzed through 28 passive intelligence sources. The overall risk rating is MEDIUM (50/100). Vulnerability analysis identified 25 findings across the attack surface (17 confirmed, 8 potential). The following critical exposure indicators were identified: 1 high-risk asset; 6 CISA Known Exploited Vulnerability matches. Confidence in the overall LOW risk rating is based on the absence of confirmed critical CVEs, the managed nature of the core mail infrastructure, and the limited scope of the external scan.",
+    "web_security_summary": "5 assets crawled | 48 security findings | 1 login forms | 2 exposed paths"
+  }
+}

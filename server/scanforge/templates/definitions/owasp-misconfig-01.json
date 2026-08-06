@@ -1,0 +1,39 @@
+{
+  "id": "owasp-security-misconfig-headers",
+  "name": "Security Misconfiguration (Missing HTTP Security Headers)",
+  "description": "Detects missing critical HTTP security headers including Content-Security-Policy, X-Frame-Options, X-Content-Type-Options, Strict-Transport-Security, Referrer-Policy, and Permissions-Policy.",
+  "author": "AC3 ScanForge",
+  "severity": "medium",
+  "protocol": "http",
+  "tags": ["owasp-a05", "misconfig", "headers", "owasp-top10", "hardening"],
+  "request": {
+    "method": "GET",
+    "path": "/",
+    "followRedirects": true
+  },
+  "matchers": [
+    {
+      "type": "negative_header",
+      "values": [
+        "content-security-policy",
+        "x-frame-options",
+        "x-content-type-options",
+        "strict-transport-security",
+        "referrer-policy",
+        "permissions-policy"
+      ],
+      "condition": "or"
+    }
+  ],
+  "references": {
+    "cwes": ["CWE-16", "CWE-693"],
+    "urls": [
+      "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/",
+      "https://securityheaders.com/"
+    ]
+  },
+  "remediation": "Implement all recommended HTTP security headers: Content-Security-Policy (restrict resource loading), X-Frame-Options (prevent clickjacking), X-Content-Type-Options: nosniff, Strict-Transport-Security (force HTTPS), Referrer-Policy (control referrer leakage), Permissions-Policy (restrict browser features).",
+  "attack": {
+    "techniqueIds": ["T1189", "T1185"]
+  }
+}
