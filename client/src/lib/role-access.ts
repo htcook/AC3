@@ -14,7 +14,7 @@
  *   user       — Legacy default (same as operator)
  */
 
-export type UserRole = 'operator' | 'team_lead' | 'analyst' | 'executive' | 'client' | 'admin' | 'user' | 'viewer' | 'soc';
+export type UserRole = 'operator' | 'team_lead' | 'analyst' | 'executive' | 'client' | 'admin' | 'user' | 'viewer' | 'soc' | 'compliance_manager' | 'auditor';
 
 // ─── Per-Route Access Lists ─────────────────────────────────────────────────
 // Each role has an explicit allowlist of routes they can access.
@@ -526,13 +526,13 @@ const UNIVERSAL_ROUTES = [
 
 const ROLE_GROUP_ACCESS: Record<UserRole, string[]> = {
   operator: ['command', 'surface', 'emulation', 'exploits', 'intelligence', 'reports'],
-  team_lead: ['command', 'surface', 'emulation', 'exploits', 'intelligence', 'ksi', 'reports', 'platform'],
-  analyst: ['command', 'surface', 'emulation', 'exploits', 'intelligence', 'ksi', 'reports', 'platform'],
-  soc: ['command', 'surface', 'emulation', 'intelligence', 'ksi', 'reports', 'platform'],
-  executive: ['command', 'ksi', 'reports'],
-  client: ['command', 'reports'],
+  team_lead: ['command', 'surface', 'emulation', 'exploits', 'intelligence', 'ksi', 'compliance_plus', 'reports', 'platform'],
+  analyst: ['command', 'surface', 'emulation', 'exploits', 'intelligence', 'ksi', 'compliance_plus', 'reports', 'platform'],
+  soc: ['command', 'surface', 'emulation', 'intelligence', 'ksi', 'compliance_plus', 'reports', 'platform'],
+  executive: ['command', 'ksi', 'compliance_plus', 'reports'],
+  client: ['command', 'compliance_plus', 'reports'],
   viewer: ['reports'],
-  admin: ['command', 'surface', 'emulation', 'intelligence', 'ksi', 'reports', 'platform'],
+  admin: ['command', 'surface', 'emulation', 'exploits', 'intelligence', 'ksi', 'compliance_plus', 'reports', 'platform'],
   user: ['command', 'surface', 'emulation', 'exploits', 'intelligence', 'reports'],
 };
 
@@ -613,6 +613,7 @@ const ROLE_SUBSECTION_ACCESS: Record<UserRole, string[]> = {
  * Check if a user role has access to a specific nav group
  */
 export function canAccessGroup(role: UserRole, groupId: string): boolean {
+  if (role === 'admin') return true; // Admin sees everything
   return ROLE_GROUP_ACCESS[role]?.includes(groupId) ?? false;
 }
 
@@ -620,6 +621,7 @@ export function canAccessGroup(role: UserRole, groupId: string): boolean {
  * Check if a user role has access to a specific sub-section
  */
 export function canAccessSubSection(role: UserRole, subSectionId: string): boolean {
+  if (role === 'admin') return true; // Admin sees everything
   const allowed = ROLE_SUBSECTION_ACCESS[role];
   if (!allowed) return true; // No restrictions defined = all visible
   return allowed.includes(subSectionId);
@@ -631,6 +633,7 @@ export function canAccessSubSection(role: UserRole, subSectionId: string): boole
  */
 export function canAccessRoute(role: UserRole, route: string): boolean {
   if (UNIVERSAL_ROUTES.includes(route)) return true;
+  if (role === 'admin') return true; // Admin sees everything
   const allowedRoutes = ROLE_ROUTE_ACCESS[role];
   if (!allowedRoutes) return false;
   // Exact match
@@ -674,6 +677,9 @@ export function getHomeDashboardPath(role: UserRole): string {
       return '/home/soc';
     case 'admin':
       return '/home/admin';
+    case 'compliance_manager':
+    case 'auditor':
+      return '/compliance-plus';
     default:
       return '/home/operator';
   }
@@ -693,6 +699,8 @@ export function getRoleDisplayName(role: UserRole): string {
     user: 'Operator',
     viewer: 'Viewer',
     soc: 'SOC Analyst',
+    compliance_manager: 'Compliance Manager',
+    auditor: 'Auditor',
   };
   return names[role] ?? 'Operator';
 }
@@ -711,6 +719,8 @@ export function getRoleBadgeClass(role: UserRole): string {
     user: 'bg-red-500/20 text-red-400 border-red-500/30',
     viewer: 'bg-gray-500/20 text-gray-400 border-gray-500/30',
     soc: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
+    compliance_manager: 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30',
+    auditor: 'bg-teal-500/20 text-teal-400 border-teal-500/30',
   };
   return colors[role] ?? colors.operator;
 }
@@ -726,4 +736,6 @@ export const ALL_ROLES: { value: UserRole; label: string; description: string }[
   { value: 'client', label: 'Client', description: 'External client — RoE approval & assessment portal' },
   { value: 'admin', label: 'Administrator', description: 'Platform admin — user & infrastructure management' },
   { value: 'soc', label: 'SOC Analyst', description: 'Security Operations Center — detection, monitoring & defense validation' },
+  { value: 'compliance_manager', label: 'Compliance Manager', description: 'FedRAMP compliance — gap analysis, narratives, evidence, OSCAL' },
+  { value: 'auditor', label: 'Auditor', description: '3PAO auditor — read-only compliance review & evidence verification' },
 ];

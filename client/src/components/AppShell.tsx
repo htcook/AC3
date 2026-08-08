@@ -388,6 +388,36 @@ const NAV_GROUPS: NavGroup[] = [
       },
     ],
   },
+  // ── 5b. AC3-PLUS COMPLIANCE ── FedRAMP gap analysis, narratives, evidence, OSCAL
+  {
+    id: "compliance_plus",
+    label: "AC3-PLUS COMPLIANCE",
+    icon: ShieldCheck,
+    subSections: [
+      {
+        id: "comp-plus-core",
+        label: "Compliance Operations",
+        items: [
+          { href: "/compliance-plus", icon: ShieldCheck, label: "COMPLIANCE DASHBOARD" },
+          { href: "/gap-analysis", icon: Search, label: "GAP ANALYSIS" },
+          { href: "/narratives", icon: FileText, label: "NARRATIVES" },
+          { href: "/evidence-plus", icon: Archive, label: "EVIDENCE MGMT" },
+          { href: "/threat-prioritization", icon: Zap, label: "THREAT PRIORITIZATION" },
+          { href: "/poam-tracker", icon: ClipboardCheck, label: "POA\&M TRACKER" },
+          { href: "/system-profiles", icon: Server, label: "SYSTEM PROFILES" },
+          { href: "/aoc-ingest", icon: Download, label: "AOC INGEST" },
+        ],
+      },
+      {
+        id: "comp-plus-export",
+        label: "Export \& Packages",
+        items: [
+          { href: "/oscal-export", icon: FileOutput, label: "OSCAL EXPORT" },
+          { href: "/3pao-package", icon: Package, label: "3PAO PACKAGE" },
+        ],
+      },
+    ],
+  },
   // ── 6. KEY SECURITY INDICATORS ── FedRAMP KSIs, evidence, compliance
   {
     id: "ksi",

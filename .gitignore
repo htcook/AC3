@@ -221,3 +221,5 @@ drizzle/0000_initial_schema.sql
 drizzle/meta/
 server/**.test.ts
 __pycache__/
+dist/
+dist/
