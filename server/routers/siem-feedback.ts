@@ -10,7 +10,7 @@ export const siemFeedbackRouter = router({
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
     const { desc } = await import("drizzle-orm");
-    return db.select().from(siemIntegrations).orderBy(desc(siemIntegrations.createdAt));
+    return db.select().from(siemIntegrations).orderBy(desc(siemIntegrations.siemCreatedAt));
   }),
   createIntegration: protectedProcedure
     .input(z.object({
@@ -25,7 +25,13 @@ export const siemFeedbackRouter = router({
       const { siemIntegrations } = await import("../../drizzle/schema");
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
-      const result = await db.insert(siemIntegrations).values({ ...input });
+      const result = await db.insert(siemIntegrations).values({
+        siemName: input.name,
+        siemProvider: input.provider,
+        siemBaseUrl: input.baseUrl,
+        siemApiKeyEnc: input.apiKeyEncrypted || null,
+        siemQueryTemplate: input.queryTemplate || null,
+      });
       return { id: result[0].insertId };
     }),
   testConnection: protectedProcedure
@@ -41,10 +47,10 @@ export const siemFeedbackRouter = router({
       if (!integration) throw new TRPCError({ code: "NOT_FOUND", message: "SIEM integration not found" });
       const { testSIEMConnection } = await import("../lib/siem-feedback");
       return await testSIEMConnection({
-        provider: integration.provider as any,
-        baseUrl: integration.baseUrl,
-        apiKey: integration.apiKeyEncrypted || "",
-        queryTemplate: integration.queryTemplate || undefined,
+        provider: integration.siemProvider as any,
+        baseUrl: integration.siemBaseUrl,
+        apiKey: integration.siemApiKeyEnc || "",
+        queryTemplate: integration.siemQueryTemplate || undefined,
       });
     }),
   deleteIntegration: protectedProcedure
@@ -93,10 +99,10 @@ export const siemFeedbackRouter = router({
       const { executeDetectionQuery } = await import("../lib/siem-feedback");
       const result = await executeDetectionQuery(
         {
-          provider: integration.provider as any,
-          baseUrl: integration.baseUrl,
-          apiKey: integration.apiKeyEncrypted || "",
-          queryTemplate: integration.queryTemplate || undefined,
+          provider: integration.siemProvider as any,
+          baseUrl: integration.siemBaseUrl,
+          apiKey: integration.siemApiKeyEnc || "",
+          queryTemplate: integration.siemQueryTemplate || undefined,
         },
         {
           techniqueId: input.techniqueId,
