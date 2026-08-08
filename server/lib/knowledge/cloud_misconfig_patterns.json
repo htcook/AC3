@@ -1,0 +1,120 @@
+[
+  {
+    "id": "AWS-S3-PUBLIC-READ",
+    "cloud_provider": "AWS",
+    "service": "S3",
+    "misconfiguration": "Public read access enabled on storage bucket",
+    "signals": [
+      "bucket policy allows s3:GetObject for *",
+      "ACL includes AllUsers or AuthenticatedUsers",
+      "objects accessible without authentication"
+    ],
+    "risk_level": "High",
+    "impact": "Exposure of sensitive files or application data to the internet",
+    "remediation": [
+      "Disable public access at bucket level",
+      "Restrict bucket policy to authorized principals",
+      "Enable S3 Block Public Access"
+    ],
+    "references": [
+      "AWS S3 security best practices"
+    ]
+  },
+  {
+    "id": "AZURE-STORAGE-PUBLIC",
+    "cloud_provider": "Azure",
+    "service": "Blob Storage",
+    "misconfiguration": "Public container access enabled",
+    "signals": [
+      "container access level set to blob or container",
+      "files downloadable without authentication"
+    ],
+    "risk_level": "High",
+    "impact": "Sensitive files accessible publicly",
+    "remediation": [
+      "Set container access level to private",
+      "Implement Azure RBAC access controls"
+    ],
+    "references": [
+      "Azure Storage security guidance"
+    ]
+  },
+  {
+    "id": "GCP-STORAGE-PUBLIC",
+    "cloud_provider": "GCP",
+    "service": "Cloud Storage",
+    "misconfiguration": "Bucket publicly accessible",
+    "signals": [
+      "allUsers or allAuthenticatedUsers in IAM policy",
+      "objects downloadable anonymously"
+    ],
+    "risk_level": "High",
+    "impact": "Exposure of application assets or confidential data",
+    "remediation": [
+      "Remove public IAM bindings",
+      "Use least privilege access policies"
+    ],
+    "references": [
+      "Google Cloud Storage security guidance"
+    ]
+  },
+  {
+    "id": "AWS-EC2-OPEN-SSH",
+    "cloud_provider": "AWS",
+    "service": "EC2 Security Group",
+    "misconfiguration": "SSH open to the internet",
+    "signals": [
+      "security group rule allows port 22 from 0.0.0.0/0",
+      "inbound SSH accessible publicly"
+    ],
+    "risk_level": "Medium",
+    "impact": "Increased risk of brute force or credential attacks",
+    "remediation": [
+      "Restrict SSH access to specific IP ranges",
+      "Use VPN or bastion host"
+    ],
+    "references": [
+      "AWS network security best practices"
+    ]
+  },
+  {
+    "id": "AZURE-VM-RDP-OPEN",
+    "cloud_provider": "Azure",
+    "service": "Virtual Machine",
+    "misconfiguration": "RDP open to the internet",
+    "signals": [
+      "network security group rule allows port 3389 from any",
+      "RDP accessible from public internet"
+    ],
+    "risk_level": "Medium",
+    "impact": "Potential remote access attack surface",
+    "remediation": [
+      "Restrict RDP access to management networks",
+      "Implement Azure Bastion"
+    ],
+    "references": [
+      "Azure VM network security guidance"
+    ]
+  },
+  {
+    "id": "AWS-IAM-OVERPERMISSIVE",
+    "cloud_provider": "AWS",
+    "service": "IAM",
+    "misconfiguration": "Overly permissive IAM role or policy",
+    "signals": [
+      "wildcard actions in policy",
+      "wildcard resources in policy",
+      "privilege scope broader than workload purpose"
+    ],
+    "risk_level": "High",
+    "impact": "Privilege escalation and expanded blast radius if credentials are compromised",
+    "remediation": [
+      "Apply least privilege",
+      "Scope policies to exact actions and resources",
+      "Continuously review attached roles and trust policies"
+    ],
+    "references": [
+      "AWS IAM least privilege guidance"
+    ]
+  }
+]

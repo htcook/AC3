@@ -1,0 +1,1 @@
+import{j as t,G as o,H as s,J as a}from"./vendor-react-Bl6v6LwS.js";function i({...l}){return t.jsx(o,{"data-slot":"collapsible",...l})}function n({...l}){return t.jsx(s,{"data-slot":"collapsible-trigger",...l})}function r({...l}){return t.jsx(a,{"data-slot":"collapsible-content",...l})}export{i as C,n as a,r as b};

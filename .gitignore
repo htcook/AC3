@@ -216,11 +216,8 @@ dist/server/*.js
 .client-assets-new/
 client/dist/
 # Source maps (large, regenerated during build)
-.client-assets/assets/*.map
-server/lib/knowledge/
 drizzle/0000_initial_schema.sql
 
-.client-assets/
 drizzle/meta/
 server/**.test.ts
 __pycache__/

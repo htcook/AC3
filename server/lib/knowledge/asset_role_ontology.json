@@ -1,0 +1,3631 @@
+[
+  {
+    "product_name": "postfix",
+    "vendor_category": "email",
+    "asset_class": "mail_transfer_agent",
+    "primary_functions": [
+      "application_execution",
+      "traffic_filtering"
+    ],
+    "security_test_focus": [
+      "misconfiguration",
+      "privilege_escalation"
+    ],
+    "common_ports": [
+      8080,
+      9200,
+      8443
+    ],
+    "deployment_zones": [
+      "data_plane",
+      "control_plane"
+    ]
+  },
+  {
+    "product_name": "entra_id",
+    "vendor_category": "identity",
+    "asset_class": "identity_provider",
+    "primary_functions": [
+      "container_orchestration",
+      "logging",
+      "application_execution",
+      "authentication_broker"
+    ],
+    "security_test_focus": [
+      "remote_code_execution",
+      "data_exfiltration",
+      "privilege_escalation"
+    ],
+    "common_ports": [
+      6379,
+      80,
+      8080
+    ],
+    "deployment_zones": [
+      "internal",
+      "edge"
+    ]
+  },
+  {
+    "product_name": "mongodb",
+    "vendor_category": "data_layer",
+    "asset_class": "database",
+    "primary_functions": [
+      "traffic_filtering",
+      "container_orchestration"
+    ],
+    "security_test_focus": [
+      "access_control_weakness",
+      "misconfiguration",
+      "credential_exposure",
+      "trust_boundary_abuse"
+    ],
+    "common_ports": [
+      8080,
+      8443,
+      443
+    ],
+    "deployment_zones": [
+      "edge",
+      "control_plane"
+    ]
+  },
+  {
+    "product_name": "memcached",
+    "vendor_category": "data_layer",
+    "asset_class": "cache",
+    "primary_functions": [
+      "request_routing",
+      "telemetry_collection",
+      "authentication_broker"
+    ],
+    "security_test_focus": [
+      "misconfiguration",
+      "trust_boundary_abuse",
+      "remote_code_execution",
+      "credential_exposure"
+    ],
+    "common_ports": [
+      5432,
+      8080
+    ],
+    "deployment_zones": [
+      "control_plane",
+      "admin_plane"
+    ]
+  },
+  {
+    "product_name": "postfix",
+    "vendor_category": "email",
+    "asset_class": "mail_transfer_agent",
+    "primary_functions": [
+      "traffic_filtering",
+      "application_execution",
+      "data_storage",
+      "message_queueing"
+    ],
+    "security_test_focus": [
+      "misconfiguration",
+      "data_exfiltration",
+      "remote_code_execution"
+    ],
+    "common_ports": [
+      3306,
+      8080,
+      443
+    ],
+    "deployment_zones": [
+      "edge"
+    ]
+  },
+  {
+    "product_name": "proofpoint",
+    "vendor_category": "email",
+    "asset_class": "email_security_gateway",
+    "primary_functions": [
+      "identity_management",
+      "request_routing",
+      "telemetry_collection",
+      "tls_termination"
+    ],
+    "security_test_focus": [
+      "data_exfiltration",
+      "credential_exposure"
+    ],
+    "common_ports": [
+      443,
+      9200,
+      80
+    ],
+    "deployment_zones": [
+      "admin_plane",
+      "internal"
+    ]
+  },
+  {
+    "product_name": "nginx",
+    "vendor_category": "web_infrastructure",
+    "asset_class": "reverse_proxy",
+    "primary_functions": [
+      "request_routing",
+      "logging"
+    ],
+    "security_test_focus": [
+      "privilege_escalation",
+      "authentication_bypass"
+    ],
+    "common_ports": [
+      8443
+    ],
+    "deployment_zones": [
+      "internal",
+      "data_plane"
+    ]
+  },
+  {
+    "product_name": "logstash",
+    "vendor_category": "analytics",
+    "asset_class": "log_ingestion",
+    "primary_functions": [
+      "request_routing",
+      "logging",
+      "container_orchestration"
+    ],
+    "security_test_focus": [
+      "data_exfiltration",
+      "credential_exposure",
+      "access_control_weakness"
+    ],
+    "common_ports": [
+      6379,
+      443,
+      8443
+    ],
+    "deployment_zones": [
+      "admin_plane",
+      "control_plane"
+    ]
+  },
+  {
+    "product_name": "envoy",
+    "vendor_category": "service_mesh",
+    "asset_class": "service_proxy",
+    "primary_functions": [
+      "request_routing",
+      "application_execution",
+      "traffic_filtering",
+      "telemetry_collection"
+    ],
+    "security_test_focus": [
+      "data_exfiltration",
+      "remote_code_execution",
+      "misconfiguration",
+      "trust_boundary_abuse"
+    ],
+    "common_ports": [
+      8080,
+      5432
+    ],
+    "deployment_zones": [
+      "edge"
+    ]
+  },
+  {
+    "product_name": "postfix",
+    "vendor_category": "email",
+    "asset_class": "mail_transfer_agent",
+    "primary_functions": [
+      "request_routing",
+      "logging",
+      "tls_termination",
+      "message_queueing"
+    ],
+    "security_test_focus": [
+      "trust_boundary_abuse",
+      "access_control_weakness",
+      "authentication_bypass"
+    ],
+    "common_ports": [
+      3306,
+      443,
+      9200
+    ],
+    "deployment_zones": [
+      "edge",
+      "admin_plane"
+    ]
+  },
+  {
+    "product_name": "postfix",
+    "vendor_category": "email",
+    "asset_class": "mail_transfer_agent",
+    "primary_functions": [
+      "authentication_broker",
+      "identity_management",
+      "request_routing",
+      "container_orchestration"
+    ],
+    "security_test_focus": [
+      "data_exfiltration",
+      "trust_boundary_abuse"
+    ],
+    "common_ports": [
+      5432,
+      3306,
+      6379
+    ],
+    "deployment_zones": [
+      "edge",
+      "data_plane"
+    ]
+  },
+  {
+    "product_name": "splunk",
+    "vendor_category": "security_analytics",
+    "asset_class": "siem",
+    "primary_functions": [
+      "container_orchestration",
+      "tls_termination",
+      "logging",
+      "message_queueing"
+    ],
+    "security_test_focus": [
+      "remote_code_execution",
+      "data_exfiltration",
+      "privilege_escalation"
+    ],
+    "common_ports": [
+      5432,
+      8080,
+      80
+    ],
+    "deployment_zones": [
+      "data_plane"
+    ]
+  },
+  {
+    "product_name": "envoy",
+    "vendor_category": "service_mesh",
+    "asset_class": "service_proxy",
+    "primary_functions": [
+      "container_orchestration",
+      "request_routing",
+      "logging"
+    ],
+    "security_test_focus": [
+      "authentication_bypass",
+      "credential_exposure",
+      "trust_boundary_abuse"
+    ],
+    "common_ports": [
+      443,
+      80,
+      9200
+    ],
+    "deployment_zones": [
+      "admin_plane",
+      "control_plane"
+    ]
+  },
+  {
+    "product_name": "traefik",
+    "vendor_category": "container_platform",
+    "asset_class": "ingress_controller",
+    "primary_functions": [
+      "application_execution",
+      "request_routing",
+      "traffic_filtering",
+      "message_queueing"
+    ],
+    "security_test_focus": [
+      "data_exfiltration",
+      "authentication_bypass"
+    ],
+    "common_ports": [
+      6379
+    ],
+    "deployment_zones": [
+      "data_plane"
+    ]
+  },
+  {
+    "product_name": "entra_id",
+    "vendor_category": "identity",
+    "asset_class": "identity_provider",
+    "primary_functions": [
+      "authentication_broker",
+      "traffic_filtering",
+      "request_routing",
+      "identity_management"
+    ],
+    "security_test_focus": [
+      "privilege_escalation",
+      "access_control_weakness",
+      "credential_exposure",
+      "authentication_bypass"
+    ],
+    "common_ports": [
+      8443,
+      22,
+      80
+    ],
+    "deployment_zones": [
+      "internal",
+      "admin_plane"
+    ]
+  },
+  {
+    "product_name": "mysql",
+    "vendor_category": "data_layer",
+    "asset_class": "database",
+    "primary_functions": [
+      "traffic_filtering",
+      "telemetry_collection"
+    ],
+    "security_test_focus": [
+      "trust_boundary_abuse",
+      "credential_exposure",
+      "access_control_weakness",
+      "privilege_escalation"
+    ],
+    "common_ports": [
+      22,
+      443
+    ],
+    "deployment_zones": [
+      "admin_plane"
+    ]
+  },
+  {
+    "product_name": "apache_httpd",
+    "vendor_category": "web_infrastructure",
+    "asset_class": "web_server",
+    "primary_functions": [
+      "request_routing",
+      "authentication_broker"
+    ],
+    "security_test_focus": [
+      "data_exfiltration",
+      "remote_code_execution"
+    ],
+    "common_ports": [
+      443
+    ],
+    "deployment_zones": [
+      "control_plane",
+      "edge"
+    ]
+  },
+  {
+    "product_name": "elasticsearch",
+    "vendor_category": "analytics",
+    "asset_class": "search_engine",
+    "primary_functions": [
+      "tls_termination",
+      "application_execution"
+    ],
+    "security_test_focus": [
+      "privilege_escalation",
+      "data_exfiltration",
+      "authentication_bypass",
+      "remote_code_execution"
+    ],
+    "common_ports": [
+      80
+    ],
+    "deployment_zones": [
+      "control_plane",
+      "admin_plane"
+    ]
+  },
+  {
+    "product_name": "haproxy",
+    "vendor_category": "network_edge",
+    "asset_class": "load_balancer",
+    "primary_functions": [
+      "authentication_broker",
+      "logging",
+      "container_orchestration",
+      "tls_termination"
+    ],
+    "security_test_focus": [
+      "privilege_escalation",
+      "remote_code_execution"
+    ],
+    "common_ports": [
+      443,
+      80
+    ],
+    "deployment_zones": [
+      "control_plane"
+    ]
+  },
+  {
+    "product_name": "elasticsearch",
+    "vendor_category": "analytics",
+    "asset_class": "search_engine",
+    "primary_functions": [
+      "authentication_broker",
+      "container_orchestration"
+    ],
+    "security_test_focus": [
+      "data_exfiltration",
+      "misconfiguration",
+      "credential_exposure",
+      "trust_boundary_abuse"
+    ],
+    "common_ports": [
+      80,
+      443
+    ],
+    "deployment_zones": [
+      "internal",
+      "admin_plane"
+    ]
+  },
+  {
+    "product_name": "envoy",
+    "vendor_category": "service_mesh",
+    "asset_class": "service_proxy",
+    "primary_functions": [
+      "tls_termination",
+      "message_queueing",
+      "request_routing"
+    ],
+    "security_test_focus": [
+      "trust_boundary_abuse",
+      "privilege_escalation",
+      "authentication_bypass"
+    ],
+    "common_ports": [
+      5432
+    ],
+    "deployment_zones": [
+      "internal"
+    ]
+  },
+  {
+    "product_name": "traefik",
+    "vendor_category": "container_platform",
+    "asset_class": "ingress_controller",
+    "primary_functions": [
+      "logging",
+      "telemetry_collection",
+      "message_queueing"
+    ],
+    "security_test_focus": [
+      "privilege_escalation",
+      "data_exfiltration",
+      "access_control_weakness",
+      "trust_boundary_abuse"
+    ],
+    "common_ports": [
+      3306,
+      5432,
+      443
+    ],
+    "deployment_zones": [
+      "internal"
+    ]
+  },
+  {
+    "product_name": "azure_key_vault",
+    "vendor_category": "cloud_security",
+    "asset_class": "secrets_manager",
+    "primary_functions": [
+      "authentication_broker",
+      "container_orchestration",
+      "identity_management",
+      "data_storage"
+    ],
+    "security_test_focus": [
+      "remote_code_execution",
+      "authentication_bypass"
+    ],
+    "common_ports": [
+      22
+    ],
+    "deployment_zones": [
+      "control_plane",
+      "data_plane"
+    ]
+  },
+  {
+    "product_name": "gitlab_ci",
+    "vendor_category": "devops",
+    "asset_class": "ci_cd_server",
+    "primary_functions": [
+      "traffic_filtering",
+      "tls_termination"
+    ],
+    "security_test_focus": [
+      "data_exfiltration",
+      "authentication_bypass"
+    ],
+    "common_ports": [
+      8080,
+      6379,
+      5432
+    ],
+    "deployment_zones": [
+      "admin_plane",
+      "data_plane"
+    ]
+  },
+  {
+    "product_name": "kubernetes_api",
+    "vendor_category": "container_platform",
+    "asset_class": "container_control_plane",
+    "primary_functions": [
+      "telemetry_collection",
+      "message_queueing"
+    ],
+    "security_test_focus": [
+      "privilege_escalation",
+      "misconfiguration",
+      "access_control_weakness"
+    ],
+    "common_ports": [
+      5432,
+      3306,
+      9200
+    ],
+    "deployment_zones": [
+      "internal"
+    ]
+  },
+  {
+    "product_name": "traefik",
+    "vendor_category": "container_platform",
+    "asset_class": "ingress_controller",
+    "primary_functions": [
+      "data_storage",
+      "logging",
+      "identity_management"
+    ],
+    "security_test_focus": [
+      "authentication_bypass",
+      "access_control_weakness"
+    ],
+    "common_ports": [
+      80
+    ],
+    "deployment_zones": [
+      "admin_plane"
+    ]
+  },
+  {
+    "product_name": "mongodb",
+    "vendor_category": "data_layer",
+    "asset_class": "database",
+    "primary_functions": [
+      "tls_termination",
+      "data_storage",
+      "identity_management"
+    ],
+    "security_test_focus": [
+      "authentication_bypass",
+      "credential_exposure"
+    ],
+    "common_ports": [
+      80,
+      3306
+    ],
+    "deployment_zones": [
+      "admin_plane",
+      "control_plane"
+    ]
+  },
+  {
+    "product_name": "azure_key_vault",
+    "vendor_category": "cloud_security",
+    "asset_class": "secrets_manager",
+    "primary_functions": [
+      "logging",
+      "data_storage"
+    ],
+    "security_test_focus": [
+      "remote_code_execution",
+      "authentication_bypass",
+      "trust_boundary_abuse"
+    ],
+    "common_ports": [
+      8080,
+      6379
+    ],
+    "deployment_zones": [
+      "admin_plane",
+      "data_plane"
+    ]
+  },
+  {
+    "product_name": "splunk",
+    "vendor_category": "security_analytics",
+    "asset_class": "siem",
+    "primary_functions": [
+      "tls_termination",
+      "logging",
+      "authentication_broker"
+    ],
+    "security_test_focus": [
+      "data_exfiltration",
+      "misconfiguration",
+      "trust_boundary_abuse"
+    ],
+    "common_ports": [
+      6379
+    ],
+    "deployment_zones": [
+      "edge"
+    ]
+  },
+  {
+    "product_name": "active_directory",
+    "vendor_category": "identity",
+    "asset_class": "directory_service",
+    "primary_functions": [
+      "container_orchestration",
+      "logging",
+      "traffic_filtering"
+    ],
+    "security_test_focus": [
+      "misconfiguration",
+      "access_control_weakness",
+      "privilege_escalation",
+      "trust_boundary_abuse"
+    ],
+    "common_ports": [
+      8080
+    ],
+    "deployment_zones": [
+      "admin_plane",
+      "edge"
+    ]
+  },
+  {
+    "product_name": "paloalto_globalprotect",
+    "vendor_category": "network_edge",
+    "asset_class": "remote_access_gateway",
+    "primary_functions": [
+      "container_orchestration",
+      "identity_management"
+    ],
+    "security_test_focus": [
+      "trust_boundary_abuse",
+      "credential_exposure",
+      "privilege_escalation",
+      "misconfiguration"
+    ],
+    "common_ports": [
+      80,
+      443,
+      3306
+    ],
+    "deployment_zones": [
+      "control_plane",
+      "internal"
+    ]
+  },
+  {
+    "product_name": "paloalto_globalprotect",
+    "vendor_category": "network_edge",
+    "asset_class": "remote_access_gateway",
+    "primary_functions": [
+      "traffic_filtering",
+      "message_queueing",
+      "data_storage"
+    ],
+    "security_test_focus": [
+      "misconfiguration",
+      "authentication_bypass"
+    ],
+    "common_ports": [
+      9200,
+      8080
+    ],
+    "deployment_zones": [
+      "edge",
+      "data_plane"
+    ]
+  },
+  {
+    "product_name": "envoy",
+    "vendor_category": "service_mesh",
+    "asset_class": "service_proxy",
+    "primary_functions": [
+      "request_routing",
+      "data_storage",
+      "container_orchestration"
+    ],
+    "security_test_focus": [
+      "credential_exposure",
+      "data_exfiltration",
+      "privilege_escalation",
+      "authentication_bypass"
+    ],
+    "common_ports": [
+      9200,
+      80
+    ],
+    "deployment_zones": [
+      "edge",
+      "admin_plane"
+    ]
+  },
+  {
+    "product_name": "hashicorp_consul",
+    "vendor_category": "service_mesh",
+    "asset_class": "service_discovery",
+    "primary_functions": [
+      "tls_termination",
+      "logging",
+      "container_orchestration"
+    ],
+    "security_test_focus": [
+      "authentication_bypass",
+      "trust_boundary_abuse",
+      "privilege_escalation",
+      "credential_exposure"
+    ],
+    "common_ports": [
+      80,
+      8080,
+      3306
+    ],
+    "deployment_zones": [
+      "edge"
+    ]
+  },
+  {
+    "product_name": "activemq",
+    "vendor_category": "integration",
+    "asset_class": "message_bus",
+    "primary_functions": [
+      "data_storage",
+      "container_orchestration",
+      "traffic_filtering",
+      "identity_management"
+    ],
+    "security_test_focus": [
+      "access_control_weakness",
+      "remote_code_execution",
+      "privilege_escalation",
+      "credential_exposure"
+    ],
+    "common_ports": [
+      3306,
+      9200,
+      8080
+    ],
+    "deployment_zones": [
+      "control_plane",
+      "admin_plane"
+    ]
+  },
+  {
+    "product_name": "logstash",
+    "vendor_category": "analytics",
+    "asset_class": "log_ingestion",
+    "primary_functions": [
+      "tls_termination",
+      "container_orchestration",
+      "data_storage",
+      "application_execution"
+    ],
+    "security_test_focus": [
+      "credential_exposure",
+      "remote_code_execution",
+      "access_control_weakness",
+      "misconfiguration"
+    ],
+    "common_ports": [
+      5432,
+      9200
+    ],
+    "deployment_zones": [
+      "admin_plane",
+      "internal"
+    ]
+  },
+  {
+    "product_name": "kafka",
+    "vendor_category": "integration",
+    "asset_class": "message_bus",
+    "primary_functions": [
+      "logging",
+      "request_routing"
+    ],
+    "security_test_focus": [
+      "trust_boundary_abuse",
+      "access_control_weakness",
+      "credential_exposure",
+      "privilege_escalation"
+    ],
+    "common_ports": [
+      5432
+    ],
+    "deployment_zones": [
+      "control_plane",
+      "internal"
+    ]
+  },
+  {
+    "product_name": "redis",
+    "vendor_category": "data_layer",
+    "asset_class": "cache",
+    "primary_functions": [
+      "traffic_filtering",
+      "identity_management",
+      "telemetry_collection",
+      "container_orchestration"
+    ],
+    "security_test_focus": [
+      "credential_exposure",
+      "authentication_bypass",
+      "remote_code_execution"
+    ],
+    "common_ports": [
+      6379,
+      5432,
+      22
+    ],
+    "deployment_zones": [
+      "edge"
+    ]
+  },
+  {
+    "product_name": "kubernetes_api",
+    "vendor_category": "container_platform",
+    "asset_class": "container_control_plane",
+    "primary_functions": [
+      "telemetry_collection",
+      "traffic_filtering",
+      "logging",
+      "tls_termination"
+    ],
+    "security_test_focus": [
+      "privilege_escalation",
+      "access_control_weakness",
+      "data_exfiltration"
+    ],
+    "common_ports": [
+      22,
+      3306,
+      6379
+    ],
+    "deployment_zones": [
+      "edge",
+      "data_plane"
+    ]
+  },
+  {
+    "product_name": "okta",
+    "vendor_category": "identity",
+    "asset_class": "identity_provider",
+    "primary_functions": [
+      "identity_management",
+      "logging",
+      "telemetry_collection",
+      "request_routing"
+    ],
+    "security_test_focus": [
+      "misconfiguration",
+      "data_exfiltration"
+    ],
+    "common_ports": [
+      8443,
+      3306,
+      6379
+    ],
+    "deployment_zones": [
+      "admin_plane"
+    ]
+  },
+  {
+    "product_name": "redis",
+    "vendor_category": "data_layer",
+    "asset_class": "cache",
+    "primary_functions": [
+      "container_orchestration",
+      "message_queueing"
+    ],
+    "security_test_focus": [
+      "data_exfiltration",
+      "authentication_bypass"
+    ],
+    "common_ports": [
+      8443,
+      443,
+      8080
+    ],
+    "deployment_zones": [
+      "admin_plane",
+      "control_plane"
+    ]
+  },
+  {
+    "product_name": "activemq_41",
+    "vendor_category": "integration",
+    "asset_class": "message_bus",
+    "primary_functions": [
+      "container_orchestration",
+      "data_storage",
+      "authentication_broker"
+    ],
+    "security_test_focus": [
+      "authentication_bypass",
+      "trust_boundary_abuse"
+    ],
+    "common_ports": [
+      3306,
+      8080
+    ],
+    "deployment_zones": [
+      "internal",
+      "control_plane"
+    ]
+  },
+  {
+    "product_name": "haproxy_42",
+    "vendor_category": "network_edge",
+    "asset_class": "load_balancer",
+    "primary_functions": [
+      "logging",
+      "tls_termination",
+      "container_orchestration"
+    ],
+    "security_test_focus": [
+      "authentication_bypass",
+      "credential_exposure",
+      "remote_code_execution"
+    ],
+    "common_ports": [
+      6379
+    ],
+    "deployment_zones": [
+      "edge"
+    ]
+  },
+  {
+    "product_name": "adfs_43",
+    "vendor_category": "identity",
+    "asset_class": "identity_provider",
+    "primary_functions": [
+      "authentication_broker",
+      "logging",
+      "traffic_filtering"
+    ],
+    "security_test_focus": [
+      "misconfiguration",
+      "trust_boundary_abuse",
+      "authentication_bypass"
+    ],
+    "common_ports": [
+      22,
+      80,
+      8443
+    ],
+    "deployment_zones": [
+      "internal",
+      "control_plane"
+    ]
+  },
+  {
+    "product_name": "hashicorp_consul_44",
+    "vendor_category": "service_mesh",
+    "asset_class": "service_discovery",
+    "primary_functions": [
+      "authentication_broker",
+      "message_queueing",
+      "telemetry_collection"
+    ],
+    "security_test_focus": [
+      "access_control_weakness",
+      "misconfiguration"
+    ],
+    "common_ports": [
+      9200,
+      80
+    ],
+    "deployment_zones": [
+      "data_plane",
+      "internal"
+    ]
+  },
+  {
+    "product_name": "memcached_45",
+    "vendor_category": "data_layer",
+    "asset_class": "cache",
+    "primary_functions": [
+      "data_storage",
+      "telemetry_collection",
+      "tls_termination",
+      "container_orchestration"
+    ],
+    "security_test_focus": [
+      "credential_exposure",
+      "privilege_escalation",
+      "access_control_weakness"
+    ],
+    "common_ports": [
+      3306,
+      22,
+      8443
+    ],
+    "deployment_zones": [
+      "internal",
+      "data_plane"
+    ]
+  },
+  {
+    "product_name": "github_actions_runner_46",
+    "vendor_category": "devops",
+    "asset_class": "ci_cd_runner",
+    "primary_functions": [
+      "message_queueing",
+      "application_execution",
+      "authentication_broker"
+    ],
+    "security_test_focus": [
+      "privilege_escalation",
+      "authentication_bypass",
+      "misconfiguration",
+      "remote_code_execution"
+    ],
+    "common_ports": [
+      5432
+    ],
+    "deployment_zones": [
+      "edge"
+    ]
+  },
+  {
+    "product_name": "rabbitmq_47",
+    "vendor_category": "integration",
+    "asset_class": "message_bus",
+    "primary_functions": [
+      "logging",
+      "identity_management"
+    ],
+    "security_test_focus": [
+      "data_exfiltration",
+      "authentication_bypass",
+      "credential_exposure"
+    ],
+    "common_ports": [
+      9200
+    ],
+    "deployment_zones": [
+      "edge",
+      "internal"
+    ]
+  },
+  {
+    "product_name": "active_directory_48",
+    "vendor_category": "identity",
+    "asset_class": "directory_service",
+    "primary_functions": [
+      "tls_termination",
+      "telemetry_collection",
+      "container_orchestration"
+    ],
+    "security_test_focus": [
+      "credential_exposure",
+      "remote_code_execution"
+    ],
+    "common_ports": [
+      9200,
+      8080
+    ],
+    "deployment_zones": [
+      "internal",
+      "data_plane"
+    ]
+  },
+  {
+    "product_name": "opensearch_49",
+    "vendor_category": "analytics",
+    "asset_class": "search_engine",
+    "primary_functions": [
+      "application_execution",
+      "message_queueing",
+      "logging"
+    ],
+    "security_test_focus": [
+      "privilege_escalation",
+      "data_exfiltration",
+      "trust_boundary_abuse",
+      "remote_code_execution"
+    ],
+    "common_ports": [
+      9200,
+      8443,
+      8080
+    ],
+    "deployment_zones": [
+      "edge",
+      "control_plane"
+    ]
+  },
+  {
+    "product_name": "mssql_50",
+    "vendor_category": "data_layer",
+    "asset_class": "database",
+    "primary_functions": [
+      "application_execution",
+      "data_storage"
+    ],
+    "security_test_focus": [
+      "privilege_escalation",
+      "trust_boundary_abuse"
+    ],
+    "common_ports": [
+      9200,
+      22
+    ],
+    "deployment_zones": [
+      "admin_plane"
+    ]
+  },
+  {
+    "product_name": "okta_51",
+    "vendor_category": "identity",
+    "asset_class": "identity_provider",
+    "primary_functions": [
+      "container_orchestration",
+      "identity_management"
+    ],
+    "security_test_focus": [
+      "misconfiguration",
+      "authentication_bypass",
+      "credential_exposure",
+      "remote_code_execution"
+    ],
+    "common_ports": [
+      22
+    ],
+    "deployment_zones": [
+      "admin_plane",
+      "data_plane"
+    ]
+  },
+  {
+    "product_name": "apache_httpd_52",
+    "vendor_category": "web_infrastructure",
+    "asset_class": "web_server",
+    "primary_functions": [
+      "message_queueing",
+      "logging",
+      "request_routing"
+    ],
+    "security_test_focus": [
+      "access_control_weakness",
+      "trust_boundary_abuse"
+    ],
+    "common_ports": [
+      80,
+      8443
+    ],
+    "deployment_zones": [
+      "internal"
+    ]
+  },
+  {
+    "product_name": "proofpoint_53",
+    "vendor_category": "email",
+    "asset_class": "email_security_gateway",
+    "primary_functions": [
+      "authentication_broker",
+      "traffic_filtering"
+    ],
+    "security_test_focus": [
+      "misconfiguration",
+      "access_control_weakness",
+      "data_exfiltration"
+    ],
+    "common_ports": [
+      3306,
+      6379,
+      5432
+    ],
+    "deployment_zones": [
+      "admin_plane"
+    ]
+  },
+  {
+    "product_name": "kubernetes_ingress_54",
+    "vendor_category": "container_platform",
+    "asset_class": "ingress_controller",
+    "primary_functions": [
+      "authentication_broker",
+      "identity_management"
+    ],
+    "security_test_focus": [
+      "authentication_bypass",
+      "access_control_weakness"
+    ],
+    "common_ports": [
+      8080,
+      6379
+    ],
+    "deployment_zones": [
+      "internal",
+      "edge"
+    ]
+  },
+  {
+    "product_name": "opensearch_55",
+    "vendor_category": "analytics",
+    "asset_class": "search_engine",
+    "primary_functions": [
+      "data_storage",
+      "identity_management"
+    ],
+    "security_test_focus": [
+      "access_control_weakness",
+      "credential_exposure",
+      "misconfiguration"
+    ],
+    "common_ports": [
+      6379,
+      443,
+      80
+    ],
+    "deployment_zones": [
+      "internal",
+      "admin_plane"
+    ]
+  },
+  {
+    "product_name": "splunk_56",
+    "vendor_category": "security_analytics",
+    "asset_class": "siem",
+    "primary_functions": [
+      "container_orchestration",
+      "application_execution"
+    ],
+    "security_test_focus": [
+      "authentication_bypass",
+      "access_control_weakness",
+      "data_exfiltration",
+      "misconfiguration"
+    ],
+    "common_ports": [
+      8080,
+      3306,
+      443
+    ],
+    "deployment_zones": [
+      "data_plane"
+    ]
+  },
+  {
+    "product_name": "paloalto_globalprotect_57",
+    "vendor_category": "network_edge",
+    "asset_class": "remote_access_gateway",
+    "primary_functions": [
+      "logging",
+      "application_execution",
+      "data_storage"
+    ],
+    "security_test_focus": [
+      "access_control_weakness",
+      "privilege_escalation",
+      "credential_exposure",
+      "trust_boundary_abuse"
+    ],
+    "common_ports": [
+      3306,
+      80,
+      6379
+    ],
+    "deployment_zones": [
+      "admin_plane"
+    ]
+  },
+  {
+    "product_name": "citrix_adc_58",
+    "vendor_category": "network_edge",
+    "asset_class": "application_gateway",
+    "primary_functions": [
+      "request_routing",
+      "telemetry_collection",
+      "message_queueing"
+    ],
+    "security_test_focus": [
+      "credential_exposure",
+      "remote_code_execution",
+      "data_exfiltration"
+    ],
+    "common_ports": [
+      8443,
+      80,
+      3306
+    ],
+    "deployment_zones": [
+      "admin_plane",
+      "edge"
+    ]
+  },
+  {
+    "product_name": "adfs_59",
+    "vendor_category": "identity",
+    "asset_class": "identity_provider",
+    "primary_functions": [
+      "application_execution",
+      "container_orchestration",
+      "message_queueing",
+      "traffic_filtering"
+    ],
+    "security_test_focus": [
+      "privilege_escalation",
+      "remote_code_execution"
+    ],
+    "common_ports": [
+      9200,
+      6379
+    ],
+    "deployment_zones": [
+      "admin_plane",
+      "control_plane"
+    ]
+  },
+  {
+    "product_name": "fortigate_vpn_60",
+    "vendor_category": "network_edge",
+    "asset_class": "remote_access_gateway",
+    "primary_functions": [
+      "telemetry_collection",
+      "application_execution"
+    ],
+    "security_test_focus": [
+      "authentication_bypass",
+      "remote_code_execution",
+      "access_control_weakness"
+    ],
+    "common_ports": [
+      9200,
+      3306,
+      22
+    ],
+    "deployment_zones": [
+      "admin_plane",
+      "data_plane"
+    ]
+  },
+  {
+    "product_name": "kafka_61",
+    "vendor_category": "integration",
+    "asset_class": "message_bus",
+    "primary_functions": [
+      "message_queueing",
+      "container_orchestration"
+    ],
+    "security_test_focus": [
+      "privilege_escalation",
+      "credential_exposure",
+      "access_control_weakness",
+      "misconfiguration"
+    ],
+    "common_ports": [
+      22
+    ],
+    "deployment_zones": [
+      "admin_plane",
+      "internal"
+    ]
+  },
+  {
+    "product_name": "active_directory_62",
+    "vendor_category": "identity",
+    "asset_class": "directory_service",
+    "primary_functions": [
+      "telemetry_collection",
+      "tls_termination",
+      "identity_management"
+    ],
+    "security_test_focus": [
+      "data_exfiltration",
+      "misconfiguration",
+      "authentication_bypass"
+    ],
+    "common_ports": [
+      443,
+      22,
+      6379
+    ],
+    "deployment_zones": [
+      "data_plane",
+      "control_plane"
+    ]
+  },
+  {
+    "product_name": "haproxy_63",
+    "vendor_category": "network_edge",
+    "asset_class": "load_balancer",
+    "primary_functions": [
+      "logging",
+      "telemetry_collection",
+      "authentication_broker",
+      "request_routing"
+    ],
+    "security_test_focus": [
+      "authentication_bypass",
+      "privilege_escalation",
+      "data_exfiltration",
+      "misconfiguration"
+    ],
+    "common_ports": [
+      9200
+    ],
+    "deployment_zones": [
+      "data_plane",
+      "admin_plane"
+    ]
+  },
+  {
+    "product_name": "okta_64",
+    "vendor_category": "identity",
+    "asset_class": "identity_provider",
+    "primary_functions": [
+      "logging",
+      "data_storage",
+      "telemetry_collection"
+    ],
+    "security_test_focus": [
+      "trust_boundary_abuse",
+      "authentication_bypass"
+    ],
+    "common_ports": [
+      9200,
+      8080
+    ],
+    "deployment_zones": [
+      "data_plane"
+    ]
+  },
+  {
+    "product_name": "okta_65",
+    "vendor_category": "identity",
+    "asset_class": "identity_provider",
+    "primary_functions": [
+      "data_storage",
+      "message_queueing",
+      "application_execution",
+      "identity_management"
+    ],
+    "security_test_focus": [
+      "privilege_escalation",
+      "trust_boundary_abuse",
+      "misconfiguration"
+    ],
+    "common_ports": [
+      3306,
+      8080,
+      8443
+    ],
+    "deployment_zones": [
+      "admin_plane",
+      "data_plane"
+    ]
+  },
+  {
+    "product_name": "mssql_66",
+    "vendor_category": "data_layer",
+    "asset_class": "database",
+    "primary_functions": [
+      "message_queueing",
+      "traffic_filtering",
+      "container_orchestration",
+      "tls_termination"
+    ],
+    "security_test_focus": [
+      "authentication_bypass",
+      "remote_code_execution",
+      "credential_exposure",
+      "trust_boundary_abuse"
+    ],
+    "common_ports": [
+      3306,
+      9200
+    ],
+    "deployment_zones": [
+      "internal"
+    ]
+  },
+  {
+    "product_name": "postgresql_67",
+    "vendor_category": "data_layer",
+    "asset_class": "database",
+    "primary_functions": [
+      "container_orchestration",
+      "traffic_filtering",
+      "application_execution"
+    ],
+    "security_test_focus": [
+      "privilege_escalation",
+      "data_exfiltration"
+    ],
+    "common_ports": [
+      6379,
+      5432
+    ],
+    "deployment_zones": [
+      "edge"
+    ]
+  },
+  {
+    "product_name": "mssql_68",
+    "vendor_category": "data_layer",
+    "asset_class": "database",
+    "primary_functions": [
+      "container_orchestration",
+      "data_storage",
+      "application_execution"
+    ],
+    "security_test_focus": [
+      "remote_code_execution",
+      "credential_exposure",
+      "misconfiguration"
+    ],
+    "common_ports": [
+      80
+    ],
+    "deployment_zones": [
+      "data_plane",
+      "control_plane"
+    ]
+  },
+  {
+    "product_name": "docker_engine_69",
+    "vendor_category": "container_platform",
+    "asset_class": "container_runtime",
+    "primary_functions": [
+      "traffic_filtering",
+      "message_queueing",
+      "data_storage",
+      "application_execution"
+    ],
+    "security_test_focus": [
+      "credential_exposure",
+      "privilege_escalation",
+      "data_exfiltration"
+    ],
+    "common_ports": [
+      5432,
+      80,
+      8080
+    ],
+    "deployment_zones": [
+      "internal",
+      "control_plane"
+    ]
+  },
+  {
+    "product_name": "fortigate_vpn_70",
+    "vendor_category": "network_edge",
+    "asset_class": "remote_access_gateway",
+    "primary_functions": [
+      "authentication_broker",
+      "container_orchestration",
+      "data_storage"
+    ],
+    "security_test_focus": [
+      "data_exfiltration",
+      "authentication_bypass",
+      "privilege_escalation",
+      "access_control_weakness"
+    ],
+    "common_ports": [
+      9200,
+      443,
+      8443
+    ],
+    "deployment_zones": [
+      "edge",
+      "admin_plane"
+    ]
+  },
+  {
+    "product_name": "okta_71",
+    "vendor_category": "identity",
+    "asset_class": "identity_provider",
+    "primary_functions": [
+      "identity_management",
+      "data_storage"
+    ],
+    "security_test_focus": [
+      "credential_exposure",
+      "access_control_weakness",
+      "misconfiguration",
+      "data_exfiltration"
+    ],
+    "common_ports": [
+      8443,
+      443,
+      8080
+    ],
+    "deployment_zones": [
+      "control_plane",
+      "data_plane"
+    ]
+  },
+  {
+    "product_name": "postgresql_72",
+    "vendor_category": "data_layer",
+    "asset_class": "database",
+    "primary_functions": [
+      "authentication_broker",
+      "tls_termination"
+    ],
+    "security_test_focus": [
+      "remote_code_execution",
+      "data_exfiltration",
+      "misconfiguration",
+      "privilege_escalation"
+    ],
+    "common_ports": [
+      6379,
+      443
+    ],
+    "deployment_zones": [
+      "admin_plane"
+    ]
+  },
+  {
+    "product_name": "github_actions_runner_73",
+    "vendor_category": "devops",
+    "asset_class": "ci_cd_runner",
+    "primary_functions": [
+      "application_execution",
+      "tls_termination",
+      "traffic_filtering",
+      "container_orchestration"
+    ],
+    "security_test_focus": [
+      "remote_code_execution",
+      "credential_exposure"
+    ],
+    "common_ports": [
+      443,
+      9200
+    ],
+    "deployment_zones": [
+      "data_plane"
+    ]
+  },
+  {
+    "product_name": "hashicorp_consul_74",
+    "vendor_category": "service_mesh",
+    "asset_class": "service_discovery",
+    "primary_functions": [
+      "identity_management",
+      "tls_termination"
+    ],
+    "security_test_focus": [
+      "authentication_bypass",
+      "data_exfiltration",
+      "credential_exposure",
+      "access_control_weakness"
+    ],
+    "common_ports": [
+      80,
+      443,
+      5432
+    ],
+    "deployment_zones": [
+      "data_plane",
+      "edge"
+    ]
+  },
+  {
+    "product_name": "activemq_75",
+    "vendor_category": "integration",
+    "asset_class": "message_bus",
+    "primary_functions": [
+      "identity_management",
+      "data_storage",
+      "telemetry_collection",
+      "container_orchestration"
+    ],
+    "security_test_focus": [
+      "data_exfiltration",
+      "remote_code_execution",
+      "access_control_weakness",
+      "authentication_bypass"
+    ],
+    "common_ports": [
+      9200
+    ],
+    "deployment_zones": [
+      "admin_plane"
+    ]
+  },
+  {
+    "product_name": "paloalto_globalprotect_76",
+    "vendor_category": "network_edge",
+    "asset_class": "remote_access_gateway",
+    "primary_functions": [
+      "data_storage",
+      "traffic_filtering",
+      "container_orchestration",
+      "authentication_broker"
+    ],
+    "security_test_focus": [
+      "data_exfiltration",
+      "privilege_escalation"
+    ],
+    "common_ports": [
+      3306,
+      8080,
+      443
+    ],
+    "deployment_zones": [
+      "internal",
+      "control_plane"
+    ]
+  },
+  {
+    "product_name": "azure_key_vault_77",
+    "vendor_category": "cloud_security",
+    "asset_class": "secrets_manager",
+    "primary_functions": [
+      "authentication_broker",
+      "tls_termination",
+      "telemetry_collection"
+    ],
+    "security_test_focus": [
+      "credential_exposure",
+      "privilege_escalation",
+      "access_control_weakness",
+      "authentication_bypass"
+    ],
+    "common_ports": [
+      8443
+    ],
+    "deployment_zones": [
+      "edge"
+    ]
+  },
+  {
+    "product_name": "okta_78",
+    "vendor_category": "identity",
+    "asset_class": "identity_provider",
+    "primary_functions": [
+      "container_orchestration",
+      "application_execution",
+      "message_queueing",
+      "logging"
+    ],
+    "security_test_focus": [
+      "access_control_weakness",
+      "misconfiguration",
+      "trust_boundary_abuse"
+    ],
+    "common_ports": [
+      22,
+      9200,
+      80
+    ],
+    "deployment_zones": [
+      "edge",
+      "internal"
+    ]
+  },
+  {
+    "product_name": "postfix_79",
+    "vendor_category": "email",
+    "asset_class": "mail_transfer_agent",
+    "primary_functions": [
+      "logging",
+      "authentication_broker",
+      "application_execution",
+      "data_storage"
+    ],
+    "security_test_focus": [
+      "credential_exposure",
+      "authentication_bypass",
+      "data_exfiltration",
+      "misconfiguration"
+    ],
+    "common_ports": [
+      8080,
+      3306,
+      6379
+    ],
+    "deployment_zones": [
+      "internal"
+    ]
+  },
+  {
+    "product_name": "paloalto_globalprotect_80",
+    "vendor_category": "network_edge",
+    "asset_class": "remote_access_gateway",
+    "primary_functions": [
+      "application_execution",
+      "data_storage",
+      "traffic_filtering"
+    ],
+    "security_test_focus": [
+      "data_exfiltration",
+      "authentication_bypass",
+      "access_control_weakness",
+      "misconfiguration"
+    ],
+    "common_ports": [
+      9200,
+      8080
+    ],
+    "deployment_zones": [
+      "data_plane",
+      "internal"
+    ]
+  },
+  {
+    "product_name": "postgresql_81",
+    "vendor_category": "data_layer",
+    "asset_class": "database",
+    "primary_functions": [
+      "tls_termination",
+      "telemetry_collection",
+      "logging",
+      "identity_management"
+    ],
+    "security_test_focus": [
+      "privilege_escalation",
+      "access_control_weakness",
+      "credential_exposure",
+      "authentication_bypass"
+    ],
+    "common_ports": [
+      80,
+      5432
+    ],
+    "deployment_zones": [
+      "edge",
+      "data_plane"
+    ]
+  },
+  {
+    "product_name": "kubernetes_api_82",
+    "vendor_category": "container_platform",
+    "asset_class": "container_control_plane",
+    "primary_functions": [
+      "data_storage",
+      "container_orchestration",
+      "identity_management",
+      "application_execution"
+    ],
+    "security_test_focus": [
+      "privilege_escalation",
+      "data_exfiltration"
+    ],
+    "common_ports": [
+      3306,
+      8443
+    ],
+    "deployment_zones": [
+      "edge"
+    ]
+  },
+  {
+    "product_name": "docker_engine_83",
+    "vendor_category": "container_platform",
+    "asset_class": "container_runtime",
+    "primary_functions": [
+      "message_queueing",
+      "application_execution",
+      "logging"
+    ],
+    "security_test_focus": [
+      "misconfiguration",
+      "remote_code_execution",
+      "authentication_bypass"
+    ],
+    "common_ports": [
+      9200,
+      5432
+    ],
+    "deployment_zones": [
+      "internal"
+    ]
+  },
+  {
+    "product_name": "nginx_84",
+    "vendor_category": "web_infrastructure",
+    "asset_class": "reverse_proxy",
+    "primary_functions": [
+      "data_storage",
+      "authentication_broker",
+      "request_routing"
+    ],
+    "security_test_focus": [
+      "misconfiguration",
+      "trust_boundary_abuse"
+    ],
+    "common_ports": [
+      6379,
+      3306,
+      8080
+    ],
+    "deployment_zones": [
+      "admin_plane"
+    ]
+  },
+  {
+    "product_name": "vault_85",
+    "vendor_category": "security_infrastructure",
+    "asset_class": "secrets_manager",
+    "primary_functions": [
+      "data_storage",
+      "identity_management",
+      "authentication_broker"
+    ],
+    "security_test_focus": [
+      "misconfiguration",
+      "access_control_weakness",
+      "credential_exposure"
+    ],
+    "common_ports": [
+      22,
+      9200,
+      443
+    ],
+    "deployment_zones": [
+      "admin_plane",
+      "internal"
+    ]
+  },
+  {
+    "product_name": "logstash_86",
+    "vendor_category": "analytics",
+    "asset_class": "log_ingestion",
+    "primary_functions": [
+      "container_orchestration",
+      "tls_termination",
+      "authentication_broker",
+      "message_queueing"
+    ],
+    "security_test_focus": [
+      "access_control_weakness",
+      "data_exfiltration",
+      "privilege_escalation"
+    ],
+    "common_ports": [
+      5432,
+      80
+    ],
+    "deployment_zones": [
+      "internal"
+    ]
+  },
+  {
+    "product_name": "active_directory_87",
+    "vendor_category": "identity",
+    "asset_class": "directory_service",
+    "primary_functions": [
+      "application_execution",
+      "container_orchestration"
+    ],
+    "security_test_focus": [
+      "access_control_weakness",
+      "data_exfiltration",
+      "authentication_bypass"
+    ],
+    "common_ports": [
+      3306,
+      5432
+    ],
+    "deployment_zones": [
+      "edge",
+      "data_plane"
+    ]
+  },
+  {
+    "product_name": "traefik_88",
+    "vendor_category": "container_platform",
+    "asset_class": "ingress_controller",
+    "primary_functions": [
+      "data_storage",
+      "message_queueing",
+      "application_execution"
+    ],
+    "security_test_focus": [
+      "authentication_bypass",
+      "credential_exposure"
+    ],
+    "common_ports": [
+      3306,
+      443,
+      8080
+    ],
+    "deployment_zones": [
+      "data_plane"
+    ]
+  },
+  {
+    "product_name": "active_directory_89",
+    "vendor_category": "identity",
+    "asset_class": "directory_service",
+    "primary_functions": [
+      "container_orchestration",
+      "tls_termination",
+      "telemetry_collection"
+    ],
+    "security_test_focus": [
+      "remote_code_execution",
+      "privilege_escalation",
+      "data_exfiltration"
+    ],
+    "common_ports": [
+      5432,
+      443,
+      6379
+    ],
+    "deployment_zones": [
+      "internal"
+    ]
+  },
+  {
+    "product_name": "opensearch_90",
+    "vendor_category": "analytics",
+    "asset_class": "search_engine",
+    "primary_functions": [
+      "message_queueing",
+      "identity_management",
+      "logging"
+    ],
+    "security_test_focus": [
+      "remote_code_execution",
+      "privilege_escalation"
+    ],
+    "common_ports": [
+      5432
+    ],
+    "deployment_zones": [
+      "data_plane"
+    ]
+  },
+  {
+    "product_name": "haproxy_91",
+    "vendor_category": "network_edge",
+    "asset_class": "load_balancer",
+    "primary_functions": [
+      "message_queueing",
+      "authentication_broker",
+      "tls_termination",
+      "telemetry_collection"
+    ],
+    "security_test_focus": [
+      "access_control_weakness",
+      "privilege_escalation",
+      "misconfiguration"
+    ],
+    "common_ports": [
+      443,
+      8443,
+      9200
+    ],
+    "deployment_zones": [
+      "admin_plane",
+      "control_plane"
+    ]
+  },
+  {
+    "product_name": "mssql_92",
+    "vendor_category": "data_layer",
+    "asset_class": "database",
+    "primary_functions": [
+      "data_storage",
+      "identity_management",
+      "logging"
+    ],
+    "security_test_focus": [
+      "trust_boundary_abuse",
+      "misconfiguration"
+    ],
+    "common_ports": [
+      8443
+    ],
+    "deployment_zones": [
+      "control_plane",
+      "edge"
+    ]
+  },
+  {
+    "product_name": "iis_93",
+    "vendor_category": "windows_web",
+    "asset_class": "web_server",
+    "primary_functions": [
+      "traffic_filtering",
+      "container_orchestration",
+      "telemetry_collection",
+      "identity_management"
+    ],
+    "security_test_focus": [
+      "authentication_bypass",
+      "data_exfiltration",
+      "privilege_escalation"
+    ],
+    "common_ports": [
+      5432,
+      22,
+      80
+    ],
+    "deployment_zones": [
+      "admin_plane"
+    ]
+  },
+  {
+    "product_name": "okta_94",
+    "vendor_category": "identity",
+    "asset_class": "identity_provider",
+    "primary_functions": [
+      "request_routing",
+      "data_storage",
+      "logging",
+      "telemetry_collection"
+    ],
+    "security_test_focus": [
+      "privilege_escalation",
+      "credential_exposure"
+    ],
+    "common_ports": [
+      3306,
+      8443
+    ],
+    "deployment_zones": [
+      "admin_plane"
+    ]
+  },
+  {
+    "product_name": "mssql_95",
+    "vendor_category": "data_layer",
+    "asset_class": "database",
+    "primary_functions": [
+      "request_routing",
+      "authentication_broker",
+      "traffic_filtering",
+      "data_storage"
+    ],
+    "security_test_focus": [
+      "trust_boundary_abuse",
+      "access_control_weakness",
+      "credential_exposure",
+      "authentication_bypass"
+    ],
+    "common_ports": [
+      5432,
+      443,
+      8080
+    ],
+    "deployment_zones": [
+      "data_plane",
+      "admin_plane"
+    ]
+  },
+  {
+    "product_name": "kubernetes_ingress_96",
+    "vendor_category": "container_platform",
+    "asset_class": "ingress_controller",
+    "primary_functions": [
+      "logging",
+      "tls_termination",
+      "message_queueing",
+      "data_storage"
+    ],
+    "security_test_focus": [
+      "data_exfiltration",
+      "access_control_weakness"
+    ],
+    "common_ports": [
+      3306
+    ],
+    "deployment_zones": [
+      "admin_plane",
+      "internal"
+    ]
+  },
+  {
+    "product_name": "elasticsearch_97",
+    "vendor_category": "analytics",
+    "asset_class": "search_engine",
+    "primary_functions": [
+      "logging",
+      "authentication_broker",
+      "data_storage",
+      "application_execution"
+    ],
+    "security_test_focus": [
+      "authentication_bypass",
+      "remote_code_execution",
+      "data_exfiltration"
+    ],
+    "common_ports": [
+      443
+    ],
+    "deployment_zones": [
+      "edge"
+    ]
+  },
+  {
+    "product_name": "f5_bigip_98",
+    "vendor_category": "network_edge",
+    "asset_class": "application_delivery_controller",
+    "primary_functions": [
+      "logging",
+      "application_execution"
+    ],
+    "security_test_focus": [
+      "access_control_weakness",
+      "privilege_escalation"
+    ],
+    "common_ports": [
+      3306
+    ],
+    "deployment_zones": [
+      "internal",
+      "admin_plane"
+    ]
+  },
+  {
+    "product_name": "traefik_99",
+    "vendor_category": "container_platform",
+    "asset_class": "ingress_controller",
+    "primary_functions": [
+      "identity_management",
+      "data_storage"
+    ],
+    "security_test_focus": [
+      "data_exfiltration",
+      "misconfiguration"
+    ],
+    "common_ports": [
+      6379,
+      3306,
+      8080
+    ],
+    "deployment_zones": [
+      "data_plane"
+    ]
+  },
+  {
+    "product_name": "postgresql_100",
+    "vendor_category": "data_layer",
+    "asset_class": "database",
+    "primary_functions": [
+      "identity_management",
+      "data_storage",
+      "authentication_broker"
+    ],
+    "security_test_focus": [
+      "trust_boundary_abuse",
+      "authentication_bypass",
+      "access_control_weakness"
+    ],
+    "common_ports": [
+      5432
+    ],
+    "deployment_zones": [
+      "control_plane"
+    ]
+  },
+  {
+    "product_name": "azure_key_vault_101",
+    "vendor_category": "cloud_security",
+    "asset_class": "secrets_manager",
+    "primary_functions": [
+      "request_routing",
+      "container_orchestration"
+    ],
+    "security_test_focus": [
+      "remote_code_execution",
+      "credential_exposure",
+      "data_exfiltration"
+    ],
+    "common_ports": [
+      8443
+    ],
+    "deployment_zones": [
+      "internal",
+      "admin_plane"
+    ]
+  },
+  {
+    "product_name": "redis_102",
+    "vendor_category": "data_layer",
+    "asset_class": "cache",
+    "primary_functions": [
+      "application_execution",
+      "authentication_broker"
+    ],
+    "security_test_focus": [
+      "access_control_weakness",
+      "authentication_bypass",
+      "privilege_escalation"
+    ],
+    "common_ports": [
+      5432,
+      443
+    ],
+    "deployment_zones": [
+      "edge"
+    ]
+  },
+  {
+    "product_name": "splunk_103",
+    "vendor_category": "security_analytics",
+    "asset_class": "siem",
+    "primary_functions": [
+      "identity_management",
+      "request_routing"
+    ],
+    "security_test_focus": [
+      "authentication_bypass",
+      "privilege_escalation",
+      "data_exfiltration",
+      "access_control_weakness"
+    ],
+    "common_ports": [
+      443
+    ],
+    "deployment_zones": [
+      "data_plane"
+    ]
+  },
+  {
+    "product_name": "gitlab_ci_104",
+    "vendor_category": "devops",
+    "asset_class": "ci_cd_server",
+    "primary_functions": [
+      "identity_management",
+      "application_execution",
+      "traffic_filtering"
+    ],
+    "security_test_focus": [
+      "privilege_escalation",
+      "credential_exposure",
+      "access_control_weakness"
+    ],
+    "common_ports": [
+      80,
+      9200,
+      8443
+    ],
+    "deployment_zones": [
+      "control_plane"
+    ]
+  },
+  {
+    "product_name": "activemq_105",
+    "vendor_category": "integration",
+    "asset_class": "message_bus",
+    "primary_functions": [
+      "identity_management",
+      "logging",
+      "container_orchestration"
+    ],
+    "security_test_focus": [
+      "remote_code_execution",
+      "data_exfiltration"
+    ],
+    "common_ports": [
+      8443,
+      3306
+    ],
+    "deployment_zones": [
+      "data_plane",
+      "internal"
+    ]
+  },
+  {
+    "product_name": "active_directory_106",
+    "vendor_category": "identity",
+    "asset_class": "directory_service",
+    "primary_functions": [
+      "identity_management",
+      "traffic_filtering",
+      "request_routing"
+    ],
+    "security_test_focus": [
+      "privilege_escalation",
+      "remote_code_execution",
+      "access_control_weakness"
+    ],
+    "common_ports": [
+      443
+    ],
+    "deployment_zones": [
+      "control_plane",
+      "data_plane"
+    ]
+  },
+  {
+    "product_name": "kibana_107",
+    "vendor_category": "analytics",
+    "asset_class": "log_visualization",
+    "primary_functions": [
+      "container_orchestration",
+      "logging",
+      "tls_termination",
+      "application_execution"
+    ],
+    "security_test_focus": [
+      "misconfiguration",
+      "data_exfiltration"
+    ],
+    "common_ports": [
+      8443,
+      22,
+      443
+    ],
+    "deployment_zones": [
+      "control_plane"
+    ]
+  },
+  {
+    "product_name": "postgresql_108",
+    "vendor_category": "data_layer",
+    "asset_class": "database",
+    "primary_functions": [
+      "container_orchestration",
+      "application_execution",
+      "data_storage",
+      "message_queueing"
+    ],
+    "security_test_focus": [
+      "access_control_weakness",
+      "authentication_bypass",
+      "privilege_escalation"
+    ],
+    "common_ports": [
+      443,
+      6379,
+      22
+    ],
+    "deployment_zones": [
+      "control_plane",
+      "admin_plane"
+    ]
+  },
+  {
+    "product_name": "proofpoint_109",
+    "vendor_category": "email",
+    "asset_class": "email_security_gateway",
+    "primary_functions": [
+      "authentication_broker",
+      "tls_termination",
+      "identity_management"
+    ],
+    "security_test_focus": [
+      "credential_exposure",
+      "remote_code_execution",
+      "trust_boundary_abuse",
+      "privilege_escalation"
+    ],
+    "common_ports": [
+      8443,
+      22
+    ],
+    "deployment_zones": [
+      "internal"
+    ]
+  },
+  {
+    "product_name": "exchange_110",
+    "vendor_category": "email",
+    "asset_class": "mail_server",
+    "primary_functions": [
+      "data_storage",
+      "telemetry_collection",
+      "authentication_broker"
+    ],
+    "security_test_focus": [
+      "authentication_bypass",
+      "privilege_escalation",
+      "misconfiguration"
+    ],
+    "common_ports": [
+      80,
+      443
+    ],
+    "deployment_zones": [
+      "edge"
+    ]
+  },
+  {
+    "product_name": "mysql_111",
+    "vendor_category": "data_layer",
+    "asset_class": "database",
+    "primary_functions": [
+      "data_storage",
+      "request_routing",
+      "application_execution"
+    ],
+    "security_test_focus": [
+      "credential_exposure",
+      "remote_code_execution",
+      "trust_boundary_abuse"
+    ],
+    "common_ports": [
+      8443
+    ],
+    "deployment_zones": [
+      "edge"
+    ]
+  },
+  {
+    "product_name": "mongodb_112",
+    "vendor_category": "data_layer",
+    "asset_class": "database",
+    "primary_functions": [
+      "telemetry_collection",
+      "identity_management"
+    ],
+    "security_test_focus": [
+      "remote_code_execution",
+      "trust_boundary_abuse",
+      "access_control_weakness",
+      "authentication_bypass"
+    ],
+    "common_ports": [
+      5432,
+      9200,
+      8080
+    ],
+    "deployment_zones": [
+      "control_plane",
+      "data_plane"
+    ]
+  },
+  {
+    "product_name": "rabbitmq_113",
+    "vendor_category": "integration",
+    "asset_class": "message_bus",
+    "primary_functions": [
+      "tls_termination",
+      "request_routing"
+    ],
+    "security_test_focus": [
+      "access_control_weakness",
+      "privilege_escalation",
+      "data_exfiltration",
+      "credential_exposure"
+    ],
+    "common_ports": [
+      9200
+    ],
+    "deployment_zones": [
+      "internal",
+      "data_plane"
+    ]
+  },
+  {
+    "product_name": "kibana_114",
+    "vendor_category": "analytics",
+    "asset_class": "log_visualization",
+    "primary_functions": [
+      "traffic_filtering",
+      "logging"
+    ],
+    "security_test_focus": [
+      "remote_code_execution",
+      "data_exfiltration",
+      "authentication_bypass",
+      "credential_exposure"
+    ],
+    "common_ports": [
+      3306,
+      5432,
+      9200
+    ],
+    "deployment_zones": [
+      "data_plane"
+    ]
+  },
+  {
+    "product_name": "nginx_115",
+    "vendor_category": "web_infrastructure",
+    "asset_class": "reverse_proxy",
+    "primary_functions": [
+      "authentication_broker",
+      "data_storage",
+      "application_execution",
+      "telemetry_collection"
+    ],
+    "security_test_focus": [
+      "remote_code_execution",
+      "privilege_escalation"
+    ],
+    "common_ports": [
+      8443
+    ],
+    "deployment_zones": [
+      "data_plane",
+      "internal"
+    ]
+  },
+  {
+    "product_name": "github_actions_runner_116",
+    "vendor_category": "devops",
+    "asset_class": "ci_cd_runner",
+    "primary_functions": [
+      "logging",
+      "request_routing",
+      "telemetry_collection",
+      "identity_management"
+    ],
+    "security_test_focus": [
+      "remote_code_execution",
+      "data_exfiltration",
+      "trust_boundary_abuse",
+      "authentication_bypass"
+    ],
+    "common_ports": [
+      8080
+    ],
+    "deployment_zones": [
+      "admin_plane",
+      "edge"
+    ]
+  },
+  {
+    "product_name": "kibana_117",
+    "vendor_category": "analytics",
+    "asset_class": "log_visualization",
+    "primary_functions": [
+      "telemetry_collection",
+      "application_execution"
+    ],
+    "security_test_focus": [
+      "privilege_escalation",
+      "credential_exposure"
+    ],
+    "common_ports": [
+      8443
+    ],
+    "deployment_zones": [
+      "control_plane",
+      "admin_plane"
+    ]
+  },
+  {
+    "product_name": "elasticsearch_118",
+    "vendor_category": "analytics",
+    "asset_class": "search_engine",
+    "primary_functions": [
+      "container_orchestration",
+      "request_routing",
+      "application_execution",
+      "traffic_filtering"
+    ],
+    "security_test_focus": [
+      "data_exfiltration",
+      "misconfiguration",
+      "trust_boundary_abuse"
+    ],
+    "common_ports": [
+      22
+    ],
+    "deployment_zones": [
+      "admin_plane",
+      "control_plane"
+    ]
+  },
+  {
+    "product_name": "traefik_119",
+    "vendor_category": "container_platform",
+    "asset_class": "ingress_controller",
+    "primary_functions": [
+      "logging",
+      "traffic_filtering",
+      "request_routing"
+    ],
+    "security_test_focus": [
+      "misconfiguration",
+      "data_exfiltration",
+      "trust_boundary_abuse",
+      "credential_exposure"
+    ],
+    "common_ports": [
+      8080,
+      5432,
+      3306
+    ],
+    "deployment_zones": [
+      "internal",
+      "admin_plane"
+    ]
+  },
+  {
+    "product_name": "rabbitmq_120",
+    "vendor_category": "integration",
+    "asset_class": "message_bus",
+    "primary_functions": [
+      "authentication_broker",
+      "container_orchestration",
+      "identity_management"
+    ],
+    "security_test_focus": [
+      "credential_exposure",
+      "misconfiguration",
+      "data_exfiltration",
+      "privilege_escalation"
+    ],
+    "common_ports": [
+      80
+    ],
+    "deployment_zones": [
+      "edge",
+      "internal"
+    ]
+  },
+  {
+    "product_name": "exchange_121",
+    "vendor_category": "email",
+    "asset_class": "mail_server",
+    "primary_functions": [
+      "application_execution",
+      "authentication_broker"
+    ],
+    "security_test_focus": [
+      "credential_exposure",
+      "misconfiguration",
+      "trust_boundary_abuse",
+      "authentication_bypass"
+    ],
+    "common_ports": [
+      9200,
+      8080
+    ],
+    "deployment_zones": [
+      "admin_plane"
+    ]
+  },
+  {
+    "product_name": "entra_id_122",
+    "vendor_category": "identity",
+    "asset_class": "identity_provider",
+    "primary_functions": [
+      "request_routing",
+      "tls_termination",
+      "message_queueing"
+    ],
+    "security_test_focus": [
+      "trust_boundary_abuse",
+      "data_exfiltration"
+    ],
+    "common_ports": [
+      5432,
+      80,
+      22
+    ],
+    "deployment_zones": [
+      "data_plane"
+    ]
+  },
+  {
+    "product_name": "envoy_123",
+    "vendor_category": "service_mesh",
+    "asset_class": "service_proxy",
+    "primary_functions": [
+      "identity_management",
+      "message_queueing",
+      "data_storage",
+      "logging"
+    ],
+    "security_test_focus": [
+      "access_control_weakness",
+      "authentication_bypass",
+      "data_exfiltration"
+    ],
+    "common_ports": [
+      9200,
+      8080
+    ],
+    "deployment_zones": [
+      "data_plane"
+    ]
+  },
+  {
+    "product_name": "logstash_124",
+    "vendor_category": "analytics",
+    "asset_class": "log_ingestion",
+    "primary_functions": [
+      "identity_management",
+      "application_execution",
+      "tls_termination"
+    ],
+    "security_test_focus": [
+      "misconfiguration",
+      "privilege_escalation",
+      "trust_boundary_abuse",
+      "authentication_bypass"
+    ],
+    "common_ports": [
+      8443
+    ],
+    "deployment_zones": [
+      "internal",
+      "data_plane"
+    ]
+  },
+  {
+    "product_name": "postfix_125",
+    "vendor_category": "email",
+    "asset_class": "mail_transfer_agent",
+    "primary_functions": [
+      "authentication_broker",
+      "logging",
+      "tls_termination",
+      "data_storage"
+    ],
+    "security_test_focus": [
+      "privilege_escalation",
+      "credential_exposure",
+      "remote_code_execution",
+      "authentication_bypass"
+    ],
+    "common_ports": [
+      443,
+      22
+    ],
+    "deployment_zones": [
+      "admin_plane",
+      "internal"
+    ]
+  },
+  {
+    "product_name": "haproxy_126",
+    "vendor_category": "network_edge",
+    "asset_class": "load_balancer",
+    "primary_functions": [
+      "request_routing",
+      "logging",
+      "tls_termination"
+    ],
+    "security_test_focus": [
+      "privilege_escalation",
+      "misconfiguration",
+      "remote_code_execution"
+    ],
+    "common_ports": [
+      8443,
+      80,
+      9200
+    ],
+    "deployment_zones": [
+      "edge"
+    ]
+  },
+  {
+    "product_name": "kibana_127",
+    "vendor_category": "analytics",
+    "asset_class": "log_visualization",
+    "primary_functions": [
+      "traffic_filtering",
+      "request_routing",
+      "authentication_broker"
+    ],
+    "security_test_focus": [
+      "misconfiguration",
+      "authentication_bypass"
+    ],
+    "common_ports": [
+      8443,
+      443,
+      80
+    ],
+    "deployment_zones": [
+      "internal",
+      "admin_plane"
+    ]
+  },
+  {
+    "product_name": "vault_128",
+    "vendor_category": "security_infrastructure",
+    "asset_class": "secrets_manager",
+    "primary_functions": [
+      "tls_termination",
+      "container_orchestration"
+    ],
+    "security_test_focus": [
+      "privilege_escalation",
+      "misconfiguration",
+      "access_control_weakness",
+      "trust_boundary_abuse"
+    ],
+    "common_ports": [
+      443,
+      8080
+    ],
+    "deployment_zones": [
+      "edge"
+    ]
+  },
+  {
+    "product_name": "nginx_129",
+    "vendor_category": "web_infrastructure",
+    "asset_class": "reverse_proxy",
+    "primary_functions": [
+      "telemetry_collection",
+      "authentication_broker"
+    ],
+    "security_test_focus": [
+      "credential_exposure",
+      "access_control_weakness",
+      "misconfiguration",
+      "remote_code_execution"
+    ],
+    "common_ports": [
+      5432,
+      3306
+    ],
+    "deployment_zones": [
+      "internal",
+      "edge"
+    ]
+  },
+  {
+    "product_name": "exchange_130",
+    "vendor_category": "email",
+    "asset_class": "mail_server",
+    "primary_functions": [
+      "telemetry_collection",
+      "request_routing",
+      "logging"
+    ],
+    "security_test_focus": [
+      "trust_boundary_abuse",
+      "credential_exposure"
+    ],
+    "common_ports": [
+      9200
+    ],
+    "deployment_zones": [
+      "admin_plane"
+    ]
+  },
+  {
+    "product_name": "opensearch_131",
+    "vendor_category": "analytics",
+    "asset_class": "search_engine",
+    "primary_functions": [
+      "application_execution",
+      "request_routing",
+      "message_queueing",
+      "authentication_broker"
+    ],
+    "security_test_focus": [
+      "trust_boundary_abuse",
+      "privilege_escalation",
+      "credential_exposure"
+    ],
+    "common_ports": [
+      6379
+    ],
+    "deployment_zones": [
+      "data_plane",
+      "admin_plane"
+    ]
+  },
+  {
+    "product_name": "vault_132",
+    "vendor_category": "security_infrastructure",
+    "asset_class": "secrets_manager",
+    "primary_functions": [
+      "logging",
+      "data_storage",
+      "application_execution",
+      "request_routing"
+    ],
+    "security_test_focus": [
+      "privilege_escalation",
+      "misconfiguration",
+      "trust_boundary_abuse",
+      "remote_code_execution"
+    ],
+    "common_ports": [
+      3306,
+      6379
+    ],
+    "deployment_zones": [
+      "edge",
+      "control_plane"
+    ]
+  },
+  {
+    "product_name": "azure_key_vault_133",
+    "vendor_category": "cloud_security",
+    "asset_class": "secrets_manager",
+    "primary_functions": [
+      "authentication_broker",
+      "container_orchestration",
+      "message_queueing",
+      "request_routing"
+    ],
+    "security_test_focus": [
+      "authentication_bypass",
+      "data_exfiltration",
+      "access_control_weakness",
+      "remote_code_execution"
+    ],
+    "common_ports": [
+      3306,
+      5432
+    ],
+    "deployment_zones": [
+      "admin_plane"
+    ]
+  },
+  {
+    "product_name": "elasticsearch_134",
+    "vendor_category": "analytics",
+    "asset_class": "search_engine",
+    "primary_functions": [
+      "telemetry_collection",
+      "identity_management",
+      "container_orchestration",
+      "traffic_filtering"
+    ],
+    "security_test_focus": [
+      "misconfiguration",
+      "trust_boundary_abuse"
+    ],
+    "common_ports": [
+      8443,
+      9200
+    ],
+    "deployment_zones": [
+      "edge"
+    ]
+  },
+  {
+    "product_name": "fortigate_vpn_135",
+    "vendor_category": "network_edge",
+    "asset_class": "remote_access_gateway",
+    "primary_functions": [
+      "message_queueing",
+      "data_storage"
+    ],
+    "security_test_focus": [
+      "data_exfiltration",
+      "trust_boundary_abuse"
+    ],
+    "common_ports": [
+      8443,
+      22,
+      9200
+    ],
+    "deployment_zones": [
+      "control_plane"
+    ]
+  },
+  {
+    "product_name": "azure_key_vault_136",
+    "vendor_category": "cloud_security",
+    "asset_class": "secrets_manager",
+    "primary_functions": [
+      "container_orchestration",
+      "authentication_broker",
+      "identity_management",
+      "traffic_filtering"
+    ],
+    "security_test_focus": [
+      "access_control_weakness",
+      "authentication_bypass"
+    ],
+    "common_ports": [
+      9200,
+      22,
+      3306
+    ],
+    "deployment_zones": [
+      "data_plane"
+    ]
+  },
+  {
+    "product_name": "github_actions_runner_137",
+    "vendor_category": "devops",
+    "asset_class": "ci_cd_runner",
+    "primary_functions": [
+      "identity_management",
+      "traffic_filtering",
+      "authentication_broker",
+      "container_orchestration"
+    ],
+    "security_test_focus": [
+      "authentication_bypass",
+      "remote_code_execution",
+      "misconfiguration"
+    ],
+    "common_ports": [
+      8443
+    ],
+    "deployment_zones": [
+      "edge",
+      "data_plane"
+    ]
+  },
+  {
+    "product_name": "okta_138",
+    "vendor_category": "identity",
+    "asset_class": "identity_provider",
+    "primary_functions": [
+      "application_execution",
+      "tls_termination",
+      "authentication_broker",
+      "logging"
+    ],
+    "security_test_focus": [
+      "authentication_bypass",
+      "access_control_weakness"
+    ],
+    "common_ports": [
+      8080,
+      6379
+    ],
+    "deployment_zones": [
+      "data_plane"
+    ]
+  },
+  {
+    "product_name": "okta_139",
+    "vendor_category": "identity",
+    "asset_class": "identity_provider",
+    "primary_functions": [
+      "request_routing",
+      "data_storage",
+      "authentication_broker",
+      "message_queueing"
+    ],
+    "security_test_focus": [
+      "access_control_weakness",
+      "data_exfiltration",
+      "credential_exposure",
+      "trust_boundary_abuse"
+    ],
+    "common_ports": [
+      8080,
+      22,
+      8443
+    ],
+    "deployment_zones": [
+      "internal",
+      "edge"
+    ]
+  },
+  {
+    "product_name": "fortigate_vpn_140",
+    "vendor_category": "network_edge",
+    "asset_class": "remote_access_gateway",
+    "primary_functions": [
+      "application_execution",
+      "message_queueing",
+      "traffic_filtering"
+    ],
+    "security_test_focus": [
+      "credential_exposure",
+      "remote_code_execution"
+    ],
+    "common_ports": [
+      8443,
+      443
+    ],
+    "deployment_zones": [
+      "control_plane",
+      "data_plane"
+    ]
+  },
+  {
+    "product_name": "kubernetes_api_141",
+    "vendor_category": "container_platform",
+    "asset_class": "container_control_plane",
+    "primary_functions": [
+      "telemetry_collection",
+      "request_routing"
+    ],
+    "security_test_focus": [
+      "remote_code_execution",
+      "privilege_escalation"
+    ],
+    "common_ports": [
+      5432,
+      443
+    ],
+    "deployment_zones": [
+      "admin_plane"
+    ]
+  },
+  {
+    "product_name": "elasticsearch_142",
+    "vendor_category": "analytics",
+    "asset_class": "search_engine",
+    "primary_functions": [
+      "identity_management",
+      "authentication_broker"
+    ],
+    "security_test_focus": [
+      "remote_code_execution",
+      "data_exfiltration",
+      "privilege_escalation"
+    ],
+    "common_ports": [
+      22
+    ],
+    "deployment_zones": [
+      "admin_plane"
+    ]
+  },
+  {
+    "product_name": "proofpoint_143",
+    "vendor_category": "email",
+    "asset_class": "email_security_gateway",
+    "primary_functions": [
+      "container_orchestration",
+      "request_routing",
+      "data_storage"
+    ],
+    "security_test_focus": [
+      "misconfiguration",
+      "privilege_escalation",
+      "credential_exposure"
+    ],
+    "common_ports": [
+      3306
+    ],
+    "deployment_zones": [
+      "edge",
+      "admin_plane"
+    ]
+  },
+  {
+    "product_name": "redis_144",
+    "vendor_category": "data_layer",
+    "asset_class": "cache",
+    "primary_functions": [
+      "request_routing",
+      "traffic_filtering",
+      "telemetry_collection"
+    ],
+    "security_test_focus": [
+      "misconfiguration",
+      "access_control_weakness",
+      "trust_boundary_abuse"
+    ],
+    "common_ports": [
+      8080
+    ],
+    "deployment_zones": [
+      "control_plane",
+      "data_plane"
+    ]
+  },
+  {
+    "product_name": "vault_145",
+    "vendor_category": "security_infrastructure",
+    "asset_class": "secrets_manager",
+    "primary_functions": [
+      "request_routing",
+      "identity_management"
+    ],
+    "security_test_focus": [
+      "access_control_weakness",
+      "credential_exposure",
+      "misconfiguration",
+      "trust_boundary_abuse"
+    ],
+    "common_ports": [
+      8080,
+      5432
+    ],
+    "deployment_zones": [
+      "data_plane",
+      "admin_plane"
+    ]
+  },
+  {
+    "product_name": "postgresql_146",
+    "vendor_category": "data_layer",
+    "asset_class": "database",
+    "primary_functions": [
+      "identity_management",
+      "request_routing"
+    ],
+    "security_test_focus": [
+      "remote_code_execution",
+      "privilege_escalation"
+    ],
+    "common_ports": [
+      6379,
+      3306
+    ],
+    "deployment_zones": [
+      "data_plane",
+      "admin_plane"
+    ]
+  },
+  {
+    "product_name": "memcached_147",
+    "vendor_category": "data_layer",
+    "asset_class": "cache",
+    "primary_functions": [
+      "container_orchestration",
+      "application_execution",
+      "logging",
+      "traffic_filtering"
+    ],
+    "security_test_focus": [
+      "misconfiguration",
+      "access_control_weakness"
+    ],
+    "common_ports": [
+      80
+    ],
+    "deployment_zones": [
+      "internal"
+    ]
+  },
+  {
+    "product_name": "gitlab_ci_148",
+    "vendor_category": "devops",
+    "asset_class": "ci_cd_server",
+    "primary_functions": [
+      "application_execution",
+      "authentication_broker"
+    ],
+    "security_test_focus": [
+      "remote_code_execution",
+      "authentication_bypass",
+      "trust_boundary_abuse"
+    ],
+    "common_ports": [
+      3306,
+      8080,
+      80
+    ],
+    "deployment_zones": [
+      "data_plane",
+      "internal"
+    ]
+  },
+  {
+    "product_name": "activemq_149",
+    "vendor_category": "integration",
+    "asset_class": "message_bus",
+    "primary_functions": [
+      "authentication_broker",
+      "message_queueing",
+      "logging",
+      "container_orchestration"
+    ],
+    "security_test_focus": [
+      "credential_exposure",
+      "misconfiguration",
+      "data_exfiltration"
+    ],
+    "common_ports": [
+      443
+    ],
+    "deployment_zones": [
+      "internal"
+    ]
+  },
+  {
+    "product_name": "activemq_150",
+    "vendor_category": "integration",
+    "asset_class": "message_bus",
+    "primary_functions": [
+      "traffic_filtering",
+      "identity_management"
+    ],
+    "security_test_focus": [
+      "remote_code_execution",
+      "data_exfiltration",
+      "authentication_bypass",
+      "misconfiguration"
+    ],
+    "common_ports": [
+      8080,
+      3306,
+      8443
+    ],
+    "deployment_zones": [
+      "edge",
+      "internal"
+    ]
+  },
+  {
+    "product_name": "azure_key_vault_151",
+    "vendor_category": "cloud_security",
+    "asset_class": "secrets_manager",
+    "primary_functions": [
+      "application_execution",
+      "request_routing"
+    ],
+    "security_test_focus": [
+      "trust_boundary_abuse",
+      "credential_exposure"
+    ],
+    "common_ports": [
+      5432,
+      80,
+      6379
+    ],
+    "deployment_zones": [
+      "edge",
+      "data_plane"
+    ]
+  },
+  {
+    "product_name": "kubernetes_api_152",
+    "vendor_category": "container_platform",
+    "asset_class": "container_control_plane",
+    "primary_functions": [
+      "message_queueing",
+      "logging"
+    ],
+    "security_test_focus": [
+      "authentication_bypass",
+      "remote_code_execution",
+      "data_exfiltration"
+    ],
+    "common_ports": [
+      9200
+    ],
+    "deployment_zones": [
+      "control_plane",
+      "admin_plane"
+    ]
+  },
+  {
+    "product_name": "logstash_153",
+    "vendor_category": "analytics",
+    "asset_class": "log_ingestion",
+    "primary_functions": [
+      "request_routing",
+      "tls_termination"
+    ],
+    "security_test_focus": [
+      "misconfiguration",
+      "trust_boundary_abuse",
+      "authentication_bypass",
+      "remote_code_execution"
+    ],
+    "common_ports": [
+      3306
+    ],
+    "deployment_zones": [
+      "admin_plane"
+    ]
+  },
+  {
+    "product_name": "kafka_154",
+    "vendor_category": "integration",
+    "asset_class": "message_bus",
+    "primary_functions": [
+      "request_routing",
+      "tls_termination"
+    ],
+    "security_test_focus": [
+      "privilege_escalation",
+      "misconfiguration"
+    ],
+    "common_ports": [
+      6379,
+      3306
+    ],
+    "deployment_zones": [
+      "data_plane",
+      "admin_plane"
+    ]
+  },
+  {
+    "product_name": "f5_bigip_155",
+    "vendor_category": "network_edge",
+    "asset_class": "application_delivery_controller",
+    "primary_functions": [
+      "traffic_filtering",
+      "data_storage",
+      "authentication_broker",
+      "request_routing"
+    ],
+    "security_test_focus": [
+      "trust_boundary_abuse",
+      "credential_exposure"
+    ],
+    "common_ports": [
+      3306,
+      22
+    ],
+    "deployment_zones": [
+      "data_plane"
+    ]
+  },
+  {
+    "product_name": "kibana_156",
+    "vendor_category": "analytics",
+    "asset_class": "log_visualization",
+    "primary_functions": [
+      "authentication_broker",
+      "traffic_filtering",
+      "data_storage"
+    ],
+    "security_test_focus": [
+      "credential_exposure",
+      "privilege_escalation",
+      "data_exfiltration",
+      "access_control_weakness"
+    ],
+    "common_ports": [
+      8080
+    ],
+    "deployment_zones": [
+      "control_plane"
+    ]
+  },
+  {
+    "product_name": "kafka_157",
+    "vendor_category": "integration",
+    "asset_class": "message_bus",
+    "primary_functions": [
+      "message_queueing",
+      "identity_management"
+    ],
+    "security_test_focus": [
+      "data_exfiltration",
+      "remote_code_execution"
+    ],
+    "common_ports": [
+      5432,
+      6379
+    ],
+    "deployment_zones": [
+      "internal",
+      "data_plane"
+    ]
+  },
+  {
+    "product_name": "okta_158",
+    "vendor_category": "identity",
+    "asset_class": "identity_provider",
+    "primary_functions": [
+      "data_storage",
+      "identity_management"
+    ],
+    "security_test_focus": [
+      "access_control_weakness",
+      "privilege_escalation"
+    ],
+    "common_ports": [
+      22,
+      80,
+      5432
+    ],
+    "deployment_zones": [
+      "admin_plane"
+    ]
+  },
+  {
+    "product_name": "splunk_159",
+    "vendor_category": "security_analytics",
+    "asset_class": "siem",
+    "primary_functions": [
+      "application_execution",
+      "container_orchestration",
+      "request_routing"
+    ],
+    "security_test_focus": [
+      "access_control_weakness",
+      "authentication_bypass"
+    ],
+    "common_ports": [
+      8080,
+      9200
+    ],
+    "deployment_zones": [
+      "admin_plane",
+      "edge"
+    ]
+  }
+]

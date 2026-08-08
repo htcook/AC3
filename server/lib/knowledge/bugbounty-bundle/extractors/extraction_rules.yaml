@@ -1,0 +1,31 @@
+version: '1.0'
+notes: Rules are high-level and non-weaponized; intended for extracting reasoning
+  patterns from public disclosures.
+field_hints:
+  vulnerability_class:
+  - IDOR
+  - Broken Access Control
+  - XSS
+  - SQL Injection
+  - SSRF
+  - CSRF
+  - Open Redirect
+  - Auth Bypass
+  - JWT Misconfig
+  - RCE
+  - XXE
+  - Deserialization
+  - Logic Flaw
+  owasp_map:
+    IDOR: Broken Access Control
+    Broken Access Control: Broken Access Control
+    XSS: XSS
+    SQL Injection: Injection
+    SSRF: SSRF
+    CSRF: CSRF
+    Open Redirect: Broken Authentication
+normalization_steps:
+- strip PII from examples (emails, phone, names)
+- remove any sensitive secrets/tokens if present
+- convert steps into safe high-level actions
+- tag observations as signals; avoid payload reproduction

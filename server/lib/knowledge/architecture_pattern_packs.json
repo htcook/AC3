@@ -1,0 +1,52 @@
+[
+  {
+    "name": "modern_kubernetes_saas",
+    "description": "Typical SaaS stack using containers and cloud identity",
+    "components": [
+      "kubernetes_ingress",
+      "nginx",
+      "microservices",
+      "redis",
+      "postgresql",
+      "vault",
+      "entra_id"
+    ],
+    "security_focus": [
+      "ingress security",
+      "service mesh trust boundaries",
+      "secrets management",
+      "api authentication"
+    ]
+  },
+  {
+    "name": "legacy_windows_enterprise",
+    "description": "Traditional enterprise stack",
+    "components": [
+      "active_directory",
+      "iis",
+      "mssql",
+      "exchange",
+      "citrix_adc"
+    ],
+    "security_focus": [
+      "kerberos abuse",
+      "credential exposure",
+      "privilege escalation"
+    ]
+  },
+  {
+    "name": "devops_ci_cd_pipeline",
+    "description": "Developer platform infrastructure",
+    "components": [
+      "github_actions_runner",
+      "jenkins",
+      "artifact_repository",
+      "docker_engine"
+    ],
+    "security_focus": [
+      "supply_chain_security",
+      "token_exposure",
+      "pipeline_execution_privilege"
+    ]
+  }
+]

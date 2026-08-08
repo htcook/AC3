@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "BugBountyAttackPattern",
+  "type": "object",
+  "required": [
+    "pattern_id",
+    "signals",
+    "hypothesis",
+    "safe_tests",
+    "impact",
+    "fixes"
+  ],
+  "properties": {
+    "pattern_id": {
+      "type": "string"
+    },
+    "signals": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "hypothesis": {
+      "type": "string"
+    },
+    "safe_tests": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "impact": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "fixes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "owasp": {
+      "type": "string"
+    },
+    "cwe": {
+      "type": "string"
+    },
+    "mitre": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}
