@@ -1326,7 +1326,7 @@ export const calderaAccounts = mysqlTable("caldera_accounts", {
 	email: varchar({ length: 255 }).notNull(),
 	passwordHash: varchar("password_hash", { length: 255 }).notNull(),
 	displayName: varchar("display_name", { length: 255 }).notNull(),
-	accountRole: mysqlEnum("account_role", ['admin','operator','analyst','team_lead','executive','client','soc','viewer']).default('viewer').notNull(),
+	accountRole: mysqlEnum("account_role", ['admin','operator','analyst','team_lead','executive','client','soc','viewer','compliance_manager','auditor']).default('viewer').notNull(),
 	accountStatus: mysqlEnum("account_status", ['active','invited','suspended','deactivated']).default('invited').notNull(),
 	lastLoginAt: timestamp("last_login_at", { mode: 'string' }),
 	invitedBy: int("invited_by"),

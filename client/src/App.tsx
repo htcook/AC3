@@ -203,6 +203,16 @@ const KsiEvidenceChain = lazyWithRetry(() => import("./pages/KsiEvidenceChain"))
 const KsiValidation = lazyWithRetry(() => import("./pages/KsiValidation"));
 const OscalExport = lazyWithRetry(() => import("./pages/OscalExport"));
 const ThreePaoReview = lazyWithRetry(() => import("./pages/ThreePaoReview"));
+// AC3-Plus Compliance Pages
+const CompliancePlus = lazyWithRetry(() => import("./pages/CompliancePlus"));
+const GapAnalysisPlus = lazyWithRetry(() => import("./pages/GapAnalysisPlus"));
+const NarrativesPlus = lazyWithRetry(() => import("./pages/NarrativesPlus"));
+const EvidencePlus = lazyWithRetry(() => import("./pages/EvidencePlus"));
+const ThreatPrioritization = lazyWithRetry(() => import("./pages/ThreatPrioritization"));
+const PoamTracker = lazyWithRetry(() => import("./pages/PoamTracker"));
+const SystemProfiles = lazyWithRetry(() => import("./pages/SystemProfiles"));
+const AocIngest = lazyWithRetry(() => import("./pages/AocIngest"));
+const ThreePaoPackage = lazyWithRetry(() => import("./pages/ThreePaoPackage"));
 const KsiDetail = lazyWithRetry(() => import("./pages/KsiDetail"));
 const KsiAutoCollector = lazyWithRetry(() => import("./pages/KsiAutoCollector"));
 const KsiThreatMap = lazyWithRetry(() => import("./pages/KsiThreatMap"));
@@ -1049,6 +1059,34 @@ function Router() {
         </Route>
         <Route path="/3pao-review">
           <ProtectedRoute component={ThreePaoReview} />
+        </Route>
+        {/* AC3-Plus Compliance Routes */}
+        <Route path="/compliance-plus">
+          <ProtectedRoute component={CompliancePlus} />
+        </Route>
+        <Route path="/gap-analysis">
+          <ProtectedRoute component={GapAnalysisPlus} />
+        </Route>
+        <Route path="/narratives">
+          <ProtectedRoute component={NarrativesPlus} />
+        </Route>
+        <Route path="/evidence-plus">
+          <ProtectedRoute component={EvidencePlus} />
+        </Route>
+        <Route path="/threat-prioritization">
+          <ProtectedRoute component={ThreatPrioritization} />
+        </Route>
+        <Route path="/poam-tracker">
+          <ProtectedRoute component={PoamTracker} />
+        </Route>
+        <Route path="/system-profiles">
+          <ProtectedRoute component={SystemProfiles} />
+        </Route>
+        <Route path="/aoc-ingest">
+          <ProtectedRoute component={AocIngest} />
+        </Route>
+        <Route path="/3pao-package">
+          <ProtectedRoute component={ThreePaoPackage} />
         </Route>
         <Route path="/ksi/:ksiId">
           <ProtectedRoute component={KsiDetail} />
