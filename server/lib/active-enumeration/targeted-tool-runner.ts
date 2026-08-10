@@ -438,6 +438,60 @@ function mergeContextAwareTools(
   return cmdsToRun;
 }
 
+/**
+ * Resolve an authenticated session cookie for an asset from confirmed web
+ * credentials (preferred) or training-lab creds. Returns "" when none exists.
+ * Centralizes the logic previously duplicated in the gobuster/nikto sanitizers
+ * so every web tool reaches authenticated surface the same way.
+ */
+function resolveAuthCookie(asset: any): string {
+  const webCreds = (asset.confirmedCredentials || []).filter((c: any) =>
+    ["http", "web", "form", "http-get", "http-post-form"].includes(c.service)
+  );
+  if (webCreds.length > 0 && (webCreds[0] as any).sessionCookie) {
+    return (webCreds[0] as any).sessionCookie;
+  }
+  if ((asset as any).trainingLabCreds?.sessionCookie) {
+    return (asset as any).trainingLabCreds.sessionCookie;
+  }
+  return "";
+}
+
+/**
+ * Inject an authenticated session cookie into the web tools that would
+ * otherwise scan logged-out: katana, feroxbuster, ffuf, arjun, and both nuclei
+ * paths (the `tool:"nuclei"` LLM-plan command and the `tool:"raw"`
+ * `echo URL | nuclei …` suggest-path command). The highest-value application
+ * surface sits behind auth — without this these tools only ever see the
+ * unauthenticated site. gobuster/nikto inject their own cookie in their
+ * dedicated sanitizers, so they are intentionally not handled here.
+ */
+function injectWebAuthCookie(cmd: any, asset: any): void {
+  const cookie = resolveAuthCookie(asset);
+  if (!cookie) return;
+  if (/Cookie:/i.test(cmd.command)) return; // already authenticated
+
+  const header = `Cookie: ${cookie}`;
+  switch (cmd.tool) {
+    case "katana":
+    case "feroxbuster":
+    case "ffuf":
+    case "nuclei":
+      cmd.command += ` -H "${header}"`;
+      break;
+    case "arjun":
+      cmd.command += ` --headers "${header}"`;
+      break;
+    case "raw":
+      // suggest-path "echo URL | nuclei …" — inject into the nuclei invocation.
+      if (/\bnuclei\b/.test(cmd.command)) cmd.command += ` -H "${header}"`;
+      break;
+    default:
+      return;
+  }
+  cmd.command = cmd.command.replace(/\s+/g, " ").trim();
+}
+
 function filterAndSanitize(
   state: EngagementOpsState,
   asset: any,
@@ -482,6 +536,11 @@ function filterAndSanitize(
     if (cmd.tool === "nikto") {
       sanitizeNiktoCommand(cmd, state, asset);
     }
+
+    // ── Authenticated-scan cookie for the remaining web tools ──
+    // Runs after the tool-specific sanitizers so it also sees nuclei's rebuilt
+    // command. No-op for tools it doesn't handle and when no cookie is known.
+    injectWebAuthCookie(cmd, asset);
   }
 
   return highPriorityCmds;
@@ -570,15 +629,7 @@ function sanitizeGobusterCommand(
     /\/api\/|\/v[0-9]+\//i.test(gobTargetUrl);
 
   // Get auth cookie
-  let authCookie = "";
-  const webCreds = (asset.confirmedCredentials || []).filter((c: any) =>
-    ["http", "web", "form", "http-get", "http-post-form"].includes(c.service)
-  );
-  if (webCreds.length > 0 && (webCreds[0] as any).sessionCookie) {
-    authCookie = (webCreds[0] as any).sessionCookie;
-  } else if ((asset as any).trainingLabCreds?.sessionCookie) {
-    authCookie = (asset as any).trainingLabCreds.sessionCookie;
-  }
+  const authCookie = resolveAuthCookie(asset);
 
   // Build command using scan profile helper
   const profile = getScanProfile(state.scanProfile || "standard");
@@ -614,17 +665,7 @@ function sanitizeNiktoCommand(cmd: any, state: EngagementOpsState, asset: any): 
 
   // Inject session cookie for authenticated scanning
   if (!cmd.command.includes("Cookie:") && !cmd.command.includes("-id ")) {
-    let niktoCookie = "";
-    if ((asset as any).trainingLabCreds?.sessionCookie) {
-      niktoCookie = (asset as any).trainingLabCreds.sessionCookie;
-    } else {
-      const niktoWebCreds = (asset.confirmedCredentials || []).filter((c: any) =>
-        ["http", "web", "form", "http-get", "http-post-form"].includes(c.service)
-      );
-      if (niktoWebCreds.length > 0 && (niktoWebCreds[0] as any).sessionCookie) {
-        niktoCookie = (niktoWebCreds[0] as any).sessionCookie;
-      }
-    }
+    const niktoCookie = resolveAuthCookie(asset);
     if (niktoCookie) {
       cmd.command += ` -H "Cookie: ${niktoCookie}"`;
     }

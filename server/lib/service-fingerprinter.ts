@@ -36,6 +36,35 @@ import * as tls from "tls";
 import * as dgram from "dgram";
 import * as crypto from "crypto";
 
+// ─── Version comparison ───────────────────────────────────────────────────────
+/**
+ * Compare two dotted version strings numerically (semver-style), not
+ * lexicographically. Returns <0 if a<b, 0 if equal, >0 if a>b.
+ *
+ * WHY: a plain string compare gets old-version CVE checks backwards —
+ * `'2.4.9' < '2.4.50'` is FALSE lexicographically (char '9' > '5'), so a
+ * vulnerable Apache 2.4.9 would slip past a `ver < '2.4.50'` guard. This parses
+ * each dot-separated segment as an integer (stripping non-numeric suffixes such
+ * as OpenSSH's `p1` or a build tag) and compares segment-by-segment.
+ */
+export function compareVersions(a: string, b: string): number {
+  const parse = (v: string): number[] =>
+    String(v)
+      .trim()
+      .split(/[.\-+~]/)
+      .map((seg) => parseInt(seg.replace(/[^\d].*$/, ""), 10))
+      .map((n) => (Number.isFinite(n) ? n : 0));
+  const pa = parse(a);
+  const pb = parse(b);
+  const len = Math.max(pa.length, pb.length);
+  for (let i = 0; i < len; i++) {
+    const da = pa[i] ?? 0;
+    const db = pb[i] ?? 0;
+    if (da !== db) return da - db;
+  }
+  return 0;
+}
+
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 export type ServiceProtocol =
@@ -2171,7 +2200,7 @@ export async function fingerprintHTTP(config: FingerprintConfig): Promise<Finger
         const prod = result.product.toLowerCase();
         const ver = result.version;
         if (prod === 'apache' || prod.includes('apache')) {
-          if (ver < '2.4.50') {
+          if (compareVersions(ver, '2.4.50') < 0) {
             result.potentialCves.push('CVE-2021-41773', 'CVE-2021-42013');
             result.riskIndicators.push({
               severity: 'critical',
@@ -2182,7 +2211,7 @@ export async function fingerprintHTTP(config: FingerprintConfig): Promise<Finger
           }
         }
         if (prod === 'nginx') {
-          if (ver < '1.20.0') {
+          if (compareVersions(ver, '1.20.0') < 0) {
             result.potentialCves.push('CVE-2021-23017');
             result.riskIndicators.push({
               severity: 'high',
@@ -2193,7 +2222,7 @@ export async function fingerprintHTTP(config: FingerprintConfig): Promise<Finger
           }
         }
         if (prod.includes('iis') || prod.includes('Microsoft-IIS')) {
-          if (parseFloat(ver) <= 7.5) {
+          if (compareVersions(ver, '7.5') <= 0) {
             result.potentialCves.push('CVE-2017-7269');
             result.riskIndicators.push({
               severity: 'critical',

@@ -417,11 +417,18 @@ const SSH_RETRY_CONFIG = {
   maxRetries: 3,
   baseDelayMs: 2000,  // 2s → 4s → 8s exponential backoff
   backoffMultiplier: 2,
-  /** Error patterns that indicate a transient SSH/network issue worth retrying */
+  /**
+   * Error patterns that indicate a transient SSH/network issue worth retrying.
+   * NOTE: these are all connection-establishment / transport failures — the
+   * remote tool never started, so re-running is safe. A *command-execution*
+   * timeout ('SSH command timed out', thrown after the tool ran the full window)
+   * is deliberately NOT here: retrying it re-runs a non-idempotent tool
+   * (hydra/sqlmap) → duplicate credential attempts, lockouts, N× wall-clock.
+   */
   retryablePatterns: [
     'ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'EHOSTUNREACH', 'ENETUNREACH',
     'SSH connection error', 'SSH pool connection error', 'SSH pool connection timed out',
-    'SSH command timed out', 'socket hang up', 'Connection reset',
+    'socket hang up', 'Connection reset',
     'read ECONNRESET', 'connect ECONNREFUSED', 'Channel open failure',
     'Keepalive timeout', 'Client-side network socket disconnected',
   ],

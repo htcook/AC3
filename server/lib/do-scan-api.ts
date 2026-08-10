@@ -270,7 +270,14 @@ async function fetchWithRetry(
   options: RequestInit,
   timeoutMs: number,
   label: string,
-  engagementAbortSignal?: AbortSignal
+  engagementAbortSignal?: AbortSignal,
+  // Whether a local timeout (the request ran the full window then aborted) may be
+  // retried. FALSE for tool execution: a full-duration timeout means the remote
+  // tool almost certainly started running, so re-submitting re-runs a
+  // non-idempotent tool (hydra/sqlmap) → duplicate credential attempts, account
+  // lockouts, and ~N× wall-clock. Connection-establishment failures are still
+  // retried regardless — those never started the tool.
+  retryOnTimeout: boolean = true
 ): Promise<Response> {
   let lastError: Error | null = null;
 
@@ -323,15 +330,29 @@ async function fetchWithRetry(
         );
       }
 
-      const isRetryable = err.name === "AbortError" ||
+      // A local timeout fires the AbortController set at line ~295, surfacing as
+      // an AbortError ("operation was aborted"). Engagement-abort is already
+      // handled above, so any AbortError here is a full-duration timeout — the
+      // tool ran. Only retry it when the caller says the operation is idempotent.
+      const isLocalTimeoutAbort =
+        err.name === "AbortError" ||
+        err.message?.includes("This operation was aborted") ||
+        err.message?.includes("The operation was aborted");
+
+      // Connection-establishment failures: the tool never started → always safe
+      // to retry, even for non-idempotent tools.
+      const isConnectFailure =
         err.message?.includes("fetch failed") ||
         err.message?.includes("ECONNRESET") ||
         err.message?.includes("ECONNREFUSED") ||
         err.message?.includes("UND_ERR_CONNECT_TIMEOUT") ||
-        err.message?.includes("This operation was aborted") ||
-        err.message?.includes("HTTP 5") || // Retry on 5xx server errors
         err.message?.includes("ETIMEDOUT") ||
         err.message?.includes("ENOTFOUND");
+
+      const isRetryable =
+        isConnectFailure ||
+        err.message?.includes("HTTP 5") || // Retry on 5xx server errors
+        (isLocalTimeoutAbort && retryOnTimeout);
 
       if (!isRetryable || attempt === RETRY_CONFIG.maxRetries) {
         break;
@@ -417,7 +438,8 @@ export async function executeToolViaHttp(
       },
       submitTimeoutMs,
       `${tool} ${(args || "").slice(0, 40)}`,
-      engagementAbortSignal
+      engagementAbortSignal,
+      false // non-idempotent tool run: don't re-run on a full-duration timeout
     );
 
     if (!response.ok) {
@@ -696,7 +718,8 @@ async function fallbackExtendedSyncWait(
       },
       extendedTimeoutMs,
       `${tool} extended-sync`,
-      engagementAbortSignal
+      engagementAbortSignal,
+      false // non-idempotent tool run: don't re-run on a full-duration timeout
     );
 
     if (!response.ok) {
@@ -713,11 +736,11 @@ async function fallbackExtendedSyncWait(
     return {
       tool,
       command: `${tool} ${args}`,
-      stdout: (result.stdout || "").slice(0, 500_000),
-      stderr: (result.stderr || "").slice(0, 50_000),
-      exitCode: result.exitCode ?? 0,
+      stdout: (data.result?.stdout || "").slice(0, 500_000),
+      stderr: (data.result?.stderr || "").slice(0, 50_000),
+      exitCode: data.result?.exitCode ?? 0,
       durationMs,
-      timedOut: result.timedOut || false,
+      timedOut: data.result?.timedOut || false,
     };
   } catch (err: any) {
     // Extended sync also failed — this will trigger SSH fallback upstream
@@ -791,7 +814,8 @@ export async function executeRawCommandViaHttp(
       },
       submitTimeoutMs,
       `raw: ${command.slice(0, 40)}`,
-      engagementAbortSignal
+      engagementAbortSignal,
+      false // non-idempotent tool run: don't re-run on a full-duration timeout
     );
 
     if (!response.ok) {
@@ -854,7 +878,7 @@ export async function executeRawCommandViaHttp(
       stderr: (data.result!.stderr || "").slice(0, 50_000),
       exitCode: data.result!.exitCode ?? 0,
       durationMs,
-      timedOut: result.timedOut || false,
+      timedOut: data.result!.timedOut || false,
     };
   } catch (err: any) {
     const durationMs = Date.now() - startTime;
