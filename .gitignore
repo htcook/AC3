@@ -223,3 +223,9 @@ server/**.test.ts
 __pycache__/
 dist/
 dist/
+
+# Terraform local working and state artifacts (provider lock files are committed)
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
