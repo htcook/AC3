@@ -1,0 +1,225 @@
+name: AC3-Plus Non-Production Deploy
+
+on:
+  pull_request:
+    paths:
+      - "platform/**"
+      - "infrastructure/terraform/nonprod-platform/**"
+      - ".github/workflows/ac3-plus-nonprod-deploy.yml"
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target isolated sandbox"
+        required: true
+        type: choice
+        options:
+          - dev-sandbox
+          - staging
+      action:
+        description: "Deployment operation"
+        required: true
+        type: choice
+        default: plan
+        options:
+          - plan
+          - deploy
+
+permissions:
+  contents: read
+  id-token: write
+  pull-requests: write
+
+concurrency:
+  group: ac3-plus-nonprod-${{ github.event.inputs.environment || 'validation' }}
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: us-east-1
+  TF_VERSION: 1.9.8
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
+
+jobs:
+  validate:
+    name: Terraform validation
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infrastructure/terraform/nonprod-platform
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: Format check
+        run: terraform fmt -check -recursive
+
+      - name: Initialize without a backend
+        run: terraform init -backend=false
+
+      - name: Validate configuration
+        run: terraform validate
+
+  plan:
+    name: Plan (${{ github.event.inputs.environment || 'dev-sandbox' }})
+    needs: validate
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan'
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment == 'staging' && 'ac3-plus-staging' || 'ac3-plus-dev-sandbox' }}
+    defaults:
+      run:
+        working-directory: infrastructure/terraform/nonprod-platform
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: Select environment configuration
+        id: config
+        env:
+          TARGET: ${{ github.event.inputs.environment }}
+        run: |
+          case "$TARGET" in
+            dev-sandbox)
+              echo "tfvars=environments/dev-sandbox.tfvars" >> "$GITHUB_OUTPUT"
+              echo "backend=environments/backend-dev-sandbox.hcl" >> "$GITHUB_OUTPUT"
+              ;;
+            staging)
+              echo "tfvars=environments/staging.tfvars" >> "$GITHUB_OUTPUT"
+              echo "backend=environments/backend-staging.hcl" >> "$GITHUB_OUTPUT"
+              ;;
+            *) echo "::error::Unsupported target $TARGET"; exit 1 ;;
+          esac
+
+      - name: Configure AWS credentials through OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_TERRAFORM_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Initialize remote state
+        run: terraform init -reconfigure -backend-config="${{ steps.config.outputs.backend }}"
+
+      - name: Create an execution plan
+        run: terraform plan -var-file="${{ steps.config.outputs.tfvars }}" -out=tfplan
+
+      - name: Publish plan summary
+        env:
+          TARGET: ${{ github.event.inputs.environment }}
+        run: |
+          echo "## AC3-Plus ${TARGET} Terraform plan" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          terraform show -no-color tfplan >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+  deploy:
+    name: Build and deploy (${{ github.event.inputs.environment }})
+    needs: validate
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'deploy'
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment == 'staging' && 'ac3-plus-staging' || 'ac3-plus-dev-sandbox' }}
+    defaults:
+      run:
+        working-directory: infrastructure/terraform/nonprod-platform
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: Select environment configuration
+        id: config
+        env:
+          TARGET: ${{ github.event.inputs.environment }}
+        run: |
+          case "$TARGET" in
+            dev-sandbox)
+              echo "tfvars=environments/dev-sandbox.tfvars" >> "$GITHUB_OUTPUT"
+              echo "backend=environments/backend-dev-sandbox.hcl" >> "$GITHUB_OUTPUT"
+              ;;
+            staging)
+              echo "tfvars=environments/staging.tfvars" >> "$GITHUB_OUTPUT"
+              echo "backend=environments/backend-staging.hcl" >> "$GITHUB_OUTPUT"
+              ;;
+            *) echo "::error::Unsupported target $TARGET"; exit 1 ;;
+          esac
+
+      - name: Configure AWS credentials through OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_TERRAFORM_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Initialize remote state
+        run: terraform init -reconfigure -backend-config="${{ steps.config.outputs.backend }}"
+
+      - name: Read sandbox ECR repository
+        id: ecr
+        run: echo "repository=$(terraform output -raw ecr_repository_url)" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push immutable platform image
+        id: image
+        working-directory: .
+        env:
+          ECR_REPOSITORY: ${{ steps.ecr.outputs.repository }}
+          IMAGE_TAG: sha-${{ github.sha }}
+        run: |
+          IMAGE_URI="${ECR_REPOSITORY}:${IMAGE_TAG}"
+          docker build \
+            --file platform/Dockerfile.aws \
+            --build-arg BUILD_SHA="${GITHUB_SHA}" \
+            --build-arg BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --tag "$IMAGE_URI" \
+            platform
+          docker push "$IMAGE_URI"
+          echo "uri=$IMAGE_URI" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy only the isolated sandbox platform
+        env:
+          # Environment secret; JSON text with Secrets Manager ARNs only, e.g.
+          # {"DATABASE_URL":"arn:...","JWT_SECRET":"arn:..."}. Do not place
+          # plaintext values in this workflow, Terraform variables, or repository files.
+          TF_VAR_app_secrets: ${{ secrets.TF_VAR_APP_SECRETS }}
+          TF_VAR_task_role_policy_json: ${{ secrets.TF_VAR_TASK_ROLE_POLICY_JSON }}
+          IMAGE_URI: ${{ steps.image.outputs.uri }}
+        run: |
+          terraform apply -auto-approve \
+            -var-file="${{ steps.config.outputs.tfvars }}" \
+            -var='deploy_service=true' \
+            -var="image_uri=${IMAGE_URI}"
+
+      - name: Wait for sandbox service stability
+        run: |
+          CLUSTER=$(terraform output -raw ecs_cluster_name)
+          SERVICE=$(terraform output -raw ecs_service_name)
+          aws ecs wait services-stable --cluster "$CLUSTER" --services "$SERVICE"
+
+      - name: Perform host-header health check
+        run: |
+          ALB_DNS=$(terraform output -raw alb_dns_name)
+          HOST=$(terraform output -json host_names | jq -r '.[0]')
+          for attempt in 1 2 3 4 5; do
+            STATUS=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+              --connect-to "${HOST}:443:${ALB_DNS}:443" \
+              "https://${HOST}/api/health" || true)
+            echo "Attempt ${attempt}: HTTP ${STATUS:-000}"
+            if [ "$STATUS" = "200" ]; then
+              echo "Sandbox health check passed."
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::Sandbox health endpoint did not return HTTP 200"
+          exit 1
