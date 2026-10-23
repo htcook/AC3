@@ -53,6 +53,9 @@ export const ENV = {
   oAuthServerUrl: process.env.OAUTH_SERVER_URL ?? "",
   ownerOpenId: process.env.OWNER_OPEN_ID ?? "",
   isProduction: process.env.NODE_ENV === "production",
+  // Live engagement execution is opt-in. Any value other than literal "true"
+  // leaves external execution disabled.
+  liveEngagementExecutionEnabled: process.env.AC3_LIVE_ENGAGEMENT_EXECUTION_ENABLED === "true",
   forgeApiUrl: process.env.BUILT_IN_FORGE_API_URL ?? "",
   forgeApiKey: process.env.BUILT_IN_FORGE_API_KEY ?? "",
   // Cyber C2

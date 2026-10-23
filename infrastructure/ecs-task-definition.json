@@ -45,6 +45,10 @@
           "valueFrom": "arn:aws:secretsmanager:us-east-1:808038814732:secret:ac3/dev/app-WlvTEQ:DATABASE_URL::"
         },
         {
+          "name": "AC3_LIVE_ENGAGEMENT_EXECUTION_ENABLED",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:808038814732:secret:ac3/dev/app-WlvTEQ:AC3_LIVE_ENGAGEMENT_EXECUTION_ENABLED::"
+        },
+        {
           "name": "JWT_SECRET",
           "valueFrom": "arn:aws:secretsmanager:us-east-1:808038814732:secret:ac3/dev/app-WlvTEQ:JWT_SECRET::"
         },

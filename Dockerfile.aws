@@ -136,6 +136,7 @@ COPY --from=builder /usr/src/app/scripts/ ./scripts/
 COPY docker-entrypoint.sh ./docker-entrypoint.sh
 COPY seed-admin.mjs ./seed-admin.mjs
 COPY run-migrations.mjs ./run-migrations.mjs
+COPY verify-agent-tenant-isolation.mjs ./verify-agent-tenant-isolation.mjs
 
 # FedRAMP: Set secure file permissions
 RUN chmod +x /usr/src/app/docker-entrypoint.sh && \

@@ -90,6 +90,7 @@ TASK_DEF=$(cat <<EOF
       ],
       "secrets": [
         { "name": "DATABASE_URL", "valueFrom": "${APP_SECRET_ARN}:DATABASE_URL::" },
+        { "name": "AC3_LIVE_ENGAGEMENT_EXECUTION_ENABLED", "valueFrom": "${APP_SECRET_ARN}:AC3_LIVE_ENGAGEMENT_EXECUTION_ENABLED::" },
         { "name": "JWT_SECRET", "valueFrom": "${APP_SECRET_ARN}:JWT_SECRET::" },
         { "name": "VITE_APP_ID", "valueFrom": "${APP_SECRET_ARN}:VITE_APP_ID::" },
         { "name": "OAUTH_SERVER_URL", "valueFrom": "${APP_SECRET_ARN}:OAUTH_SERVER_URL::" },

@@ -157,6 +157,12 @@ async function main() {
       const data = job.data as ActiveScanJob;
       console.log(`[Worker:ActiveScan] Processing job ${job.id} for engagement #${data.engagementId}`);
 
+      const { getDb } = await import("../server/db");
+      const database = await getDb();
+      if (!database) throw new Error("Database unavailable for active-scan safety check");
+      const { assertLiveEngagementExecutionAllowed } = await import("../server/lib/live-engagement-execution-gate");
+      await assertLiveEngagementExecutionAllowed(database);
+
       const { executeEngagement } = await import('../server/lib/engagement-orchestrator');
       await executeEngagement(data.engagementId, { id: data.userId, name: data.userName }, { startPhase: data.startPhase });
 

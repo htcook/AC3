@@ -259,6 +259,14 @@ export async function detectInterruptedEngagements(): Promise<InterruptedEngagem
  * Called after detection, with a configurable delay to allow operator cancellation.
  */
 export function scheduleAutoResumes(): void {
+  // A restart must never be enough to resume external work. This inexpensive
+  // switch check avoids scheduling timers while the feature is disabled; the
+  // dispatch path below also verifies the database tenant contract.
+  if (process.env.AC3_LIVE_ENGAGEMENT_EXECUTION_ENABLED !== "true") {
+    console.warn("[AutoResume] Live execution is disabled; no engagements will be auto-resumed");
+    return;
+  }
+
   for (const entry of detectedInterruptions) {
     if (!entry.canResume || !entry.autoResumeEnabled || entry.crashLoopBlocked) {
       continue;
@@ -302,6 +310,12 @@ async function executeAutoResume(engagementId: number): Promise<void> {
       console.warn(`[AutoResume] No interrupted state found for engagement #${engagementId}, skipping`);
       return;
     }
+
+    const { getDb } = await import("../db");
+    const db = await getDb();
+    if (!db) throw new Error("Database unavailable for auto-resume safety check");
+    const { assertLiveEngagementExecutionAllowed } = await import("./live-engagement-execution-gate");
+    await assertLiveEngagementExecutionAllowed(db);
 
     // ── Claim Lock: only proceed if we can atomically claim ownership ──
     const { claimEngagement } = await import("./engagement-claim-lock");

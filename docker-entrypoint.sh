@@ -12,12 +12,14 @@ echo "[entrypoint] Build: $(cat dist/build-info.json 2>/dev/null || echo 'unknow
 if [ -n "$DATABASE_URL" ]; then
   echo "[entrypoint] Running database migrations..."
 
-  # Use direct SQL runner instead of drizzle-kit CLI (more reliable in container)
-  NODE_TLS_REJECT_UNAUTHORIZED=0 node run-migrations.mjs 2>&1 || {
-    echo "[entrypoint] WARN: Migration runner had issues (exit $?)"
-  }
+  # A production task must not serve with an unverifiable or partially applied
+  # schema. The runner is locked, checksummed, and verification-backed.
+  if ! NODE_TLS_REJECT_UNAUTHORIZED=0 node run-migrations.mjs; then
+    echo "[entrypoint] ERROR: Migration verification failed; refusing to start the API."
+    exit 1
+  fi
 
-  echo "[entrypoint] Database migrations complete."
+  echo "[entrypoint] Database migrations verified."
 
   # Seed admin account if AC3_ADMIN_PASSWORD is set
   if [ -n "$AC3_ADMIN_PASSWORD" ]; then

@@ -298,6 +298,7 @@ jobs:
           # Define all required application secrets
           SECRETS='[
             {"name":"DATABASE_URL","valueFrom":"'"$BASE_SECRET_ARN"':DATABASE_URL::"},
+            {"name":"AC3_LIVE_ENGAGEMENT_EXECUTION_ENABLED","valueFrom":"'"$BASE_SECRET_ARN"':AC3_LIVE_ENGAGEMENT_EXECUTION_ENABLED::"},
             {"name":"JWT_SECRET","valueFrom":"'"$BASE_SECRET_ARN"':JWT_SECRET::"},
             {"name":"VITE_APP_ID","valueFrom":"'"$BASE_SECRET_ARN"':VITE_APP_ID::"},
             {"name":"OAUTH_SERVER_URL","valueFrom":"'"$BASE_SECRET_ARN"':OAUTH_SERVER_URL::"},
@@ -350,6 +351,62 @@ jobs:
           container-name: ${{ env.PROJECT_NAME }}-app
           image: ${{ steps.build.outputs.image }}
 
+      - name: Run migration and verify agent tenant isolation
+        env:
+          ECS_CLUSTER: ${{ needs.setup.outputs.ecs_cluster }}
+          PRIVATE_SUBNETS: ${{ vars.PRIVATE_SUBNETS }}
+          APP_SG: ${{ vars.APP_SG }}
+          RENDERED_TASK_DEFINITION: ${{ steps.new-task-def.outputs.task-definition }}
+        run: |
+          set -euo pipefail
+          CONTAINER_NAME="${{ env.PROJECT_NAME }}-app"
+          NETWORK_CONFIGURATION="awsvpcConfiguration={subnets=${PRIVATE_SUBNETS},securityGroups=${APP_SG},assignPublicIp=DISABLED}"
+
+          echo "🗄️ Registering the reviewed task definition for pre-deployment checks..."
+          CHECK_TASK_DEF_ARN=$(aws ecs register-task-definition \
+            --cli-input-json "file://${RENDERED_TASK_DEFINITION}" \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text)
+          echo "  Task definition: ${CHECK_TASK_DEF_ARN}"
+
+          run_check_task() {
+            local label="$1"
+            local command="$2"
+            local overrides
+            overrides=$(jq -nc --arg name "$CONTAINER_NAME" --arg command "$command" \
+              '{containerOverrides:[{name:$name,command:["node",$command]}]}')
+
+            echo "🔍 ${label}..."
+            local task_arn
+            task_arn=$(aws ecs run-task \
+              --cluster "$ECS_CLUSTER" \
+              --task-definition "$CHECK_TASK_DEF_ARN" \
+              --launch-type FARGATE \
+              --network-configuration "$NETWORK_CONFIGURATION" \
+              --overrides "$overrides" \
+              --query 'tasks[0].taskArn' \
+              --output text)
+            test -n "$task_arn" && test "$task_arn" != "None"
+            echo "  Task: $task_arn"
+            aws ecs wait tasks-stopped --cluster "$ECS_CLUSTER" --tasks "$task_arn"
+
+            local exit_code
+            exit_code=$(aws ecs describe-tasks --cluster "$ECS_CLUSTER" --tasks "$task_arn" \
+              --query "tasks[0].containers[?name==\`${CONTAINER_NAME}\`].exitCode | [0]" \
+              --output text)
+            if [ "$exit_code" != "0" ]; then
+              echo "::error::${label} failed (container exit code: ${exit_code})"
+              aws ecs describe-tasks --cluster "$ECS_CLUSTER" --tasks "$task_arn" \
+                --query 'tasks[0].{stoppedReason:stoppedReason,containers:containers[*].{name:name,exitCode:exitCode,reason:reason}}' \
+                --output json
+              exit 1
+            fi
+            echo "  ✅ ${label} passed"
+          }
+
+          run_check_task "Production manifest migration" "run-migrations.mjs"
+          run_check_task "Agent tenant-isolation readiness verification" "verify-agent-tenant-isolation.mjs"
+
       - name: Deploy to ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
@@ -358,30 +415,6 @@ jobs:
           cluster: ${{ needs.setup.outputs.ecs_cluster }}
           wait-for-service-stability: true
           wait-for-minutes: 10
-
-      - name: Run database migrations
-        env:
-          ECS_CLUSTER: ${{ needs.setup.outputs.ecs_cluster }}
-          TASK_FAMILY: ${{ needs.setup.outputs.task_family }}
-        run: |
-          echo "🗄️ Running database migrations..."
-          # Run migrations as a one-off ECS task
-          TASK_ARN=$(aws ecs run-task \
-            --cluster "$ECS_CLUSTER" \
-            --task-definition "$TASK_FAMILY" \
-            --launch-type FARGATE \
-            --network-configuration "awsvpcConfiguration={subnets=${{ vars.PRIVATE_SUBNETS }},securityGroups=${{ vars.APP_SG }},assignPublicIp=DISABLED}" \
-            --overrides '{"containerOverrides":[{"name":"${{ env.PROJECT_NAME }}-app","command":["node","node_modules/.bin/drizzle-kit","migrate"]}]}' \
-            --query 'tasks[0].taskArn' \
-            --output text 2>/dev/null || echo "")
-
-          if [ -n "$TASK_ARN" ] && [ "$TASK_ARN" != "None" ]; then
-            echo "Migration task: $TASK_ARN"
-            aws ecs wait tasks-stopped --cluster "$ECS_CLUSTER" --tasks "$TASK_ARN" || true
-            echo "✅ Migrations complete"
-          else
-            echo "::notice::Migration task skipped (no task ARN returned — may need manual migration)"
-          fi
 
       - name: Verify deployment
         env:

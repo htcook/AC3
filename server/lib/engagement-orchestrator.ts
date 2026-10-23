@@ -3942,8 +3942,15 @@ export async function executeEngagement(
   let engagement: any;
   try {
     const db = await import("../db");
+    const database = await db.getDb();
+    if (!database) throw new Error("Database unavailable");
+    const { assertLiveEngagementExecutionAllowed } = await import("./live-engagement-execution-gate");
+    await assertLiveEngagementExecutionAllowed(database);
     engagement = await db.getEngagementById(engagementId);
     if (!engagement) throw new Error("Engagement not found");
+    if (engagement.engTenantId === null || engagement.engTenantId === undefined) {
+      throw new Error("Engagement tenant assignment is required before live execution");
+    }
     state.engagementType = engagement.engagementType || "pentest";
   } catch (e: any) {
     state.error = e.message;

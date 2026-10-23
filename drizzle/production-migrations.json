@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "migrations": [
+    {
+      "tag": "0023_agent_tenant_isolation",
+      "file": "0023_agent_tenant_isolation.sql",
+      "sha256": "b612b0e109d8ac4a41b9a245c9dbf47ae0b5c8644670eb37bd9ffbb50ddc2c09",
+      "verify": {
+        "columns": [
+          { "table": "agent_deployments", "column": "tenant_id" },
+          { "table": "agent_tasks", "column": "tenant_id" }
+        ],
+        "indexes": [
+          { "table": "agent_deployments", "index": "agent_deployments_tenant_created_idx" },
+          { "table": "agent_tasks", "index": "agent_tasks_tenant_status_idx" },
+          { "table": "agent_tasks", "index": "agent_tasks_agent_tenant_queued_idx" }
+        ]
+      }
+    },
+    {
+      "tag": "0024_agent_tenant_isolation_contract",
+      "file": "0024_agent_tenant_isolation_contract.sql",
+      "sha256": "d074111abac4708aeee03027e4db870d56703d9bd3204ebcca42f8d6e874d013",
+      "requireCleanAgentTenantData": true,
+      "verify": {
+        "notNullColumns": [
+          { "table": "agent_deployments", "column": "tenant_id" },
+          { "table": "agent_tasks", "column": "tenant_id" }
+        ],
+        "indexes": [
+          { "table": "agent_deployments", "index": "agent_deployments_id_tenant_unique" },
+          { "table": "agent_tasks", "index": "agent_tasks_agent_tenant_queued_idx" }
+        ],
+        "foreignKeys": [
+          { "table": "agent_deployments", "constraint": "agent_deployments_tenant_fk" },
+          { "table": "agent_tasks", "constraint": "agent_tasks_deployment_tenant_fk" }
+        ]
+      }
+    }
+  ]
+}

@@ -8,7 +8,7 @@
 
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { publicProcedure, protectedProcedure, adminProcedure, router } from "../../_core/trpc";
+import { publicProcedure, protectedProcedure, adminProcedure, adminTenantProcedure, tenantProcedure, router } from "../../_core/trpc";
 import { getDb } from "../../db";
 import {
   agentDeployments,
@@ -16,10 +16,16 @@ import {
   agentAuditLog,
   c2Servers,
 } from "../../../drizzle/schema";
-import { eq, desc, and, sql, count } from "drizzle-orm";
+import { eq, desc, and, inArray, sql, count } from "drizzle-orm";
 import { getFIPSCrypto } from "../../lib/fips-crypto";
 import { checkC2Health } from "../../lib/c2-health";
 import { processHeartbeat, runWatchdogSweep, type HeartbeatPayload } from "../../lib/agent-heartbeat";
+import {
+  assertAgentTenantIsolationReady,
+  assertEngagementForTenant,
+  getAgentForTenant,
+} from "../../lib/agent-tenant-isolation";
+import { assertLiveEngagementExecutionAllowed } from "../../lib/live-engagement-execution-gate";
 
 // ─── Input Schemas ────────────────────────────────────────────────────
 
@@ -173,7 +179,7 @@ export const c2LifecycleRouter = router({
 
   // ─── Agent Deployments ──────────────────────────────────────────────
 
-  listAgents: protectedProcedure
+  listAgents: tenantProcedure
     .input(
       z.object({
         status: z.enum([
@@ -184,11 +190,12 @@ export const c2LifecycleRouter = router({
         offset: z.number().min(0).default(0),
       })
     )
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) return { agents: [], total: 0 };
 
-      const conditions: any[] = [];
+      await assertAgentTenantIsolationReady(db);
+      const conditions: any[] = [eq(agentDeployments.tenantId, ctx.tenant.tenantId)];
       if (input.status) {
         conditions.push(eq(agentDeployments.agentStatus, input.status));
       }
@@ -203,21 +210,24 @@ export const c2LifecycleRouter = router({
       return { agents, total };
     }),
 
-  getAgent: protectedProcedure
+  getAgent: tenantProcedure
     .input(z.object({ id: z.string() }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
-      const [agent] = await db.select().from(agentDeployments).where(eq(agentDeployments.id, input.id));
-      if (!agent) throw new TRPCError({ code: "NOT_FOUND", message: "Agent not found" });
-      return agent;
+      await assertAgentTenantIsolationReady(db);
+      return getAgentForTenant(db, input.id, ctx.tenant.tenantId);
     }),
 
-  requestDeployment: protectedProcedure
+  requestDeployment: tenantProcedure
     .input(agentDeployInput)
     .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      await assertLiveEngagementExecutionAllowed(db);
+      if (input.engagementId !== undefined) {
+        await assertEngagementForTenant(db, input.engagementId, ctx.tenant.tenantId);
+      }
 
       const fips = getFIPSCrypto();
       const id = fips.uuid();
@@ -228,12 +238,13 @@ export const c2LifecycleRouter = router({
 
       await db.insert(agentDeployments).values({
         id,
+        tenantId: ctx.tenant.tenantId,
         name: input.name,
         description: input.description ?? null,
         engagementId: input.engagementId ?? null,
         targetPlatform: input.targetPlatform,
         c2Protocol: input.c2Protocol,
-        status: "pending_approval",
+        agentStatus: "pending_approval",
         publicKey: keyPair.publicKey,
         certificateHash: fips.hash(keyPair.publicKey),
         registrationTokenHash: regTokenHash,
@@ -258,72 +269,84 @@ export const c2LifecycleRouter = router({
       return { id, registrationToken: regToken, publicKey: keyPair.publicKey };
     }),
 
-  approveDeployment: adminProcedure
+  approveDeployment: adminTenantProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
-      const [agent] = await db.select().from(agentDeployments).where(eq(agentDeployments.id, input.id));
-      if (!agent) throw new TRPCError({ code: "NOT_FOUND" });
-      if (agent.status !== "pending_approval") {
-        throw new TRPCError({ code: "BAD_REQUEST", message: `Cannot approve agent in ${agent.status} state` });
+      await assertLiveEngagementExecutionAllowed(db);
+      const agent = await getAgentForTenant(db, input.id, ctx.tenant.tenantId);
+      if (agent.agentStatus !== "pending_approval") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: `Cannot approve agent in ${agent.agentStatus} state` });
       }
       await db.update(agentDeployments).set({
-        status: "approved", approvedBy: ctx.user?.id ?? 1, approvedAt: Date.now(), updatedAt: Date.now(),
-      }).where(eq(agentDeployments.id, input.id));
-      await logAgentEvent(input.id, "approved", ctx.user?.id ?? 1, "operator", { action: "deployment_approved" });
+        agentStatus: "approved", approvedBy: ctx.user.id, approvedAt: Date.now(), updatedAt: Date.now(),
+      }).where(and(eq(agentDeployments.id, input.id), eq(agentDeployments.tenantId, ctx.tenant.tenantId)));
+      await logAgentEvent(input.id, "approved", ctx.user.id, "operator", { action: "deployment_approved" });
       return { success: true };
     }),
 
-  rejectDeployment: adminProcedure
+  rejectDeployment: adminTenantProcedure
     .input(z.object({ id: z.string(), reason: z.string().min(1) }))
     .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      await assertAgentTenantIsolationReady(db);
+      await getAgentForTenant(db, input.id, ctx.tenant.tenantId);
       await db.update(agentDeployments).set({
-        status: "failed", rejectionReason: input.reason, updatedAt: Date.now(),
-      }).where(eq(agentDeployments.id, input.id));
-      await logAgentEvent(input.id, "rejected", ctx.user?.id ?? 1, "operator", { action: "deployment_rejected", reason: input.reason });
+        agentStatus: "failed", rejectionReason: input.reason, updatedAt: Date.now(),
+      }).where(and(eq(agentDeployments.id, input.id), eq(agentDeployments.tenantId, ctx.tenant.tenantId)));
+      await logAgentEvent(input.id, "rejected", ctx.user.id, "operator", { action: "deployment_rejected", reason: input.reason });
       return { success: true };
     }),
 
-  pauseAgent: protectedProcedure
+  pauseAgent: tenantProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
-      await db.update(agentDeployments).set({ agentStatus: "paused", updatedAt: Date.now() }).where(eq(agentDeployments.id, input.id));
-      await logAgentEvent(input.id, "paused", ctx.user?.id ?? 1, "operator");
+      await assertAgentTenantIsolationReady(db);
+      await getAgentForTenant(db, input.id, ctx.tenant.tenantId);
+      await db.update(agentDeployments).set({ agentStatus: "paused", updatedAt: Date.now() })
+        .where(and(eq(agentDeployments.id, input.id), eq(agentDeployments.tenantId, ctx.tenant.tenantId)));
+      await logAgentEvent(input.id, "paused", ctx.user.id, "operator");
       return { success: true };
     }),
 
-  resumeAgent: protectedProcedure
+  resumeAgent: tenantProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
-      await db.update(agentDeployments).set({ agentStatus: "active", updatedAt: Date.now() }).where(eq(agentDeployments.id, input.id));
-      await logAgentEvent(input.id, "resumed", ctx.user?.id ?? 1, "operator");
+      await assertLiveEngagementExecutionAllowed(db);
+      await getAgentForTenant(db, input.id, ctx.tenant.tenantId);
+      await db.update(agentDeployments).set({ agentStatus: "active", updatedAt: Date.now() })
+        .where(and(eq(agentDeployments.id, input.id), eq(agentDeployments.tenantId, ctx.tenant.tenantId)));
+      await logAgentEvent(input.id, "resumed", ctx.user.id, "operator");
       return { success: true };
     }),
 
-  terminateAgent: adminProcedure
+  terminateAgent: adminTenantProcedure
     .input(z.object({ id: z.string(), reason: z.string().optional() }))
     .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      await assertAgentTenantIsolationReady(db);
+      await getAgentForTenant(db, input.id, ctx.tenant.tenantId);
       await db.update(agentDeployments).set({
         agentStatus: "terminated", terminatedAt: Date.now(), updatedAt: Date.now(),
-      }).where(eq(agentDeployments.id, input.id));
-      await logAgentEvent(input.id, "terminated", ctx.user?.id ?? 1, "operator", { reason: input.reason ?? "Manual termination" });
+      }).where(and(eq(agentDeployments.id, input.id), eq(agentDeployments.tenantId, ctx.tenant.tenantId)));
+      await logAgentEvent(input.id, "terminated", ctx.user.id, "operator", { reason: input.reason ?? "Manual termination" });
       return { success: true };
     }),
 
   // ─── Agent Tasks ────────────────────────────────────────────────────
 
-  assignTask: protectedProcedure.input(taskInput).mutation(async ({ input, ctx }) => {
+  assignTask: tenantProcedure.input(taskInput).mutation(async ({ input, ctx }) => {
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+    await assertLiveEngagementExecutionAllowed(db);
+    await getAgentForTenant(db, input.agentId, ctx.tenant.tenantId);
 
     const fips = getFIPSCrypto();
     const id = fips.uuid();
@@ -332,6 +355,7 @@ export const c2LifecycleRouter = router({
 
     await db.insert(agentTasks).values({
       id,
+      tenantId: ctx.tenant.tenantId,
       agentId: input.agentId,
       techniqueId: input.techniqueId ?? null,
       techniqueName: input.techniqueName ?? null,
@@ -353,54 +377,71 @@ export const c2LifecycleRouter = router({
     return { id };
   }),
 
-  listTasks: protectedProcedure
+  listTasks: tenantProcedure
     .input(z.object({
       agentId: z.string(),
       status: z.enum(["queued", "sent", "executing", "completed", "failed", "timeout", "cancelled"]).optional(),
       limit: z.number().min(1).max(200).default(50),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) return [];
-      const conditions: any[] = [eq(agentTasks.agentId, input.agentId)];
+      await assertAgentTenantIsolationReady(db);
+      const conditions: any[] = [
+        eq(agentTasks.agentId, input.agentId),
+        eq(agentTasks.tenantId, ctx.tenant.tenantId),
+      ];
       if (input.status) conditions.push(eq(agentTasks.taskStatus, input.status));
       return db.select().from(agentTasks).where(and(...conditions)).orderBy(desc(agentTasks.queuedAt)).limit(input.limit);
     }),
 
-  cancelTask: protectedProcedure
+  cancelTask: tenantProcedure
     .input(z.object({ taskId: z.string() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
-      const [task] = await db.select().from(agentTasks).where(eq(agentTasks.id, input.taskId));
+      await assertAgentTenantIsolationReady(db);
+      const [task] = await db.select().from(agentTasks)
+        .where(and(eq(agentTasks.id, input.taskId), eq(agentTasks.tenantId, ctx.tenant.tenantId)));
       if (!task) throw new TRPCError({ code: "NOT_FOUND" });
       if (task.taskStatus !== "queued") throw new TRPCError({ code: "BAD_REQUEST", message: "Can only cancel queued tasks" });
-      await db.update(agentTasks).set({ taskStatus: "cancelled", completedAt: Date.now() }).where(eq(agentTasks.id, input.taskId));
+      await db.update(agentTasks).set({ taskStatus: "cancelled", completedAt: Date.now() })
+        .where(and(eq(agentTasks.id, input.taskId), eq(agentTasks.tenantId, ctx.tenant.tenantId)));
       return { success: true };
     }),
 
   // ─── Audit Log ──────────────────────────────────────────────────────
 
-  getAuditLog: protectedProcedure
+  getAuditLog: tenantProcedure
     .input(z.object({
       agentId: z.string().optional(),
       limit: z.number().min(1).max(500).default(100),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) return [];
-      const conditions: any[] = [];
-      if (input.agentId) conditions.push(eq(agentAuditLog.agentId, input.agentId));
-      return db.select().from(agentAuditLog)
-        .where(conditions.length > 0 ? and(...conditions) : undefined)
+      await assertAgentTenantIsolationReady(db);
+      let agentIds: string[];
+      if (input.agentId) {
+        await getAgentForTenant(db, input.agentId, ctx.tenant.tenantId);
+        agentIds = [input.agentId];
+      } else {
+        const agents = await db.select({ id: agentDeployments.id }).from(agentDeployments)
+          .where(eq(agentDeployments.tenantId, ctx.tenant.tenantId));
+        agentIds = agents.map((agent) => agent.id);
+      }
+      if (agentIds.length === 0) return [];
+      return db.select().from(agentAuditLog).where(inArray(agentAuditLog.agentId, agentIds))
         .orderBy(desc(agentAuditLog.id)).limit(input.limit);
     }),
 
-  verifyAuditChain: protectedProcedure
+  verifyAuditChain: tenantProcedure
     .input(z.object({ agentId: z.string() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      await assertAgentTenantIsolationReady(db);
+      await getAgentForTenant(db, input.agentId, ctx.tenant.tenantId);
       const entries = await db.select().from(agentAuditLog)
         .where(eq(agentAuditLog.agentId, input.agentId)).orderBy(agentAuditLog.id);
       let valid = true;
@@ -425,7 +466,7 @@ export const c2LifecycleRouter = router({
   heartbeat: publicProcedure
     .input(z.object({
       agentId: z.string(),
-      registrationToken: z.string().optional(),
+      registrationToken: z.string().min(1),
       platform: z.string().optional(),
       architecture: z.string().optional(),
       username: z.string().optional(),
@@ -444,13 +485,16 @@ export const c2LifecycleRouter = router({
       return processHeartbeat(payload);
     }),
 
-  runWatchdog: adminProcedure.mutation(async () => {
-    return runWatchdogSweep();
+  runWatchdog: adminTenantProcedure.mutation(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+    await assertAgentTenantIsolationReady(db);
+    return runWatchdogSweep(ctx.tenant.tenantId);
   }),
 
   // ─── Dashboard Stats ────────────────────────────────────────────────
 
-  dashboardStats: protectedProcedure.query(async () => {
+  dashboardStats: tenantProcedure.query(async ({ ctx }) => {
     const db = await getDb();
     if (!db) {
       const fips = getFIPSCrypto();
@@ -463,6 +507,9 @@ export const c2LifecycleRouter = router({
       };
     }
 
+    await assertAgentTenantIsolationReady(db);
+    const tenantFilter = eq(agentDeployments.tenantId, ctx.tenant.tenantId);
+    const taskTenantFilter = eq(agentTasks.tenantId, ctx.tenant.tenantId);
     const [agentStats] = await db.select({
       total: count(),
       active: sql<number>`SUM(CASE WHEN agentStatus = 'active' THEN 1 ELSE 0 END)`,
@@ -471,7 +518,7 @@ export const c2LifecycleRouter = router({
       lost: sql<number>`SUM(CASE WHEN agentStatus = 'lost' THEN 1 ELSE 0 END)`,
       terminated: sql<number>`SUM(CASE WHEN agentStatus = 'terminated' THEN 1 ELSE 0 END)`,
       completed: sql<number>`SUM(CASE WHEN agentStatus = 'completed' THEN 1 ELSE 0 END)`,
-    }).from(agentDeployments);
+    }).from(agentDeployments).where(tenantFilter);
 
     const [c2Stats] = await db.select({
       total: count(),
@@ -484,7 +531,7 @@ export const c2LifecycleRouter = router({
       executing: sql<number>`SUM(CASE WHEN taskStatus = 'executing' THEN 1 ELSE 0 END)`,
       completed: sql<number>`SUM(CASE WHEN taskStatus = 'completed' THEN 1 ELSE 0 END)`,
       failed: sql<number>`SUM(CASE WHEN taskStatus = 'failed' THEN 1 ELSE 0 END)`,
-    }).from(agentTasks);
+    }).from(agentTasks).where(taskTenantFilter);
 
     const fips = getFIPSCrypto();
     const fipsReport = fips.getComplianceReport();

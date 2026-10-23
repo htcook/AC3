@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { protectedProcedure, router } from "../_core/trpc";
+import { protectedProcedure, tenantProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import * as db from "../db";
 import { and, eq, min, not, or, sql } from "drizzle-orm";
@@ -85,7 +85,7 @@ export const engagementOpsRouter = router({
       }),
 
     /** Start autonomous execution — one-click pentest/red team */
-    execute: protectedProcedure
+    execute: tenantProcedure
       .input(z.object({
         engagementId: z.number(),
         exhaustiveExploit: z.boolean().optional().default(true),
@@ -99,7 +99,18 @@ export const engagementOpsRouter = router({
         }).optional(),
       }))
       .mutation(async ({ input, ctx }) => {
-        const engagement = await db.getEngagementById(input.engagementId, ctx.user);
+        const dbConn = await db.getDb();
+        if (!dbConn) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+        const { assertLiveEngagementExecutionAllowed } = await import("../lib/live-engagement-execution-gate");
+        await assertLiveEngagementExecutionAllowed(dbConn);
+        const [engagement] = await dbConn
+          .select()
+          .from(schema.engagements)
+          .where(and(
+            eq(schema.engagements.id, input.engagementId),
+            eq(schema.engagements.engTenantId, ctx.tenant.tenantId),
+          ))
+          .limit(1);
         if (!engagement) throw new TRPCError({ code: 'NOT_FOUND', message: 'Engagement not found' });
 
         // Validate RoE scope exists

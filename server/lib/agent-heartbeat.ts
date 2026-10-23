@@ -12,12 +12,13 @@
  * All mutations are audit-logged with HMAC-chained integrity.
  */
 
+import { timingSafeEqual } from "crypto";
 import { getDb } from "../db";
 import {
   agentDeployments,
   agentAuditLog,
 } from "../../drizzle/schema";
-import { eq, and, sql, lte, inArray } from "drizzle-orm";
+import { eq, and, sql, lte, inArray, isNotNull } from "drizzle-orm";
 import { getFIPSCrypto } from "./fips-crypto";
 
 // ─── Types ──────────────────────────────────────────────────────────────
@@ -135,7 +136,37 @@ export async function processHeartbeat(payload: HeartbeatPayload): Promise<Heart
     };
   }
 
-  const previousStatus = agent.status;
+  // Registration tokens are issued once at deployment creation. Do not use an
+  // agent UUID as an authenticator: IDs can appear in logs and are not a secret.
+  const expectedTokenHash = agent.registrationTokenHash;
+  const suppliedTokenHash = payload.registrationToken
+    ? getFIPSCrypto().hash(payload.registrationToken)
+    : "";
+  const tokenValid = typeof expectedTokenHash === "string"
+    && expectedTokenHash.length === suppliedTokenHash.length
+    && timingSafeEqual(Buffer.from(expectedTokenHash), Buffer.from(suppliedTokenHash));
+  if (!tokenValid) {
+    return {
+      accepted: false,
+      agentId: payload.agentId,
+      previousStatus: null,
+      newStatus: "unknown",
+      message: "Invalid agent registration token",
+    };
+  }
+
+  // Legacy deployments without a verified tenant assignment are quarantined.
+  if (agent.tenantId === null || agent.tenantId === undefined) {
+    return {
+      accepted: false,
+      agentId: payload.agentId,
+      previousStatus: null,
+      newStatus: "unknown",
+      message: "Agent tenant isolation is not ready",
+    };
+  }
+
+  const previousStatus = agent.agentStatus;
   const now = Date.now();
 
   // Reject heartbeats from terminal-state agents
@@ -173,12 +204,12 @@ export async function processHeartbeat(payload: HeartbeatPayload): Promise<Heart
   if (previousStatus === "approved" || previousStatus === "deploying") {
     // First beacon — agent is now active
     newStatus = "active";
-    updateSet.status = "active";
+    updateSet.agentStatus = "active";
     updateSet.deployedAt = now;
   } else if (previousStatus === "lost") {
     // Reconnection
     newStatus = "active";
-    updateSet.status = "active";
+    updateSet.agentStatus = "active";
     eventType = "reconnected";
   } else if (previousStatus === "pending_approval") {
     // Agent beaconing before approval — accept heartbeat but don't activate
@@ -189,7 +220,10 @@ export async function processHeartbeat(payload: HeartbeatPayload): Promise<Heart
   await db
     .update(agentDeployments)
     .set(updateSet)
-    .where(eq(agentDeployments.id, payload.agentId));
+    .where(and(
+      eq(agentDeployments.id, payload.agentId),
+      eq(agentDeployments.tenantId, agent.tenantId),
+    ));
 
   // Log the event
   await logHeartbeatEvent(
@@ -232,7 +266,7 @@ export interface WatchdogResult {
  * Scan all active/approved/deploying agents and mark those whose
  * lastHeartbeat exceeds their watchdogSeconds threshold as "lost".
  */
-export async function runWatchdogSweep(): Promise<WatchdogResult> {
+export async function runWatchdogSweep(tenantId?: number): Promise<WatchdogResult> {
   const db = await getDb();
   if (!db) {
     return { scannedAgents: 0, markedLost: 0, lostAgentIds: [] };
@@ -241,18 +275,23 @@ export async function runWatchdogSweep(): Promise<WatchdogResult> {
   const now = Date.now();
 
   // Find agents that should be checked (active states with a heartbeat)
+  const conditions = [
+    inArray(agentDeployments.agentStatus, ["active", "paused"]),
+    isNotNull(agentDeployments.tenantId),
+  ];
+  if (tenantId !== undefined) conditions.push(eq(agentDeployments.tenantId, tenantId));
+
   const activeAgents = await db
     .select({
       id: agentDeployments.id,
+      tenantId: agentDeployments.tenantId,
       status: agentDeployments.agentStatus,
       lastHeartbeat: agentDeployments.lastHeartbeat,
       watchdogSeconds: agentDeployments.watchdogSeconds,
       deployedAt: agentDeployments.deployedAt,
     })
     .from(agentDeployments)
-    .where(
-      inArray(agentDeployments.agentStatus, ["active", "paused"])
-    );
+    .where(and(...conditions));
 
   const lostAgentIds: string[] = [];
 
@@ -265,7 +304,10 @@ export async function runWatchdogSweep(): Promise<WatchdogResult> {
       await db
         .update(agentDeployments)
         .set({ agentStatus: "lost", updatedAt: now })
-        .where(eq(agentDeployments.id, agent.id));
+        .where(and(
+          eq(agentDeployments.id, agent.id),
+          eq(agentDeployments.tenantId, agent.tenantId),
+        ));
 
       await logHeartbeatEvent(agent.id, "lost", "system", {
         lastHeartbeat: lastSeen,

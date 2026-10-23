@@ -28,6 +28,17 @@ const requireUser = t.middleware(async opts => {
 
 export const protectedProcedure = t.procedure.use(requireUser);
 
+function getRequestedTenantId(ctx: TrpcContext): number | null {
+  const header = ctx.req.headers["x-tenant-id"];
+  const raw = Array.isArray(header) ? header[0] : header;
+  if (raw === undefined || raw === "") return null;
+  const tenantId = Number(raw);
+  if (!Number.isSafeInteger(tenantId) || tenantId <= 0) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "X-Tenant-Id must be a positive integer" });
+  }
+  return tenantId;
+}
+
 export const adminProcedure = t.procedure.use(
   t.middleware(async opts => {
     const { ctx, next } = opts;
@@ -61,11 +72,13 @@ const requireTenant = t.middleware(async opts => {
 
   const { resolveUserTenant, autoProvisionTenant } = await import("../lib/tenant-isolation");
 
-  const requestedTenantId = ctx.req.headers["x-tenant-id"]
-    ? parseInt(ctx.req.headers["x-tenant-id"] as string, 10)
-    : null;
+  const requestedTenantId = getRequestedTenantId(ctx);
 
-  let tenant = await resolveUserTenant(ctx.user.id, requestedTenantId || null);
+  let tenant = await resolveUserTenant(ctx.user.id, requestedTenantId);
+
+  if (!tenant && requestedTenantId !== null) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Access denied to the requested tenant" });
+  }
 
   if (!tenant) {
     try {
@@ -99,11 +112,12 @@ const requireAdminTenant = t.middleware(async opts => {
   }
 
   const { resolveUserTenant, autoProvisionTenant } = await import("../lib/tenant-isolation");
-  const requestedTenantId = ctx.req.headers["x-tenant-id"]
-    ? parseInt(ctx.req.headers["x-tenant-id"] as string, 10)
-    : null;
+  const requestedTenantId = getRequestedTenantId(ctx);
 
-  let tenant = await resolveUserTenant(ctx.user.id, requestedTenantId || null);
+  let tenant = await resolveUserTenant(ctx.user.id, requestedTenantId);
+  if (!tenant && requestedTenantId !== null) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Access denied to the requested tenant" });
+  }
   if (!tenant) {
     try {
       tenant = await autoProvisionTenant(ctx.user.id, ctx.user.name);

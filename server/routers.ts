@@ -226,7 +226,6 @@ import { labEngagementSeedWave2Router } from "./routers/lab-engagement-seed-wave
 import { agentLeaderboardRouter } from "./routers/agent-leaderboard";
 import { realtimeMonitorRouter } from "./routers/realtime-monitor";
 import { trainingDataReviewRouter } from "./routers/training-data-review";
-import { liveTriggerTempRouter } from "./routers/live-trigger-temp"; // TEMP: commented out for production
 import { campaignOrchestratorRouter } from "./routers/campaign-orchestrator";
 import { scanforgeRouter } from "./routers/scanforge";
 import { complianceExportsRouter } from "./routers/compliance-exports";
@@ -640,8 +639,6 @@ export const appRouter = router({
   realtimeMonitor: realtimeMonitorRouter,
   // ─── Training Data Quality Review & JSONL Export ──
   trainingReview: trainingDataReviewRouter,
-  // ─── TEMP: Live engagement trigger (commented out for production) ──
-  liveTrigger: liveTriggerTempRouter,
   // ─── Campaign Orchestrator (Multi-stage Red Team Campaign Chaining) ──
   campaignOrchestrator: campaignOrchestratorRouter,
   // ─── ScanForge DAST Engine (Custom Vulnerability Scanner) ──────────────
@@ -722,4 +719,3 @@ export const appRouter = router({
   oktaExploitation: oktaExploitationRouter,
 });
 export type AppRouter = typeof appRouter;
-

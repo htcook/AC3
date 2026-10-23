@@ -46,6 +46,7 @@ fix-*.sh
 *.mjs
 !seed-admin.mjs
 !run-migrations.mjs
+!verify-agent-tenant-isolation.mjs
 !scripts/seed-caldera.mjs
 *.cjs
 !build.cjs

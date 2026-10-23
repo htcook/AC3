@@ -464,7 +464,8 @@ export const agentDefinitions = mysqlTable("agent_definitions", {
 ]);
 
 export const agentDeployments = mysqlTable("agent_deployments", {
-	id: varchar({ length: 36 }).notNull(),
+	id: varchar({ length: 36 }).primaryKey().notNull(),
+	tenantId: int("tenant_id").notNull(),
 	engagementId: int(),
 	name: varchar({ length: 255 }).notNull(),
 	description: text(),
@@ -498,11 +499,15 @@ export const agentDeployments = mysqlTable("agent_deployments", {
 	terminatedAt: bigint({ mode: "number" }),
 	createdAt: bigint({ mode: "number" }).notNull(),
 	updatedAt: bigint({ mode: "number" }).notNull(),
-});
+},
+(table) => [
+	index("agent_deployments_tenant_created_idx").on(table.tenantId, table.createdAt),
+]);
 
 export const agentTasks = mysqlTable("agent_tasks", {
-	id: varchar({ length: 36 }).notNull(),
-	agentId: varchar({ length: 36 }).notNull().references(() => agentDeployments.id, { onDelete: "cascade" } ),
+	id: varchar({ length: 36 }).primaryKey().notNull(),
+	tenantId: int("tenant_id").notNull(),
+	agentId: varchar({ length: 36 }).notNull(),
 	techniqueId: varchar({ length: 32 }),
 	techniqueName: varchar({ length: 255 }),
 	c2Source: mysqlEnum(['caldera','sliver','metasploit','native']).notNull(),
@@ -521,7 +526,16 @@ export const agentTasks = mysqlTable("agent_tasks", {
 	completedAt: bigint({ mode: "number" }),
 	assignedBy: int().notNull(),
 	roeVerified: tinyint().default(0),
-});
+},
+(table) => [
+	index("agent_tasks_tenant_status_idx").on(table.tenantId, table.taskStatus),
+	index("agent_tasks_agent_tenant_queued_idx").on(table.agentId, table.tenantId, table.queuedAt),
+	foreignKey({
+		columns: [table.agentId, table.tenantId],
+		foreignColumns: [agentDeployments.id, agentDeployments.tenantId],
+		name: "agent_tasks_deployment_tenant_fk",
+	}).onDelete("cascade"),
+]);
 
 export const agentlessBasTests = mysqlTable("agentless_bas_tests", {
 	id: int().autoincrement().notNull(),
