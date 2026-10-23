@@ -39,8 +39,13 @@ WORKDIR /usr/src/app
 COPY package.json pnpm-lock.yaml postinstall.cjs ./
 COPY patches/ ./patches/
 
-# Install all dependencies (dev deps needed for build)
-RUN pnpm install --no-frozen-lockfile
+# Install all dependencies (dev deps needed for build). Serialized fetches and
+# bounded retries avoid transient registry resets on cross-architecture builders.
+RUN pnpm install --no-frozen-lockfile \
+    --network-concurrency=1 \
+    --fetch-retries=10 \
+    --fetch-retry-mintimeout=10000 \
+    --fetch-retry-maxtimeout=120000
 
 # Copy source
 COPY . .
@@ -114,7 +119,11 @@ WORKDIR /usr/src/app
 # Copy dependency manifests and install PRODUCTION deps only (vite not needed at runtime)
 COPY --from=builder /usr/src/app/package.json /usr/src/app/pnpm-lock.yaml /usr/src/app/postinstall.cjs ./
 COPY --from=builder /usr/src/app/patches/ ./patches/
-RUN pnpm install --no-frozen-lockfile --prod && \
+RUN pnpm install --no-frozen-lockfile --prod \
+    --network-concurrency=1 \
+    --fetch-retries=10 \
+    --fetch-retry-mintimeout=10000 \
+    --fetch-retry-maxtimeout=120000 && \
     pnpm store prune
 
 # Copy built artifacts from builder
