@@ -2794,7 +2794,7 @@ export async function getGlobalLlmTelemetryRaw(tenantId: number, windowHours: nu
     ORDER BY telemetry.called_at ASC
     LIMIT ${limit}
   `);
-  return (rows as any[]).map(r => ({
+  return (rows as unknown as any[]).map(r => ({
     caller: r.caller || 'unknown',
     model: r.model || 'gemini-2.5-flash',
     llmStatus: r.llmStatus || 'success',
