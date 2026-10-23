@@ -11,14 +11,15 @@ import { createHash } from "crypto";
 import { readFileSync } from "fs";
 import mysql from "mysql2/promise";
 import { join } from "path";
+import { resolveDatabaseUrl } from "./database-runtime-config.mjs";
 
-const DATABASE_URL = process.env.DATABASE_URL;
+const DATABASE_URL = resolveDatabaseUrl();
 const MANIFEST_PATH = join("drizzle", "production-migrations.json");
 const LOCK_NAME = "ac3_production_schema_migrations";
 const LOCK_TIMEOUT_SECONDS = 60;
 
 if (!DATABASE_URL) {
-  console.error("[migrate] DATABASE_URL not set");
+  console.error("[migrate] Database connection is not configured");
   process.exit(1);
 }
 

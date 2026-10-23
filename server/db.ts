@@ -49,7 +49,10 @@ export async function getDb() {
     // Strip ssl query param from URL (mysql2 can't parse it from URL string)
     // and pass ssl config as a connection option instead
     let dbUrl = process.env.DATABASE_URL!;
-    const needsSsl = dbUrl.includes('tidbcloud.com') || dbUrl.includes('ssl=');
+    const needsSsl =
+      dbUrl.includes('tidbcloud.com') ||
+      dbUrl.includes('ssl=') ||
+      process.env.DATABASE_TLS_MODE === 'strict-rds';
     // Remove ssl param from URL to avoid mysql2 parsing errors
     dbUrl = dbUrl.replace(/[?&]ssl=[^&]*/g, '').replace(/\?$/, '');
     

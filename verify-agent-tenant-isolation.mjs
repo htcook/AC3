@@ -6,8 +6,9 @@
  * task record remains unassigned, orphaned, or disagrees with its parent.
  */
 import mysql from "mysql2/promise";
+import { resolveDatabaseUrl } from "./database-runtime-config.mjs";
 
-const DATABASE_URL = process.env.DATABASE_URL;
+const DATABASE_URL = resolveDatabaseUrl();
 const MIGRATION_TAGS = ["0023_agent_tenant_isolation", "0024_agent_tenant_isolation_contract"];
 const EXPECTED_COLUMNS = [
   ["agent_deployments", "tenant_id"],
@@ -25,7 +26,7 @@ const EXPECTED_FOREIGN_KEYS = [
 ];
 
 if (!DATABASE_URL) {
-  console.error("[tenant-verify] DATABASE_URL not set");
+  console.error("[tenant-verify] Database connection is not configured");
   process.exit(1);
 }
 

@@ -135,6 +135,7 @@ COPY --from=builder /usr/src/app/scripts/ ./scripts/
 # Copy entrypoint script and admin seeder
 COPY docker-entrypoint.sh ./docker-entrypoint.sh
 COPY seed-admin.mjs ./seed-admin.mjs
+COPY database-runtime-config.mjs ./database-runtime-config.mjs
 COPY run-migrations.mjs ./run-migrations.mjs
 COPY verify-agent-tenant-isolation.mjs ./verify-agent-tenant-isolation.mjs
 
