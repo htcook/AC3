@@ -1,0 +1,33 @@
+# Production release overlay for the existing AC3 distroless platform image.
+#
+# This is intentionally an overlay, not a dependency rebuild: it retains the
+# currently deployed, amd64 runtime dependency closure and replaces only the
+# reviewed compiled application and release-control artifacts. Use it only with
+# a verified production base image digest and validate it through the one-off
+# migration and tenant-isolation verifier tasks before service rollout.
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+
+ARG RELEASE_SHA="unknown"
+ARG RELEASE_DATE="unknown"
+LABEL org.opencontainers.image.revision="${RELEASE_SHA}"
+LABEL org.opencontainers.image.created="${RELEASE_DATE}"
+LABEL org.opencontainers.image.title="AC3 Platform production release overlay"
+
+USER 0
+WORKDIR /usr/src/app
+
+# The production base uses numeric UID/GID 65532. Preserve that non-root owner
+# for every overlaid runtime artifact; no shell or package manager is added.
+COPY --chown=65532:65532 dist/ ./dist/
+COPY --chown=65532:65532 .client-assets/ ./.client-assets/
+COPY --chown=65532:65532 drizzle/ ./drizzle/
+COPY --chown=65532:65532 shared/ ./shared/
+COPY --chown=65532:65532 server/lib/knowledge/ ./server/lib/knowledge/
+COPY --chown=65532:65532 scripts/ ./scripts/
+COPY --chown=65532:65532 runtime-bootstrap.mjs ./runtime-bootstrap.mjs
+COPY --chown=65532:65532 database-runtime-config.mjs ./database-runtime-config.mjs
+COPY --chown=65532:65532 run-migrations.mjs ./run-migrations.mjs
+COPY --chown=65532:65532 verify-agent-tenant-isolation.mjs ./verify-agent-tenant-isolation.mjs
+
+USER 65532:65532
