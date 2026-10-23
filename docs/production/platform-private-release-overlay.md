@@ -46,6 +46,27 @@ Keep the ECS roles separate:
   trust relationship and permissions before use. Do not repurpose an ECS role
   for an image build.
 
+## Dedicated database migration principal
+
+The platform application account is intentionally DDL-free. Before running a
+schema migration, create or rotate the `ac3plus_schema_migrator` database
+principal through the isolated provisioning task; do not grant `CREATE` or
+`ALTER` to the platform account.
+
+- Store its generated, 32+ character password as the JSON `password` field of
+  the dedicated Secrets Manager migration credential.
+- Start the provisioner with the managed RDS master credential injected only
+  into the one-off task as `DATABASE_PASSWORD`, and the generated migration
+  password injected as `AC3_MIGRATION_DB_PASSWORD`.
+- Run `/nodejs/bin/node provision-migration-principal.mjs` with
+  `AC3_MIGRATION_DB_USERNAME=ac3plus_schema_migrator`.
+- The provisioner requires SSL and grants only `SELECT`, `INSERT`, `UPDATE`,
+  `CREATE`, `ALTER`, `INDEX`, and `REFERENCES` on the application schema. It
+  does not grant `DROP`, `DELETE`, global administration, or application IAM
+  access.
+- The subsequent migration and verifier tasks use this migration credential;
+  the ECS service continues to use the DDL-free platform database account.
+
 ## Overlay build procedure
 
 1. Read the contained service's task definition and resolve its current image

@@ -47,6 +47,7 @@ fix-*.sh
 !seed-admin.mjs
 !runtime-bootstrap.mjs
 !database-runtime-config.mjs
+!provision-migration-principal.mjs
 !run-migrations.mjs
 !verify-agent-tenant-isolation.mjs
 !scripts/seed-caldera.mjs

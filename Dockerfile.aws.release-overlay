@@ -27,6 +27,7 @@ COPY --chown=65532:65532 server/lib/knowledge/ ./server/lib/knowledge/
 COPY --chown=65532:65532 scripts/ ./scripts/
 COPY --chown=65532:65532 runtime-bootstrap.mjs ./runtime-bootstrap.mjs
 COPY --chown=65532:65532 database-runtime-config.mjs ./database-runtime-config.mjs
+COPY --chown=65532:65532 provision-migration-principal.mjs ./provision-migration-principal.mjs
 COPY --chown=65532:65532 run-migrations.mjs ./run-migrations.mjs
 COPY --chown=65532:65532 verify-agent-tenant-isolation.mjs ./verify-agent-tenant-isolation.mjs
 
