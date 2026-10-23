@@ -153,7 +153,7 @@ export default function EngagementTerminal({
       const result = await runCommandMut.mutateAsync({
         engagementId,
         command: cmd,
-        targetHost: selectedAsset || undefined,
+        targetHost: selectedAsset,
         timeoutSeconds: 120,
       });
 

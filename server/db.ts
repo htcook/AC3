@@ -2770,25 +2770,28 @@ export async function getEngagementLlmTelemetryRaw(engagementId: number, limit: 
 }
 
 /**
- * Get raw telemetry records across all engagements for global hot path analysis.
+ * Get raw telemetry records for one tenant's engagements for hot-path analysis.
  */
-export async function getGlobalLlmTelemetryRaw(windowHours: number = 168, limit: number = 50000) {
+export async function getGlobalLlmTelemetryRaw(tenantId: number, windowHours: number = 168, limit: number = 50000) {
   const db = await getDb();
+  if (!db) return [];
   const { sql } = await import("drizzle-orm");
   const [rows] = await db.execute(sql`
     SELECT
-      caller,
-      model,
-      llm_status as llmStatus,
-      latency_ms as latencyMs,
-      COALESCE(tokens_in, 0) as tokensIn,
-      COALESCE(tokens_out, 0) as tokensOut,
-      called_at as calledAt,
-      engagement_id as engagementId,
-      error_message as errorMessage
-    FROM llm_telemetry
-    WHERE called_at >= DATE_SUB(NOW(), INTERVAL ${windowHours} HOUR)
-    ORDER BY called_at ASC
+      telemetry.caller,
+      telemetry.model,
+      telemetry.llm_status as llmStatus,
+      telemetry.latency_ms as latencyMs,
+      COALESCE(telemetry.tokens_in, 0) as tokensIn,
+      COALESCE(telemetry.tokens_out, 0) as tokensOut,
+      telemetry.called_at as calledAt,
+      telemetry.engagement_id as engagementId,
+      telemetry.error_message as errorMessage
+    FROM llm_telemetry AS telemetry
+    INNER JOIN engagements AS engagement ON engagement.id = telemetry.engagement_id
+    WHERE engagement.eng_tenant_id = ${tenantId}
+      AND telemetry.called_at >= DATE_SUB(NOW(), INTERVAL ${windowHours} HOUR)
+    ORDER BY telemetry.called_at ASC
     LIMIT ${limit}
   `);
   return (rows as any[]).map(r => ({
@@ -2859,9 +2862,9 @@ export async function getExploitPlanHistoryByGateId(gateId: string) {
 }
 
 /**
- * Get summary stats for exploit plan history across all engagements.
+ * Get summary stats for exploit plan history owned by one tenant.
  */
-export async function getExploitPlanStats() {
+export async function getExploitPlanStats(tenantId: number) {
   const db = await getDb();
   if (!db) return { total: 0, approved: 0, rejected: 0, modified: 0 };
   const [rows] = await db.execute(sql`
@@ -2870,7 +2873,9 @@ export async function getExploitPlanStats() {
       SUM(CASE WHEN plan_status = 'approved' THEN 1 ELSE 0 END) as approved,
       SUM(CASE WHEN plan_status = 'rejected' THEN 1 ELSE 0 END) as rejected,
       SUM(CASE WHEN plan_status = 'modified' THEN 1 ELSE 0 END) as modified
-    FROM exploit_plan_history
+    FROM exploit_plan_history AS plan
+    INNER JOIN engagements AS engagement ON engagement.id = plan.engagement_id
+    WHERE engagement.eng_tenant_id = ${tenantId}
   `);
   const r = (rows as any[])[0] || {};
   return {

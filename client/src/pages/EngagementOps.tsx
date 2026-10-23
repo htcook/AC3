@@ -464,6 +464,7 @@ function ExploitPlanReviewCard({
       .map((enabled, i) => (!enabled ? i : -1))
       .filter(i => i !== -1);
     approveMut.mutate({
+      engagementId,
       gateId: gate.id,
       approved: true,
       removedTargetIndices: removedIndices.length > 0 ? removedIndices : undefined,
@@ -580,7 +581,7 @@ function ExploitPlanReviewCard({
                 size="sm"
                 variant="outline"
                 className="border-red-500/30 text-red-400 hover:bg-red-500/10"
-                onClick={() => approveMut.mutate({ gateId: gate.id, approved: false })}
+                onClick={() => approveMut.mutate({ engagementId, gateId: gate.id, approved: false })}
                 disabled={approveMut.isPending}
               >
                 <XCircle className="h-3.5 w-3.5 mr-1" /> Reject All
@@ -627,7 +628,7 @@ function ExploitPlanReviewCard({
                 size="sm"
                 variant="outline"
                 className="border-red-500/30 text-red-400 hover:bg-red-500/10"
-                onClick={() => approveMut.mutate({ gateId: gate.id, approved: false })}
+                onClick={() => approveMut.mutate({ engagementId, gateId: gate.id, approved: false })}
                 disabled={approveMut.isPending}
               >
                 <XCircle className="h-3.5 w-3.5 mr-1" /> Reject Plan
@@ -643,7 +644,7 @@ function ExploitPlanReviewCard({
               <Button
                 size="sm"
                 className="bg-red-600 hover:bg-red-500 text-white"
-                onClick={() => approveMut.mutate({ gateId: gate.id, approved: true })}
+                onClick={() => approveMut.mutate({ engagementId, gateId: gate.id, approved: true })}
                 disabled={approveMut.isPending}
               >
                 <Swords className="h-3.5 w-3.5 mr-1" /> Approve & Execute
@@ -1014,7 +1015,8 @@ function CredentialVaultPopulator({ targetHost, engagementId, onSelect }: {
 
 // ─── Test Credentials Button ─────────────────────────────────────────────────────────
 
-function TestCredentialsButton({ targetUrl, username, password, authType, loginPath }: {
+function TestCredentialsButton({ engagementId, targetUrl, username, password, authType, loginPath }: {
+  engagementId: number;
   targetUrl: string;
   username: string;
   password: string;
@@ -1045,6 +1047,7 @@ function TestCredentialsButton({ targetUrl, username, password, authType, loginP
     setStatus('testing');
     setResultMessage('');
     testMut.mutate({
+      engagementId,
       targetUrl: targetUrl.startsWith('http') ? targetUrl : ('https://' + targetUrl),
       username,
       password,
@@ -1736,14 +1739,20 @@ export default function EngagementOps() {
     }
   }, [showApprovalDialog, targetApprovalsQ.data, domainWhitelistStatus]);
 
-  // ── Resume Engagement (queries — must be after `ops` is defined) ──
-  const resumeCapabilityQ = trpc.liveTrigger.checkResumeCapability.useQuery(
-    { engagementId },
-    { enabled: engagementId > 0 && (ops?.phase === 'error' || (ops?.phase !== 'idle' && !ops?.isRunning)) }
-  );
-  const resumeMut = trpc.liveTrigger.triggerExecution.useMutation({
+  // ── Resume Engagement (must be after `ops` is defined) ──────────────
+  const resumeCapability = {
+    canResume: engagementId > 0 && (ops?.phase === 'error' || (ops?.phase !== 'idle' && !ops?.isRunning)),
+    nextPhase: ops?.phase || 'recon',
+    nextPhaseLabel: ops?.phase ? ops.phase.replace(/_/g, ' ') : 'Next eligible phase',
+    currentPhaseLabel: ops?.phase ? ops.phase.replace(/_/g, ' ') : 'None',
+    preservedAssets: ops?.assets?.length || 0,
+    preservedVulns: ops?.stats?.vulnsFound || 0,
+    preservedPorts: ops?.stats?.portsFound || 0,
+    logCount: ops?.log?.length || 0,
+  };
+  const resumeMut = trpc.engagementOps.resume.useMutation({
     onSuccess: (data) => {
-      toast.success(`Engagement resumed from ${data.resumedFrom || 'last phase'}`);
+      toast.success("Engagement resume requested");
       setShowResumeDialog(false);
       opsStateQ.refetch();
     },
@@ -2575,7 +2584,7 @@ export default function EngagementOps() {
                   {resetMut.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <RotateCcw className="h-4 w-4 mr-1" />}
                   Reset State
                 </Button>
-                {resumeCapabilityQ.data?.canResume && (
+                {resumeCapability.canResume && (
                   <Button
                     size="sm"
                     variant="outline"
@@ -2583,15 +2592,15 @@ export default function EngagementOps() {
                     className="border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10"
                   >
                     <Play className="h-4 w-4 mr-1" />
-                    Resume from {resumeCapabilityQ.data.nextPhaseLabel || 'Last Phase'}
+                    Resume from {resumeCapability.nextPhaseLabel || 'Last Phase'}
                   </Button>
                 )}
                 <Button
                   size="sm"
                   onClick={() => {
-                    if (resumeCapabilityQ.data?.canResume && resumeCapabilityQ.data?.nextPhase) {
+                    if (resumeCapability.canResume && resumeCapability.nextPhase) {
                       // Use proper resume — resumes from the crashed phase, not from scratch
-                      resumeMut.mutate({ engagementId, resume: true, startPhase: resumeCapabilityQ.data.nextPhase as any });
+                      resumeMut.mutate({ engagementId });
                     } else {
                       // Fallback: restart from scratch only if no resume capability
                       passiveScanMut.mutate({ engagementId, scanMode: selectedScanMode });
@@ -2601,8 +2610,8 @@ export default function EngagementOps() {
                   className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500"
                 >
                   {(passiveScanMut.isPending || resumeMut.isPending) ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Search className="h-4 w-4 mr-1" />}
-                  {resumeCapabilityQ.data?.canResume
-                    ? `Retry from ${resumeCapabilityQ.data.nextPhaseLabel?.replace(/^Phase \d+[a-z]?: /, '') || 'Current Phase'}`
+                  {resumeCapability.canResume
+                    ? `Retry from ${resumeCapability.nextPhaseLabel?.replace(/^Phase \d+[a-z]?: /, '') || 'Current Phase'}`
                     : 'Restart Scan'}
                 </Button>
               </div>
@@ -2871,7 +2880,7 @@ export default function EngagementOps() {
                       size="sm"
                       variant="ghost"
                       className="text-muted-foreground hover:text-foreground text-xs"
-                      onClick={() => dismissStaleMut.mutate({ gateId: gate.id })}
+                      onClick={() => dismissStaleMut.mutate({ engagementId, gateId: gate.id })}
                       disabled={dismissStaleMut.isPending}
                       title="Dismiss this stale approval gate (server restarted, action context lost)"
                     >
@@ -2881,7 +2890,7 @@ export default function EngagementOps() {
                       size="sm"
                       variant="outline"
                       className="border-red-500/30 text-red-400 hover:bg-red-500/10"
-                      onClick={() => approveMut.mutate({ gateId: gate.id, approved: false })}
+                      onClick={() => approveMut.mutate({ engagementId, gateId: gate.id, approved: false })}
                       disabled={approveMut.isPending}
                     >
                       <XCircle className="h-3.5 w-3.5 mr-1" /> Deny
@@ -2889,7 +2898,7 @@ export default function EngagementOps() {
                     <Button
                       size="sm"
                       className="bg-green-600 hover:bg-green-500"
-                      onClick={() => approveMut.mutate({ gateId: gate.id, approved: true })}
+                      onClick={() => approveMut.mutate({ engagementId, gateId: gate.id, approved: true })}
                       disabled={approveMut.isPending}
                     >
                       <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Approve
@@ -6759,6 +6768,7 @@ export default function EngagementOps() {
                 </div>
                 {/* Test Credentials Button */}
                 <TestCredentialsButton
+                  engagementId={engagementId}
                   targetUrl={engagement?.targetDomain || ''}
                   username={credUsername}
                   password={credPassword}
@@ -7079,23 +7089,23 @@ export default function EngagementOps() {
               Resume the engagement from where it was interrupted. All previously collected data will be preserved.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          {resumeCapabilityQ.data && (
+          {resumeCapability.canResume && (
             <div className="space-y-3 py-2">
               <div className="grid grid-cols-2 gap-3">
                 <div className="p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
-                  <div className="text-lg font-bold text-emerald-400">{resumeCapabilityQ.data.preservedAssets ?? 0}</div>
+                  <div className="text-lg font-bold text-emerald-400">{resumeCapability.preservedAssets ?? 0}</div>
                   <div className="text-[10px] text-muted-foreground">Assets Preserved</div>
                 </div>
                 <div className="p-3 rounded-lg bg-red-500/5 border border-red-500/20">
-                  <div className="text-lg font-bold text-red-400">{resumeCapabilityQ.data.preservedVulns ?? 0}</div>
+                  <div className="text-lg font-bold text-red-400">{resumeCapability.preservedVulns ?? 0}</div>
                   <div className="text-[10px] text-muted-foreground">Vulns Found</div>
                 </div>
                 <div className="p-3 rounded-lg bg-blue-500/5 border border-blue-500/20">
-                  <div className="text-lg font-bold text-blue-400">{resumeCapabilityQ.data.preservedPorts ?? 0}</div>
+                  <div className="text-lg font-bold text-blue-400">{resumeCapability.preservedPorts ?? 0}</div>
                   <div className="text-[10px] text-muted-foreground">Ports Discovered</div>
                 </div>
                 <div className="p-3 rounded-lg bg-purple-500/5 border border-purple-500/20">
-                  <div className="text-lg font-bold text-purple-400">{resumeCapabilityQ.data.logCount ?? 0}</div>
+                  <div className="text-lg font-bold text-purple-400">{resumeCapability.logCount ?? 0}</div>
                   <div className="text-[10px] text-muted-foreground">Log Entries</div>
                 </div>
               </div>
@@ -7103,8 +7113,8 @@ export default function EngagementOps() {
                 <div className="flex items-center gap-2">
                   <ArrowRight className="h-4 w-4 text-cyan-400" />
                   <div>
-                    <div className="text-sm font-medium">Next Phase: <span className="text-cyan-400">{resumeCapabilityQ.data.nextPhaseLabel || 'Unknown'}</span></div>
-                    <div className="text-[10px] text-muted-foreground">Last completed: {resumeCapabilityQ.data.currentPhaseLabel || 'None'}</div>
+                    <div className="text-sm font-medium">Next Phase: <span className="text-cyan-400">{resumeCapability.nextPhaseLabel || 'Unknown'}</span></div>
+                    <div className="text-[10px] text-muted-foreground">Last completed: {resumeCapability.currentPhaseLabel || 'None'}</div>
                   </div>
                 </div>
               </div>
@@ -7114,11 +7124,7 @@ export default function EngagementOps() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               className="bg-gradient-to-r from-emerald-600 to-cyan-600"
-              onClick={() => resumeMut.mutate({
-                engagementId,
-                resume: true,
-                startPhase: resumeCapabilityQ.data?.nextPhase as any,
-              })}
+              onClick={() => resumeMut.mutate({ engagementId })}
               disabled={resumeMut.isPending}
             >
               {resumeMut.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Play className="h-4 w-4 mr-1" />}
@@ -8294,32 +8300,18 @@ function C2NetworkMap({ engagementId }: { engagementId: number }) {
   const [hoveredNode, setHoveredNode] = useState<string | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
 
-  // Get C2 poller state for live agent data
-  const pollerStateQ = trpc.liveTrigger.getC2PollerState.useQuery(
-    { engagementId },
-    { refetchInterval: 15000, enabled: engagementId > 0 }
-  );
-
-  // Get engagement ops state for asset data
-  const opsStateQ = trpc.liveTrigger.getState.useQuery(
+  // Only tenant-scoped engagement state is shown here. C2 poller controls
+  // require the dedicated agent lifecycle surface and are intentionally absent.
+  const opsStateQ = trpc.engagementOps.getState.useQuery(
     { engagementId },
     { refetchInterval: 30000, enabled: engagementId > 0 }
   );
 
-  // WebSocket events for real-time updates
-  const { events: c2Events } = useWebSocket({
-    channels: [`engagement:${engagementId}`],
-    filterTypes: ['c2:agent_checkin', 'c2:agent_lost', 'c2:ability_executed'],
-    maxEvents: 50,
-    enabled: engagementId > 0,
-  });
-
-  // Build topology from poller + ops data
+  // Build topology from tenant-owned engagement state.
   const { nodes, edges } = useMemo(() => {
     const nodeMap = new Map<string, MapNode>();
     const edgeList: MapEdge[] = [];
 
-    const pollerData = pollerStateQ.data;
     const opsData = opsStateQ.data as any;
 
     // Attacker node (always present)
@@ -8332,38 +8324,6 @@ function C2NetworkMap({ engagementId }: { engagementId: number }) {
       status: 'initial',
       platform: 'C2 Server',
     });
-
-    // Add agents from poller data
-    if (Array.isArray(pollerData?.agents) && pollerData.agents.length > 0) {
-      const agentCount = pollerData.agents.length;
-      const startY = Math.max(100, 300 - (agentCount * 60));
-      pollerData.agents.forEach((agent: any, idx: number) => {
-        const nodeId = `agent-${agent.paw}`;
-        const yPos = startY + idx * 120;
-        const xPos = 350 + (idx % 2 === 0 ? 0 : 60);
-        nodeMap.set(nodeId, {
-          id: nodeId,
-          label: agent.host || agent.paw,
-          type: 'agent',
-          x: xPos,
-          y: yPos,
-          status: 'online',
-          platform: agent.platform,
-          paw: agent.paw,
-          executors: agent.executors,
-          group: agent.group,
-          ip: agent.host,
-        });
-        // C2 callback from attacker to agent
-        edgeList.push({
-          from: 'attacker',
-          to: nodeId,
-          type: 'c2_callback',
-          label: 'C2',
-          animated: true,
-        });
-      });
-    }
 
     // Add target assets from ops state
     if (Array.isArray(opsData?.assets) && opsData.assets.length > 0) {
@@ -8389,32 +8349,6 @@ function C2NetworkMap({ engagementId }: { engagementId: number }) {
         });
       });
 
-      // Lateral movement edges between agents and targets
-      const agentNodes = Array.from(nodeMap.values()).filter(n => n.type === 'agent');
-      const targetNodes = Array.from(nodeMap.values()).filter(n => n.type === 'target');
-      if (agentNodes.length > 0 && targetNodes.length > 0) {
-        // First agent connects to first target as initial pivot
-        edgeList.push({
-          from: agentNodes[0].id,
-          to: targetNodes[0].id,
-          type: 'lateral_movement',
-          label: 'Pivot',
-          animated: true,
-        });
-        // Additional agents may connect to other targets
-        for (let i = 1; i < Math.min(agentNodes.length, targetNodes.length); i++) {
-          edgeList.push({
-            from: agentNodes[i].id,
-            to: targetNodes[i].id,
-            type: 'lateral_movement',
-            label: 'Lateral',
-          });
-        }
-      }
-    }
-
-    // If no agents, show targets with initial access from attacker
-    if (!(Array.isArray(pollerData?.agents) && pollerData.agents.length) && Array.isArray(opsData?.assets) && opsData.assets.length > 0) {
       const targetNodes = Array.from(nodeMap.values()).filter(n => n.type === 'target');
       targetNodes.slice(0, 3).forEach(t => {
         edgeList.push({
@@ -8426,17 +8360,8 @@ function C2NetworkMap({ engagementId }: { engagementId: number }) {
       });
     }
 
-    // Process WebSocket events for lost agents
-    c2Events.forEach(evt => {
-      if (evt.type === 'c2:agent_lost' && evt.data?.paw) {
-        const nodeId = `agent-${evt.data.paw}`;
-        const node = nodeMap.get(nodeId);
-        if (node) node.status = 'lost';
-      }
-    });
-
     return { nodes: Array.from(nodeMap.values()), edges: edgeList };
-  }, [pollerStateQ.data, opsStateQ.data, c2Events]);
+  }, [opsStateQ.data]);
 
   // Edge color by type
   const getEdgeColor = (type: MapEdge['type']) => {
@@ -8808,342 +8733,19 @@ function C2NetworkMap({ engagementId }: { engagementId: number }) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 function C2ActivityFeed({ engagementId }: { engagementId: number }) {
-  const [isStarting, setIsStarting] = useState(false);
-  const [operationIdInput, setOperationIdInput] = useState("");
-
-  // Query C2 poller state
-  const pollerStateQ = trpc.liveTrigger.getC2PollerState.useQuery(
-    { engagementId },
-    { refetchInterval: 15000, enabled: engagementId > 0 }
-  );
-  const activePollers = trpc.liveTrigger.listC2Pollers.useQuery(
-    undefined,
-    { refetchInterval: 30000 }
-  );
-
-  // Mutations
-  const startMut = trpc.liveTrigger.startC2Poller.useMutation({
-    onSuccess: () => {
-      toast.success("C2 poller started");
-      pollerStateQ.refetch();
-    },
-    onError: (err) => toast.error(`Failed to start poller: ${err.message}`),
-  });
-  const stopMut = trpc.liveTrigger.stopC2Poller.useMutation({
-    onSuccess: () => {
-      toast.success("C2 poller stopped");
-      pollerStateQ.refetch();
-    },
-    onError: (err) => toast.error(`Failed to stop poller: ${err.message}`),
-  });
-
-  // WebSocket events for real-time C2 updates
-  const { events: c2Events } = useWebSocket({
-    channels: [`engagement:${engagementId}`],
-    filterTypes: [
-      "c2:agent_checkin",
-      "c2:ability_executed",
-      "c2:operation_update",
-      "c2:agent_lost",
-      "c2:operation_complete",
-      "operation:started",
-      "operation:step_complete",
-      "operation:finished",
-    ],
-    maxEvents: 200,
-    enabled: engagementId > 0,
-  });
-
-  const pollerData = pollerStateQ.data;
-  const isPolling = pollerData?.isPolling ?? false;
-
-  const handleStart = () => {
-    if (!operationIdInput.trim()) {
-      toast.error("Enter a Caldera operation ID");
-      return;
-    }
-    setIsStarting(true);
-    startMut.mutate(
-      { engagementId, operationId: operationIdInput.trim() },
-      { onSettled: () => setIsStarting(false) }
-    );
-  };
-
-  const handleStop = () => {
-    stopMut.mutate({ engagementId });
-  };
-
-  // C2 event type styling
-  const getEventStyle = (type: string) => {
-    switch (type) {
-      case "c2:agent_checkin": return { icon: <Wifi className="h-3.5 w-3.5 text-green-400" />, color: "text-green-400", bg: "bg-green-500/10 border-green-500/20" };
-      case "c2:ability_executed": return { icon: <Zap className="h-3.5 w-3.5 text-cyan-400" />, color: "text-cyan-400", bg: "bg-cyan-500/10 border-cyan-500/20" };
-      case "c2:operation_update": return { icon: <Activity className="h-3.5 w-3.5 text-blue-400" />, color: "text-blue-400", bg: "bg-blue-500/10 border-blue-500/20" };
-      case "c2:agent_lost": return { icon: <ShieldX className="h-3.5 w-3.5 text-red-400" />, color: "text-red-400", bg: "bg-red-500/10 border-red-500/20" };
-      case "c2:operation_complete": return { icon: <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />, color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20" };
-      case "operation:step_complete": return { icon: <Terminal className="h-3.5 w-3.5 text-purple-400" />, color: "text-purple-400", bg: "bg-purple-500/10 border-purple-500/20" };
-      default: return { icon: <Radio className="h-3.5 w-3.5 text-orange-400" />, color: "text-orange-400", bg: "bg-orange-500/10 border-orange-500/20" };
-    }
-  };
-
-  const formatTimestamp = (ts: number) => {
-    const d = new Date(ts);
-    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-  };
-
   return (
-    <div className="space-y-4 p-2">
-      {/* Page description */}
-      <p className="text-sm text-muted-foreground">
-        Live Caldera C2 activity feed. Monitor agent check-ins, ability executions, and operation progress in real-time via WebSocket events from the C2 callback poller.
-      </p>
-
-      {/* Poller Controls */}
-      <Card className="border-orange-500/20 bg-orange-500/5">
-        <CardHeader className="py-3 px-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Radio className="h-4 w-4 text-orange-400" />
-              <CardTitle className="text-sm">C2 Callback Poller</CardTitle>
-              {isPolling ? (
-                <Badge variant="outline" className="text-green-400 border-green-500/30 text-[10px]">
-                  <div className="w-1.5 h-1.5 rounded-full bg-green-400 mr-1 animate-pulse" />
-                  Polling
-                </Badge>
-              ) : (
-                <Badge variant="outline" className="text-muted-foreground border-border/30 text-[10px]">
-                  Stopped
-                </Badge>
-              )}
-            </div>
-            {isPolling && (
-              <Button variant="outline" size="sm" onClick={handleStop} className="h-7 text-xs gap-1 text-red-400 border-red-500/30 hover:bg-red-500/10">
-                <Square className="h-3 w-3" /> Stop
-              </Button>
-            )}
-          </div>
-        </CardHeader>
-        {!isPolling && (
-          <CardContent className="px-4 pb-3 pt-0">
-            <div className="flex gap-2">
-              <input
-                type="text"
-                placeholder="Caldera Operation ID"
-                value={operationIdInput}
-                onChange={(e) => setOperationIdInput(e.target.value)}
-                className="flex-1 h-8 px-3 text-xs rounded-md border border-border/30 bg-background/50 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-orange-500/50"
-              />
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleStart}
-                disabled={isStarting || !operationIdInput.trim()}
-                className="h-8 text-xs gap-1 text-orange-400 border-orange-500/30 hover:bg-orange-500/10"
-              >
-                {isStarting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
-                Start Polling
-              </Button>
-            </div>
-          </CardContent>
-        )}
-      </Card>
-
-      {/* Operation Snapshot */}
-      {pollerData?.operationSnapshot && (
-        <Card className="border-border/30">
-          <CardHeader className="py-3 px-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Crosshair className="h-4 w-4 text-cyan-400" />
-                <CardTitle className="text-sm">Operation: {pollerData.operationSnapshot.name}</CardTitle>
-              </div>
-              <Badge
-                variant="outline"
-                className={`text-[10px] ${
-                  pollerData.operationSnapshot.state === "running" ? "text-blue-400 border-blue-500/30" :
-                  pollerData.operationSnapshot.state === "finished" ? "text-emerald-400 border-emerald-500/30" :
-                  "text-yellow-400 border-yellow-500/30"
-                }`}
-              >
-                {pollerData.operationSnapshot.state}
-              </Badge>
-            </div>
-          </CardHeader>
-          <CardContent className="px-4 pb-3 pt-0">
-            <div className="grid grid-cols-4 gap-3">
-              <div className="text-center">
-                <div className="text-lg font-bold text-cyan-400">{pollerData.operationSnapshot.agentCount}</div>
-                <div className="text-[10px] text-muted-foreground">Agents</div>
-              </div>
-              <div className="text-center">
-                <div className="text-lg font-bold text-blue-400">{pollerData.operationSnapshot.linkCount}</div>
-                <div className="text-[10px] text-muted-foreground">Abilities</div>
-              </div>
-              <div className="text-center">
-                <div className="text-lg font-bold text-green-400">{pollerData.operationSnapshot.successCount}</div>
-                <div className="text-[10px] text-muted-foreground">Success</div>
-              </div>
-              <div className="text-center">
-                <div className="text-lg font-bold text-red-400">{pollerData.operationSnapshot.failCount}</div>
-                <div className="text-[10px] text-muted-foreground">Failed</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Agents List */}
-      {Array.isArray(pollerData?.agents) && pollerData.agents.length > 0 && (
-        <Card className="border-border/30">
-          <CardHeader className="py-3 px-4">
-            <div className="flex items-center gap-2">
-              <Server className="h-4 w-4 text-green-400" />
-              <CardTitle className="text-sm">Active Agents ({pollerData.agents.length})</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent className="px-4 pb-3 pt-0">
-            <div className="space-y-2">
-              {pollerData.agents.map((agent: any) => (
-                <div key={agent.paw} className="flex items-center justify-between p-2 rounded-md bg-card/50 border border-border/20">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-                    <div>
-                      <div className="text-xs font-mono font-semibold">{agent.paw}</div>
-                      <div className="text-[10px] text-muted-foreground">{agent.host} ({agent.platform})</div>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <Badge variant="outline" className="text-[10px]">{agent.group}</Badge>
-                    <div className="text-[10px] text-muted-foreground mt-0.5">
-                      {agent.executors?.join(", ")}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Live Event Feed */}
-      <Card className="border-border/30">
-        <CardHeader className="py-3 px-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Activity className="h-4 w-4 text-orange-400" />
-              <CardTitle className="text-sm">Live C2 Events</CardTitle>
-              {c2Events.length > 0 && (
-                <Badge variant="outline" className="text-[10px] text-orange-400 border-orange-500/30">
-                  {c2Events.length}
-                </Badge>
-              )}
-            </div>
-            {pollerData?.pollCount != null && (
-              <span className="text-[10px] text-muted-foreground">
-                {pollerData.pollCount} polls | {pollerData.consecutiveErrors} errors
-              </span>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent className="px-4 pb-3 pt-0">
-          {/* WebSocket events */}
-          {c2Events.length > 0 ? (
-            <div className="space-y-1.5 max-h-[400px] overflow-y-auto">
-              {[...c2Events].reverse().map((evt, idx) => {
-                const style = getEventStyle(evt.type);
-                return (
-                  <div key={idx} className={`flex items-start gap-2 p-2 rounded-md border ${style.bg}`}>
-                    {style.icon}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className={`text-xs font-semibold ${style.color}`}>
-                          {(evt.type || '').replace("c2:", "").replace("operation:", "").replace(/_/g, " ")}
-                        </span>
-                        <span className="text-[10px] text-muted-foreground">{formatTimestamp(evt.timestamp)}</span>
-                      </div>
-                      {evt.data?.paw && (
-                        <div className="text-[10px] text-muted-foreground font-mono">Agent: {evt.data.paw}</div>
-                      )}
-                      {evt.data?.abilityName && (
-                        <div className="text-[10px] text-muted-foreground">Ability: {evt.data.abilityName}</div>
-                      )}
-                      {evt.data?.status && (
-                        <div className="text-[10px] text-muted-foreground">Status: {evt.data.status}</div>
-                      )}
-                      {evt.data?.output && (
-                        <pre className="text-[10px] text-muted-foreground mt-1 font-mono bg-black/20 p-1 rounded overflow-x-auto max-h-20">
-                          {evt.data.output.substring(0, 500)}
-                        </pre>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="text-center py-8 text-muted-foreground">
-              <Radio className="h-8 w-8 mx-auto mb-2 opacity-30" />
-              <p className="text-xs">No C2 events yet.</p>
-              <p className="text-[10px] mt-1">
-                {isPolling
-                  ? "Poller is active — events will appear when agents check in or abilities execute."
-                  : "Start the C2 poller to begin monitoring Caldera operations."}
-              </p>
-            </div>
-          )}
-
-          {/* Poller event log (from server-side) */}
-          {Array.isArray(pollerData?.recentEvents) && pollerData.recentEvents.length > 0 && (
-            <Collapsible>
-              <CollapsibleTrigger className="flex items-center gap-1 text-[10px] text-muted-foreground mt-3 hover:text-foreground cursor-pointer">
-                <ChevronRight className="h-3 w-3" />
-                Poller Log ({pollerData.recentEvents.length} entries)
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <div className="mt-2 space-y-1 max-h-[200px] overflow-y-auto">
-                  {[...pollerData.recentEvents].reverse().map((evt: any, idx: number) => (
-                    <div key={idx} className="flex items-start gap-2 text-[10px] text-muted-foreground">
-                      <span className="font-mono shrink-0">{formatTimestamp(evt.timestamp)}</span>
-                      <Badge variant="outline" className="text-[9px] h-4 shrink-0">{evt.type}</Badge>
-                      <span className="truncate">{evt.summary}</span>
-                    </div>
-                  ))}
-                </div>
-              </CollapsibleContent>
-            </Collapsible>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Active Pollers Summary */}
-      {Array.isArray(activePollers.data) && activePollers.data.length > 0 && (
-        <Card className="border-border/30">
-          <CardHeader className="py-3 px-4">
-            <div className="flex items-center gap-2">
-              <Gauge className="h-4 w-4 text-blue-400" />
-              <CardTitle className="text-sm">All Active Pollers ({activePollers.data.length})</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent className="px-4 pb-3 pt-0">
-            <div className="space-y-1">
-              {activePollers.data.map((p: any) => (
-                <div key={p.engagementId} className="flex items-center justify-between text-xs p-1.5 rounded bg-card/50">
-                  <span className="font-mono">Eng #{p.engagementId}</span>
-                  <span className="text-muted-foreground">Op: {p.operationId}</span>
-                  <span className="text-muted-foreground">{p.agentCount} agents, {p.linkCount} links</span>
-                  <Badge variant="outline" className={`text-[9px] ${p.isPolling ? "text-green-400" : "text-muted-foreground"}`}>
-                    {p.isPolling ? "Active" : "Stopped"}
-                  </Badge>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-    </div>
+    <Card className="border-amber-500/30 bg-amber-500/5">
+      <CardContent className="p-5 space-y-2">
+        <div className="text-sm font-semibold text-amber-300">C2 activity controls unavailable</div>
+        <p className="text-xs text-amber-200/80">
+          The temporary C2 poller API was retired because it did not enforce the
+          tenant-bound agent lifecycle contract. Use the tenant-scoped agent
+          deployment controls for engagement #{engagementId}.
+        </p>
+      </CardContent>
+    </Card>
   );
 }
-
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Interrupted Engagement Banner — Auto-Resume notification on server restart
@@ -9152,26 +8754,15 @@ function C2ActivityFeed({ engagementId }: { engagementId: number }) {
 function InterruptedEngagementBanner({ engagementId }: { engagementId: number }) {
   const [dismissed, setDismissed] = useState(false);
 
-  const interruptedQ = trpc.liveTrigger.getInterruptedEngagements.useQuery(
+  const interruptedQ = trpc.engagementOps.getInterruptedEngagements.useQuery(
     undefined,
     { refetchInterval: 60000 }
   );
 
-  const dismissMut = trpc.liveTrigger.dismissInterruptions.useMutation({
+  const resumeMut = trpc.engagementOps.resume.useMutation({
     onSuccess: () => {
-      setDismissed(true);
+      toast.success("Engagement resume requested");
       interruptedQ.refetch();
-    },
-  });
-
-  const resumeMut = trpc.liveTrigger.autoResumeEngagement.useMutation({
-    onSuccess: (result) => {
-      if (result.success) {
-        toast.success(result.message);
-        interruptedQ.refetch();
-      } else {
-        toast.error(result.message);
-      }
     },
     onError: (err) => toast.error(`Resume failed: ${err.message}`),
   });
@@ -9229,7 +8820,7 @@ function InterruptedEngagementBanner({ engagementId }: { engagementId: number })
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => dismissMut.mutate()}
+                onClick={() => setDismissed(true)}
                 className="border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
               >
                 <X className="h-4 w-4 mr-1" />

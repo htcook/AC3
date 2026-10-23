@@ -3854,6 +3854,8 @@ export async function executeEngagement(
     startPhase?: 'recon' | 'passive_discovery' | 'scoping' | 'test_plan' | 'enumeration' | 'vuln_detection' | 'social_engineering' | 'exploitation' | 'post_exploit';
     resume?: boolean; // If true, resume from last saved phase instead of startPhase
     scanProfile?: 'quick' | 'standard' | 'deep' | 'stealth';
+    /** Required for request-originated execution; rechecked at final dispatch. */
+    expectedTenantId?: number;
   }
 ): Promise<void> {
   let startPhase = options?.startPhase || 'recon';
@@ -3945,37 +3947,38 @@ export async function executeEngagement(
     const database = await db.getDb();
     if (!database) throw new Error("Database unavailable");
     const { assertLiveEngagementExecutionAllowed } = await import("./live-engagement-execution-gate");
+    const { assertActiveEngagementAuthorization } = await import("./engagement-tenant-access");
     await assertLiveEngagementExecutionAllowed(database);
-    engagement = await db.getEngagementById(engagementId);
+    if (options?.expectedTenantId !== undefined) {
+      const { engagements } = await import("../../drizzle/schema");
+      const { and, eq } = await import("drizzle-orm");
+      [engagement] = await database
+        .select()
+        .from(engagements)
+        .where(and(
+          eq(engagements.id, engagementId),
+          eq(engagements.engTenantId, options.expectedTenantId),
+        ))
+        .limit(1);
+    } else {
+      engagement = await db.getEngagementById(engagementId);
+    }
     if (!engagement) throw new Error("Engagement not found");
     if (engagement.engTenantId === null || engagement.engTenantId === undefined) {
       throw new Error("Engagement tenant assignment is required before live execution");
     }
+    assertActiveEngagementAuthorization(engagement);
     state.engagementType = engagement.engagementType || "pentest";
   } catch (e: any) {
     state.error = e.message;
     state.phase = "error";
     return;
   }
-  // Re-detect trainingLabMode if it was lost during state recovery (e.g., server restart)
-  if (state.trainingLabMode === undefined) {
-    const domain = engagement.targetDomain || '';
-    if (domain.includes('aceofcloud.io') || domain.includes('aceofcloud.com') || (engagement as any).labName) {
-      state.trainingLabMode = true;
-      console.log(`[ExecuteEngagement] Training lab mode re-detected for #${engagementId} (domain: ${domain})`);
-    }
-  }
+  // Do not infer a training-lab bypass from request state or target data. A
+  // signed RoE and persisted override remain the active-operation authority.
+  state.trainingLabMode = false;
   // Debug: log engagement fields for restart resilience diagnosis
   console.log(`[ExecuteEngagement] #${engagementId} loaded from DB: roeStatus=${JSON.stringify(engagement.roeStatus)}, trainingLabMode=${state.trainingLabMode}, startPhase=${startPhase}, resume=${options?.resume}`);
-  // Check RoE status
-  if (engagement.roeStatus !== "signed" && engagement.roeStatus !== "pending" && engagement.roeStatus !== "none" && engagement.roeStatus && !state.trainingLabMode) {
-    addLog(state, {
-      phase: "idle",
-      type: "error",
-      title: "⚠️ RoE Not Signed",
-      detail: "Rules of Engagement must be signed before active operations can begin. Only passive recon is allowed.",
-    });
-  }
 
   state.isRunning = true;
   if (!state.startedAt) state.startedAt = Date.now();
@@ -3987,33 +3990,14 @@ export async function executeEngagement(
   // Non-whitelisted domains are forcibly capped at passive_only unless
   // the admin has set active_scan_override on the engagement.
   const domainValidation = validateEngagementTargets(engagement.targetDomain, engagement.targetIpRange);
-  let domainWhitelistOverride = false;
-  if (!domainValidation.allWhitelisted && !state.trainingLabMode) {
-    // Check for admin override
-    try {
-      const mysql = await import('mysql2/promise');
-      const tmpConn = await mysql.createConnection(process.env.DATABASE_URL!);
-      const [rows] = await tmpConn.query('SELECT active_scan_override FROM engagements WHERE id = ?', [engagementId]);
-      domainWhitelistOverride = !!(rows as any)?.[0]?.active_scan_override;
-      await tmpConn.end();
-    } catch {}
-    if (!domainWhitelistOverride) {
-      addLog(state, {
-        phase: state.phase, type: 'info',
-        title: '🛡️ Domain Whitelist: Non-Approved Targets Detected',
-        detail: `${domainValidation.nonWhitelistedCount} target(s) are NOT on the approved test lab whitelist: ${domainValidation.nonWhitelistedTargets.join(', ')}. ` +
-          `Safety level will be capped at passive_only. Active scanning, exploitation, and C2 are BLOCKED. ` +
-          `An admin can enable "Active Scan Override" on this engagement to authorize active testing.`,
-      });
-      console.warn(`[Orchestrator] Domain whitelist enforcement: capping engagement #${engagementId} to passive_only (non-whitelisted: ${domainValidation.nonWhitelistedTargets.join(', ')})`);
-    } else {
-      addLog(state, {
-        phase: state.phase, type: 'info',
-        title: '⚠️ Domain Whitelist: Admin Override Active',
-        detail: `${domainValidation.nonWhitelistedCount} target(s) are not on the whitelist (${domainValidation.nonWhitelistedTargets.join(', ')}), ` +
-          `but an admin has enabled Active Scan Override. Full pipeline authorized per admin authorization.`,
-      });
-    }
+  const domainWhitelistOverride = Number(engagement.activeScanOverride) === 1;
+  if (!domainValidation.allWhitelisted) {
+    addLog(state, {
+      phase: state.phase, type: 'info',
+      title: '⚠️ Domain Whitelist: Approved Override Active',
+      detail: `${domainValidation.nonWhitelistedCount} target(s) are not on the whitelist (${domainValidation.nonWhitelistedTargets.join(', ')}), ` +
+        `but the signed-RoE engagement has an approved Active Scan Override.`,
+    });
   } else if (domainValidation.allWhitelisted) {
     addLog(state, {
       phase: state.phase, type: 'info',
@@ -4052,23 +4036,11 @@ export async function executeEngagement(
     });
   }
 
-  // ═══ TRAINING LAB AUTO-ESCALATION ═══
-  // Training lab engagements always get full_exploitation since they target intentionally vulnerable apps
-  if (state.trainingLabMode && engagementSafetyLevel !== 'full_exploitation') {
-    const originalLevel = engagementSafetyLevel;
-    engagementSafetyLevel = 'full_exploitation';
-    addLog(state, {
-      phase: state.phase, type: 'info',
-      title: '🔓 Safety Auto-Escalated: Training Lab',
-      detail: `Training lab mode detected — safety level escalated from '${originalLevel}' to 'full_exploitation'. Full pipeline authorized for intentionally vulnerable target.`,
-    });
-  }
-
   // ═══ DOMAIN WHITELIST SAFETY CAP (FINAL ENFORCEMENT) ═══
   // This runs AFTER all auto-escalation logic. If targets are not whitelisted
   // and there's no admin override, forcibly cap to passive_only regardless of
   // RoE status, engagement type, or scan mode. This is the ultimate guardrail.
-  if (!domainValidation.allWhitelisted && !state.trainingLabMode && !domainWhitelistOverride) {
+  if (!domainValidation.allWhitelisted && !domainWhitelistOverride) {
     if (engagementSafetyLevel !== 'passive_only') {
       const cappedFrom = engagementSafetyLevel;
       engagementSafetyLevel = 'passive_only';
@@ -6739,8 +6711,30 @@ export function stopEngagement(engagementId: number): boolean {
  */
 export async function resumeEngagement(
   engagementId: number,
-  operatorCtx: { id: string; name?: string }
+  operatorCtx: { id: string; name?: string },
+  options?: { expectedTenantId?: number },
 ): Promise<{ success: boolean; message: string; resumePhase?: string }> {
+  if (options?.expectedTenantId !== undefined) {
+    try {
+      const { getDb } = await import("../db");
+      const database = await getDb();
+      if (!database) throw new Error("Database unavailable");
+      const { engagements } = await import("../../drizzle/schema");
+      const { and, eq } = await import("drizzle-orm");
+      const [engagement] = await database
+        .select({ id: engagements.id })
+        .from(engagements)
+        .where(and(
+          eq(engagements.id, engagementId),
+          eq(engagements.engTenantId, options.expectedTenantId),
+        ))
+        .limit(1);
+      if (!engagement) return { success: false, message: "Engagement not found." };
+    } catch (error: any) {
+      return { success: false, message: error.message || "Unable to verify engagement ownership." };
+    }
+  }
+
   // Try to get state from memory or DB
   let state = await getOpsStateWithRecovery(engagementId);
   if (!state) {
@@ -6810,6 +6804,7 @@ export async function resumeEngagement(
   executeEngagement(engagementId, operatorCtx, {
     startPhase: resumePhase as any,
     resume: true,
+    expectedTenantId: options?.expectedTenantId,
   });
 
   return {
@@ -6917,7 +6912,8 @@ export async function recoverInterruptedEngagements(): Promise<{
 export async function rerunFromPhase(
   engagementId: number,
   targetPhase: 'recon' | 'enumeration' | 'vuln_detection' | 'social_engineering' | 'exploitation' | 'post_exploit',
-  operatorCtx: { id: string; name?: string }
+  operatorCtx: { id: string; name?: string },
+  options?: { expectedTenantId?: number },
 ): Promise<{ success: boolean; message: string }> {
   const PHASE_ORDER: Array<'recon' | 'enumeration' | 'vuln_detection' | 'social_engineering' | 'exploitation' | 'post_exploit'> = [
     'recon', 'enumeration', 'vuln_detection', 'social_engineering', 'exploitation', 'post_exploit',
@@ -6926,6 +6922,27 @@ export async function rerunFromPhase(
   const targetIdx = PHASE_ORDER.indexOf(targetPhase);
   if (targetIdx < 0) {
     return { success: false, message: `Invalid phase: ${targetPhase}. Must be one of: ${PHASE_ORDER.join(', ')}` };
+  }
+
+  if (options?.expectedTenantId !== undefined) {
+    try {
+      const { getDb } = await import('../db');
+      const database = await getDb();
+      if (!database) throw new Error('Database unavailable');
+      const { engagements } = await import('../../drizzle/schema');
+      const { and, eq } = await import('drizzle-orm');
+      const [engagement] = await database
+        .select({ id: engagements.id })
+        .from(engagements)
+        .where(and(
+          eq(engagements.id, engagementId),
+          eq(engagements.engTenantId, options.expectedTenantId),
+        ))
+        .limit(1);
+      if (!engagement) return { success: false, message: 'Engagement not found.' };
+    } catch (error: any) {
+      return { success: false, message: error.message || 'Unable to verify engagement ownership.' };
+    }
   }
 
   // Get state from memory or DB
@@ -7048,6 +7065,7 @@ export async function rerunFromPhase(
   executeEngagement(engagementId, operatorCtx, {
     startPhase: targetPhase,
     resume: false,
+    expectedTenantId: options?.expectedTenantId,
   });
 
   return {

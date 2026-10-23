@@ -1,21 +1,46 @@
 import { TRPCError } from "@trpc/server";
-import { protectedProcedure, tenantProcedure, router } from "../_core/trpc";
+import { adminTenantProcedure, protectedProcedure, tenantProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import * as db from "../db";
-import { and, eq, min, not, or, sql } from "drizzle-orm";
+import { and, eq, inArray, min, not, or, sql } from "drizzle-orm";
 import * as schema from "../../drizzle/schema";
 import { assertEngagementAccess } from "../lib/engagement-access-guard";
 import { validateEngagementTargets, isDomainWhitelisted, parseTargets } from "../../shared/domain-safety-whitelist";
 import { getExploitImpactDescription, generateExploitPlanHtml } from "../lib/exploit-plan-printable";
+import { assertActiveEngagementAuthorization, assertTargetWithinEngagementScope, getEngagementForTenant } from "../lib/engagement-tenant-access";
+
+/**
+ * Every route using this procedure is bound to the caller's active tenant before
+ * it can load mutable in-memory state or act on an engagement ID.
+ */
+const tenantEngagementProcedure = tenantProcedure
+  .input(z.object({ engagementId: z.number().int().positive() }))
+  .use(async ({ ctx, input, next }) => {
+    const dbConn = await db.getDb();
+    if (!dbConn) {
+      throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+    }
+    const engagement = await getEngagementForTenant(dbConn, input.engagementId, ctx.tenant.tenantId);
+    return next({ ctx: { ...ctx, engagement, engagementDb: dbConn } });
+  });
+
+async function filterEngagementIdsForTenant(dbConn: any, engagementIds: number[], tenantId: number): Promise<number[]> {
+  if (engagementIds.length === 0) return [];
+  const rows = await dbConn
+    .select({ id: schema.engagements.id })
+    .from(schema.engagements)
+    .where(and(
+      inArray(schema.engagements.id, engagementIds),
+      eq(schema.engagements.engTenantId, tenantId),
+    ));
+  return rows.map((row: { id: number }) => row.id);
+}
 
 export const engagementOpsRouter = router({
     /** Get current ops state for an engagement */
-    getState: protectedProcedure
+    getState: tenantEngagementProcedure
       .input(z.object({ engagementId: z.number() }))
       .query(async ({ input, ctx }) => {
-        // Verify user has access to this engagement
-        const dbConn = await db.getDb();
-        if (dbConn) await assertEngagementAccess(dbConn, input.engagementId, ctx.user);
         const { getOpsState, getOpsStateWithRecovery, initOpsState, normalizeOpsState } = await import('../lib/engagement-orchestrator');
         // First try in-memory, then try DB recovery, then initialize fresh
         let state = getOpsState(input.engagementId);
@@ -26,12 +51,11 @@ export const engagementOpsRouter = router({
         }
         if (!state) {
           // No snapshot either — initialize fresh from engagement targets
-          const engagement = await db.getEngagementById(input.engagementId);
-          if (engagement) {
-            state = initOpsState(input.engagementId, engagement.engagementType);
+          if (ctx.engagement) {
+            state = initOpsState(input.engagementId, ctx.engagement.engagementType);
             // Pre-populate assets from existing DB targets
-            const domains = (engagement.targetDomain || '').split(/[,;\s]+/).filter(Boolean);
-            const ips = (engagement.targetIpRange || '').split(/[,;\s]+/).filter(Boolean).map((i: string) => i.replace(/\/\d+$/, ''));
+            const domains = (ctx.engagement.targetDomain || '').split(/[,;\s]+/).filter(Boolean);
+            const ips = (ctx.engagement.targetIpRange || '').split(/[,;\s]+/).filter(Boolean).map((i: string) => i.replace(/\/\d+$/, ''));
             for (const d of domains) {
               if (!state.assets.find((a: any) => a.hostname === d)) {
                 state.assets.push({
@@ -75,17 +99,15 @@ export const engagementOpsRouter = router({
       }),
 
     /** Initialize ops state for an engagement */
-    init: protectedProcedure
+    init: tenantEngagementProcedure
       .input(z.object({ engagementId: z.number() }))
       .mutation(async ({ input, ctx }) => {
-        const engagement = await db.getEngagementById(input.engagementId, ctx.user);
-        if (!engagement) throw new TRPCError({ code: 'NOT_FOUND', message: 'Engagement not found' });
         const { initOpsState } = await import('../lib/engagement-orchestrator');
-        return initOpsState(input.engagementId, engagement.engagementType);
+        return initOpsState(input.engagementId, ctx.engagement.engagementType);
       }),
 
     /** Start autonomous execution — one-click pentest/red team */
-    execute: tenantProcedure
+    execute: tenantEngagementProcedure
       .input(z.object({
         engagementId: z.number(),
         exhaustiveExploit: z.boolean().optional().default(true),
@@ -99,48 +121,10 @@ export const engagementOpsRouter = router({
         }).optional(),
       }))
       .mutation(async ({ input, ctx }) => {
-        const dbConn = await db.getDb();
-        if (!dbConn) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
         const { assertLiveEngagementExecutionAllowed } = await import("../lib/live-engagement-execution-gate");
-        await assertLiveEngagementExecutionAllowed(dbConn);
-        const [engagement] = await dbConn
-          .select()
-          .from(schema.engagements)
-          .where(and(
-            eq(schema.engagements.id, input.engagementId),
-            eq(schema.engagements.engTenantId, ctx.tenant.tenantId),
-          ))
-          .limit(1);
-        if (!engagement) throw new TRPCError({ code: 'NOT_FOUND', message: 'Engagement not found' });
-
-        // Validate RoE scope exists
-        if (!engagement.targetDomain && !engagement.targetIpRange) {
-          throw new TRPCError({ code: 'BAD_REQUEST', message: 'No targets defined. Add target domains or IP ranges first.' });
-        }
-
-        // ═══ DOMAIN SAFETY WHITELIST GATE ═══
-        // Block full pipeline execution on non-whitelisted domains unless admin override
-        const domainCheck = validateEngagementTargets(engagement.targetDomain, engagement.targetIpRange);
-        if (!domainCheck.allWhitelisted && !input.trainingLabMode) {
-          // Check if admin has explicitly set an override flag on this engagement
-          const dbConn = await db.getDb();
-          let hasAdminOverride = false;
-          if (dbConn) {
-            const [rows] = await dbConn.execute(
-              sql`SELECT active_scan_override FROM engagements WHERE id = ${input.engagementId}`
-            );
-            hasAdminOverride = !!(rows as any)?.[0]?.active_scan_override;
-          }
-          if (!hasAdminOverride) {
-            throw new TRPCError({
-              code: 'FORBIDDEN',
-              message: `SAFETY GUARDRAIL: Cannot start full pipeline — ${domainCheck.nonWhitelistedCount} target(s) are not on the approved test lab whitelist: ${domainCheck.nonWhitelistedTargets.join(', ')}. ` +
-                `Only passive reconnaissance is permitted for non-whitelisted domains. ` +
-                `An admin can enable the "Active Scan Override" flag on this engagement if a signed RoE authorizes active testing.`,
-            });
-          }
-          console.warn(`[EngOps] Admin override active for #${input.engagementId} — proceeding with non-whitelisted targets: ${domainCheck.nonWhitelistedTargets.join(', ')}`);
-        }
+        await assertLiveEngagementExecutionAllowed(ctx.engagementDb);
+        assertActiveEngagementAuthorization(ctx.engagement);
+        const engagement = ctx.engagement;
 
         const { executeEngagement, initOpsState, getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
         let state = getOpsState(input.engagementId);
@@ -201,29 +185,20 @@ export const engagementOpsRouter = router({
           });
           // FIX: Sync DB engagement status back to 'active' on re-launch
           // Previously the DB status remained stale ('completed') after re-run
-          await db.updateEngagement(input.engagementId, { status: 'active' });
+          await ctx.engagementDb
+            .update(schema.engagements)
+            .set({ status: 'active' })
+            .where(and(
+              eq(schema.engagements.id, input.engagementId),
+              eq(schema.engagements.engTenantId, ctx.tenant.tenantId),
+            ));
         }
 
         // Set exhaustive exploitation mode — when true, attempts every exploit opportunity
         state.exhaustiveExploit = input.exhaustiveExploit;
-        // Set training lab mode if specified — auto-approves all gates including exploitation
-        if (input.trainingLabMode !== undefined) {
-          state.trainingLabMode = input.trainingLabMode;
-        }
-        // Auto-detect training lab mode from engagement labName (set by batchTrainingRun)
-        if (state.trainingLabMode === undefined && (engagement as any).labName) {
-          state.trainingLabMode = true;
-        }
-        // NOTE: trainingLabMode is now OPT-IN ONLY.
-        // Previously auto-detected from IP whitelist, but this caused real client engagements
-        // (e.g., Celerium #37) to auto-approve exploit gates when targets happened to be
-        // on whitelisted infrastructure. The whitelist validates "safe to scan" — NOT
-        // "run unattended without approvals."
-        // To enable training lab mode, explicitly pass trainingLabMode: true in the start input
-        // or set engagement.labName to a non-empty value.
-        if (state.trainingLabMode === undefined) {
-          state.trainingLabMode = false; // Default: require approvals
-        }
+        // Do not accept a request-controlled training-lab bypass. A signed RoE and
+        // the persisted active-scan override are the authorization boundaries.
+        state.trainingLabMode = false;
 
         // ═══ PROGRESSIVE EVASION PIPELINE INIT ═══
         // Initialize the progressive evasion system for pentest and red_team engagements.
@@ -263,7 +238,9 @@ export const engagementOpsRouter = router({
         });
 
         // Fire and forget — the pipeline runs asynchronously, but catch crashes
-        executeEngagement(input.engagementId, { id: String(ctx.user.id), name: ctx.user.name || undefined })
+        executeEngagement(input.engagementId, { id: String(ctx.user.id), name: ctx.user.name || undefined }, {
+          expectedTenantId: ctx.tenant.tenantId,
+        })
           .catch(async (err: any) => {
             console.error('[EngOps] executeEngagement crashed:', err.message);
             const { addLog: addOpsLog, broadcastOpsUpdate: broadcast, persistOpsStateNow } = await import('../lib/engagement-orchestrator');
@@ -281,11 +258,9 @@ export const engagementOpsRouter = router({
       }),
 
     /** Stop execution */
-    stop: protectedProcedure
+    stop: tenantEngagementProcedure
       .input(z.object({ engagementId: z.number() }))
       .mutation(async ({ input, ctx }) => {
-        const dbConn = await db.getDb();
-        if (dbConn) await assertEngagementAccess(dbConn, input.engagementId, ctx.user);
         const { stopEngagement } = await import('../lib/engagement-orchestrator');
         const stopped = stopEngagement(input.engagementId);
         if (stopped) {
@@ -299,15 +274,18 @@ export const engagementOpsRouter = router({
       }),
 
     /** Resume a stopped or crashed engagement from its last saved phase */
-    resume: protectedProcedure
+    resume: tenantEngagementProcedure
       .input(z.object({ engagementId: z.number() }))
       .mutation(async ({ input, ctx }) => {
-        const dbConn = await db.getDb();
-        if (dbConn) await assertEngagementAccess(dbConn, input.engagementId, ctx.user);
+        const { assertLiveEngagementExecutionAllowed } = await import('../lib/live-engagement-execution-gate');
+        await assertLiveEngagementExecutionAllowed(ctx.engagementDb);
+        assertActiveEngagementAuthorization(ctx.engagement);
         const { resumeEngagement } = await import('../lib/engagement-orchestrator');
         const result = await resumeEngagement(input.engagementId, {
           id: String(ctx.user.id),
           name: ctx.user.name || undefined,
+        }, {
+          expectedTenantId: ctx.tenant.tenantId,
         });
         if (result.success) {
           await db.logActivity({
@@ -320,15 +298,16 @@ export const engagementOpsRouter = router({
       }),
 
     /** Re-run a completed/errored engagement from a specific phase, preserving prior phase data */
-    rerunFromPhase: protectedProcedure
+    rerunFromPhase: tenantEngagementProcedure
       .input(z.object({
         engagementId: z.number(),
         targetPhase: z.enum(['recon', 'enumeration', 'vuln_detection', 'exploitation', 'post_exploit']),
         exhaustiveExploit: z.boolean().optional().default(true),
       }))
       .mutation(async ({ input, ctx }) => {
-        const dbConn = await db.getDb();
-        if (dbConn) await assertEngagementAccess(dbConn, input.engagementId, ctx.user);
+        const { assertLiveEngagementExecutionAllowed } = await import('../lib/live-engagement-execution-gate');
+        await assertLiveEngagementExecutionAllowed(ctx.engagementDb);
+        assertActiveEngagementAuthorization(ctx.engagement);
         const { rerunFromPhase, getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
         // Set exhaustive exploitation mode on the existing state
         // Try in-memory first, then DB recovery (state may be lost after server restart)
@@ -343,6 +322,8 @@ export const engagementOpsRouter = router({
         const result = await rerunFromPhase(input.engagementId, input.targetPhase, {
           id: String(ctx.user.id),
           name: ctx.user.name || undefined,
+        }, {
+          expectedTenantId: ctx.tenant.tenantId,
         });
         if (result.success) {
           await db.logActivity({
@@ -355,11 +336,9 @@ export const engagementOpsRouter = router({
       }),
 
     /** Skip the currently scanning domain — marks it as skipped so the pipeline moves to the next domain */
-    skipCurrentDomain: protectedProcedure
+    skipCurrentDomain: tenantEngagementProcedure
       .input(z.object({ engagementId: z.number() }))
       .mutation(async ({ input, ctx }) => {
-        const dbConn = await db.getDb();
-        if (dbConn) await assertEngagementAccess(dbConn, input.engagementId, ctx.user);
         const { getOpsState, getOpsStateWithRecovery, broadcastOpsUpdate } = await import('../lib/engagement-orchestrator');
         let state = getOpsState(input.engagementId);
         if (!state) state = await getOpsStateWithRecovery(input.engagementId);
@@ -378,11 +357,9 @@ export const engagementOpsRouter = router({
       }),
 
     /** Fully clear ops state — wipes all in-memory and DB state so engagement starts fresh */
-    clearOps: protectedProcedure
+    clearOps: tenantEngagementProcedure
       .input(z.object({ engagementId: z.number() }))
       .mutation(async ({ input, ctx }) => {
-        const dbConn = await db.getDb();
-        if (dbConn) await assertEngagementAccess(dbConn, input.engagementId, ctx.user);
         const { clearOpsState } = await import('../lib/engagement-orchestrator');
         await clearOpsState(input.engagementId);
         await db.logActivity({ userId: ctx.user.id, action: 'engagement_ops_cleared', details: `Fully cleared ops state for engagement #${input.engagementId}` });
@@ -513,7 +490,7 @@ export const engagementOpsRouter = router({
       }),
 
     /** Reset ops state — clears error state so operator can retry */
-    resetOps: protectedProcedure
+    resetOps: tenantEngagementProcedure
       .input(z.object({ engagementId: z.number() }))
       .mutation(async ({ input, ctx }) => {
         const dbConn = await db.getDb();
@@ -552,8 +529,9 @@ export const engagementOpsRouter = router({
       }),
 
     /** Resolve an approval gate (supports modified plans with removedTargetIndices) */
-    resolveApproval: protectedProcedure
+    resolveApproval: tenantEngagementProcedure
       .input(z.object({
+        engagementId: z.number(),
         gateId: z.string(),
         approved: z.boolean(),
         /** Indices of targets to REMOVE from the plan (for "Modify Plan" flow) */
@@ -564,6 +542,10 @@ export const engagementOpsRouter = router({
 
         // Get gate detail before resolving (for plan history persistence)
         const gateDetail = getApprovalGateDetail(input.gateId);
+        const gateEngagementId = gateDetail?.detail?.engagementId || gateDetail?._engagementId;
+        if (Number(gateEngagementId) !== input.engagementId) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'Approval gate not found' });
+        }
         const isExploitPlan = gateDetail?.title?.startsWith('Exploit Plan Review');
         const hasModifications = input.removedTargetIndices && input.removedTargetIndices.length > 0;
 
@@ -693,10 +675,15 @@ export const engagementOpsRouter = router({
       }),
 
     /** Dismiss a single stale/orphaned approval gate (no active resolver after server restart) */
-    dismissStaleApproval: protectedProcedure
-      .input(z.object({ gateId: z.string() }))
+    dismissStaleApproval: tenantEngagementProcedure
+      .input(z.object({ engagementId: z.number(), gateId: z.string() }))
       .mutation(async ({ input, ctx }) => {
-        const { dismissStaleApproval } = await import('../lib/engagement-orchestrator');
+        const { dismissStaleApproval, getApprovalGateDetail } = await import('../lib/engagement-orchestrator');
+        const gateDetail = getApprovalGateDetail(input.gateId);
+        const gateEngagementId = gateDetail?.detail?.engagementId || gateDetail?._engagementId;
+        if (Number(gateEngagementId) !== input.engagementId) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'Approval gate not found' });
+        }
         const dismissed = dismissStaleApproval(input.gateId, ctx.user.name || String(ctx.user.id));
         if (!dismissed) throw new TRPCError({ code: 'NOT_FOUND', message: 'Gate not found, not stale, or already resolved' });
 
@@ -710,7 +697,7 @@ export const engagementOpsRouter = router({
       }),
 
     /** Dismiss ALL stale approval gates for an engagement */
-    dismissAllStaleApprovals: protectedProcedure
+    dismissAllStaleApprovals: tenantEngagementProcedure
       .input(z.object({ engagementId: z.number() }))
       .mutation(async ({ input, ctx }) => {
         const { dismissAllStaleApprovals } = await import('../lib/engagement-orchestrator');
@@ -728,14 +715,13 @@ export const engagementOpsRouter = router({
       }),
 
     /** Add targets to an engagement (paste-in from operator) */
-    addTargets: protectedProcedure
+    addTargets: tenantEngagementProcedure
       .input(z.object({
         engagementId: z.number(),
         targets: z.string(),
       }))
       .mutation(async ({ input, ctx }) => {
-        const engagement = await db.getEngagementById(input.engagementId);
-        if (!engagement) throw new TRPCError({ code: 'NOT_FOUND', message: 'Engagement not found' });
+        const engagement = ctx.engagement;
 
         const parsed = input.targets.split(/[\n,;]+/).map(t => t.trim()).filter(Boolean);
         const domains: string[] = [];
@@ -751,10 +737,16 @@ export const engagementOpsRouter = router({
         const allDomains = [...new Set([...existingDomains, ...domains])];
         const allIps = [...new Set([...existingIps, ...ips])];
 
-        await db.updateEngagement(input.engagementId, {
-          targetDomain: allDomains.join(', '),
-          targetIpRange: allIps.join(', '),
-        });
+        await ctx.engagementDb
+          .update(schema.engagements)
+          .set({
+            targetDomain: allDomains.join(', '),
+            targetIpRange: allIps.join(', '),
+          })
+          .where(and(
+            eq(schema.engagements.id, input.engagementId),
+            eq(schema.engagements.engTenantId, ctx.tenant.tenantId),
+          ));
 
         const { initOpsState, getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
         let state = getOpsState(input.engagementId);
@@ -778,15 +770,19 @@ export const engagementOpsRouter = router({
 
     /** Start passive discovery scan only (Phase 1: Recon) */
     /** Update the scan mode for an engagement's passive recon */
-    updateScanMode: protectedProcedure
+    updateScanMode: tenantEngagementProcedure
       .input(z.object({
         engagementId: z.number(),
         scanMode: z.enum(['strict_passive', 'standard', 'active']),
       }))
       .mutation(async ({ input, ctx }) => {
-        const engagement = await db.getEngagementById(input.engagementId);
-        if (!engagement) throw new TRPCError({ code: 'NOT_FOUND', message: 'Engagement not found' });
-        await db.updateEngagement(input.engagementId, { scanMode: input.scanMode } as any);
+        await ctx.engagementDb
+          .update(schema.engagements)
+          .set({ scanMode: input.scanMode } as any)
+          .where(and(
+            eq(schema.engagements.id, input.engagementId),
+            eq(schema.engagements.engTenantId, ctx.tenant.tenantId),
+          ));
         await db.logActivity({
           userId: ctx.user.id,
           action: 'scan_mode_updated',
@@ -808,11 +804,16 @@ export const engagementOpsRouter = router({
         };
       }),
 
-    startPassiveScan: protectedProcedure
+    startPassiveScan: tenantEngagementProcedure
       .input(z.object({ engagementId: z.number(), scanMode: z.enum(['strict_passive', 'standard', 'active']).optional() }))
       .mutation(async ({ input, ctx }) => {
-        const engagement = await db.getEngagementById(input.engagementId);
-        if (!engagement) throw new TRPCError({ code: 'NOT_FOUND', message: 'Engagement not found' });
+        const engagement = ctx.engagement;
+        const effectiveScanMode = input.scanMode || (engagement as any).scanMode || 'strict_passive';
+        if (effectiveScanMode === 'active') {
+          const { assertLiveEngagementExecutionAllowed } = await import('../lib/live-engagement-execution-gate');
+          await assertLiveEngagementExecutionAllowed(ctx.engagementDb);
+          assertActiveEngagementAuthorization(engagement);
+        }
 
         const { initOpsState, getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
         let state = getOpsState(input.engagementId);
@@ -858,7 +859,6 @@ export const engagementOpsRouter = router({
         await persistOpsStateNow(input.engagementId);
 
         // Determine scan mode: input override > engagement DB setting > default strict_passive
-        const effectiveScanMode = input.scanMode || (engagement as any).scanMode || 'strict_passive';
         const { getScanModeDescription } = await import('../lib/passive/passive-guard');
         const modeInfo = getScanModeDescription(effectiveScanMode);
         const modeIcons: Record<string, string> = { strict_passive: '\ud83d\udd12', standard: '\ud83d\udd0d', active: '\u26a1' };
@@ -1423,7 +1423,7 @@ export const engagementOpsRouter = router({
       }),
 
     /** Generate LLM scan plan — analyzes passive recon results to determine ScanForge discovery settings and tools per asset */
-    generateScanPlan: protectedProcedure
+    generateScanPlan: tenantEngagementProcedure
       .input(z.object({ engagementId: z.number() }))
       .mutation(async ({ input, ctx }) => {
         const { getOpsState, getOpsStateWithRecovery, generateScanPlan: genPlan } = await import('../lib/engagement-orchestrator');
@@ -1439,7 +1439,7 @@ export const engagementOpsRouter = router({
       }),
 
     /** Get the current scan plan for an engagement */
-    getScanPlan: protectedProcedure
+    getScanPlan: tenantEngagementProcedure
       .input(z.object({ engagementId: z.number() }))
       .query(async ({ input }) => {
         const { getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
@@ -1449,22 +1449,18 @@ export const engagementOpsRouter = router({
       }),
 
     /** Start LLM-orchestrated active scanning (generates scan plan first, then ScanForge discovery with plan-specific flags, then tool matching per service) */
-    startActiveScan: protectedProcedure
+    startActiveScan: tenantEngagementProcedure
       .input(z.object({ engagementId: z.number(), scanProfile: z.enum(['quick', 'standard', 'deep', 'stealth']).optional() }))
       .mutation(async ({ input, ctx }) => {
-        const engagement = await db.getEngagementById(input.engagementId);
-        if (!engagement) throw new TRPCError({ code: 'NOT_FOUND', message: 'Engagement not found' });
+        const { assertLiveEngagementExecutionAllowed } = await import('../lib/live-engagement-execution-gate');
+        await assertLiveEngagementExecutionAllowed(ctx.engagementDb);
+        const engagement = ctx.engagement;
+        assertActiveEngagementAuthorization(engagement);
 
         const { getOpsState, getOpsStateWithRecovery, initOpsState, generateScanPlan: genPlan } = await import('../lib/engagement-orchestrator');
         let state = getOpsState(input.engagementId);
         if (!state) state = await getOpsStateWithRecovery(input.engagementId);
         if (!state) state = initOpsState(input.engagementId, engagement.engagementType);
-
-        // RoE check — bypass for training lab engagements
-        const isTrainingLab = state.trainingLabMode === true;
-        if (!isTrainingLab && engagement.roeStatus !== 'signed' && engagement.roeStatus !== 'pending') {
-          throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'RoE must be signed before active scanning.' });
-        }
 
         if (state.isRunning) throw new TRPCError({ code: 'CONFLICT', message: 'Scan already running' });
         if (state.assets.length === 0) throw new TRPCError({ code: 'BAD_REQUEST', message: 'No targets. Run passive scan or add targets first.' });
@@ -1477,7 +1473,13 @@ export const engagementOpsRouter = router({
         // This ensures the safety engine reads 'active' (→ full_exploitation) instead of the stale 'strict_passive'.
         (state as any).scanMode = 'active';
         // Also update the DB to keep them in sync
-        await db.updateEngagement(input.engagementId, { scanMode: 'active' } as any);
+        await ctx.engagementDb
+          .update(schema.engagements)
+          .set({ scanMode: 'active' } as any)
+          .where(and(
+            eq(schema.engagements.id, input.engagementId),
+            eq(schema.engagements.engTenantId, ctx.tenant.tenantId),
+          ));
 
         await db.logActivity({ userId: ctx.user.id, action: 'active_scan_started', details: `Started LLM-orchestrated active scan (scan plan \u2192 ScanForge discovery \u2192 tool match \u2192 exploit) for engagement #${input.engagementId}` });
 
@@ -1495,7 +1497,14 @@ export const engagementOpsRouter = router({
           // The executeEnumeration phase will use state.scanPlan for discovery flags
           const { executeEngagement, addLog: addOpsLog, broadcastOpsUpdate: broadcast } = await import('../lib/engagement-orchestrator');
           try {
-            await executeEngagement(input.engagementId, { id: String(ctx.user.id), name: ctx.user.name || undefined }, { startPhase: 'enumeration', scanProfile: input.scanProfile || 'standard' });
+            const freshEngagement = await getEngagementForTenant(ctx.engagementDb, input.engagementId, ctx.tenant.tenantId);
+            await assertLiveEngagementExecutionAllowed(ctx.engagementDb);
+            assertActiveEngagementAuthorization(freshEngagement);
+            await executeEngagement(input.engagementId, { id: String(ctx.user.id), name: ctx.user.name || undefined }, {
+              startPhase: 'enumeration',
+              scanProfile: input.scanProfile || 'standard',
+              expectedTenantId: ctx.tenant.tenantId,
+            });
           } catch (execErr: any) {
             console.error('[EngOps] executeEngagement crashed:', execErr.message);
             if (state) {
@@ -1520,7 +1529,7 @@ export const engagementOpsRouter = router({
       }),
 
     /** Load matching exploits (Metasploit + ZAP rules) for discovered vulns */
-    loadExploits: protectedProcedure
+    loadExploits: tenantEngagementProcedure
       .input(z.object({ engagementId: z.number() }))
       .query(async ({ input }) => {
         const { getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
@@ -1615,7 +1624,7 @@ export const engagementOpsRouter = router({
         return { exploits: exploitMatches, totalVulns: allVulns.length };
       }),
     // ─── Scan Results ──────────────────────────────────────────────────
-    scanResults: protectedProcedure
+    scanResults: tenantEngagementProcedure
       .input(z.object({ engagementId: z.number(), tool: z.string().optional() }))
       .query(async ({ input }) => {
         if (input.tool) {
@@ -1624,14 +1633,14 @@ export const engagementOpsRouter = router({
         return db.getScanResultsByEngagement(input.engagementId);
       }),
 
-    scanResultsSummary: protectedProcedure
+    scanResultsSummary: tenantEngagementProcedure
       .input(z.object({ engagementId: z.number() }))
       .query(async ({ input }) => {
         return db.getScanResultsSummary(input.engagementId);
       }),
 
     /** Get specialized vulnerability analysis results */
-    getVulnAnalysis: protectedProcedure
+    getVulnAnalysis: tenantEngagementProcedure
       .input(z.object({ engagementId: z.number() }))
       .query(async ({ input }) => {
         const { getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
@@ -1665,7 +1674,7 @@ export const engagementOpsRouter = router({
       }),
 
     /** Run on-demand vulnerability analysis for a specific engagement */
-    runVulnAnalysis: protectedProcedure
+    runVulnAnalysis: tenantEngagementProcedure
       .input(z.object({ engagementId: z.number() }))
       .mutation(async ({ input }) => {
         const { getOpsState, getOpsStateWithRecovery, addLog, broadcastOpsUpdate } = await import('../lib/engagement-orchestrator');
@@ -1744,7 +1753,7 @@ export const engagementOpsRouter = router({
       }),
 
     /** Get attack chains generated for an engagement */
-    getAttackChains: protectedProcedure
+    getAttackChains: tenantEngagementProcedure
       .input(z.object({ engagementId: z.number() }))
       .query(async ({ input }) => {
         const { getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
@@ -1791,7 +1800,7 @@ export const engagementOpsRouter = router({
       }),
 
     /** Get cloud misconfiguration findings for an engagement */
-    getCloudMisconfigs: protectedProcedure
+    getCloudMisconfigs: tenantEngagementProcedure
       .input(z.object({ engagementId: z.number() }))
       .query(async ({ input }) => {
         const { getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
@@ -1825,7 +1834,7 @@ export const engagementOpsRouter = router({
       }),
 
     /** Get LLM scan feedback loop state for an engagement */
-    getFeedbackLoopState: protectedProcedure
+    getFeedbackLoopState: tenantEngagementProcedure
       .input(z.object({ engagementId: z.number() }))
       .query(async ({ input }) => {
         const { getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
@@ -1856,7 +1865,7 @@ export const engagementOpsRouter = router({
       }),
 
     /** Get exploit plan history for an engagement */
-    getExploitPlanHistory: protectedProcedure
+    getExploitPlanHistory: tenantEngagementProcedure
       .input(z.object({ engagementId: z.number() }))
       .query(async ({ input }) => {
         const history = await db.getExploitPlanHistoryByEngagement(input.engagementId);
@@ -1880,10 +1889,10 @@ export const engagementOpsRouter = router({
         }));
       }),
 
-    /** Get exploit plan stats across all engagements */
-    getExploitPlanStats: protectedProcedure
-      .query(async () => {
-        return db.getExploitPlanStats();
+    /** Get exploit plan stats across the active tenant's engagements */
+    getExploitPlanStats: tenantProcedure
+      .query(async ({ ctx }) => {
+        return db.getExploitPlanStats(ctx.tenant.tenantId);
       }),
 
     /** Get a printable exploit plan for client confirmation.
@@ -1891,11 +1900,10 @@ export const engagementOpsRouter = router({
      * Includes engagement details, targets, planned exploits, risk tiers, CVEs,
      * and potential impact descriptions for each exploit.
      */
-    getExploitPlanPrintable: protectedProcedure
+    getExploitPlanPrintable: tenantEngagementProcedure
       .input(z.object({ engagementId: z.number() }))
-      .query(async ({ input }) => {
-        const engagement = await db.getEngagementById(input.engagementId);
-        if (!engagement) throw new Error('Engagement not found');
+      .query(async ({ input, ctx }) => {
+        const engagement = ctx.engagement;
 
         // Get the latest exploit plan from history
         const history = await db.getExploitPlanHistoryByEngagement(input.engagementId);
@@ -1948,7 +1956,7 @@ export const engagementOpsRouter = router({
       }),
 
     /** Re-run the full scan pipeline: passive → LLM analysis → active → LLM feedback → exploit generation */
-    rerunFullPipeline: protectedProcedure
+    rerunFullPipeline: tenantEngagementProcedure
       .input(z.object({
         engagementId: z.number(),
         phases: z.object({
@@ -1975,6 +1983,13 @@ export const engagementOpsRouter = router({
         }).optional(),
       }))
       .mutation(async ({ input, ctx }) => {
+        const requiresActiveExecution = input.phases.active || input.phases.exploitGeneration;
+        if (requiresActiveExecution) {
+          const { assertLiveEngagementExecutionAllowed } = await import('../lib/live-engagement-execution-gate');
+          await assertLiveEngagementExecutionAllowed(ctx.engagementDb);
+          assertActiveEngagementAuthorization(ctx.engagement);
+        }
+        const engagement = ctx.engagement;
         const {
           getOpsState, getOpsStateWithRecovery, initOpsState, broadcastOpsUpdate, addLog, persistOpsStateNow
         } = await import('../lib/engagement-orchestrator');
@@ -1982,8 +1997,6 @@ export const engagementOpsRouter = router({
         let state = getOpsState(input.engagementId);
         if (!state) state = await getOpsStateWithRecovery(input.engagementId);
         if (!state || input.resetState) {
-          const engagement = await db.getEngagementById(input.engagementId);
-          if (!engagement) throw new TRPCError({ code: 'NOT_FOUND', message: 'Engagement not found' });
           state = initOpsState(input.engagementId, engagement.engagementType || 'pentest');
         }
 
@@ -2078,8 +2091,8 @@ export const engagementOpsRouter = router({
         }
 
         // ── Clear corresponding DB tables based on resetScope ──
-        const dbConn = await db.getDb();
-        if (dbConn) {
+        const dbConn = ctx.engagementDb;
+        {
           const eid = input.engagementId;
           const cleared: Record<string, number> = {};
 
@@ -2157,8 +2170,12 @@ export const engagementOpsRouter = router({
         // Run pipeline asynchronously
         (async () => {
           try {
-            const engagement = await db.getEngagementById(input.engagementId);
-            if (!engagement) throw new Error('Engagement not found');
+            const engagement = await getEngagementForTenant(ctx.engagementDb, input.engagementId, ctx.tenant.tenantId);
+            if (requiresActiveExecution) {
+              const { assertLiveEngagementExecutionAllowed } = await import('../lib/live-engagement-execution-gate');
+              await assertLiveEngagementExecutionAllowed(ctx.engagementDb);
+              assertActiveEngagementAuthorization(engagement);
+            }
             const domains = (engagement.targetDomain || '').split(/[,;\s]+/).filter(Boolean);
             const ipRanges = (engagement.targetIpRange || '').split(/[,;\s]+/).filter(Boolean);
 
@@ -2169,7 +2186,7 @@ export const engagementOpsRouter = router({
             state!.roeScopeGuard = {
               authorizedDomains: [...domains],
               authorizedIps: [...ipRanges],
-              roeStatus: (engagement as any).roeStatus || (engagement as any).roe_status || 'signed',
+              roeStatus: (engagement as any).roeStatus || (engagement as any).roe_status || 'none',
             };
             // Also add IP:port variants for assets that use port-based hostnames
             for (const ip of ipRanges) {
@@ -2496,6 +2513,10 @@ export const engagementOpsRouter = router({
 
             // Phase 3: Active Scanning (uses handoff plan when available, falls back to defaults)
             if (input.phases.active) {
+              const activeEngagement = await getEngagementForTenant(ctx.engagementDb, input.engagementId, ctx.tenant.tenantId);
+              const { assertLiveEngagementExecutionAllowed } = await import('../lib/live-engagement-execution-gate');
+              await assertLiveEngagementExecutionAllowed(ctx.engagementDb);
+              assertActiveEngagementAuthorization(activeEngagement);
               state!.phase = 'scanning';
               state!.currentAction = 'Running active scans...';
               broadcastOpsUpdate(input.engagementId, { type: 'phase_change', phase: 'scanning' });
@@ -3010,7 +3031,7 @@ export const engagementOpsRouter = router({
                 const { executeVulnDetection } = await import('../lib/engagement-orchestrator');
                 addLog(state!, { phase: 'scanning', type: 'info', title: '🛡️ ZAP + Burp Vulnerability Scanning', detail: 'Running OWASP ZAP web app scans and Burp Suite scanning pipeline...' });
                 broadcastOpsUpdate(input.engagementId, { type: 'phase_change', phase: 'vuln_detection' });
-                await executeVulnDetection(state!, engagement, { id: String(ctx.user.id), name: ctx.user.name || undefined });
+                await executeVulnDetection(state!, activeEngagement, { id: String(ctx.user.id), name: ctx.user.name || undefined });
                 addLog(state!, { phase: 'scanning', type: 'success', title: '✅ ZAP + Burp Scanning Complete', detail: `${state!.stats.zapScansRun} ZAP scans run, ${state!.stats.vulnsFound} total vulns found` });
                 // Restore phase to 'scanning' for the rest of the rerunFullPipeline flow
                 state!.phase = 'scanning';
@@ -3334,6 +3355,10 @@ Return ONLY a JSON object with vulnerabilities array. No markdown, no explanatio
 
             // Phase 4: Intelligent Exploit Orchestration (MSF → RAG Custom → Retry-with-Reasoning)
             if (input.phases.exploitGeneration) {
+              const exploitationEngagement = await getEngagementForTenant(ctx.engagementDb, input.engagementId, ctx.tenant.tenantId);
+              const { assertLiveEngagementExecutionAllowed } = await import('../lib/live-engagement-execution-gate');
+              await assertLiveEngagementExecutionAllowed(ctx.engagementDb);
+              assertActiveEngagementAuthorization(exploitationEngagement);
               state!.phase = 'exploitation';
               state!.currentAction = 'Orchestrating intelligent exploit pipeline...';
               broadcastOpsUpdate(input.engagementId, { type: 'phase_change', phase: 'exploitation' });
@@ -4175,7 +4200,7 @@ Return ONLY a JSON object with vulnerabilities array. No markdown, no explanatio
       }),
 
     /** Generate a functional exploit script for a specific vulnerability */
-    generateFunctionalExploit: protectedProcedure
+    generateFunctionalExploit: tenantEngagementProcedure
       .input(z.object({
         engagementId: z.number(),
         assetHostname: z.string(),
@@ -4214,7 +4239,7 @@ Return ONLY a JSON object with vulnerabilities array. No markdown, no explanatio
       }),
 
     /** Validate a generated exploit script */
-    validateExploit: protectedProcedure
+    validateExploit: tenantEngagementProcedure
       .input(z.object({ engagementId: z.number(), exploitIndex: z.number() }))
       .mutation(async ({ input }) => {
         const { getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
@@ -4233,7 +4258,7 @@ Return ONLY a JSON object with vulnerabilities array. No markdown, no explanatio
       }),
 
     /** Improve an exploit based on validation feedback */
-    improveExploit: protectedProcedure
+    improveExploit: tenantEngagementProcedure
       .input(z.object({ engagementId: z.number(), exploitIndex: z.number() }))
       .mutation(async ({ input }) => {
         const { getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
@@ -4256,7 +4281,7 @@ Return ONLY a JSON object with vulnerabilities array. No markdown, no explanatio
       }),
 
     /** Get all generated exploits for an engagement */
-    getGeneratedExploits: protectedProcedure
+    getGeneratedExploits: tenantEngagementProcedure
       .input(z.object({ engagementId: z.number() }))
       .query(async ({ input }) => {
         const { getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
@@ -4271,7 +4296,7 @@ Return ONLY a JSON object with vulnerabilities array. No markdown, no explanatio
       }),
 
     /** Get full exploit details including code */
-    getExploitDetail: protectedProcedure
+    getExploitDetail: tenantEngagementProcedure
       .input(z.object({ engagementId: z.number(), exploitIndex: z.number() }))
       .query(async ({ input }) => {
         const { getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
@@ -4282,7 +4307,7 @@ Return ONLY a JSON object with vulnerabilities array. No markdown, no explanatio
         return exploits[input.exploitIndex];
       }),
     /** Get the LLM Exploit Validation Analyst audit trail for an engagement */
-    getExploitValidationAuditTrail: protectedProcedure
+    getExploitValidationAuditTrail: tenantEngagementProcedure
       .input(z.object({ engagementId: z.number() }))
       .query(async ({ input }) => {
         const { getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
@@ -4297,7 +4322,7 @@ Return ONLY a JSON object with vulnerabilities array. No markdown, no explanatio
       }),
 
     /** Re-synthesize vulnerabilities for a specific asset, optionally targeting specific categories */
-    resynthesizeAssetVulns: protectedProcedure
+    resynthesizeAssetVulns: tenantEngagementProcedure
       .input(z.object({
         engagementId: z.number(),
         hostname: z.string(),
@@ -4483,7 +4508,7 @@ Return ONLY a JSON object with vulnerabilities array.`;
       }),
 
     /** Execute an exploit script in a sandboxed environment on the scan server */
-    executeExploit: protectedProcedure
+    executeExploit: tenantEngagementProcedure
       .input(z.object({
         engagementId: z.number(),
         exploitIndex: z.number(),
@@ -4492,7 +4517,10 @@ Return ONLY a JSON object with vulnerabilities array.`;
         timeoutSeconds: z.number().min(5).max(120).default(60),
         dryRun: z.boolean().default(true),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        const { assertLiveEngagementExecutionAllowed } = await import('../lib/live-engagement-execution-gate');
+        await assertLiveEngagementExecutionAllowed(ctx.engagementDb);
+        assertActiveEngagementAuthorization(ctx.engagement);
         const { getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
         const { executeExploit } = await import('../lib/exploit-sandbox');
         let state = getOpsState(input.engagementId);
@@ -4500,11 +4528,13 @@ Return ONLY a JSON object with vulnerabilities array.`;
         const exploits = (state as any)?.generatedExploits;
         if (!exploits?.[input.exploitIndex]) throw new TRPCError({ code: 'NOT_FOUND', message: 'Exploit not found' });
         const entry = exploits[input.exploitIndex];
+        const executionTarget = input.targetHost || entry.asset;
+        assertTargetWithinEngagementScope(ctx.engagement, executionTarget);
         return executeExploit(input.engagementId, {
           exploitId: `${input.engagementId}_${input.exploitIndex}`,
           code: entry.exploit.code,
           language: entry.exploit.language || 'python',
-          targetHost: input.targetHost || entry.asset,
+          targetHost: executionTarget,
           targetPort: input.targetPort,
           timeoutSeconds: input.timeoutSeconds,
           dryRun: input.dryRun,
@@ -4512,7 +4542,7 @@ Return ONLY a JSON object with vulnerabilities array.`;
       }),
 
     /** Get exploit execution history for an engagement */
-    getExploitExecutionHistory: protectedProcedure
+    getExploitExecutionHistory: tenantEngagementProcedure
       .input(z.object({ engagementId: z.number() }))
       .query(async ({ input }) => {
         const { getExecutionHistory } = await import('../lib/exploit-sandbox');
@@ -4531,7 +4561,7 @@ Return ONLY a JSON object with vulnerabilities array.`;
       }),
 
     /** Get exploitation evidence from DB for an engagement (for customer triage) */
-    getExploitEvidence: protectedProcedure
+    getExploitEvidence: tenantEngagementProcedure
       .input(z.object({ engagementId: z.number() }))
       .query(async ({ input }) => {
         const { getExploitationAttempts, getExploitationStats } = await import('../db');
@@ -4543,17 +4573,21 @@ Return ONLY a JSON object with vulnerabilities array.`;
       }),
 
     /** Get a single exploitation attempt with full evidence */
-    getExploitAttemptDetail: protectedProcedure
-      .input(z.object({ attemptId: z.number() }))
+    getExploitAttemptDetail: tenantEngagementProcedure
+      .input(z.object({ engagementId: z.number(), attemptId: z.number() }))
       .query(async ({ input }) => {
         const { getExploitationAttemptById } = await import('../db');
-        return getExploitationAttemptById(input.attemptId);
+        const attempt = await getExploitationAttemptById(input.attemptId);
+        if (!attempt || Number((attempt as any).engagementId) !== input.engagementId) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'Exploitation attempt not found' });
+        }
+        return attempt;
       }),
 
     // ── Vulnerability Trend Tracking ──
 
     /** Get vulnerability trend data for an engagement */
-    getVulnTrend: protectedProcedure
+    getVulnTrend: tenantEngagementProcedure
       .input(z.object({ engagementId: z.number() }))
       .query(async ({ input }) => {
         const { getVulnTrend } = await import('../lib/vuln-trend-tracker');
@@ -4561,7 +4595,7 @@ Return ONLY a JSON object with vulnerabilities array.`;
       }),
 
     /** Get vulnerability diff between two snapshots */
-    getVulnDiff: protectedProcedure
+    getVulnDiff: tenantEngagementProcedure
       .input(z.object({
         engagementId: z.number(),
         fromSnapshotId: z.number(),
@@ -4573,14 +4607,18 @@ Return ONLY a JSON object with vulnerabilities array.`;
       }),
 
     /** Run a command on the scan server terminal for manual pentesting */
-    runTerminalCommand: protectedProcedure
+    runTerminalCommand: tenantEngagementProcedure
       .input(z.object({
         engagementId: z.number(),
         command: z.string().min(1).max(2000),
-        targetHost: z.string().optional(),
+        targetHost: z.string().min(1),
         timeoutSeconds: z.number().min(5).max(300).default(120),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        const { assertLiveEngagementExecutionAllowed } = await import('../lib/live-engagement-execution-gate');
+        await assertLiveEngagementExecutionAllowed(ctx.engagementDb);
+        assertActiveEngagementAuthorization(ctx.engagement);
+        assertTargetWithinEngagementScope(ctx.engagement, input.targetHost);
         const { executeRawCommand } = await import('../lib/scan-server-executor');
         const result = await executeRawCommand(input.command, input.timeoutSeconds);
         // Store command in engagement terminal history for evidence
@@ -4610,7 +4648,7 @@ Return ONLY a JSON object with vulnerabilities array.`;
       }),
 
     /** Get terminal command history for an engagement (for evidence) */
-    getTerminalHistory: protectedProcedure
+    getTerminalHistory: tenantEngagementProcedure
       .input(z.object({ engagementId: z.number() }))
       .query(async ({ input }) => {
         const historyKey = `terminal_${input.engagementId}`;
@@ -4619,7 +4657,7 @@ Return ONLY a JSON object with vulnerabilities array.`;
       }),
 
     /** Manually record a scan snapshot for trend tracking */
-    recordScanSnapshot: protectedProcedure
+    recordScanSnapshot: tenantEngagementProcedure
       .input(z.object({ engagementId: z.number() }))
       .mutation(async ({ input }) => {
         const { recordScanSnapshot } = await import('../lib/vuln-trend-tracker');
@@ -4645,7 +4683,7 @@ Return ONLY a JSON object with vulnerabilities array.`;
     // ─── Credential Harvester Integration ────────────────────────────────
 
     /** Get all harvested credentials for an engagement */
-    getHarvestedCredentials: protectedProcedure
+    getHarvestedCredentials: tenantEngagementProcedure
       .input(z.object({ engagementId: z.number() }))
       .query(async ({ input }) => {
         const { getEngagementCredentials } = await import('../lib/credential-harvester');
@@ -4653,7 +4691,7 @@ Return ONLY a JSON object with vulnerabilities array.`;
       }),
 
     /** Manually trigger credential harvesting from existing breach data + stored observations */
-    harvestCredentials: protectedProcedure
+    harvestCredentials: tenantEngagementProcedure
       .input(z.object({
         engagementId: z.number(),
         domain: z.string().min(1),
@@ -4690,7 +4728,7 @@ Return ONLY a JSON object with vulnerabilities array.`;
       }),
 
     /** Add manually entered credentials to the engagement list */
-    addManualCredentials: protectedProcedure
+    addManualCredentials: tenantEngagementProcedure
       .input(z.object({
         engagementId: z.number(),
         credentials: z.array(z.object({
@@ -4706,17 +4744,30 @@ Return ONLY a JSON object with vulnerabilities array.`;
       }),
 
     /** Run domain-specific darkweb intelligence sync (IntelX, Hudson Rock, LeakCheck) */
-    runDarkwebCredentialSync: protectedProcedure
-      .input(z.object({ domain: z.string().min(1) }))
-      .mutation(async ({ input }) => {
-        const { runDomainDarkwebSync } = await import('../lib/darkweb-osint-service');
-        return runDomainDarkwebSync(input.domain);
+    runDarkwebCredentialSync: tenantEngagementProcedure
+      .input(z.object({ engagementId: z.number(), domain: z.string().min(1) }))
+      .mutation(async ({ input, ctx }) => {
+        assertTargetWithinEngagementScope(ctx.engagement, input.domain);
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message: 'Domain-specific dark-web sync is disabled until all result tables enforce tenant ownership.',
+        });
       }),
 
     /** Batch get live ops status for multiple engagements — used by the engagement list page */
-    batchGetLiveStatus: protectedProcedure
+    batchGetLiveStatus: tenantProcedure
       .input(z.object({ engagementIds: z.array(z.number()).max(50) }))
-      .query(async ({ input }) => {
+      .query(async ({ input, ctx }) => {
+        if (input.engagementIds.length === 0) return {};
+        const dbConn = await db.getDb();
+        if (!dbConn) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database unavailable' });
+        const allowed = await dbConn
+          .select({ id: schema.engagements.id })
+          .from(schema.engagements)
+          .where(and(
+            inArray(schema.engagements.id, input.engagementIds),
+            eq(schema.engagements.engTenantId, ctx.tenant.tenantId),
+          ));
         const { getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
         const results: Record<number, {
           isRunning: boolean;
@@ -4730,7 +4781,7 @@ Return ONLY a JSON object with vulnerabilities array.`;
           lastLogTime: number | null;
           startedAt: number | null;
         }> = {};
-        for (const id of input.engagementIds) {
+        for (const { id } of allowed) {
           let state = getOpsState(id);
           if (!state) state = await getOpsStateWithRecovery(id);
           if (state) {
@@ -4764,7 +4815,7 @@ Return ONLY a JSON object with vulnerabilities array.`;
     return getSuppressionRuleSummary();
   }),
 
-  applySuppressionToEngagement: protectedProcedure
+  applySuppressionToEngagement: tenantEngagementProcedure
     .input(z.object({
       engagementId: z.number(),
       profileName: z.string().default('balanced'),
@@ -4791,7 +4842,7 @@ Return ONLY a JSON object with vulnerabilities array.`;
       return result.stats;
     }),
 
-  getSuppressionStats: protectedProcedure
+  getSuppressionStats: tenantEngagementProcedure
     .input(z.object({ engagementId: z.number() }))
     .query(async ({ input }) => {
       const { getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
@@ -4809,24 +4860,24 @@ Return ONLY a JSON object with vulnerabilities array.`;
   // ─── Auto-Resume Management ───────────────────────────────────────────────
 
   /** Toggle auto-resume on restart for an engagement */
-  setAutoResume: protectedProcedure
+  setAutoResume: tenantEngagementProcedure
     .input(z.object({ engagementId: z.number(), enabled: z.boolean() }))
     .mutation(async ({ input, ctx }) => {
-      const dbConn = await db.getDbRequired();
-      await dbConn.update(schema.engagements)
+      await ctx.engagementDb.update(schema.engagements)
         .set({ autoResumeOnRestart: input.enabled ? 1 : 0 })
-        .where(sql`id = ${input.engagementId}`);
+        .where(and(
+          eq(schema.engagements.id, input.engagementId),
+          eq(schema.engagements.engTenantId, ctx.tenant.tenantId),
+        ));
       await db.logActivity({ userId: ctx.user.id, action: 'set_auto_resume', details: `Set auto-resume=${input.enabled} for engagement #${input.engagementId}` });
       return { success: true, enabled: input.enabled };
     }),
 
   /** Get auto-resume status for an engagement */
-  getAutoResumeStatus: protectedProcedure
+  getAutoResumeStatus: tenantEngagementProcedure
     .input(z.object({ engagementId: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const dbConn = await db.getDbRequired();
-      const [eng] = await dbConn.select({ autoResumeOnRestart: schema.engagements.autoResumeOnRestart })
-        .from(schema.engagements).where(sql`id = ${input.engagementId}`).limit(1);
       const [snap] = await dbConn.select({
         interruptCount: schema.engagementOpsSnapshots.interruptCount,
         lastInterruptedAt: schema.engagementOpsSnapshots.lastInterruptedAt,
@@ -4837,7 +4888,7 @@ Return ONLY a JSON object with vulnerabilities array.`;
       const lastInterruptedAt = snap?.lastInterruptedAt ? new Date(snap.lastInterruptedAt).getTime() : 0;
       const crashLoopBlocked = interruptCount >= 3 && lastInterruptedAt > (Date.now() - 24 * 60 * 60 * 1000);
       return {
-        enabled: eng?.autoResumeOnRestart === 1,
+        enabled: ctx.engagement.autoResumeOnRestart === 1,
         interruptCount,
         crashLoopBlocked,
         lastInterruptedAt: snap?.lastInterruptedAt || null,
@@ -4845,7 +4896,7 @@ Return ONLY a JSON object with vulnerabilities array.`;
     }),
 
   /** Cancel a scheduled auto-resume */
-  cancelAutoResume: protectedProcedure
+  cancelAutoResume: tenantEngagementProcedure
     .input(z.object({ engagementId: z.number() }))
     .mutation(async ({ input, ctx }) => {
       const { cancelAutoResume } = await import('../lib/engagement-auto-resume');
@@ -4857,7 +4908,7 @@ Return ONLY a JSON object with vulnerabilities array.`;
     }),
 
   /** Reset the crash-loop interrupt counter */
-  resetInterruptCounter: protectedProcedure
+  resetInterruptCounter: tenantEngagementProcedure
     .input(z.object({ engagementId: z.number() }))
     .mutation(async ({ input, ctx }) => {
       const { resetInterruptCounter } = await import('../lib/engagement-auto-resume');
@@ -4869,14 +4920,22 @@ Return ONLY a JSON object with vulnerabilities array.`;
     }),
 
   /** Get all interrupted engagements detected at startup */
-  getInterruptedEngagements: protectedProcedure
-    .query(async () => {
+  getInterruptedEngagements: tenantProcedure
+    .query(async ({ ctx }) => {
       const { getDetectedInterruptions } = await import('../lib/engagement-auto-resume');
-      return getDetectedInterruptions();
+      const interruptions = getDetectedInterruptions();
+      const dbConn = await db.getDb();
+      if (!dbConn) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database unavailable' });
+      const allowedIds = new Set(await filterEngagementIdsForTenant(
+        dbConn,
+        interruptions.map((interruption: any) => Number(interruption.engagementId)).filter(Number.isSafeInteger),
+        ctx.tenant.tenantId,
+      ));
+      return interruptions.filter((interruption: any) => allowedIds.has(Number(interruption.engagementId)));
     }),
 
   /** Get target profiles (WAF/CDN/topology/fingerprint/evasion) for an engagement */
-  getTargetProfiles: protectedProcedure
+  getTargetProfiles: tenantEngagementProcedure
     .input(z.object({ engagementId: z.number() }))
     .query(async ({ input }) => {
       const { getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
@@ -4951,7 +5010,7 @@ Return ONLY a JSON object with vulnerabilities array.`;
     }),
 
   /** Escalate evasion profile for a target when blocked */
-  escalateEvasion: protectedProcedure
+  escalateEvasion: tenantEngagementProcedure
     .input(z.object({
       engagementId: z.number(),
       hostname: z.string(),
@@ -4996,7 +5055,7 @@ Return ONLY a JSON object with vulnerabilities array.`;
     }),
 
   /** Get evasion escalation history for an engagement */
-  getEvasionHistory: protectedProcedure
+  getEvasionHistory: tenantEngagementProcedure
     .input(z.object({ engagementId: z.number() }))
     .query(async ({ input }) => {
       const { getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
@@ -5016,7 +5075,7 @@ Return ONLY a JSON object with vulnerabilities array.`;
   // ═══ MANUAL FINDINGS UPLOAD ═══
 
   /** Submit a new manual finding */
-  submitManualFinding: protectedProcedure
+  submitManualFinding: tenantEngagementProcedure
     .input(z.object({
       engagementId: z.number(),
       asset: z.string(),
@@ -5122,7 +5181,7 @@ Return ONLY a JSON object with vulnerabilities array.`;
     }),
 
   /** List all manual findings for an engagement */
-  listManualFindings: protectedProcedure
+  listManualFindings: tenantEngagementProcedure
     .input(z.object({ engagementId: z.number() }))
     .query(async ({ input }) => {
       const { getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
@@ -5132,7 +5191,7 @@ Return ONLY a JSON object with vulnerabilities array.`;
     }),
 
   /** Update a manual finding */
-  updateManualFinding: protectedProcedure
+  updateManualFinding: tenantEngagementProcedure
     .input(z.object({
       engagementId: z.number(),
       findingId: z.string(),
@@ -5178,7 +5237,7 @@ Return ONLY a JSON object with vulnerabilities array.`;
     }),
 
   /** Delete a manual finding */
-  deleteManualFinding: protectedProcedure
+  deleteManualFinding: tenantEngagementProcedure
     .input(z.object({ engagementId: z.number(), findingId: z.string() }))
     .mutation(async ({ input }) => {
       const { getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
@@ -5200,7 +5259,7 @@ Return ONLY a JSON object with vulnerabilities array.`;
     }),
 
   /** Upload evidence file for a manual finding */
-  uploadManualEvidence: protectedProcedure
+  uploadManualEvidence: tenantEngagementProcedure
     .input(z.object({
       engagementId: z.number(),
       findingId: z.string(),
@@ -5260,7 +5319,7 @@ Return ONLY a JSON object with vulnerabilities array.`;
     }),
 
   /** Add inline text evidence (terminal output, HTTP req/res, exploit code, notes) */
-  addTextEvidence: protectedProcedure
+  addTextEvidence: tenantEngagementProcedure
     .input(z.object({
       engagementId: z.number(),
       findingId: z.string(),
@@ -5294,7 +5353,7 @@ Return ONLY a JSON object with vulnerabilities array.`;
     }),
 
   /** Delete evidence from a manual finding */
-  deleteManualEvidence: protectedProcedure
+  deleteManualEvidence: tenantEngagementProcedure
     .input(z.object({
       engagementId: z.number(),
       findingId: z.string(),
@@ -5315,24 +5374,20 @@ Return ONLY a JSON object with vulnerabilities array.`;
     }),
 
   /** Provision a buildable asset (clone, build, deploy to Docker on scan server) */
-  provisionAsset: protectedProcedure
+  provisionAsset: tenantEngagementProcedure
     .input(z.object({
       engagementId: z.number(),
       assetIndex: z.number().optional(),
       repoUrl: z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const dbConn = await db.getDb();
-      if (dbConn) await assertEngagementAccess(dbConn, input.engagementId, ctx.user);
-
       const { getOpsState, getOpsStateWithRecovery, addLog, broadcastOpsUpdate } = await import('../lib/engagement-orchestrator');
       let state = getOpsState(input.engagementId);
       if (!state) state = await getOpsStateWithRecovery(input.engagementId);
       if (!state) throw new Error('Engagement ops state not found');
 
       // Get build requirements from ROE scope
-      const engagement = await db.getEngagementById(input.engagementId);
-      if (!engagement) throw new Error('Engagement not found');
+      const engagement = ctx.engagement;
       let roeData: any = {};
       try { roeData = JSON.parse(engagement.roeScope || '{}'); } catch {}
       const buildReqs = roeData.buildRequirements || [];
@@ -5425,16 +5480,18 @@ Return ONLY a JSON object with vulnerabilities array.`;
     }),
 
     /** Re-scan a specific asset with a deeper Gobuster profile (Quick → Standard → Deep) */
-    rescanWithDeeperProfile: protectedProcedure
+    rescanWithDeeperProfile: tenantEngagementProcedure
       .input(z.object({
         engagementId: z.number(),
         assetHostname: z.string().min(1),
         targetProfile: z.enum(['quick', 'standard', 'deep']).optional(),
-      }))
-      .mutation(async ({ input, ctx }) => {
-        const dbConn = await db.getDb();
-        if (dbConn) await assertEngagementAccess(dbConn, input.engagementId, ctx.user);
-        const { rescanAssetWithDeeperProfile } = await import('../lib/engagement-orchestrator');
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const { assertLiveEngagementExecutionAllowed } = await import('../lib/live-engagement-execution-gate');
+      await assertLiveEngagementExecutionAllowed(ctx.engagementDb);
+      assertActiveEngagementAuthorization(ctx.engagement);
+      assertTargetWithinEngagementScope(ctx.engagement, input.assetHostname);
+      const { rescanAssetWithDeeperProfile } = await import('../lib/engagement-orchestrator');
         const result = await rescanAssetWithDeeperProfile(
           input.engagementId,
           input.assetHostname,
@@ -5455,19 +5512,22 @@ Return ONLY a JSON object with vulnerabilities array.`;
       }),
 
     /** Scan specific selected assets within an engagement (targeted re-scan) */
-    scanSelectedAssets: protectedProcedure
+    scanSelectedAssets: tenantEngagementProcedure
       .input(z.object({
         engagementId: z.number(),
         assetHostnames: z.array(z.string().min(1)).min(1).max(20),
         scanProfile: z.enum(['quick', 'standard', 'deep']).optional(),
         includeVulnDetection: z.boolean().optional(),
-      }))
-      .mutation(async ({ input, ctx }) => {
-        const engagement = await db.getEngagementById(input.engagementId);
-        if (!engagement) throw new TRPCError({ code: 'NOT_FOUND', message: 'Engagement not found' });
-        const dbConn = await db.getDb();
-        if (dbConn) await assertEngagementAccess(dbConn, input.engagementId, ctx.user);
-        const { getOpsState, getOpsStateWithRecovery, initOpsState, addLog: addOpsLog, broadcastOpsUpdate } = await import('../lib/engagement-orchestrator');
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const { assertLiveEngagementExecutionAllowed } = await import('../lib/live-engagement-execution-gate');
+      await assertLiveEngagementExecutionAllowed(ctx.engagementDb);
+      const engagement = ctx.engagement;
+      assertActiveEngagementAuthorization(engagement);
+      for (const targetHost of input.assetHostnames) {
+        assertTargetWithinEngagementScope(engagement, targetHost);
+      }
+      const { getOpsState, getOpsStateWithRecovery, initOpsState, addLog: addOpsLog, broadcastOpsUpdate } = await import('../lib/engagement-orchestrator');
         let state = getOpsState(input.engagementId);
         if (!state) state = await getOpsStateWithRecovery(input.engagementId);
         if (!state) state = initOpsState(input.engagementId, engagement.engagementType);
@@ -5494,6 +5554,9 @@ Return ONLY a JSON object with vulnerabilities array.`;
         const stateRef = state;
         (async () => {
           try {
+            const freshEngagement = await getEngagementForTenant(ctx.engagementDb, input.engagementId, ctx.tenant.tenantId);
+            await assertLiveEngagementExecutionAllowed(ctx.engagementDb);
+            assertActiveEngagementAuthorization(freshEngagement);
             const { buildEnumerationHelpers, resolveAssetDns, executePortDiscovery, runTargetProfiling, executeTargetedToolDeployment } = await import('../lib/active-enumeration');
             const { getEffectiveTarget } = await import('../lib/engagement-orchestrator');
             const helpers = buildEnumerationHelpers(stateRef);
@@ -5512,7 +5575,7 @@ Return ONLY a JSON object with vulnerabilities array.`;
             // Step 5: Optional vuln detection
             if (input.includeVulnDetection) {
               const { executeVulnDetection } = await import('../lib/engagement-orchestrator');
-              await executeVulnDetection(stateRef, engagement, { id: String(ctx.user.id), name: ctx.user.name || undefined });
+              await executeVulnDetection(stateRef, freshEngagement, { id: String(ctx.user.id), name: ctx.user.name || undefined });
             }
             // Mark assets as scanned
             for (const asset of targetAssets) { asset.status = 'scanned'; }
@@ -5546,7 +5609,7 @@ Return ONLY a JSON object with vulnerabilities array.`;
       }),
 
     /** Get hot path analysis for a specific engagement */
-    getEngagementHotPaths: protectedProcedure
+    getEngagementHotPaths: tenantEngagementProcedure
       .input(z.object({
         engagementId: z.number(),
       }))
@@ -5563,15 +5626,15 @@ Return ONLY a JSON object with vulnerabilities array.`;
         return { available: true as const, reason: null, analysis };
       }),
 
-    /** Get global hot path analysis across all engagements */
-    getGlobalHotPaths: protectedProcedure
+    /** Get hot path analysis across the active tenant's engagements */
+    getGlobalHotPaths: tenantProcedure
       .input(z.object({
         windowHours: z.number().min(1).max(720).default(168),
       }))
-      .query(async ({ input }) => {
+      .query(async ({ input, ctx }) => {
         const { getGlobalLlmTelemetryRaw } = await import('../db');
         const { analyzeHotPaths } = await import('../lib/llm-hot-path-analyzer');
-        const rawTelemetry = await getGlobalLlmTelemetryRaw(input.windowHours);
+        const rawTelemetry = await getGlobalLlmTelemetryRaw(ctx.tenant.tenantId, input.windowHours);
         if (rawTelemetry.length < 10) {
           return { available: false as const, reason: `Only ${rawTelemetry.length} telemetry records in the last ${input.windowHours}h (need >= 10)`, analysis: null };
         }
@@ -5580,14 +5643,14 @@ Return ONLY a JSON object with vulnerabilities array.`;
       }),
 
   /** Get known/confirmed credentials for a target host from credential vault */
-  getKnownCredentials: protectedProcedure
-    .input(z.object({ targetHost: z.string(), engagementId: z.number().optional() }))
+  getKnownCredentials: tenantEngagementProcedure
+    .input(z.object({ targetHost: z.string(), engagementId: z.number() }))
     .query(async ({ input }) => {
       const { getDb } = await import("../db");
-      const { credentialFindings } = await import("../../drizzle/schema");
+      const { credentialFindings, domainIntelScans } = await import("../../drizzle/schema");
       const db = await getDb();
       if (!db) return { credentials: [], sources: [] };
-      const { eq, like, or, desc } = await import("drizzle-orm");
+      const { and, eq, like, or, desc } = await import("drizzle-orm");
 
       // Query credential_findings for the target host (exact match or wildcard)
       const host = input.targetHost.replace(/^https?:\/\//, "").replace(/[\/:].*$/, "");
@@ -5605,12 +5668,18 @@ Return ONLY a JSON object with vulnerabilities array.`;
         tool: credentialFindings.tool,
         discoveredAt: credentialFindings.discoveredAt,
         validationStatus: credentialFindings.validationStatus,
-      }).from(credentialFindings).where(
-        or(
-          eq(credentialFindings.targetHost, host),
-          like(credentialFindings.targetHost, `%${host}%`)
-        )
-      ).orderBy(desc(credentialFindings.discoveredAt)).limit(50);
+      })
+        .from(credentialFindings)
+        .innerJoin(domainIntelScans, eq(credentialFindings.domainIntelScanId, domainIntelScans.id))
+        .where(and(
+          eq(domainIntelScans.engagementId, input.engagementId),
+          or(
+            eq(credentialFindings.targetHost, host),
+            like(credentialFindings.targetHost, `%${host}%`),
+          ),
+        ))
+        .orderBy(desc(credentialFindings.discoveredAt))
+        .limit(50);
 
       // Also get OEM default credentials for known services on this host
       const { getCredentialsForService } = await import("../lib/credential-tester");
@@ -5647,15 +5716,20 @@ Return ONLY a JSON object with vulnerabilities array.`;
     }),
 
   /** Test credentials against a target before running a full pipeline */
-  testCredentials: protectedProcedure
+  testCredentials: tenantEngagementProcedure
     .input(z.object({
+      engagementId: z.number(),
       targetUrl: z.string(),
       username: z.string(),
       password: z.string(),
       authType: z.enum(['form', 'basic', 'bearer', 'cookie']).default('form'),
       loginPath: z.string().optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      const { assertLiveEngagementExecutionAllowed } = await import('../lib/live-engagement-execution-gate');
+      await assertLiveEngagementExecutionAllowed(ctx.engagementDb);
+      assertActiveEngagementAuthorization(ctx.engagement);
+      assertTargetWithinEngagementScope(ctx.engagement, input.targetUrl);
       const startTime = Date.now();
       try {
         const targetUrl = input.targetUrl.startsWith('http') ? input.targetUrl : `http://${input.targetUrl}`;
@@ -5822,7 +5896,7 @@ Return ONLY a JSON object with vulnerabilities array.`;
      *
      * Deduplication is always applied. New findings trigger automatic re-analysis.
      */
-    selectiveRerun: protectedProcedure
+    selectiveRerun: tenantEngagementProcedure
       .input(z.object({
         engagementId: z.number(),
         mode: z.enum(['assets', 'tools', 'phases', 'reanalyze']),
@@ -5838,8 +5912,13 @@ Return ONLY a JSON object with vulnerabilities array.`;
         deduplicateResults: z.boolean().default(true),
       }))
       .mutation(async ({ input, ctx }) => {
-        const dbConn = await db.getDb();
-        if (dbConn) await assertEngagementAccess(dbConn, input.engagementId, ctx.user);
+        const requiresActiveExecution = input.mode !== 'reanalyze';
+        if (requiresActiveExecution) {
+          const { assertLiveEngagementExecutionAllowed } = await import('../lib/live-engagement-execution-gate');
+          await assertLiveEngagementExecutionAllowed(ctx.engagementDb);
+          assertActiveEngagementAuthorization(ctx.engagement);
+        }
+        const dbConn = ctx.engagementDb;
 
         const {
           getOpsState, getOpsStateWithRecovery, addLog, broadcastOpsUpdate,
@@ -5855,8 +5934,7 @@ Return ONLY a JSON object with vulnerabilities array.`;
           throw new TRPCError({ code: 'CONFLICT', message: 'Engagement is currently running. Stop it first.' });
         }
 
-        const engagement = await db.getEngagementById(input.engagementId);
-        if (!engagement) throw new TRPCError({ code: 'NOT_FOUND', message: 'Engagement not found' });
+        const engagement = ctx.engagement;
 
         // ═══ CAPTURE PREVIOUS FINDINGS FOR DEDUP ═══
         const previousVulns = state.assets.flatMap((a: any) => a.vulns || []);
@@ -5889,6 +5967,12 @@ Return ONLY a JSON object with vulnerabilities array.`;
         // Run async to avoid blocking the mutation response
         (async () => {
           try {
+            const freshEngagement = await getEngagementForTenant(ctx.engagementDb, input.engagementId, ctx.tenant.tenantId);
+            if (requiresActiveExecution) {
+              const { assertLiveEngagementExecutionAllowed } = await import('../lib/live-engagement-execution-gate');
+              await assertLiveEngagementExecutionAllowed(ctx.engagementDb);
+              assertActiveEngagementAuthorization(freshEngagement);
+            }
             let newFindingsCount = 0;
 
             if (input.mode === 'reanalyze') {
@@ -5933,7 +6017,7 @@ Return ONLY a JSON object with vulnerabilities array.`;
               // Run vuln detection which handles nuclei + ZAP + Burp
               if (tools.some(t => ['nuclei', 'zap', 'burp'].includes(t))) {
                 try {
-                  await executeVulnDetection(state!, engagement, { id: String(ctx.user.id), name: ctx.user.name || undefined });
+                  await executeVulnDetection(state!, freshEngagement, { id: String(ctx.user.id), name: ctx.user.name || undefined });
                 } catch (e: any) {
                   addLog(state!, { phase: 'scanning', type: 'warning', title: '⚠️ Vuln Detection Error', detail: e.message?.slice(0, 200) });
                 }
@@ -5976,7 +6060,7 @@ Return ONLY a JSON object with vulnerabilities array.`;
 
               // Run vuln detection (will only scan assets not in completedScans)
               try {
-                await executeVulnDetection(state!, engagement, { id: String(ctx.user.id), name: ctx.user.name || undefined });
+                await executeVulnDetection(state!, freshEngagement, { id: String(ctx.user.id), name: ctx.user.name || undefined });
               } catch (e: any) {
                 addLog(state!, { phase: 'scanning', type: 'warning', title: '⚠️ Asset Re-Scan Error', detail: e.message?.slice(0, 200) });
               }
@@ -5991,7 +6075,12 @@ Return ONLY a JSON object with vulnerabilities array.`;
               // Delegate to existing rerunFromPhase logic
               const { rerunFromPhase } = await import('../lib/engagement-orchestrator');
               state!.isRunning = false; // rerunFromPhase checks this
-              await rerunFromPhase(input.engagementId, earliestPhase as any, { id: String(ctx.user.id), name: ctx.user.name || undefined });
+              await rerunFromPhase(
+                input.engagementId,
+                earliestPhase as any,
+                { id: String(ctx.user.id), name: ctx.user.name || undefined },
+                { expectedTenantId: ctx.tenant.tenantId },
+              );
               return; // rerunFromPhase handles everything including state management
             }
 
@@ -6131,7 +6220,7 @@ Return ONLY a JSON object with vulnerabilities array.`;
      * without re-running any scans. Useful when the operator wants fresh analysis
      * after manual edits or external data imports.
      */
-    reanalyzeFindings: protectedProcedure
+    reanalyzeFindings: tenantEngagementProcedure
       .input(z.object({
         engagementId: z.number(),
       }))
@@ -6152,8 +6241,7 @@ Return ONLY a JSON object with vulnerabilities array.`;
           throw new TRPCError({ code: 'CONFLICT', message: 'Engagement is currently running.' });
         }
 
-        const engagement = await db.getEngagementById(input.engagementId);
-        if (!engagement) throw new TRPCError({ code: 'NOT_FOUND', message: 'Engagement not found' });
+        const engagement = ctx.engagement;
 
         state.isRunning = true;
         state.currentAction = 'Running LLM re-analysis...';
@@ -6182,7 +6270,7 @@ Return ONLY a JSON object with vulnerabilities array.`;
       }),
 
     // ═══ RECALCULATE FINDINGS (dedup + FP suppression without re-scanning) ═══
-    recalculateFindings: protectedProcedure
+    recalculateFindings: tenantEngagementProcedure
       .input(z.object({
         engagementId: z.number(),
       }))
@@ -6488,7 +6576,7 @@ Return ONLY a JSON object with vulnerabilities array.`;
       }),
 
     /** Admin: Clear all errored engagements from memory and DB snapshots */
-    clearErroredEngagements: protectedProcedure
+    clearErroredEngagements: adminTenantProcedure
       .input(z.object({
         engagementIds: z.array(z.number()).optional(),
         clearAll: z.boolean().optional(),
@@ -6500,14 +6588,22 @@ Return ONLY a JSON object with vulnerabilities array.`;
           (e: any) => e.phase === 'error'
         );
         
+        const dbConn = await db.getDb();
+        if (!dbConn) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database unavailable' });
+        const tenantErroredIds = await filterEngagementIdsForTenant(
+          dbConn,
+          errored.map((e: any) => e.id),
+          ctx.tenant.tenantId,
+        );
         const targetIds = input?.clearAll
-          ? errored.map((e: any) => e.id)
-          : (input?.engagementIds || errored.map((e: any) => e.id));
+          ? tenantErroredIds
+          : (input?.engagementIds || tenantErroredIds);
+        const tenantTargetIds = await filterEngagementIdsForTenant(dbConn, targetIds, ctx.tenant.tenantId);
         
         const cleared: number[] = [];
         const failed: Array<{ id: number; error: string }> = [];
         
-        for (const engId of targetIds) {
+        for (const engId of tenantTargetIds) {
           try {
             await clearOpsState(engId);
             cleared.push(engId);
@@ -6527,12 +6623,12 @@ Return ONLY a JSON object with vulnerabilities array.`;
           clearedIds: cleared,
           failed: failed.length,
           failedDetails: failed,
-          remainingErrored: errored.length - cleared.length,
+          remainingErrored: Math.max(0, tenantErroredIds.length - cleared.length),
         };
       }),
 
     /** Admin: Clear degraded engagements (stuck at 100% but not completed) */
-    clearDegradedEngagements: protectedProcedure
+    clearDegradedEngagements: adminTenantProcedure
       .input(z.object({
         engagementIds: z.array(z.number()).optional(),
         action: z.enum(['clear', 'complete']).default('clear'),
@@ -6546,10 +6642,13 @@ Return ONLY a JSON object with vulnerabilities array.`;
         
         const targetIds = input?.engagementIds || degraded.map((e: any) => e.id);
         const action = input?.action || 'clear';
+        const dbConn = await db.getDb();
+        if (!dbConn) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database unavailable' });
+        const tenantTargetIds = await filterEngagementIdsForTenant(dbConn, targetIds, ctx.tenant.tenantId);
         const processed: number[] = [];
         const failed: Array<{ id: number; error: string }> = [];
         
-        for (const engId of targetIds) {
+        for (const engId of tenantTargetIds) {
           try {
             if (action === 'clear') {
               await clearOpsState(engId);
