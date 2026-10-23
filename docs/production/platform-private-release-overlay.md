@@ -45,6 +45,18 @@ Keep the ECS roles separate:
 - **Build role:** a dedicated CodeBuild/ECR publication role only. Inspect its
   trust relationship and permissions before use. Do not repurpose an ECS role
   for an image build.
+- **Schema-migration execution role:** a separate role trusted only by
+  `ecs-tasks.amazonaws.com` for one-off provisioning, migration, and
+  verification tasks. It needs ECR pull and CloudWatch Logs delivery plus
+  `secretsmanager:GetSecretValue` only for the managed RDS master secret and
+  the dedicated migration credential, with `kms:Decrypt` limited to their
+  keys. It must have no application task-role permissions. The caller also
+  needs `iam:PassRole` for this role only.
+
+The shared platform execution role was verified to be unable to retrieve the
+managed RDS master secret. Preserve that denial: do **not** add master-secret
+access to the application execution role and do not pass a database password
+through a task override or plaintext environment variable.
 
 ## Dedicated database migration principal
 
